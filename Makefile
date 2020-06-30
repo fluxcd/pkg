@@ -17,5 +17,5 @@ test: tidy fmt vet
 release:
 	git checkout master
 	git pull
-	git tag "v$(VERSION)"
-	git push origin "v$(VERSION)"
+	git tag "v$(VER)"
+	git push origin "v$(VER)"
