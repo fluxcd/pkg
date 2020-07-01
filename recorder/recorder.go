@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -98,6 +99,11 @@ func (er *EventRecorder) Eventf(
 		return fmt.Errorf("faild to get object namespace")
 	}
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+
 	event := Event{
 		InvolvedObject:      object,
 		Severity:            severity,
@@ -106,6 +112,7 @@ func (er *EventRecorder) Eventf(
 		Reason:              reason,
 		Metadata:            metadata,
 		ReportingController: er.ReportingController,
+		ReportingInstance:   hostname,
 	}
 
 	body, err := json.Marshal(event)
