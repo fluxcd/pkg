@@ -1,4 +1,6 @@
-#!/bin/sh -l
+#!/bin/bash
+
+set -eu
 
 VERSION=2.3.1
 

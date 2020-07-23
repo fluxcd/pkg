@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+
+set -eu
 
 kubectl_ver=1.18.3 && \
 curl -sL https://storage.googleapis.com/kubernetes-release/release/v${kubectl_ver}/bin/linux/amd64/kubectl > kubectl

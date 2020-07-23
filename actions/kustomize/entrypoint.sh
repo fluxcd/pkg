@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+
+set -eu
 
 kustomize_ver=3.8.0 && \
 kustomize_url=https://github.com/kubernetes-sigs/kustomize/releases/download && \

@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+
+set -eu
 
 helm_ver=3.2.4 && \
 helm_url=https://get.helm.sh && \
