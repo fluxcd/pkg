@@ -1,21 +1,24 @@
 VER?=0.0.1
+MODULES=$(shell find . -mindepth 2 -maxdepth 2 -type f -name 'go.mod' -printf '%h\n' | cut -c 3- | sort -u)
+targets = $(addprefix test-, $(MODULES))
 
-all: test
+all: $(targets)
 
-tidy:
-	go mod tidy
+tidy-%:
+	cd $*; go mod tidy
 
-fmt:
-	go fmt ./...
+fmt-%:
+	cd $*; go fmt ./...
 
-vet:
-	go vet ./...
+vet-%:
+	cd $*; go vet ./...
 
-test: tidy fmt vet
-	go test ./... -coverprofile cover.out
+test-%: tidy-% fmt-% vet-%
+	cd $*; go test ./... -coverprofile cover.out
 
-release:
+release-%:
+	@if ! test -f $*/go.mod; then echo "Missing ./$*/go.mod, terminating release process"; exit 1; fi
 	git checkout master
 	git pull
-	git tag "v$(VER)"
-	git push origin "v$(VER)"
+	git tag "$*/v$(VER)"
+	git push origin "$*/v$(VER)"
