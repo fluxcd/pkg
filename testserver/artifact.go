@@ -22,23 +22,31 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
 
+// NewTempArtifactServer returns an ArtifactServer with a newly created temp
+// dir as the artifact docroot.
 func NewTempArtifactServer() (*ArtifactServer, error) {
-	server, err := NewTempHTTPServer()
+	tmpDir, err := ioutil.TempDir("", "artifact-test-")
 	if err != nil {
 		return nil, err
 	}
+	server := NewHTTPServer(tmpDir)
 	artifact := &ArtifactServer{server}
 	return artifact, nil
 }
 
+// ArtifactServer is an HTTP/S artifact server for testing
+// purposes. It offers utilities to generate mock tarball
+// artifacts to be served by the server.
 type ArtifactServer struct {
 	*HTTPServer
 }
 
+// File holds the name and string contents of an artifact file.
 type File struct {
 	Name string
 	Body string

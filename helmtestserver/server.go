@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package testserver
+package helmtestserver
 
 import (
 	"io/ioutil"
@@ -23,23 +23,31 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
+
+	"github.com/fluxcd/pkg/testserver"
 )
 
+// NewTempHelmServer returns a HTTP HelmServer with a newly created
+// temp dir as repository docroot.
 func NewTempHelmServer() (*HelmServer, error) {
-	server, err := NewTempHTTPServer()
+	tmpDir, err := ioutil.TempDir("", "helm-test-")
 	if err != nil {
 		return nil, err
 	}
+	server := testserver.NewHTTPServer(tmpDir)
 	helm := &HelmServer{server}
 	return helm, nil
 }
 
+// HelmServer is a Helm repository server for testing purposes.
+// It can serve repository indexes and charts over HTTP/S.
 type HelmServer struct {
-	*HTTPServer
+	*testserver.HTTPServer
 }
 
+// GenerateIndex (re)generates the repository index.
 func (s *HelmServer) GenerateIndex() error {
-	index, err := repo.IndexDirectory(s.HTTPServer.docroot, s.HTTPServer.URL())
+	index, err := repo.IndexDirectory(s.HTTPServer.Root(), s.HTTPServer.URL())
 	if err != nil {
 		return err
 	}
@@ -47,17 +55,22 @@ func (s *HelmServer) GenerateIndex() error {
 	if err != nil {
 		return err
 	}
-	f := filepath.Join(s.HTTPServer.docroot, "index.yaml")
+	f := filepath.Join(s.HTTPServer.Root(), "index.yaml")
 	return ioutil.WriteFile(f, d, 0644)
 }
 
+// PackageChart attempts to package the chart at the given path, to be served
+// by the HelmServer. It returns an error in case of a packaging failure.
 func (s *HelmServer) PackageChart(path string) error {
 	return s.PackageChartWithVersion(path, "")
 }
 
+// PackageChartWithVersion attempts to package the chart at the given path
+// with the given version, to be served by the HelmServer. It returns an
+// error in case of a packaging failure.
 func (s *HelmServer) PackageChartWithVersion(path, version string) error {
 	pkg := action.NewPackage()
-	pkg.Destination = s.HTTPServer.docroot
+	pkg.Destination = s.HTTPServer.Root()
 	pkg.Version = version
 	_, err := pkg.Run(path, nil)
 	return err
