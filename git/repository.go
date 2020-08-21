@@ -33,6 +33,7 @@ type Repository struct {
 	Name        string
 	Owner       string
 	Host        string
+	SSHHost     string
 	Token       string
 	AuthorName  string
 	AuthorEmail string
@@ -78,7 +79,11 @@ func (r *Repository) GetURL() string {
 
 // GetSSH returns the repository SSH address
 func (r *Repository) GetSSH() string {
-	return fmt.Sprintf("ssh://git@%s/%s/%s", r.Host, r.Owner, r.Name)
+	host := r.Host
+	if r.SSHHost != "" {
+		host = r.SSHHost
+	}
+	return fmt.Sprintf("ssh://git@%s/%s/%s", host, r.Owner, r.Name)
 }
 
 func (r *Repository) auth() transport.AuthMethod {
