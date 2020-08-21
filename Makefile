@@ -1,5 +1,5 @@
 VER?=0.0.1
-MODULES=$(shell find . -mindepth 2 -maxdepth 2 -type f -name 'go.mod' -printf '%h\n' | cut -c 3- | sort -u)
+MODULES=$(shell find . -mindepth 2 -maxdepth 2 -type f -name 'go.mod' | cut -c 3- | sed 's|/[^/]*$$||' | sort -u)
 targets = $(addprefix test-, $(MODULES))
 
 all: $(targets)
