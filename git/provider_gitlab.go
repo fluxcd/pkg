@@ -19,6 +19,7 @@ package git
 import (
 	"context"
 	"fmt"
+
 	"github.com/xanzy/go-gitlab"
 )
 
@@ -160,4 +161,9 @@ func (p *GitLabProvider) AddDeployKey(ctx context.Context, r *Repository, key, k
 	}
 
 	return false, nil
+}
+
+// DeleteRepository is not supported by GitLab
+func (p *GitLabProvider) DeleteRepository(ctx context.Context, r *Repository) error {
+	return fmt.Errorf("repository deletion is not supported by the GitLab API")
 }
