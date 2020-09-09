@@ -1,4 +1,4 @@
-module github.com/fluxcd/pkg/logger
+module github.com/fluxcd/pkg/runtime
 
 go 1.14
 
