@@ -19,8 +19,9 @@ package git
 import (
 	"context"
 	"fmt"
-	"github.com/google/go-github/v32/github"
 	"strings"
+
+	"github.com/google/go-github/v32/github"
 )
 
 // GithubProvider represents a GitHub API wrapper
@@ -174,4 +175,23 @@ func (p *GithubProvider) AddDeployKey(ctx context.Context, r *Repository, key, k
 	}
 
 	return false, nil
+}
+
+// DeleteRepository deletes the GitHub repository
+func (p *GithubProvider) DeleteRepository(ctx context.Context, r *Repository) error {
+	gh, err := p.newClient(r)
+	if err != nil {
+		return fmt.Errorf("client error: %w", err)
+	}
+
+	org := ""
+	if !p.IsPersonal {
+		org = r.Owner
+	}
+
+	if _, err := gh.Repositories.Delete(ctx, org, r.Name); err != nil {
+		return err
+	}
+
+	return nil
 }
