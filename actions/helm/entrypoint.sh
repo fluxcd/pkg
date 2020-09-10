@@ -2,7 +2,7 @@
 
 set -eu
 
-VERSION=${1-3.3.1}
+VERSION=${1:-3.3.1}
 
 helm_url=https://get.helm.sh && \
 curl -sL ${helm_url}/helm-v${VERSION}-linux-amd64.tar.gz | \

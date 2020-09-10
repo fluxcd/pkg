@@ -2,7 +2,7 @@
 
 set -eu
 
-VERSION=${1-1.19.1}
+VERSION=${1:-1.19.1}
 
 curl -sL https://storage.googleapis.com/kubernetes-release/release/v${VERSION}/bin/linux/amd64/kubectl > kubectl
 

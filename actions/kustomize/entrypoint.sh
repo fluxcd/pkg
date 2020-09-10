@@ -2,7 +2,7 @@
 
 set -eu
 
-VERSION=${1-3.8.2}
+VERSION=${1:-3.8.2}
 
 kustomize_url=https://github.com/kubernetes-sigs/kustomize/releases/download && \
 curl -sL ${kustomize_url}/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_amd64.tar.gz | \
