@@ -2,9 +2,10 @@
 
 set -eu
 
-helm_ver=3.2.4 && \
+VERSION=${1-3.3.1}
+
 helm_url=https://get.helm.sh && \
-curl -sL ${helm_url}/helm-v${helm_ver}-linux-amd64.tar.gz | \
+curl -sL ${helm_url}/helm-v${VERSION}-linux-amd64.tar.gz | \
 tar xz
 
 mkdir -p $GITHUB_WORKSPACE/bin

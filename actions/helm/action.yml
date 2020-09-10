@@ -4,6 +4,12 @@ author: 'Hidde Beydals'
 branding:
   icon: 'command'
   color: 'blue'
+inputs:
+  version:
+    description: 'strict semver'
+    required: false
 runs:
   using: 'docker'
   image: 'Dockerfile'
+  args:
+    - ${{ inputs.version }}
