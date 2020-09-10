@@ -2,7 +2,7 @@
 
 set -eu
 
-VERSION=2.3.1
+VERSION=${1-2.3.1}
 
 curl -sL https://go.kubebuilder.io/dl/${VERSION}/linux/amd64 | tar -xz -C /tmp/
 

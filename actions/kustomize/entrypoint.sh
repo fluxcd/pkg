@@ -2,9 +2,10 @@
 
 set -eu
 
-kustomize_ver=3.8.0 && \
+VERSION=${1-3.8.2}
+
 kustomize_url=https://github.com/kubernetes-sigs/kustomize/releases/download && \
-curl -sL ${kustomize_url}/kustomize%2Fv${kustomize_ver}/kustomize_v${kustomize_ver}_linux_amd64.tar.gz | \
+curl -sL ${kustomize_url}/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_amd64.tar.gz | \
 tar xz
 
 mkdir -p $GITHUB_WORKSPACE/bin

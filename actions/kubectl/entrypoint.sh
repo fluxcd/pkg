@@ -2,8 +2,9 @@
 
 set -eu
 
-kubectl_ver=1.18.3 && \
-curl -sL https://storage.googleapis.com/kubernetes-release/release/v${kubectl_ver}/bin/linux/amd64/kubectl > kubectl
+VERSION=${1-1.19.1}
+
+curl -sL https://storage.googleapis.com/kubernetes-release/release/v${VERSION}/bin/linux/amd64/kubectl > kubectl
 
 mkdir -p $GITHUB_WORKSPACE/bin
 cp ./kubectl $GITHUB_WORKSPACE/bin
