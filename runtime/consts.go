@@ -20,4 +20,28 @@ const (
 	// ReconcileAtAnnotation is the annotation used for triggering a
 	// reconciliation outside of the defined schedule.
 	ReconcileAtAnnotation string = "fluxcd.io/reconcileAt"
+
+	// ReadyCondition is the name of the Ready condition
+	// implemented by all toolkit resources.
+	ReadyCondition string = "Ready"
+
+	// ReconciliationSucceededReason represents the fact that the
+	// reconciliation of a toolkit resource has succeeded.
+	ReconciliationSucceededReason string = "ReconciliationSucceeded"
+
+	// ReconciliationFailedReason represents the fact that the
+	// reconciliation of a toolkit resource has failed.
+	ReconciliationFailedReason string = "ReconciliationFailed"
+
+	// ProgressingReason represents the fact that the
+	// reconciliation of a toolkit resource is underway.
+	ProgressingReason string = "Progressing"
+
+	// DependencyNotReadyReason represents the fact that
+	// one of the toolkit resource dependencies is not ready.
+	DependencyNotReadyReason string = "DependencyNotReady"
+
+	// SuspendedReason represents the fact that the
+	// reconciliation of a toolkit resource is suspended.
+	SuspendedReason string = "Suspended"
 )
