@@ -5,7 +5,7 @@ go 1.14
 replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 
 require (
-	github.com/fluxcd/pkg/apis/meta v0.0.1
+	github.com/fluxcd/pkg/apis/meta v0.0.2
 	github.com/go-logr/logr v0.1.0
 	go.uber.org/zap v1.10.0
 	k8s.io/apimachinery v0.18.9
