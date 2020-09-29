@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
-
-const (
-	// ReconcileAtAnnotation is the annotation used for triggering a reconciliation
-	// outside of the defined schedule.
-	ReconcileAtAnnotation string = "fluxcd.io/reconcileAt"
-)
+// Package meta contains the generic metadata APIs for use by
+// toolkit components.
+package meta

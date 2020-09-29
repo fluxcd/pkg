@@ -1,4 +1,4 @@
-module github.com/fluxcd/pkg/apis/meta/v1
+module github.com/fluxcd/pkg/apis/meta
 
 go 1.14
 
