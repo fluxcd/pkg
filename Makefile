@@ -1,24 +1,26 @@
 VER?=0.0.1
-MODULES=$(shell find . -mindepth 2 -maxdepth 2 -type f -name 'go.mod' | cut -c 3- | sed 's|/[^/]*$$||' | sort -u)
-targets = $(addprefix test-, $(MODULES))
+MODULES=$(shell find . -mindepth 2 -maxdepth 4 -type f -name 'go.mod' | cut -c 3- | sed 's|/[^/]*$$||' | sort -u | tr / :)
+targets=$(addprefix test-, $(MODULES))
 
-all: $(targets)
+all:
+	$(MAKE) $(targets)
 
 tidy-%:
-	cd $*; go mod tidy
+	cd $(subst :,/,$*); go mod tidy
 
 fmt-%:
-	cd $*; go fmt ./...
+	cd $(subst :,/,$*); go fmt ./...
 
 vet-%:
-	cd $*; go vet ./...
+	cd $(subst :,/,$*); go vet ./...
 
 test-%: tidy-% fmt-% vet-%
-	cd $*; go test ./... -coverprofile cover.out
+	cd $(subst :,/,$*); go test ./... -coverprofile cover.out
 
 release-%:
-	@if ! test -f $*/go.mod; then echo "Missing ./$*/go.mod, terminating release process"; exit 1; fi
+	$(eval REL_PATH=$(subst :,/,$*))
+	@if ! test -f $(REL_PATH)/go.mod; then echo "Missing ./$(REL_PATH)/go.mod, terminating release process"; exit 1; fi
 	git checkout master
 	git pull
-	git tag "$*/v$(VER)"
-	git push origin "$*/v$(VER)"
+	git tag "$(REL_PATH)/v$(VER)"
+	git push origin "$(REL_PATH)/v$(VER)"

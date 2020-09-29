@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package runtime
+package v1
 
 const (
-	// ReconcileAtAnnotation is the annotation used for triggering a
-	// reconciliation outside of the defined schedule.
+	// ReconcileAtAnnotation is the annotation used for triggering a reconciliation
+	// outside of the defined schedule.
 	ReconcileAtAnnotation string = "fluxcd.io/reconcileAt"
 )
