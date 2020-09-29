@@ -75,6 +75,22 @@ const (
 	SuspendedReason string = "Suspended"
 )
 
+// DeepCopyInto is a deepcopy function, copying the receiver, writing into out. in must be non-nil.
+func (in *Condition) DeepCopyInto(out *Condition) {
+	*out = *in
+	in.LastTransitionTime.DeepCopyInto(&out.LastTransitionTime)
+}
+
+// DeepCopy is a deepcopy function, copying the receiver, creating a new Condition.
+func (in *Condition) DeepCopy() *Condition {
+	if in == nil {
+		return nil
+	}
+	out := new(Condition)
+	in.DeepCopyInto(out)
+	return out
+}
+
 // HasReadyCondition returns if the given Condition slice has a ReadyCondition
 // with a 'True' condition status.
 func HasReadyCondition(conditions []Condition) bool {
