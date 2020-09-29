@@ -40,6 +40,7 @@ func (ChangePredicate) Update(e event.UpdateEvent) bool {
 	}
 
 	// handle force sync
+	// TODO(hidde): move away from runtime annotation in favour of meta/v1
 	if val, ok := e.MetaNew.GetAnnotations()[runtime.ReconcileAtAnnotation]; ok {
 		if valOld, okOld := e.MetaOld.GetAnnotations()[runtime.ReconcileAtAnnotation]; okOld {
 			if val != valOld {
