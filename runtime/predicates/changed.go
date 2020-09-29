@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/fluxcd/pkg/runtime"
+	metav1 "github.com/fluxcd/pkg/apis/meta"
 )
 
 type ChangePredicate struct {
@@ -40,9 +40,8 @@ func (ChangePredicate) Update(e event.UpdateEvent) bool {
 	}
 
 	// handle force sync
-	// TODO(hidde): move away from runtime annotation in favour of meta/v1
-	if val, ok := e.MetaNew.GetAnnotations()[runtime.ReconcileAtAnnotation]; ok {
-		if valOld, okOld := e.MetaOld.GetAnnotations()[runtime.ReconcileAtAnnotation]; okOld {
+	if val, ok := e.MetaNew.GetAnnotations()[metav1.ReconcileAtAnnotation]; ok {
+		if valOld, okOld := e.MetaOld.GetAnnotations()[metav1.ReconcileAtAnnotation]; okOld {
 			if val != valOld {
 				return true
 			}
