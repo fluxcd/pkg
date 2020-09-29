@@ -91,24 +91,37 @@ func (in *Condition) DeepCopy() *Condition {
 	return out
 }
 
+// GetCondition returns the Condition from the given slice that matches the
+// given type.
+func GetCondition(conditions []Condition, conditionType string) *Condition {
+	for i := range conditions {
+		c := conditions[i]
+		if c.Type == conditionType {
+			return &c
+		}
+	}
+	return nil
+}
+
 // HasReadyCondition returns if the given Condition slice has a ReadyCondition
 // with a 'True' condition status.
 func HasReadyCondition(conditions []Condition) bool {
-	condition := getCondition(conditions, ReadyCondition)
+	condition := GetCondition(conditions, ReadyCondition)
 	if condition == nil {
 		return false
 	}
 	return condition.Status == corev1.ConditionTrue
 }
 
-// getCondition returns the Condition from the given slice that matches the
-// given condition.
-func getCondition(conditions []Condition, condition string) *Condition {
-	for i := range conditions {
-		c := conditions[i]
-		if c.Type == condition {
-			return &c
+// FilterOutCondition returns a new Condition slice without the Condition of the
+// given type.
+func FilterOutCondition(conditions []Condition, conditionType string) []Condition {
+	var newConditions []Condition
+	for _, c := range conditions {
+		if c.Type == conditionType {
+			continue
 		}
+		newConditions = append(newConditions, c)
 	}
-	return nil
+	return newConditions
 }
