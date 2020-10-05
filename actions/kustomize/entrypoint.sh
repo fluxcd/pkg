@@ -14,5 +14,5 @@ chmod +x $GITHUB_WORKSPACE/bin/kustomize
 
 $GITHUB_WORKSPACE/bin/kustomize version
 
-echo "::add-path::$GITHUB_WORKSPACE/bin"
-echo "::add-path::$RUNNER_WORKSPACE/$(basename $GITHUB_REPOSITORY)/bin"
+echo "$GITHUB_WORKSPACE/bin" >> $GITHUB_PATH
+echo "$RUNNER_WORKSPACE/$(basename $GITHUB_REPOSITORY)/bin" >> $GITHUB_PATH
