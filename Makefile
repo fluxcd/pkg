@@ -20,7 +20,7 @@ test-%: tidy-% fmt-% vet-%
 release-%:
 	$(eval REL_PATH=$(subst :,/,$*))
 	@if ! test -f $(REL_PATH)/go.mod; then echo "Missing ./$(REL_PATH)/go.mod, terminating release process"; exit 1; fi
-	git checkout master
+	git checkout main
 	git pull
 	git tag "$(REL_PATH)/v$(VER)"
 	git push origin "$(REL_PATH)/v$(VER)"
