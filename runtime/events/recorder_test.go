@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package recorder
+package events
 
 import (
 	"encoding/json"
@@ -46,7 +46,7 @@ func TestEventRecorder_Eventf(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	eventRecorder, err := NewEventRecorder(ts.URL, "test-controller")
+	eventRecorder, err := NewRecorder(ts.URL, "test-controller")
 	require.NoError(t, err)
 
 	obj := corev1.ObjectReference{
@@ -75,7 +75,7 @@ func TestEventRecorder_Eventf_Retry(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	eventRecorder, err := NewEventRecorder(ts.URL, "test-controller")
+	eventRecorder, err := NewRecorder(ts.URL, "test-controller")
 	require.NoError(t, err)
 	eventRecorder.Client.RetryMax = 2
 
@@ -86,5 +86,5 @@ func TestEventRecorder_Eventf_Retry(t *testing.T) {
 	}
 
 	err = eventRecorder.EventErrorf(obj, nil, "sync", "sync %s", obj.Name)
-	require.EqualError(t, err, fmt.Sprintf("POST %s giving up after 3 attempts", ts.URL))
+	require.EqualError(t, err, fmt.Sprintf("POST %s giving up after 3 attempt(s)", ts.URL))
 }

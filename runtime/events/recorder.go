@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package recorder
+package events
 
 import (
 	"encoding/json"
@@ -28,8 +28,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EventRecorder posts events to the webhook address.
-type EventRecorder struct {
+// Recorder posts events to the webhook address.
+type Recorder struct {
 	// URL address of the events endpoint.
 	Webhook string
 
@@ -40,9 +40,9 @@ type EventRecorder struct {
 	Client *retryablehttp.Client
 }
 
-// NewEventRecorder creates an EventRecorder with default settings.
+// NewRecorder creates an event Recorder with default settings.
 // The recorder performs automatic retries for connection errors and 500-range response code.
-func NewEventRecorder(webhook, reportingController string) (*EventRecorder, error) {
+func NewRecorder(webhook, reportingController string) (*Recorder, error) {
 	if _, err := url.Parse(webhook); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func NewEventRecorder(webhook, reportingController string) (*EventRecorder, erro
 	httpClient.HTTPClient.Timeout = 5 * time.Second
 	httpClient.Logger = nil
 
-	return &EventRecorder{
+	return &Recorder{
 		Webhook:             webhook,
 		ReportingController: reportingController,
 		Client:              httpClient,
@@ -59,29 +59,29 @@ func NewEventRecorder(webhook, reportingController string) (*EventRecorder, erro
 }
 
 // EventInfof records an event with information severity.
-func (er *EventRecorder) EventInfof(
+func (r *Recorder) EventInfof(
 	object corev1.ObjectReference,
 	metadata map[string]string,
 	reason string, messageFmt string, args ...interface{}) error {
-	return er.Eventf(object, metadata, EventSeverityInfo, reason, messageFmt, args...)
+	return r.Eventf(object, metadata, EventSeverityInfo, reason, messageFmt, args...)
 }
 
 // EventErrorf records an event with error severity.
-func (er *EventRecorder) EventErrorf(
+func (r *Recorder) EventErrorf(
 	object corev1.ObjectReference,
 	metadata map[string]string,
 	reason string, messageFmt string, args ...interface{}) error {
-	return er.Eventf(object, metadata, EventSeverityError, reason, messageFmt, args...)
+	return r.Eventf(object, metadata, EventSeverityError, reason, messageFmt, args...)
 }
 
 // Eventf constructs an event from the given information
 // and performs an HTTP POST to the webhook address.
-func (er *EventRecorder) Eventf(
+func (r *Recorder) Eventf(
 	object corev1.ObjectReference,
 	metadata map[string]string,
 	severity, reason string,
 	messageFmt string, args ...interface{}) error {
-	if er.Client == nil {
+	if r.Client == nil {
 		return fmt.Errorf("retryable HTTP client has not been initilised")
 	}
 
@@ -111,7 +111,7 @@ func (er *EventRecorder) Eventf(
 		Message:             message,
 		Reason:              reason,
 		Metadata:            metadata,
-		ReportingController: er.ReportingController,
+		ReportingController: r.ReportingController,
 		ReportingInstance:   hostname,
 	}
 
@@ -120,7 +120,7 @@ func (er *EventRecorder) Eventf(
 		return fmt.Errorf("faild to marshal object into json, error: %w", err)
 	}
 
-	if _, err := er.Client.Post(er.Webhook, "application/json", body); err != nil {
+	if _, err := r.Client.Post(r.Webhook, "application/json", body); err != nil {
 		return err
 	}
 
