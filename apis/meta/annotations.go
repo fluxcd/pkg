@@ -18,6 +18,8 @@ package meta
 
 const (
 	// ReconcileAtAnnotation is the annotation used for triggering a reconciliation
-	// outside of the defined schedule.
+	// outside of the defined schedule. Despite the name, the value is not
+	// interpreted as a timestamp, and any change in value shall trigger a
+	// reconciliation.
 	ReconcileAtAnnotation string = "fluxcd.io/reconcileAt"
 )
