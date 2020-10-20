@@ -21,6 +21,7 @@ const (
 	// outside of the defined schedule. Despite the name, the value is not
 	// interpreted as a timestamp, and any change in value shall trigger a
 	// reconciliation.
+	// DEPRECATED: has been replaced by ReconcileRequestAnnotation.
 	ReconcileAtAnnotation string = "fluxcd.io/reconcileAt"
 
 	// ReconcileRequestAnnotation is the new ReconcileAtAnnotation,
