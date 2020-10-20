@@ -47,3 +47,27 @@ func ReconcileAnnotationValue(annotations map[string]string) (string, bool) {
 	// used each time, this caveat won't matter.
 	return reconcileAt + requestedAt, ok1 || ok2
 }
+
+// ReconcileRequestStatus is a struct to embed in the status type, so
+// that all types using the mechanism have the same field. Use it like
+// this:
+//
+// ```
+// type WhateverStatus struct {
+//   meta.ReconcileRequestStatus `json:",inline"`
+//   // other status fields...
+// }
+// ```
+type ReconcileRequestStatus struct {
+	// LastHandledReconcileAt holds the value of the most recent
+	// reconcile request value, so a change can be detected.
+	LastHandledReconcileAt string `json:"lastHandledReconcileAt,omitempty"`
+}
+
+func (rs ReconcileRequestStatus) GetLastHandledReconcileRequest() string {
+	return rs.LastHandledReconcileAt
+}
+
+func (rs *ReconcileRequestStatus) SetLastHandledReconcileRequest(token string) {
+	rs.LastHandledReconcileAt = token
+}
