@@ -40,15 +40,11 @@ func (ChangePredicate) Update(e event.UpdateEvent) bool {
 	}
 
 	// handle force sync
-	if val, ok := e.MetaNew.GetAnnotations()[metav1.ReconcileAtAnnotation]; ok {
-		if valOld, okOld := e.MetaOld.GetAnnotations()[metav1.ReconcileAtAnnotation]; okOld {
-			if val != valOld {
-				return true
-			}
-		} else {
-			return true
+	if val, ok := metav1.ReconcileAnnotationValue(e.MetaNew.GetAnnotations()); ok {
+		if valOld, okOld := metav1.ReconcileAnnotationValue(e.MetaOld.GetAnnotations()); okOld {
+			return val != valOld
 		}
+		return true
 	}
-
 	return false
 }

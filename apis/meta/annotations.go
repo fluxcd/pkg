@@ -21,5 +21,54 @@ const (
 	// outside of the defined schedule. Despite the name, the value is not
 	// interpreted as a timestamp, and any change in value shall trigger a
 	// reconciliation.
+	// DEPRECATED: has been replaced by ReconcileRequestAnnotation.
 	ReconcileAtAnnotation string = "fluxcd.io/reconcileAt"
+
+	// ReconcileRequestAnnotation is the new ReconcileAtAnnotation,
+	// with a better name. For backward-compatibility, use
+	// ReconcileAnnotationValue, which will account for both
+	// annotations.
+	ReconcileRequestAnnotation string = "reconcile.fluxcd.io/requestedAt"
 )
+
+// ReconcileAnnotationValue returns a value for the reconciliation
+// request annotations, which can be used to detect changes; and, a
+// boolean indicating whether either annotation was set.
+func ReconcileAnnotationValue(annotations map[string]string) (string, bool) {
+	reconcileAt, ok1 := annotations[ReconcileAtAnnotation]
+	requestedAt, ok2 := annotations[ReconcileRequestAnnotation]
+	// the values are concatenated; this means
+	// - a change in either will be detectable*, and
+	// - if one is set, the value will be just that; and,
+	// - if neither is set, it's a zero value.
+	//
+	// *unless the change is to shift a substring across the
+	// interstice between the strings; e.g., by swapping the value
+	// from one annotation to the other. Assuming a fresh timestamp is
+	// used each time, this caveat won't matter.
+	return reconcileAt + requestedAt, ok1 || ok2
+}
+
+// ReconcileRequestStatus is a struct to embed in the status type, so
+// that all types using the mechanism have the same field. Use it like
+// this:
+//
+// ```
+// type WhateverStatus struct {
+//   meta.ReconcileRequestStatus `json:",inline"`
+//   // other status fields...
+// }
+// ```
+type ReconcileRequestStatus struct {
+	// LastHandledReconcileAt holds the value of the most recent
+	// reconcile request value, so a change can be detected.
+	LastHandledReconcileAt string `json:"lastHandledReconcileAt,omitempty"`
+}
+
+func (rs ReconcileRequestStatus) GetLastHandledReconcileRequest() string {
+	return rs.LastHandledReconcileAt
+}
+
+func (rs *ReconcileRequestStatus) SetLastHandledReconcileRequest(token string) {
+	rs.LastHandledReconcileAt = token
+}
