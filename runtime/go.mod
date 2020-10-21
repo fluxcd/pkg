@@ -5,7 +5,7 @@ go 1.14
 replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 
 require (
-	github.com/fluxcd/pkg/apis/meta v0.0.2
+	github.com/fluxcd/pkg/apis/meta v0.1.0
 	github.com/go-logr/logr v0.1.0
 	github.com/hashicorp/go-retryablehttp v0.6.7
 	github.com/prometheus/client_golang v1.0.0
