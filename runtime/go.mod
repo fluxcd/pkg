@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/runtime
 
-go 1.14
+go 1.15
 
 replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 

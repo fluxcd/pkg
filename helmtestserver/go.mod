@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/helmtestserver
 
-go 1.14
+go 1.15
 
 replace github.com/fluxcd/pkg/testserver => ../testserver
 

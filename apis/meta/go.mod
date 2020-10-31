@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/apis/meta
 
-go 1.14
+go 1.15
 
 require (
 	k8s.io/api v0.18.9
