@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/fluxcd/pkg/apis/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestRecorder_RecordCondition(t *testing.T) {
@@ -22,9 +23,9 @@ func TestRecorder_RecordCondition(t *testing.T) {
 		Name:      "test",
 	}
 
-	cond := meta.Condition{
+	cond := metav1.Condition{
 		Type:   meta.ReadyCondition,
-		Status: corev1.ConditionTrue,
+		Status: metav1.ConditionTrue,
 	}
 
 	rec.RecordCondition(ref, cond, false)
@@ -43,7 +44,7 @@ func TestRecorder_RecordCondition(t *testing.T) {
 			if *pair.Name == "type" && *pair.Value != meta.ReadyCondition {
 				t.Errorf("expected condition type to be %s, got %s", meta.ReadyCondition, *pair.Value)
 			}
-			if *pair.Name == "status" && *pair.Value == string(corev1.ConditionTrue) {
+			if *pair.Name == "status" && *pair.Value == string(metav1.ConditionTrue) {
 				conditionTrueValue = *m.GetGauge().Value
 			} else if *pair.Name == "status" && *m.GetGauge().Value != 0 {
 				t.Errorf("expected guage value to be 0, got %v", *m.GetGauge().Value)
