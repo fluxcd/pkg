@@ -21,17 +21,17 @@ import (
 	"time"
 )
 
-type WhateverStatus struct {
+type whateverStatus struct {
 	ReconcileRequestStatus `json:",inline"`
 }
 
-type Whatever struct {
+type whatever struct {
 	Annotations map[string]string
-	Status      WhateverStatus `json:"status,omitempty"`
+	Status      whateverStatus `json:"status,omitempty"`
 }
 
 func TestGetAnnotationValue(t *testing.T) {
-	obj := Whatever{
+	obj := whatever{
 		Annotations: map[string]string{},
 	}
 
