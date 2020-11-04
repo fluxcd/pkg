@@ -43,7 +43,7 @@ func (r *Recorder) Collectors() []prometheus.Collector {
 }
 
 func (r *Recorder) RecordCondition(ref corev1.ObjectReference, condition metav1.Condition, deleted bool) {
-	for _, status := range []string{string(metav1.ConditionTrue), string(metav1.ConditionFalse), string(corev1.ConditionUnknown), ConditionDeleted} {
+	for _, status := range []string{string(metav1.ConditionTrue), string(metav1.ConditionFalse), string(metav1.ConditionUnknown), ConditionDeleted} {
 		var value float64
 		if deleted {
 			if status == ConditionDeleted {
