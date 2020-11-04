@@ -6,7 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/fluxcd/pkg/apis/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -42,8 +42,8 @@ func (r *Recorder) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{r.conditionGauge, r.durationHistogram}
 }
 
-func (r *Recorder) RecordCondition(ref corev1.ObjectReference, condition meta.Condition, deleted bool) {
-	for _, status := range []string{string(corev1.ConditionTrue), string(corev1.ConditionFalse), string(corev1.ConditionUnknown), ConditionDeleted} {
+func (r *Recorder) RecordCondition(ref corev1.ObjectReference, condition metav1.Condition, deleted bool) {
+	for _, status := range []string{string(metav1.ConditionTrue), string(metav1.ConditionFalse), string(corev1.ConditionUnknown), ConditionDeleted} {
 		var value float64
 		if deleted {
 			if status == ConditionDeleted {
