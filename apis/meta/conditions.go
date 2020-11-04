@@ -54,16 +54,3 @@ const (
 func InReadyCondition(conditions []metav1.Condition) bool {
 	return apimeta.IsStatusConditionTrue(conditions, ReadyCondition)
 }
-
-// FilterOutCondition returns a new Condition slice without the Condition of the
-// given type.
-func FilterOutCondition(conditions []metav1.Condition, conditionType string) []metav1.Condition {
-	var newConditions []metav1.Condition
-	for _, c := range conditions {
-		if c.Type == conditionType {
-			continue
-		}
-		newConditions = append(newConditions, c)
-	}
-	return newConditions
-}
