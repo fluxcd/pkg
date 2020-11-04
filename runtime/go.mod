@@ -5,7 +5,7 @@ go 1.15
 replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 
 require (
-	github.com/fluxcd/pkg/apis/meta v0.2.0
+	github.com/fluxcd/pkg/apis/meta v0.3.0
 	github.com/go-logr/logr v0.2.1
 	github.com/go-logr/zapr v0.2.0 // indirect
 	github.com/hashicorp/go-retryablehttp v0.6.7
