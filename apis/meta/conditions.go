@@ -67,3 +67,30 @@ func FilterOutCondition(conditions []metav1.Condition, conditionType string) []m
 	}
 	return newConditions
 }
+
+// SetResourceCondition sets the given condition with the given status,
+// reason and message on a resource.
+func SetResourceCondition(obj metav1.Object, condition string, status metav1.ConditionStatus, reason, message string) {
+	res := obj.(*objectWithStatusConditions)
+	conditions := &res.Status.Conditions
+	gen := res.GetGeneration()
+
+	newCondition := metav1.Condition{
+		Type:               condition,
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+		ObservedGeneration: gen,
+	}
+
+	apimeta.SetStatusCondition(conditions, newCondition)
+}
+
+type objectWithStatusConditions struct {
+	metav1.TypeMeta
+	metav1.ObjectMeta
+	Status struct {
+		Conditions []metav1.Condition
+	}
+}
