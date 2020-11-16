@@ -54,3 +54,24 @@ const (
 func InReadyCondition(conditions []metav1.Condition) bool {
 	return apimeta.IsStatusConditionTrue(conditions, ReadyCondition)
 }
+
+// ObjectWithStatusConditions is an interface that describes kubernetes resource
+// type structs with Status Conditions
+type ObjectWithStatusConditions interface {
+	GetStatusConditions() *[]metav1.Condition
+}
+
+// SetResourceCondition sets the given condition with the given status,
+// reason and message on a resource.
+func SetResourceCondition(obj ObjectWithStatusConditions, condition string, status metav1.ConditionStatus, reason, message string) {
+	conditions := obj.GetStatusConditions()
+
+	newCondition := metav1.Condition{
+		Type:    condition,
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	}
+
+	apimeta.SetStatusCondition(conditions, newCondition)
+}
