@@ -62,6 +62,7 @@ func ReconcileAnnotationValue(annotations map[string]string) (string, bool) {
 type ReconcileRequestStatus struct {
 	// LastHandledReconcileAt holds the value of the most recent
 	// reconcile request value, so a change can be detected.
+	// +optional
 	LastHandledReconcileAt string `json:"lastHandledReconcileAt,omitempty"`
 }
 
