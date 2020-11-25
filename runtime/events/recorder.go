@@ -82,21 +82,21 @@ func (r *Recorder) Eventf(
 	severity, reason string,
 	messageFmt string, args ...interface{}) error {
 	if r.Client == nil {
-		return fmt.Errorf("retryable HTTP client has not been initilised")
+		return fmt.Errorf("retryable HTTP client has not been initialized")
 	}
 
 	message := fmt.Sprintf(messageFmt, args...)
 
 	if object.Kind == "" {
-		return fmt.Errorf("faild to get object kind")
+		return fmt.Errorf("failed to get object kind")
 	}
 
 	if object.Name == "" {
-		return fmt.Errorf("faild to get object name")
+		return fmt.Errorf("failed to get object name")
 	}
 
 	if object.Namespace == "" {
-		return fmt.Errorf("faild to get object namespace")
+		return fmt.Errorf("failed to get object namespace")
 	}
 
 	hostname, err := os.Hostname()
@@ -117,7 +117,7 @@ func (r *Recorder) Eventf(
 
 	body, err := json.Marshal(event)
 	if err != nil {
-		return fmt.Errorf("faild to marshal object into json, error: %w", err)
+		return fmt.Errorf("failed to marshal object into json, error: %w", err)
 	}
 
 	if _, err := r.Client.Post(r.Webhook, "application/json", body); err != nil {
