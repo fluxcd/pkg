@@ -49,12 +49,6 @@ const (
 	SuspendedReason string = "Suspended"
 )
 
-// InReadyCondition returns if the given Condition slice has a ReadyCondition
-// with a 'True' condition status.
-func InReadyCondition(conditions []metav1.Condition) bool {
-	return apimeta.IsStatusConditionTrue(conditions, ReadyCondition)
-}
-
 // ObjectWithStatusConditions is an interface that describes kubernetes resource
 // type structs with Status Conditions
 type ObjectWithStatusConditions interface {
