@@ -17,6 +17,8 @@ limitations under the License.
 package gittestserver
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"io/ioutil"
 	"net/http/httptest"
 	"path/filepath"
@@ -70,6 +72,34 @@ func (s *GitServer) StartHTTP() error {
 		return err
 	}
 	s.httpServer = httptest.NewServer(service)
+	return nil
+}
+
+// StartHTTPTLS starts the TLS HTTPServer with the given TLS configuration.
+func (s *GitServer) StartHTTPS(cert, key, ca []byte, serverName string) error {
+	s.StopHTTP()
+	service := gitkit.New(s.config)
+	if err := service.Setup(); err != nil {
+		return err
+	}
+	s.httpServer = httptest.NewUnstartedServer(service)
+
+	config := tls.Config{}
+
+	keyPair, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		return err
+	}
+	config.Certificates = []tls.Certificate{keyPair}
+
+	cp := x509.NewCertPool()
+	cp.AppendCertsFromPEM(ca)
+	config.RootCAs = cp
+
+	config.ServerName = serverName
+	s.httpServer.TLS = &config
+
+	s.httpServer.StartTLS()
 	return nil
 }
 
