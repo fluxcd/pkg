@@ -76,7 +76,7 @@ func (s *GitServer) StartHTTP() error {
 }
 
 // StartHTTPTLS starts the TLS HTTPServer with the given TLS configuration.
-func (s *GitServer) StartHTTPTLS(cert, key, ca []byte, serverName string) error {
+func (s *GitServer) StartHTTPS(cert, key, ca []byte, serverName string) error {
 	s.StopHTTP()
 	service := gitkit.New(s.config)
 	if err := service.Setup(); err != nil {
