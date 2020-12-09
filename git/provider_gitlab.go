@@ -56,15 +56,38 @@ func (p *GitLabProvider) CreateRepository(ctx context.Context, r *Repository) (b
 		return false, fmt.Errorf("client error: %w", err)
 	}
 
-	var id *int
+	var gid *int
+	var projects []*gitlab.Project
 	if !p.IsPersonal {
-		groups, _, err := gl.Groups.ListGroups(&gitlab.ListGroupsOptions{Search: gitlab.String(r.Owner)}, gitlab.WithContext(ctx))
+		lgo := &gitlab.ListGroupsOptions{
+			Search:         gitlab.String(r.Owner),
+			MinAccessLevel: gitlab.AccessLevel(gitlab.GuestPermissions),
+		}
+		groups, _, err := gl.Groups.ListGroups(lgo, gitlab.WithContext(ctx))
 		if err != nil {
 			return false, fmt.Errorf("failed to list groups, error: %w", err)
 		}
 
-		if len(groups) > 0 {
-			id = &groups[0].ID
+		if len(groups) == 0 {
+			return false, fmt.Errorf("failed to find group named '%s'", r.Owner)
+		}
+		gid = &groups[0].ID
+
+		lpo := &gitlab.ListGroupProjectsOptions{
+			Search: gitlab.String(r.Name),
+		}
+		projects, _, err = gl.Groups.ListGroupProjects(*gid, lpo, gitlab.WithContext(ctx))
+		if err != nil {
+			return false, fmt.Errorf("failed to list projects, error: %w", err)
+		}
+	} else {
+		lpo := &gitlab.ListProjectsOptions{
+			Search: gitlab.String(r.Name),
+			Owned:  gitlab.Bool(true),
+		}
+		projects, _, err = gl.Projects.ListProjects(lpo, gitlab.WithContext(ctx))
+		if err != nil {
+			return false, fmt.Errorf("failed to list projects, error: %w", err)
 		}
 	}
 
@@ -73,27 +96,22 @@ func (p *GitLabProvider) CreateRepository(ctx context.Context, r *Repository) (b
 		visibility = gitlab.PrivateVisibility
 	}
 
-	projects, _, err := gl.Projects.ListProjects(&gitlab.ListProjectsOptions{Search: gitlab.String(r.Name)}, gitlab.WithContext(ctx))
+	if len(projects) > 0 {
+		return false, nil
+	}
+
+	cpo := &gitlab.CreateProjectOptions{
+		Name:                 gitlab.String(r.Name),
+		NamespaceID:          gid,
+		Visibility:           &visibility,
+		InitializeWithReadme: gitlab.Bool(true),
+	}
+	_, _, err = gl.Projects.CreateProject(cpo)
+
 	if err != nil {
-		return false, fmt.Errorf("failed to list projects, error: %w", err)
+		return false, fmt.Errorf("failed to create project, error: %w", err)
 	}
-
-	if len(projects) == 0 {
-		p := &gitlab.CreateProjectOptions{
-			Name:                 gitlab.String(r.Name),
-			NamespaceID:          id,
-			Visibility:           &visibility,
-			InitializeWithReadme: gitlab.Bool(true),
-		}
-
-		_, _, err := gl.Projects.CreateProject(p)
-		if err != nil {
-			return false, fmt.Errorf("failed to create project, error: %w", err)
-		}
-		return true, nil
-	}
-
-	return false, nil
+	return true, nil
 }
 
 // AddTeam returns false if the team is already assigned to the repository
