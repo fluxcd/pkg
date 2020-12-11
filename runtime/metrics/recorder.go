@@ -15,6 +15,7 @@ const (
 
 type Recorder struct {
 	conditionGauge    *prometheus.GaugeVec
+	suspendGauge      *prometheus.GaugeVec
 	durationHistogram *prometheus.HistogramVec
 }
 
@@ -26,6 +27,13 @@ func NewRecorder() *Recorder {
 				Help: "The current condition status of a GitOps Toolkit resource reconciliation.",
 			},
 			[]string{"kind", "name", "namespace", "type", "status"},
+		),
+		suspendGauge: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "gotk_suspend_status",
+				Help: "The current suspend status of a GitOps Toolkit resource.",
+			},
+			[]string{"kind", "name", "namespace"},
 		),
 		durationHistogram: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -39,7 +47,7 @@ func NewRecorder() *Recorder {
 }
 
 func (r *Recorder) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{r.conditionGauge, r.durationHistogram}
+	return []prometheus.Collector{r.conditionGauge, r.suspendGauge, r.durationHistogram}
 }
 
 func (r *Recorder) RecordCondition(ref corev1.ObjectReference, condition metav1.Condition, deleted bool) {
@@ -57,6 +65,16 @@ func (r *Recorder) RecordCondition(ref corev1.ObjectReference, condition metav1.
 
 		r.conditionGauge.WithLabelValues(ref.Kind, ref.Name, ref.Namespace, condition.Type, status).Set(value)
 	}
+}
+
+func (r *Recorder) RecordSuspend(ref corev1.ObjectReference, suspend bool) {
+	var value float64
+
+	if suspend {
+		value = 1
+	}
+
+	r.conditionGauge.WithLabelValues(ref.Kind, ref.Name, ref.Namespace).Set(value)
 }
 
 func (r *Recorder) RecordDuration(ref corev1.ObjectReference, start time.Time) {
