@@ -17,34 +17,70 @@ limitations under the License.
 package logger
 
 import (
+	"flag"
+
 	"github.com/go-logr/logr"
-	uzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-// NewLogger returns a logger configured for dev or production use.
-// For production the log format is JSON, the timestamps format is ISO8601
-// and stack traces are logged when the level is set to debug.
-func NewLogger(level string, production bool) logr.Logger {
-	if !production {
-		return zap.New(zap.UseDevMode(true))
+const (
+	flagLogEncoding = "log-encoding"
+	flagLogLevel    = "log-level"
+)
+
+var levelStrings = map[string]zapcore.Level{
+	"debug": zapcore.DebugLevel,
+	"info":  zapcore.InfoLevel,
+	"error": zapcore.ErrorLevel,
+}
+
+var stackLevelStrings = map[string]zapcore.Level{
+	"debug": zapcore.ErrorLevel,
+	"info":  zapcore.PanicLevel,
+	"error": zapcore.PanicLevel,
+}
+
+// Options contains the configuration options for the logger.
+type Options struct {
+	LogEncoding string
+	LogLevel    string
+}
+
+// BindFlags will parse the given flagset for logger option flags and
+// set the Options accordingly.
+func (o *Options) BindFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.LogEncoding, flagLogEncoding, o.LogEncoding,
+		"Log encoding format. Can be 'json' or 'console'.")
+	fs.StringVar(&o.LogLevel, flagLogLevel, "info",
+		"Log verbosity level. Can be one of 'debug', 'info', 'error'.")
+}
+
+// NewLogger returns a logger configured with the given Options,
+// and timestamps set to the ISO8601 format.
+func NewLogger(opts Options) logr.Logger {
+	zapOpts := zap.Options{
+		EncoderConfigOptions: []zap.EncoderConfigOption{
+			func(config *zapcore.EncoderConfig) {
+				config.EncodeTime = zapcore.ISO8601TimeEncoder
+			},
+		},
 	}
 
-	encCfg := uzap.NewProductionEncoderConfig()
-	encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-	encoder := zap.Encoder(zapcore.NewJSONEncoder(encCfg))
-
-	logLevel := zap.Level(zapcore.InfoLevel)
-	stacktraceLevel := zap.StacktraceLevel(zapcore.PanicLevel)
-
-	switch level {
-	case "debug":
-		logLevel = zap.Level(zapcore.DebugLevel)
-		stacktraceLevel = zap.StacktraceLevel(zapcore.ErrorLevel)
-	case "error":
-		logLevel = zap.Level(zapcore.ErrorLevel)
+	switch opts.LogEncoding {
+	case "console":
+		zap.ConsoleEncoder(zapOpts.EncoderConfigOptions...)(&zapOpts)
+	case "json":
+		zap.JSONEncoder(zapOpts.EncoderConfigOptions...)(&zapOpts)
 	}
 
-	return zap.New(encoder, logLevel, stacktraceLevel)
+	if l, ok := levelStrings[opts.LogLevel]; ok {
+		zapOpts.Level = l
+	}
+
+	if l, ok := stackLevelStrings[opts.LogLevel]; ok {
+		zapOpts.StacktraceLevel = l
+	}
+
+	return zap.New(zap.UseFlagOptions(&zapOpts))
 }
