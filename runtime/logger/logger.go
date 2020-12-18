@@ -50,7 +50,7 @@ type Options struct {
 // BindFlags will parse the given flagset for logger option flags and
 // set the Options accordingly.
 func (o *Options) BindFlags(fs *flag.FlagSet) {
-	fs.StringVar(&o.LogEncoding, flagLogEncoding, o.LogEncoding,
+	fs.StringVar(&o.LogEncoding, flagLogEncoding, "json",
 		"Log encoding format. Can be 'json' or 'console'.")
 	fs.StringVar(&o.LogLevel, flagLogLevel, "info",
 		"Log verbosity level. Can be one of 'debug', 'info', 'error'.")
