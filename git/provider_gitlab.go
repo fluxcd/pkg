@@ -19,6 +19,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/xanzy/go-gitlab"
 )
@@ -163,8 +164,9 @@ func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *
 		err      error
 	)
 	if !p.IsPersonal {
+		groupAndSubGroups := strings.Split(r.Owner, "/")
 		lgo := &gitlab.ListGroupsOptions{
-			Search:         gitlab.String(r.Owner),
+			Search:         gitlab.String(groupAndSubGroups[0]),
 			MinAccessLevel: gitlab.AccessLevel(gitlab.GuestPermissions),
 		}
 		groups, _, err := gl.Groups.ListGroups(lgo, gitlab.WithContext(ctx))
@@ -177,6 +179,24 @@ func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *
 		}
 		gid = &groups[0].ID
 
+		if len(groupAndSubGroups) > 1 {
+			lastSubGroup := groupAndSubGroups[len(groupAndSubGroups)-1]
+			ldgo := &gitlab.ListDescendantGroupsOptions{
+				Search:         gitlab.String(lastSubGroup),
+				MinAccessLevel: gitlab.AccessLevel(gitlab.GuestPermissions),
+			}
+			subGroups, _, err := gl.Groups.ListDescendantGroups(*gid, ldgo, gitlab.WithContext(ctx))
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to list subgroups, error: %w", err)
+			}
+
+			if len(subGroups) == 0 {
+				return nil, nil, fmt.Errorf("failed to list subgroups named '%s'", lastSubGroup)
+			}
+
+			gid = &subGroups[0].ID
+		}
+
 		lpo := &gitlab.ListGroupProjectsOptions{
 			Search: gitlab.String(r.Name),
 		}
@@ -185,11 +205,24 @@ func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *
 			return nil, nil, fmt.Errorf("failed to list projects, error: %w", err)
 		}
 	} else {
+		var users []*gitlab.User
+		luo := &gitlab.ListUsersOptions{
+			Search: gitlab.String(r.Owner),
+		}
+		users, _, err = gl.Users.ListUsers(luo, gitlab.WithContext(ctx))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to list users, error: %w", err)
+		}
+
+		if len(users) == 0 {
+			return nil, nil, fmt.Errorf("failed to find user '%s'", r.Owner)
+		}
+
 		lpo := &gitlab.ListProjectsOptions{
 			Search: gitlab.String(r.Name),
 			Owned:  gitlab.Bool(true),
 		}
-		projects, _, err = gl.Projects.ListProjects(lpo, gitlab.WithContext(ctx))
+		projects, _, err = gl.Projects.ListUserProjects(users[0].ID, lpo, gitlab.WithContext(ctx))
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to list projects, error: %w", err)
 		}
