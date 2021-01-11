@@ -84,6 +84,31 @@ func (p *GitLabProvider) CreateRepository(ctx context.Context, r *Repository) (b
 	return true, nil
 }
 
+// GetRepositoryOwner returns the actual path owner. This is need for Gitlab where the name of a group might differ
+// from its path
+func (p *GitLabProvider) GetRepositoryOwner(ctx context.Context, token string, owner string) (string, error) {
+	gl, err := gitlab.NewClient(token)
+	if err != nil {
+		return "", fmt.Errorf("client error: %w", err)
+	}
+
+	groupName := strings.Split(owner, "/")[0]
+	lgo := &gitlab.ListGroupsOptions{
+		Search:         gitlab.String(groupName),
+		MinAccessLevel: gitlab.AccessLevel(gitlab.GuestPermissions),
+	}
+	groups, _, err := gl.Groups.ListGroups(lgo, gitlab.WithContext(ctx))
+	if err != nil {
+		return "", fmt.Errorf("failed to list groups, error: %w", err)
+	}
+
+	if len(groups) == 0 {
+		return "", fmt.Errorf("failed to find group named '%s'", groupName)
+	}
+
+	return groups[0].Path, nil
+}
+
 // AddTeam returns false if the team is already assigned to the repository
 func (p *GitLabProvider) AddTeam(ctx context.Context, r *Repository, name, permission string) (bool, error) {
 	return false, nil
