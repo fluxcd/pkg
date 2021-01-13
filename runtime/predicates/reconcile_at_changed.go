@@ -46,8 +46,8 @@ func (ReconcilateAtChangedPredicate) Update(e event.UpdateEvent) bool {
 		return false
 	}
 
-	if val, ok := metav1.ReconcileAnnotationValue(e.ObjectOld.GetAnnotations()); ok {
-		if valOld, okOld := metav1.ReconcileAnnotationValue(e.ObjectNew.GetAnnotations()); okOld {
+	if val, ok := metav1.ReconcileAnnotationValue(e.ObjectNew.GetAnnotations()); ok {
+		if valOld, okOld := metav1.ReconcileAnnotationValue(e.ObjectOld.GetAnnotations()); okOld {
 			return val != valOld
 		}
 		return true
