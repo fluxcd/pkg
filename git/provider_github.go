@@ -86,6 +86,14 @@ func (p *GithubProvider) CreateRepository(ctx context.Context, r *Repository) (b
 	return false, nil
 }
 
+// Deprecated, this has become obsolete due to changes in getProjects
+//
+// GetRepositoryOwner returns the actual path owner. This is need for Gitlab where the name of a group might differ
+// from its path
+func (p *GithubProvider) GetRepositoryOwner(ctx context.Context, token string, owner string) (string, error) {
+	return owner, nil
+}
+
 // AddTeam returns false if the team is already assigned to the repository
 func (p *GithubProvider) AddTeam(ctx context.Context, r *Repository, name, permission string) (bool, error) {
 	gh, err := p.newClient(r)
