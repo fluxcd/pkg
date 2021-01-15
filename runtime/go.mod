@@ -5,14 +5,14 @@ go 1.15
 replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 
 require (
-	github.com/fluxcd/pkg/apis/meta v0.5.0
+	github.com/fluxcd/pkg/apis/meta v0.6.0
 	github.com/go-logr/logr v0.3.0
-	github.com/hashicorp/go-retryablehttp v0.6.7
+	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/prometheus/client_golang v1.7.1
 	github.com/stretchr/testify v1.6.1
-	go.uber.org/zap v1.15.0
+	go.uber.org/zap v1.16.0
 	k8s.io/api v0.20.2
 	k8s.io/apimachinery v0.20.2
 	k8s.io/client-go v0.20.2 // indirect
-	sigs.k8s.io/controller-runtime v0.7.0
+	sigs.k8s.io/controller-runtime v0.8.0
 )
