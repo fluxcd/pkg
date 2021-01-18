@@ -202,7 +202,13 @@ func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *
 			return nil, nil, fmt.Errorf("failed to list groups, error: %w", err)
 		}
 
-		group := findGroupByName(groups, groupAndSubGroups[0])
+		var group *gitlab.Group
+		if foundGroup := findGroupByName(groups, groupAndSubGroups[0]); foundGroup == nil {
+			group = findGroupByPath(groups, groupAndSubGroups[0])
+		} else {
+			group = foundGroup
+		}
+
 		if len(groups) == 0 || group == nil {
 			return nil, nil, fmt.Errorf("failed to find group named '%s'", r.Owner)
 		}
