@@ -17,9 +17,8 @@ limitations under the License.
 package logger
 
 import (
-	"flag"
-
 	"github.com/go-logr/logr"
+	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
@@ -49,7 +48,7 @@ type Options struct {
 
 // BindFlags will parse the given flagset for logger option flags and
 // set the Options accordingly.
-func (o *Options) BindFlags(fs *flag.FlagSet) {
+func (o *Options) BindFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.LogEncoding, flagLogEncoding, "json",
 		"Log encoding format. Can be 'json' or 'console'.")
 	fs.StringVar(&o.LogLevel, flagLogLevel, "info",
