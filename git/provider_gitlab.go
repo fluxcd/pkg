@@ -193,8 +193,7 @@ func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *
 	if !p.IsPersonal {
 		groupAndSubGroups := strings.Split(r.Owner, "/")
 		lgo := &gitlab.ListGroupsOptions{
-			Search:         gitlab.String(groupAndSubGroups[0]),
-			MinAccessLevel: gitlab.AccessLevel(gitlab.GuestPermissions),
+			Search: gitlab.String(groupAndSubGroups[0]),
 		}
 
 		groups, _, err := gl.Groups.ListGroups(lgo, gitlab.WithContext(ctx))
@@ -220,8 +219,7 @@ func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *
 		if len(groupAndSubGroups) > 1 {
 			lastSubGroup := groupAndSubGroups[len(groupAndSubGroups)-1]
 			ldgo := &gitlab.ListDescendantGroupsOptions{
-				Search:         gitlab.String(lastSubGroup),
-				MinAccessLevel: gitlab.AccessLevel(gitlab.GuestPermissions),
+				Search: gitlab.String(lastSubGroup),
 			}
 			subGroups, _, err := gl.Groups.ListDescendantGroups(*gid, ldgo, gitlab.WithContext(ctx))
 			subGroup := findGroupByName(subGroups, lastSubGroup)
