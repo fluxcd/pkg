@@ -16,4 +16,5 @@ limitations under the License.
 
 // Package meta contains the generic metadata APIs for use by
 // toolkit components.
+// +kubebuilder:object:generate=true
 package meta
