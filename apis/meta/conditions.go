@@ -51,6 +51,7 @@ const (
 
 // ObjectWithStatusConditions is an interface that describes kubernetes resource
 // type structs with Status Conditions
+// +k8s:deepcopy-gen=false
 type ObjectWithStatusConditions interface {
 	GetStatusConditions() *[]metav1.Condition
 }
