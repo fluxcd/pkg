@@ -57,12 +57,19 @@ func (p *GitLabProvider) CreateRepository(ctx context.Context, r *Repository) (b
 		return false, fmt.Errorf("client error: %w", err)
 	}
 
-	gid, projects, err := p.getProjects(ctx, gl, r)
-	if err != nil {
-		return false, fmt.Errorf("failed to list projects, error: %w", err)
+	var (
+		gid     *int
+		project *gitlab.Project
+	)
+	if p.IsPersonal {
+		project, err = p.getPersonalProject(ctx, gl, r)
+	} else {
+		gid, project, err = p.getGroupProject(ctx, gl, r)
 	}
-
-	if len(projects) > 0 {
+	if err != nil {
+		return false, fmt.Errorf("failed to get project, error: %w", err)
+	}
+	if project != nil {
 		return false, nil
 	}
 
@@ -97,19 +104,21 @@ func (p *GitLabProvider) AddDeployKey(ctx context.Context, r *Repository, key, k
 	}
 
 	// list deploy keys
-	var projID int
-	_, projects, err := p.getProjects(ctx, gl, r)
-	if err != nil {
-		return false, fmt.Errorf("failed to list projects, error: %w", err)
-	}
-	if len(projects) > 0 {
-		projID = projects[0].ID
+	var project *gitlab.Project
+	if p.IsPersonal {
+		project, err = p.getPersonalProject(ctx, gl, r)
 	} else {
+		_, project, err = p.getGroupProject(ctx, gl, r)
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to get project, error: %w", err)
+	}
+	if project == nil {
 		return false, fmt.Errorf("no project found")
 	}
 
 	// check if the key exists
-	keys, _, err := gl.DeployKeys.ListProjectDeployKeys(projID, &gitlab.ListProjectDeployKeysOptions{})
+	keys, _, err := gl.DeployKeys.ListProjectDeployKeys(project.ID, &gitlab.ListProjectDeployKeysOptions{})
 	if err != nil {
 		return false, fmt.Errorf("failed to list deploy keys, error: %w", err)
 	}
@@ -129,7 +138,7 @@ func (p *GitLabProvider) AddDeployKey(ctx context.Context, r *Repository, key, k
 
 	// delete existing key if the value differs
 	if existingKey != nil {
-		_, err := gl.DeployKeys.DeleteDeployKey(projID, existingKey.ID, gitlab.WithContext(ctx))
+		_, err := gl.DeployKeys.DeleteDeployKey(project.ID, existingKey.ID, gitlab.WithContext(ctx))
 		if err != nil {
 			return false, fmt.Errorf("failed to delete deploy key '%s', error: %w", keyName, err)
 		}
@@ -137,7 +146,7 @@ func (p *GitLabProvider) AddDeployKey(ctx context.Context, r *Repository, key, k
 
 	// create key
 	if shouldCreateKey {
-		_, _, err := gl.DeployKeys.AddDeployKey(projID, &gitlab.AddDeployKeyOptions{
+		_, _, err := gl.DeployKeys.AddDeployKey(project.ID, &gitlab.AddDeployKeyOptions{
 			Title:   gitlab.String(keyName),
 			Key:     gitlab.String(key),
 			CanPush: gitlab.Bool(false),
@@ -156,78 +165,84 @@ func (p *GitLabProvider) DeleteRepository(ctx context.Context, r *Repository) er
 	return fmt.Errorf("repository deletion is not supported by the GitLab API")
 }
 
-// getProjects retrieves the list of GitLab projects based on the provided owner type (personal or group)
-func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *Repository) (*int, []*gitlab.Project, error) {
+func (p *GitLabProvider) getPersonalProject(ctx context.Context, gl *gitlab.Client, r *Repository) (*gitlab.Project, error) {
+	luo := &gitlab.ListUsersOptions{
+		Search: gitlab.String(r.Owner),
+	}
+	users, _, err := gl.Users.ListUsers(luo, gitlab.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users, error: %w", err)
+	}
+	if len(users) == 0 {
+		return nil, fmt.Errorf("failed to find user '%s'", r.Owner)
+	}
+
+	lpo := &gitlab.ListProjectsOptions{
+		Search: gitlab.String(r.Name),
+		Owned:  gitlab.Bool(true),
+	}
+	projects, _, err := gl.Projects.ListUserProjects(users[0].ID, lpo, gitlab.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list projects, error: %w", err)
+	}
+	if len(projects) == 0 {
+		return nil, nil
+	}
+	return projects[0], nil
+}
+
+func (p *GitLabProvider) getGroupProject(ctx context.Context, gl *gitlab.Client, r *Repository) (*int, *gitlab.Project, error) {
 	var (
 		gid      *int
 		projects []*gitlab.Project
 		err      error
 	)
-	if !p.IsPersonal {
-		groupAndSubGroupPaths := strings.Split(r.Owner, "/")
 
-		lgo := &gitlab.ListGroupsOptions{
-			Search: gitlab.String(groupAndSubGroupPaths[0]),
-		}
-		groups, _, err := gl.Groups.ListGroups(lgo, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list groups, error: %w", err)
-		}
-		group := findGroupByPath(groups, groupAndSubGroupPaths[0])
+	groupAndSubGroupPaths := strings.Split(r.Owner, "/")
 
-		if len(groups) == 0 || group == nil {
-			return nil, nil, fmt.Errorf("failed to find group named '%s'", groupAndSubGroupPaths[0])
-		}
-		gid = &group.ID
-
-		if len(groupAndSubGroupPaths) > 1 {
-			lastSubGroup := groupAndSubGroupPaths[len(groupAndSubGroupPaths)-1]
-			ldgo := &gitlab.ListDescendantGroupsOptions{
-				Search: gitlab.String(lastSubGroup),
-			}
-			subGroups, _, err := gl.Groups.ListDescendantGroups(*gid, ldgo, gitlab.WithContext(ctx))
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to list subgroups, error: %w", err)
-			}
-			subGroup := findGroupByPath(subGroups, lastSubGroup)
-			if len(subGroups) == 0 || subGroup == nil {
-				return nil, nil, fmt.Errorf("failed to list subgroups named '%s'", lastSubGroup)
-			}
-			gid = &subGroup.ID
-		}
-
-		lpo := &gitlab.ListGroupProjectsOptions{
-			Search: gitlab.String(r.Name),
-		}
-		projects, _, err = gl.Groups.ListGroupProjects(*gid, lpo, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list projects, error: %w", err)
-		}
-	} else {
-		var users []*gitlab.User
-		luo := &gitlab.ListUsersOptions{
-			Search: gitlab.String(r.Owner),
-		}
-		users, _, err = gl.Users.ListUsers(luo, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list users, error: %w", err)
-		}
-
-		if len(users) == 0 {
-			return nil, nil, fmt.Errorf("failed to find user '%s'", r.Owner)
-		}
-
-		lpo := &gitlab.ListProjectsOptions{
-			Search: gitlab.String(r.Name),
-			Owned:  gitlab.Bool(true),
-		}
-		projects, _, err = gl.Projects.ListUserProjects(users[0].ID, lpo, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list projects, error: %w", err)
-		}
+	lgo := &gitlab.ListGroupsOptions{
+		Search: gitlab.String(groupAndSubGroupPaths[0]),
+	}
+	groups, _, err := gl.Groups.ListGroups(lgo, gitlab.WithContext(ctx))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list groups, error: %w", err)
 	}
 
-	return gid, projects, nil
+	group := findGroupByPath(groups, groupAndSubGroupPaths[0])
+	if len(groups) == 0 || group == nil {
+		return nil, nil, fmt.Errorf("failed to find group named '%s'", groupAndSubGroupPaths[0])
+	}
+	gid = &group.ID
+
+	if len(groupAndSubGroupPaths) > 1 {
+		lastSubGroup := groupAndSubGroupPaths[len(groupAndSubGroupPaths)-1]
+		ldgo := &gitlab.ListDescendantGroupsOptions{
+			Search: gitlab.String(lastSubGroup),
+		}
+		subGroups, _, err := gl.Groups.ListDescendantGroups(*gid, ldgo, gitlab.WithContext(ctx))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to list subgroups, error: %w", err)
+		}
+		subGroup := findGroupByPath(subGroups, lastSubGroup)
+		if len(subGroups) == 0 || subGroup == nil {
+			return nil, nil, fmt.Errorf("failed to list subgroups named '%s'", lastSubGroup)
+		}
+		gid = &subGroup.ID
+	}
+
+	lpo := &gitlab.ListGroupProjectsOptions{
+		Search: gitlab.String(r.Name),
+	}
+	projects, _, err = gl.Groups.ListGroupProjects(*gid, lpo, gitlab.WithContext(ctx))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list projects, error: %w", err)
+	}
+
+	var project *gitlab.Project
+	if len(projects) > 0 {
+		project = projects[0]
+	}
+	return gid, project, nil
 }
 
 func findGroupByPath(groups []*gitlab.Group, path string) *gitlab.Group {
