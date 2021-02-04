@@ -72,7 +72,7 @@ func (p *GitLabProvider) CreateRepository(ctx context.Context, r *Repository) (b
 	}
 
 	cpo := &gitlab.CreateProjectOptions{
-		Name:                 gitlab.String(r.Name),
+		Path:                 gitlab.String(r.Name),
 		NamespaceID:          gid,
 		Visibility:           &visibility,
 		InitializeWithReadme: gitlab.Bool(true),
@@ -82,33 +82,6 @@ func (p *GitLabProvider) CreateRepository(ctx context.Context, r *Repository) (b
 		return false, fmt.Errorf("failed to create project, error: %w", err)
 	}
 	return true, nil
-}
-
-// Deprecated, this has become obsolete due to changes in getProjects
-//
-// GetRepositoryOwner returns the actual path owner. This is need for Gitlab where the name of a group might differ
-// from its path
-func (p *GitLabProvider) GetRepositoryOwner(ctx context.Context, token string, owner string) (string, error) {
-	gl, err := gitlab.NewClient(token)
-	if err != nil {
-		return "", fmt.Errorf("client error: %w", err)
-	}
-
-	groupName := strings.Split(owner, "/")[0]
-	lgo := &gitlab.ListGroupsOptions{
-		Search:         gitlab.String(groupName),
-		MinAccessLevel: gitlab.AccessLevel(gitlab.GuestPermissions),
-	}
-	groups, _, err := gl.Groups.ListGroups(lgo, gitlab.WithContext(ctx))
-	if err != nil {
-		return "", fmt.Errorf("failed to list groups, error: %w", err)
-	}
-
-	if len(groups) == 0 {
-		return "", fmt.Errorf("failed to find group named '%s'", groupName)
-	}
-
-	return groups[0].Path, nil
 }
 
 // AddTeam returns false if the team is already assigned to the repository
@@ -191,46 +164,35 @@ func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *
 		err      error
 	)
 	if !p.IsPersonal {
-		groupAndSubGroups := strings.Split(r.Owner, "/")
-		lgo := &gitlab.ListGroupsOptions{
-			Search: gitlab.String(groupAndSubGroups[0]),
-		}
+		groupAndSubGroupPaths := strings.Split(r.Owner, "/")
 
+		lgo := &gitlab.ListGroupsOptions{
+			Search: gitlab.String(groupAndSubGroupPaths[0]),
+		}
 		groups, _, err := gl.Groups.ListGroups(lgo, gitlab.WithContext(ctx))
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to list groups, error: %w", err)
 		}
-
-		var group *gitlab.Group
-		if foundGroup := findGroupByName(groups, groupAndSubGroups[0]); foundGroup == nil {
-			group = findGroupByPath(groups, groupAndSubGroups[0])
-		} else {
-			group = foundGroup
-		}
+		group := findGroupByPath(groups, groupAndSubGroupPaths[0])
 
 		if len(groups) == 0 || group == nil {
-			return nil, nil, fmt.Errorf("failed to find group named '%s'", r.Owner)
+			return nil, nil, fmt.Errorf("failed to find group named '%s'", groupAndSubGroupPaths[0])
 		}
 		gid = &group.ID
 
-		groupAndSubGroups[0] = group.Path
-		r.Owner = strings.Join(groupAndSubGroups, "/")
-
-		if len(groupAndSubGroups) > 1 {
-			lastSubGroup := groupAndSubGroups[len(groupAndSubGroups)-1]
+		if len(groupAndSubGroupPaths) > 1 {
+			lastSubGroup := groupAndSubGroupPaths[len(groupAndSubGroupPaths)-1]
 			ldgo := &gitlab.ListDescendantGroupsOptions{
 				Search: gitlab.String(lastSubGroup),
 			}
 			subGroups, _, err := gl.Groups.ListDescendantGroups(*gid, ldgo, gitlab.WithContext(ctx))
-			subGroup := findGroupByName(subGroups, lastSubGroup)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to list subgroups, error: %w", err)
 			}
-
+			subGroup := findGroupByPath(subGroups, lastSubGroup)
 			if len(subGroups) == 0 || subGroup == nil {
 				return nil, nil, fmt.Errorf("failed to list subgroups named '%s'", lastSubGroup)
 			}
-
 			gid = &subGroup.ID
 		}
 
@@ -266,16 +228,6 @@ func (p *GitLabProvider) getProjects(ctx context.Context, gl *gitlab.Client, r *
 	}
 
 	return gid, projects, nil
-}
-
-func findGroupByName(groups []*gitlab.Group, name string) *gitlab.Group {
-	for _, group := range groups {
-		if group.Name == name {
-			return group
-		}
-	}
-
-	return nil
 }
 
 func findGroupByPath(groups []*gitlab.Group, path string) *gitlab.Group {
