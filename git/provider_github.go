@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v32/github"
+	"github.com/google/go-github/v33/github"
 )
 
 // GithubProvider represents a GitHub API wrapper
