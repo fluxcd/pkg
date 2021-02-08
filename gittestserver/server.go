@@ -45,7 +45,9 @@ func NewGitServer(docroot string) *GitServer {
 		panic(err)
 	}
 	return &GitServer{
-		config: gitkit.Config{Dir: root},
+		config: gitkit.Config{
+			Dir: root,
+		},
 	}
 }
 
@@ -61,6 +63,13 @@ type GitServer struct {
 // repository on push.
 func (s *GitServer) AutoCreate() *GitServer {
 	s.config.AutoCreate = true
+	return s
+}
+
+// KeyDir sets the SSH key directory in the config. Use before calling
+// StartSSH.
+func (s *GitServer) KeyDir(dir string) *GitServer {
+	s.config.KeyDir = dir
 	return s
 }
 
@@ -111,7 +120,9 @@ func (s *GitServer) StopHTTP() {
 	return
 }
 
-// StartSSH starts a new SSH git server with the current configuration.
+// StartSSH starts a new SSH git server with the current
+// configuration. This returns an error or (unlike StartHTTP[S])
+// blocks until the listener is stopped with `s.StopSSH()`.
 func (s *GitServer) StartSSH() error {
 	_ = s.StopSSH()
 	s.sshServer = gitkit.NewSSH(s.config)
