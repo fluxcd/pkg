@@ -84,7 +84,7 @@ func (s *GitServer) StartHTTP() error {
 	return nil
 }
 
-// StartHTTPTLS starts the TLS HTTPServer with the given TLS configuration.
+// StartHTTPS starts the TLS HTTPServer with the given TLS configuration.
 func (s *GitServer) StartHTTPS(cert, key, ca []byte, serverName string) error {
 	s.StopHTTP()
 	service := gitkit.New(s.config)
@@ -120,14 +120,35 @@ func (s *GitServer) StopHTTP() {
 	return
 }
 
-// StartSSH starts a new SSH git server with the current
-// configuration. This returns an error or (unlike StartHTTP[S])
-// blocks until the listener is stopped with `s.StopSSH()`.
+// ListenSSH creates an SSH server and a listener if not already
+// created, but does not handle connections. This returns immediately,
+// unlike StartSSH(), and the server URL is available with
+// SSHAddress() after calling this.
+func (s *GitServer) ListenSSH() error {
+	if s.sshServer == nil {
+		s.sshServer = gitkit.NewSSH(s.config)
+		// This is where authentication would happen, when needed.
+		s.sshServer.PublicKeyLookupFunc = func(string) (*gitkit.PublicKey, error) {
+			return &gitkit.PublicKey{Id: "test-user"}, nil
+		}
+		// :0 should result in an OS assigned free port; 127.0.0.1
+		// forces the lowest common denominator of TCPv4 on localhost.
+		return s.sshServer.Listen("127.0.0.1:0")
+	}
+	return nil
+}
+
+// StartSSH creates a SSH git server and listener with the current
+// configuration if necessary, and handles connections. Unless it
+// returns an error immediately, this will block until the listener is
+// stopped with `s.StopSSH()`. Usually you will want to use
+// ListenSSH() first, so you can get the URL of the SSH git server
+// before starting it.
 func (s *GitServer) StartSSH() error {
-	_ = s.StopSSH()
-	s.sshServer = gitkit.NewSSH(s.config)
-	// :0 should result in an OS assigned free port
-	return s.sshServer.ListenAndServe(":0")
+	if err := s.ListenSSH(); err != nil {
+		return err
+	}
+	return s.sshServer.Serve()
 }
 
 // StopSSH stops the SSH git server.
@@ -151,10 +172,10 @@ func (s *GitServer) HTTPAddress() string {
 	return ""
 }
 
-// SSHAddress returns the address of the SSH git server.
+// SSHAddress returns the address of the SSH git server as a URL.
 func (s *GitServer) SSHAddress() string {
 	if s.sshServer != nil {
-		return s.sshServer.Address()
+		return "ssh://git@" + s.sshServer.Address()
 	}
 	return ""
 }

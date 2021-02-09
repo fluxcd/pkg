@@ -1,6 +1,7 @@
 package gittestserver
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -23,4 +24,21 @@ func TestCreateSSHServer(t *testing.T) {
 		break
 	}
 	srv.StopSSH()
+}
+
+func TestListenSSH(t *testing.T) {
+	srv, err := NewTempGitServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.KeyDir(srv.Root())
+	if err = srv.ListenSSH(); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.StopSSH()
+	addr := srv.SSHAddress()
+	// check it's got the right protocol, at least
+	if !strings.HasPrefix(addr, "ssh://") {
+		t.Fatal("URL given for SSH server doesn't start with ssh://")
+	}
 }
