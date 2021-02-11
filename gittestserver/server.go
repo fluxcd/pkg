@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"io/ioutil"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 
 	"github.com/sosedoff/gitkit"
@@ -57,6 +58,8 @@ type GitServer struct {
 	config     gitkit.Config
 	httpServer *httptest.Server
 	sshServer  *gitkit.SSH
+	// Set these to configure HTTP auth
+	username, password string
 }
 
 // AutoCreate enables the automatic creation of a non-existing Git
@@ -73,10 +76,27 @@ func (s *GitServer) KeyDir(dir string) *GitServer {
 	return s
 }
 
+// Auth switches authentication on for both HTTP and SSH servers.
+// It's not possible to switch authentication on for just one of
+// them. The username and password provided are _only_ used for
+// HTTP. SSH relies on key authentication, but won't work with libgit2
+// unless auth is enabled.
+func (s *GitServer) Auth(username, password string) *GitServer {
+	s.config.Auth = true
+	s.username = username
+	s.password = password
+	return s
+}
+
 // StartHTTP starts a new HTTP git server with the current configuration.
 func (s *GitServer) StartHTTP() error {
 	s.StopHTTP()
 	service := gitkit.New(s.config)
+	if s.config.Auth {
+		service.AuthFunc = func(cred gitkit.Credential, _ *gitkit.Request) (bool, error) {
+			return cred.Username == s.username && cred.Password == s.password, nil
+		}
+	}
 	if err := service.Setup(); err != nil {
 		return err
 	}
@@ -128,7 +148,7 @@ func (s *GitServer) ListenSSH() error {
 	if s.sshServer == nil {
 		s.sshServer = gitkit.NewSSH(s.config)
 		// This is where authentication would happen, when needed.
-		s.sshServer.PublicKeyLookupFunc = func(string) (*gitkit.PublicKey, error) {
+		s.sshServer.PublicKeyLookupFunc = func(content string) (*gitkit.PublicKey, error) {
 			return &gitkit.PublicKey{Id: "test-user"}, nil
 		}
 		// :0 should result in an OS assigned free port; 127.0.0.1
@@ -164,10 +184,32 @@ func (s *GitServer) Root() string {
 	return s.config.Dir
 }
 
-// HTTPAddress returns the address of the HTTP git server.
+// HTTPAddress returns the address of the HTTP git server. This will
+// not include credentials. Use if you have not enable authentication,
+// or if you are specifically testing the use of credentials.
 func (s *GitServer) HTTPAddress() string {
 	if s.httpServer != nil {
 		return s.httpServer.URL
+	}
+	return ""
+}
+
+// HTTPAddressWithCredentials returns the address of the HTTP git
+// server, including credentials if authentication has been
+// enabled. Use this if you need to be able to access the git server
+// to set up fixtures etc..
+func (s *GitServer) HTTPAddressWithCredentials() string {
+	if s.httpServer != nil {
+		u, err := url.Parse(s.httpServer.URL)
+		if err != nil {
+			panic(err)
+		}
+		if s.password != "" {
+			u.User = url.UserPassword(s.username, s.password)
+		} else if s.username != "" {
+			u.User = url.User(s.username)
+		}
+		return u.String()
 	}
 	return ""
 }
