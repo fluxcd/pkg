@@ -74,7 +74,7 @@ func (r *Recorder) RecordSuspend(ref corev1.ObjectReference, suspend bool) {
 		value = 1
 	}
 
-	r.conditionGauge.WithLabelValues(ref.Kind, ref.Name, ref.Namespace).Set(value)
+	r.suspendGauge.WithLabelValues(ref.Kind, ref.Name, ref.Namespace).Set(value)
 }
 
 func (r *Recorder) RecordDuration(ref corev1.ObjectReference, start time.Time) {
