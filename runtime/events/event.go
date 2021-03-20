@@ -29,6 +29,7 @@ const (
 	EventSeverityError string = "error"
 )
 
+// +kubebuilder:object:generate=true
 // Event is a report of an event issued by a controller.
 type Event struct {
 	// The object that this event is about.
