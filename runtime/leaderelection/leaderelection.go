@@ -45,11 +45,11 @@ type Options struct {
 
 	// LeaseDuration is the duration that non-leader candidates will
 	// wait to force acquire leadership. This is measured against time of
-	// last observed ack. Default is 30 seconds.
+	// last observed ack. Default is 35 seconds.
 	LeaseDuration time.Duration
 
 	// RenewDeadline is the duration that the acting controlplane will retry
-	// refreshing leadership before giving up. Default is 60 seconds.
+	// refreshing leadership before giving up. Default is 30 seconds.
 	RenewDeadline time.Duration
 
 	// RetryPeriod is the duration the LeaderElector clients should wait
@@ -64,9 +64,9 @@ func (o *Options) BindFlags(fs *pflag.FlagSet) {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	fs.BoolVar(&o.ReleaseOnCancel, flagReleaseOnCancel, true,
 		"Defines if the leader should step down voluntarily on controller manager shutdown.")
-	fs.DurationVar(&o.LeaseDuration, flagLeaseDuration, 30*time.Second,
+	fs.DurationVar(&o.LeaseDuration, flagLeaseDuration, 35*time.Second,
 		"Interval at which non-leader candidates will wait to force acquire leadership (duration string).")
-	fs.DurationVar(&o.RenewDeadline, flagRenewDeadline, 60*time.Second,
+	fs.DurationVar(&o.RenewDeadline, flagRenewDeadline, 30*time.Second,
 		"Duration that the leading controller manager will retry refreshing leadership before giving up (duration string).")
 	fs.DurationVar(&o.RetryPeriod, flagRetryPeriod, 5*time.Second,
 		"Duration the LeaderElector clients should wait between tries of actions (duration string).")
