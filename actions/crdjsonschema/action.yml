@@ -1,0 +1,19 @@
+name: 'crdjsonschema'
+description: 'A GitHub Action to generate OpenAPI JSON schema from Kubernetes CRD'
+author: 'Stefan Prodan'
+branding:
+  icon: 'command'
+  color: 'blue'
+inputs:
+  crd:
+    description: 'Local path or URL of the CRD YAML file'
+    required: true
+  output:
+    description: 'Path to a local dir where to write the JSON file'
+    required: true
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.crd }}
+    - ${{ inputs.output }}
