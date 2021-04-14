@@ -63,17 +63,32 @@ type runtimeAndMetaObject interface {
 
 // Event emits a Kubernetes event, and forwards the event to the
 // notification controller if configured.
-func (e Events) Event(ref *corev1.ObjectReference, obj runtimeAndMetaObject, severity, msg string) {
+func (e Events) Event(ref *corev1.ObjectReference, obj runtimeAndMetaObject, severity, reason, msg string) {
+	e.Eventf(ref, obj, severity, reason, "%s", msg)
+}
+
+// Eventf emits a Kubernetes event, and forwards the event to the
+// notification controller if configured.
+func (e Events) Eventf(ref *corev1.ObjectReference, obj runtimeAndMetaObject, severity, reason, msgFmt string, args ...interface{}) {
 	if e.EventRecorder != nil {
-		e.EventRecorder.Event(obj, "Normal", severity, msg)
+		e.EventRecorder.Eventf(obj, severityToEventType(severity), reason, msgFmt, args)
 	}
 	if e.ExternalEventRecorder != nil {
-		if err := e.ExternalEventRecorder.Eventf(*ref, nil, severity, severity, msg); err != nil {
+		if err := e.ExternalEventRecorder.Eventf(*ref, nil, severity, reason, msgFmt, args); err != nil {
 			e.Log.WithValues(
 				"request",
 				fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()),
 			).Error(err, "unable to send event")
 			return
 		}
+	}
+}
+
+func severityToEventType(severity string) string {
+	switch severity {
+	case events.EventSeverityError:
+		return corev1.EventTypeWarning
+	default:
+		return corev1.EventTypeNormal
 	}
 }

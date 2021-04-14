@@ -23,9 +23,11 @@ import (
 
 // Valid values for event severity.
 const (
-	// Information only and will not cause any problems.
+	// EventSeverityInfo represents an informational event, usually
+	// informing about changes.
 	EventSeverityInfo string = "info"
-	// These events are to warn that something might go wrong.
+	// EventSeverityError represent an error event, usually a warning
+	// that something goes wrong.
 	EventSeverityError string = "error"
 )
 
@@ -37,6 +39,7 @@ type Event struct {
 	InvolvedObject corev1.ObjectReference `json:"involvedObject"`
 
 	// Severity type of this event (info, error)
+	// +kubebuilder:validation:Enum=info;error
 	// +required
 	Severity string `json:"severity"`
 
@@ -45,7 +48,8 @@ type Event struct {
 	Timestamp metav1.Time `json:"timestamp"`
 
 	// A human-readable description of this event.
-	// Maximum length 39,000 characters
+	// Maximum length 39,000 characters.
+	// +kubebuilder:validation:MaxLength=39000
 	// +required
 	Message string `json:"message"`
 
