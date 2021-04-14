@@ -61,21 +61,31 @@ func (m Metrics) RecordDuration(ref *corev1.ObjectReference, startTime time.Time
 	}
 }
 
+func (m Metrics) RecordSuspend(ref *corev1.ObjectReference, suspend bool) {
+	if m.MetricsRecorder != nil {
+		m.MetricsRecorder.RecordSuspend(*ref, suspend)
+	}
+}
+
 type readinessMetricsable interface {
 	metav1.Object
 	meta.ObjectWithStatusConditions
 }
 
 func (m Metrics) RecordReadinessMetric(ref *corev1.ObjectReference, obj readinessMetricsable) {
+	m.RecordConditionMetric(ref, obj, meta.ReadyCondition)
+}
+
+func (m Metrics) RecordConditionMetric(ref *corev1.ObjectReference, obj readinessMetricsable, conditionType string) {
 	if m.MetricsRecorder == nil {
 		return
 	}
-	if rc := apimeta.FindStatusCondition(*obj.GetStatusConditions(), meta.ReadyCondition); rc != nil {
-		m.MetricsRecorder.RecordCondition(*ref, *rc, !obj.GetDeletionTimestamp().IsZero())
-	} else {
-		m.MetricsRecorder.RecordCondition(*ref, metav1.Condition{
-			Type:   meta.ReadyCondition,
+	rc := apimeta.FindStatusCondition(*obj.GetStatusConditions(), conditionType)
+	if rc == nil {
+		rc = &metav1.Condition{
+			Type:   conditionType,
 			Status: metav1.ConditionUnknown,
-		}, !obj.GetDeletionTimestamp().IsZero())
+		}
 	}
+	m.MetricsRecorder.RecordCondition(*ref, *rc, !obj.GetDeletionTimestamp().IsZero())
 }
