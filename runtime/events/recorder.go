@@ -17,8 +17,10 @@ limitations under the License.
 package events
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
@@ -49,6 +51,7 @@ func NewRecorder(webhook, reportingController string) (*Recorder, error) {
 
 	httpClient := retryablehttp.NewClient()
 	httpClient.HTTPClient.Timeout = 5 * time.Second
+	httpClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
 	httpClient.Logger = nil
 
 	return &Recorder{
@@ -118,6 +121,12 @@ func (r *Recorder) Eventf(
 	body, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal object into json, error: %w", err)
+	}
+
+	// avoid retrying rate limited requests
+	if res, _ := r.Client.HTTPClient.Post(r.Webhook, "application/json", bytes.NewReader(body)); res != nil &&
+		(res.StatusCode == http.StatusTooManyRequests || res.StatusCode == http.StatusAccepted) {
+		return nil
 	}
 
 	if _, err := r.Client.Post(r.Webhook, "application/json", body); err != nil {
