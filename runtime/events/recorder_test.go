@@ -18,7 +18,6 @@ package events
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -86,5 +85,32 @@ func TestEventRecorder_Eventf_Retry(t *testing.T) {
 	}
 
 	err = eventRecorder.EventErrorf(obj, nil, "sync", "sync %s", obj.Name)
-	require.EqualError(t, err, fmt.Sprintf("POST %s giving up after 3 attempt(s)", ts.URL))
+	require.Error(t, err)
+}
+
+func TestEventRecorder_Eventf_RateLimited(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := ioutil.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		var payload Event
+		err = json.Unmarshal(b, &payload)
+		require.NoError(t, err)
+
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer ts.Close()
+
+	eventRecorder, err := NewRecorder(ts.URL, "test-controller")
+	require.NoError(t, err)
+	eventRecorder.Client.RetryMax = 2
+
+	obj := corev1.ObjectReference{
+		Kind:      "GitRepository",
+		Namespace: "gitops-system",
+		Name:      "webapp",
+	}
+
+	err = eventRecorder.EventInfof(obj, nil, "sync", "sync %s", obj.Name)
+	require.NoError(t, err)
 }
