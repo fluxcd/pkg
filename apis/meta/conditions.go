@@ -25,6 +25,12 @@ const (
 	// ReadyCondition is the name of the Ready condition implemented by all toolkit
 	// resources.
 	ReadyCondition string = "Ready"
+
+	// StalledCondition is the name of the Stalled kstatus condition
+	StalledCondition string = "Stalled"
+
+	// ReconcilingCondition is the name of the Reconciling kstatus condition
+	ReconcilingCondition string = "Reconciling"
 )
 
 const (
