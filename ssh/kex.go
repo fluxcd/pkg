@@ -18,7 +18,7 @@ package ssh
 
 import "golang.org/x/crypto/ssh"
 
-// These string constant are gotten from golang/crypto
+// These string constants are copied from golang/crypto
 // https://github.com/golang/crypto/blob/0c34fe9e7dc2486962ef9867e3edb3503537209f/ssh/kex.go#L23-L34
 const (
 	kexAlgoDH1SHA1          = "diffie-hellman-group1-sha1"
@@ -35,8 +35,8 @@ const (
 	kexAlgoDHGEXSHA256 = "diffie-hellman-group-exchange-sha256"
 )
 
-// This is aligned with the preferredKeyAlgos from golang/crypto but includes kexAlgoDHGEXSHA256.
-
+// PreferredKeyAlgos is aligned with the preferredKeyAlgos from golang/crypto
+// but includes kexAlgoDHGEXSHA256 as the least preferred option.
 var PreferredKexAlgos = []string{
 	kexAlgoCurve25519SHA256,
 	kexAlgoECDH256, kexAlgoECDH384, kexAlgoECDH521,
@@ -44,7 +44,7 @@ var PreferredKexAlgos = []string{
 	kexAlgoDHGEXSHA256,
 }
 
-// SetPreferredKeyAlgos sets the PreferredKexAlgos algorithms on a given ClientConfig
+// SetPreferredKeyAlgos sets the PreferredKexAlgos on a given ClientConfig.
 func SetPreferredKeyAlgos(config *ssh.ClientConfig) {
 	if config != nil {
 		config.KeyExchanges = PreferredKexAlgos
