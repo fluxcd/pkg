@@ -17,13 +17,14 @@ limitations under the License.
 package controller
 
 import (
-	"fmt"
+	"context"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kuberecorder "k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/fluxcd/pkg/runtime/events"
@@ -39,20 +40,21 @@ import (
 //         controller.Events
 //     }
 //
-//  You initialise a suitable value with MakeEvents(); each reconciler
-//  will probably need its own value, since it's specialised to a
-//  particular controller and log.
+// You initialise a suitable value with MakeEvents; in most cases the
+// value only needs to be initialized once per controller, as the
+// specialised logger and object reference data are gathered from the
+// arguments provided to the Eventf method.
 type Events struct {
+	Scheme                *runtime.Scheme
 	EventRecorder         kuberecorder.EventRecorder
 	ExternalEventRecorder *events.Recorder
-	Log                   logr.Logger
 }
 
-func MakeEvents(mgr ctrl.Manager, controllerName string, ext *events.Recorder, log logr.Logger) Events {
+func MakeEvents(mgr ctrl.Manager, controllerName string, ext *events.Recorder) Events {
 	return Events{
+		Scheme:                mgr.GetScheme(),
 		EventRecorder:         mgr.GetEventRecorderFor(controllerName),
 		ExternalEventRecorder: ext,
-		Log:                   log,
 	}
 }
 
@@ -63,22 +65,24 @@ type runtimeAndMetaObject interface {
 
 // Event emits a Kubernetes event, and forwards the event to the
 // notification controller if configured.
-func (e Events) Event(ref *corev1.ObjectReference, obj runtimeAndMetaObject, severity, reason, msg string) {
-	e.Eventf(ref, obj, severity, reason, "%s", msg)
+func (e Events) Event(ctx context.Context, obj runtimeAndMetaObject, severity, reason, msg string) {
+	e.Eventf(ctx, obj, severity, reason, msg)
 }
 
 // Eventf emits a Kubernetes event, and forwards the event to the
 // notification controller if configured.
-func (e Events) Eventf(ref *corev1.ObjectReference, obj runtimeAndMetaObject, severity, reason, msgFmt string, args ...interface{}) {
+func (e Events) Eventf(ctx context.Context, obj runtimeAndMetaObject, severity, reason, msgFmt string, args ...interface{}) {
 	if e.EventRecorder != nil {
-		e.EventRecorder.Eventf(obj, severityToEventType(severity), reason, msgFmt, args)
+		e.EventRecorder.Eventf(obj, severityToEventType(severity), reason, msgFmt, args...)
 	}
 	if e.ExternalEventRecorder != nil {
-		if err := e.ExternalEventRecorder.Eventf(*ref, nil, severity, reason, msgFmt, args); err != nil {
-			e.Log.WithValues(
-				"request",
-				fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()),
-			).Error(err, "unable to send event")
+		ref, err := reference.GetReference(e.Scheme, obj)
+		if err != nil {
+			logr.FromContextOrDiscard(ctx).Error(err, "unable to get object reference to send event")
+			return
+		}
+		if err := e.ExternalEventRecorder.Eventf(*ref, nil, severity, reason, msgFmt, args...); err != nil {
+			logr.FromContextOrDiscard(ctx).Error(err, "unable to send event")
 			return
 		}
 	}
