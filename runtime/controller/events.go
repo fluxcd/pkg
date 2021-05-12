@@ -65,13 +65,13 @@ type runtimeAndMetaObject interface {
 
 // Event emits a Kubernetes event, and forwards the event to the
 // notification controller if configured.
-func (e Events) Event(ctx context.Context, obj runtimeAndMetaObject, severity, reason, msg string) {
-	e.Eventf(ctx, obj, severity, reason, msg)
+func (e Events) Event(ctx context.Context, obj runtimeAndMetaObject, metadata map[string]string, severity, reason, msg string) {
+	e.Eventf(ctx, obj, metadata, severity, reason, msg)
 }
 
 // Eventf emits a Kubernetes event, and forwards the event to the
 // notification controller if configured.
-func (e Events) Eventf(ctx context.Context, obj runtimeAndMetaObject, severity, reason, msgFmt string, args ...interface{}) {
+func (e Events) Eventf(ctx context.Context, obj runtimeAndMetaObject, metadata map[string]string, severity, reason, msgFmt string, args ...interface{}) {
 	if e.EventRecorder != nil {
 		e.EventRecorder.Eventf(obj, severityToEventType(severity), reason, msgFmt, args...)
 	}
@@ -81,7 +81,7 @@ func (e Events) Eventf(ctx context.Context, obj runtimeAndMetaObject, severity, 
 			logr.FromContextOrDiscard(ctx).Error(err, "unable to get object reference to send event")
 			return
 		}
-		if err := e.ExternalEventRecorder.Eventf(*ref, nil, severity, reason, msgFmt, args...); err != nil {
+		if err := e.ExternalEventRecorder.Eventf(*ref, metadata, severity, reason, msgFmt, args...); err != nil {
 			logr.FromContextOrDiscard(ctx).Error(err, "unable to send event")
 			return
 		}
