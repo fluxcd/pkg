@@ -22,14 +22,23 @@ import (
 )
 
 const (
-	// ReadyCondition is the name of the Ready condition implemented by all toolkit
-	// resources.
+	// ReadyCondition indicates the resource is ready and fully reconciled.
+	// If the Condition is False, the resource should be considered to be in the process
+	// of reconciling and not an representation of actual state.
 	ReadyCondition string = "Ready"
 
-	// StalledCondition is the name of the Stalled kstatus condition
+	// StalledCondition indicates the reconciliation of the resource has stalled, e.g.
+	// because the controller has encountered an error during the reconcile process or
+	// it has made insufficient progress (timeout).
+	// The Condition adheres to an "abnormal-true" polarity pattern, and MUST only be
+	// present on the resource if the Condition is True.
 	StalledCondition string = "Stalled"
 
-	// ReconcilingCondition is the name of the Reconciling kstatus condition
+	// ReconcilingCondition indicates the controller is currently working on reconciling the
+	// latest changes. This MAY be True for multiple reconciliation attempts, e.g. when an
+	// transient error occurred.
+	// The Condition adheres to an "abnormal-true" polarity pattern, and MUST only be
+	// present on the resource if the Condition is True.
 	ReconcilingCondition string = "Reconciling"
 )
 

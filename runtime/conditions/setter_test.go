@@ -74,14 +74,23 @@ func TestLexicographicLess(t *testing.T) {
 	b = TrueCondition("A", "", "")
 	g.Expect(lexicographicLess(a, b)).To(BeFalse())
 
-	// Ready condition is treated as an exception and always goes first
-	a = TrueCondition(meta.ReadyCondition, "", "")
-	b = TrueCondition("A", "", "")
-	g.Expect(lexicographicLess(a, b)).To(BeTrue())
+	// Stalled, Ready, and Reconciling conditions are threaded as an
+	// exception and always go first.
+	stalled := TrueCondition(meta.StalledCondition, "", "")
+	ready := FalseCondition(meta.ReadyCondition, "", "")
+	reconciling := TrueCondition(meta.ReconcilingCondition, "", "")
 
-	a = TrueCondition("A", "", "")
-	b = TrueCondition(meta.ReadyCondition, "", "")
-	g.Expect(lexicographicLess(a, b)).To(BeFalse())
+	g.Expect(lexicographicLess(stalled, ready)).To(BeTrue())
+	g.Expect(lexicographicLess(ready, stalled)).To(BeFalse())
+
+	g.Expect(lexicographicLess(ready, reconciling)).To(BeTrue())
+	g.Expect(lexicographicLess(reconciling, ready)).To(BeFalse())
+
+	g.Expect(lexicographicLess(stalled, reconciling)).To(BeTrue())
+	g.Expect(lexicographicLess(reconciling, stalled)).To(BeFalse())
+
+	g.Expect(lexicographicLess(ready, b)).To(BeTrue())
+	g.Expect(lexicographicLess(b, ready)).To(BeFalse())
 }
 
 func TestSet(t *testing.T) {

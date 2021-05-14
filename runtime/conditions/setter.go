@@ -163,12 +163,28 @@ func Delete(to Setter, t string) {
 	to.SetConditions(newConditions)
 }
 
+// conditionWeights defines the weight of condition types that have priority in lexicographicLess.
+var conditionWeights = map[string]int{
+	meta.StalledCondition:     0,
+	meta.ReadyCondition:       1,
+	meta.ReconcilingCondition: 2,
+}
+
 // lexicographicLess returns true if a condition is less than another with regards to the
 // to order of conditions designed for convenience of the consumer, i.e. kubectl.
-// According to this order the Ready condition always goes first, followed by all the other
-// conditions sorted by Type.
+// The condition types in conditionWeights always go first, sorted by their defined weight,
+// followed by all the other conditions sorted lexicographically by Type.
 func lexicographicLess(i, j *metav1.Condition) bool {
-	return (i.Type == meta.ReadyCondition || i.Type < j.Type) && j.Type != meta.ReadyCondition
+	w1, ok1 := conditionWeights[i.Type]
+	w2, ok2 := conditionWeights[j.Type]
+	switch {
+	case ok1 && ok2:
+		return w1 < w2
+	case ok1, ok2:
+		return !ok2
+	default:
+		return i.Type < j.Type
+	}
 }
 
 // hasSameState returns true if a condition has the same state of another; state is defined
