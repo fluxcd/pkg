@@ -87,9 +87,9 @@ func WithStepCounterIf(value bool) MergeOption {
 }
 
 // WithStepCounterIfOnly ensure a step counter is show only if a subset of condition exists.
-// This applies for example on Machines, where we want to use
-// the step counter notation while provisioning the machine, but then we want to move away from this notation
-// as soon as the machine is provisioned and e.g. a Machine health check condition is generated
+// This may apply when you want to use a step counter while reconciling the resource, but then
+// want to move away from this notation as soon as the resource has been reconciled, and e.g. a
+// health check condition is generated
 //
 // IMPORTANT: This options requires WithStepCounter or WithStepCounterIf to be set.
 // IMPORTANT: This options works only while generating the Summary condition.

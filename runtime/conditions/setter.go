@@ -42,11 +42,14 @@ type Setter interface {
 // Set sets the given condition.
 //
 // NOTE: If a condition already exists, the LastTransitionTime is updated only if a change is detected
-// in any of the following fields: Status, Reason, Severity and Message.
+// in any of the following fields: Status, Reason, and Message. The ObservedGeneration is always updated.
 func Set(to Setter, condition *metav1.Condition) {
 	if to == nil || condition == nil {
 		return
 	}
+
+	// Always set the observed generation on the condition.
+	condition.ObservedGeneration = to.GetGeneration()
 
 	// Check if the new conditions already exists, and change it only if there is a status
 	// transition (otherwise we should preserve the current last transition time)-
@@ -188,7 +191,8 @@ func lexicographicLess(i, j *metav1.Condition) bool {
 }
 
 // hasSameState returns true if a condition has the same state of another; state is defined
-// by the union of following fields: Type, Status, Reason, and Message (it excludes LastTransitionTime).
+// by the union of following fields: Type, Status, Reason, and Message (it excludes
+// LastTransitionTime and ObservedGeneration).
 func hasSameState(i, j *metav1.Condition) bool {
 	return i.Type == j.Type &&
 		i.Status == j.Status &&

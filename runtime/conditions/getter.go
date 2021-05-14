@@ -95,7 +95,7 @@ func GetReason(from Getter, t string) string {
 	return ""
 }
 
-// GetMessage returns a nil safe string of Message.
+// GetMessage returns a nil safe string of Message for the condition with the given type.
 func GetMessage(from Getter, t string) string {
 	if c := Get(from, t); c != nil {
 		return c.Message
@@ -103,13 +103,21 @@ func GetMessage(from Getter, t string) string {
 	return ""
 }
 
-// GetLastTransitionTime returns the condition Severity or nil if the condition
+// GetLastTransitionTime returns the LastTransitionType or nil if the condition
 // does not exist (is nil).
 func GetLastTransitionTime(from Getter, t string) *metav1.Time {
 	if c := Get(from, t); c != nil {
 		return &c.LastTransitionTime
 	}
 	return nil
+}
+
+// GetObservedGeneration returns a nil safe int64 of ObservedGeneration for the condition with the given type.
+func GetObservedGeneration(from Getter, t string) int64 {
+	if c := Get(from, t); c != nil {
+		return c.ObservedGeneration
+	}
+	return 0
 }
 
 // summary returns a Ready condition with the summary of all the conditions existing
@@ -194,7 +202,7 @@ type mirrorOptions struct {
 type MirrorOptions func(*mirrorOptions)
 
 // WithFallbackValue specify a fallback value to use in case the mirrored condition does not exists;
-// in case the fallbackValue is false, given values for reason, severity and message will be used.
+// in case the fallbackValue is false, given values for reason, and message will be used.
 func WithFallbackValue(fallbackValue bool, reason string, message string) MirrorOptions {
 	return func(c *mirrorOptions) {
 		c.fallbackTo = &fallbackValue

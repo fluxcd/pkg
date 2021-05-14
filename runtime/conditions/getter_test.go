@@ -55,7 +55,11 @@ func TestGetAndHas(t *testing.T) {
 func TestIsMethods(t *testing.T) {
 	g := NewWithT(t)
 
-	obj := getterWithConditions(nil1, true1, unknown1, false1)
+	false2 := false1.DeepCopy()
+	false2.Type = "false2"
+	false2.ObservedGeneration = 1
+
+	obj := getterWithConditions(nil1, true1, unknown1, false1, false2)
 
 	// test isTrue
 	g.Expect(IsTrue(obj, "nil1")).To(BeFalse())
@@ -86,6 +90,10 @@ func TestIsMethods(t *testing.T) {
 	// test GetLastTransitionTime
 	g.Expect(GetLastTransitionTime(obj, "nil1")).To(BeNil())
 	g.Expect(GetLastTransitionTime(obj, "false1")).ToNot(BeNil())
+
+	// test GetObservedGeneration
+	g.Expect(GetObservedGeneration(obj, "nil1")).To(BeZero())
+	g.Expect(GetObservedGeneration(obj, "false2")).ToNot(BeZero())
 }
 
 func TestMirror(t *testing.T) {

@@ -47,7 +47,12 @@ func TestHasSameState(t *testing.T) {
 	true2.LastTransitionTime = metav1.NewTime(time.Date(1900, time.November, 10, 23, 0, 0, 0, time.UTC))
 	g.Expect(hasSameState(true1, true2)).To(BeTrue())
 
-	// different Type, Status, Reason, Severity and Message determine
+	// different ObservedGeneration does not impact state
+	true2 = true1.DeepCopy()
+	true2.ObservedGeneration = 1
+	g.Expect(hasSameState(true1, true2)).To(BeTrue())
+
+	// different Type, Status, Reason, and Message determine
 	// different state
 	true2 = true1.DeepCopy()
 	true2.Type = "another type"
