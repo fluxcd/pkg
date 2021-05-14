@@ -42,39 +42,52 @@ type localizedCondition struct {
 // priority over the other conditions and it is should be reflected in the target condition.
 //
 // More specifically:
-// 1. Conditions are grouped by status
+// 1. Conditions are grouped by status and polarity
 // 2. The resulting condition groups are sorted according to the following priority:
-//   - P0 - Status=False
-//   - P1 - Status=True
-//   - P2 - Status=Unknown
+//   - P0 - Status=True, NegativePolarity=True
+//   - P1 - Status=False, NegativePolarity=False
+//   - P2 - Condition=True, NegativePolarity=False
+//   - P3 - Status=False, NegativePolarity=True
+//   - P4 - Status=Unknown
 // 3. The group with highest priority is used to determine status, and other info of the target condition.
+// 4. If the polarity of the highest priority and target priority differ, it is inverted.
 //
 // Please note that the last operation includes also the task of computing the Reason and the Message for the target
 // condition; in order to complete such task some trade-off should be made, because there is no a golden rule
 // for summarizing many Reason/Message into single Reason/Message.
 // mergeOptions allows the user to adapt this process to the specific needs by exposing a set of merge strategies.
 func merge(conditions []localizedCondition, targetCondition string, options *mergeOptions) *metav1.Condition {
-	g := getConditionGroups(conditions)
+	g := getConditionGroups(conditions, options)
 	if len(g) == 0 {
 		return nil
 	}
 
+	topGroup := g.TopGroup()
 	targetReason := getReason(g, options)
 	targetMessage := getMessage(g, options)
+	targetNegativePolarity := stringInSlice(options.negativePolarityConditionTypes, targetCondition)
 
-	switch g.TopGroup().status {
+	switch topGroup.status {
 	case metav1.ConditionTrue:
+		// Inverse the negative polarity if the target condition has positive polarity.
+		if topGroup.negativePolarity != targetNegativePolarity {
+			return FalseCondition(targetCondition, targetReason, targetMessage)
+		}
 		return TrueCondition(targetCondition, targetReason, targetMessage)
 	case metav1.ConditionFalse:
+		// Inverse the negative polarity if the target condition has positive polarity.
+		if topGroup.negativePolarity != targetNegativePolarity {
+			return TrueCondition(targetCondition, targetReason, targetMessage)
+		}
 		return FalseCondition(targetCondition, targetReason, targetMessage)
 	default:
 		return UnknownCondition(targetCondition, targetReason, targetMessage)
 	}
 }
 
-// getConditionGroups groups a list of conditions according to status values.
+// getConditionGroups groups a list of conditions according to status values and polarity.
 // Additionally, the resulting groups are sorted by mergePriority.
-func getConditionGroups(conditions []localizedCondition) conditionGroups {
+func getConditionGroups(conditions []localizedCondition, options *mergeOptions) conditionGroups {
 	groups := conditionGroups{}
 
 	for _, condition := range conditions {
@@ -84,7 +97,8 @@ func getConditionGroups(conditions []localizedCondition) conditionGroups {
 
 		added := false
 		for i := range groups {
-			if groups[i].status == condition.Status {
+			if groups[i].status == condition.Status &&
+				groups[i].negativePolarity == stringInSlice(options.negativePolarityConditionTypes, condition.Type) {
 				groups[i].conditions = append(groups[i].conditions, condition)
 				added = true
 				break
@@ -92,8 +106,9 @@ func getConditionGroups(conditions []localizedCondition) conditionGroups {
 		}
 		if !added {
 			groups = append(groups, conditionGroup{
-				conditions: []localizedCondition{condition},
-				status:     condition.Status,
+				conditions:       []localizedCondition{condition},
+				status:           condition.Status,
+				negativePolarity: stringInSlice(options.negativePolarityConditionTypes, condition.Type),
 			})
 		}
 	}
@@ -142,42 +157,55 @@ func (g conditionGroups) TopGroup() *conditionGroup {
 	return &g[0]
 }
 
-// TrueGroup returns the the condition group with status True, if any.
-func (g conditionGroups) TrueGroup() *conditionGroup {
-	return g.getByStatus(metav1.ConditionTrue)
-}
-
-func (g conditionGroups) getByStatus(status metav1.ConditionStatus) *conditionGroup {
-	if len(g) == 0 {
+// TruePositivePolarityGroup returns the the condition group with status True/Positive, if any.
+func (g conditionGroups) TruePositivePolarityGroup() *conditionGroup {
+	if g.Len() == 0 {
 		return nil
 	}
 	for _, group := range g {
-		if group.status == status {
+		if !group.negativePolarity && group.status == metav1.ConditionTrue {
 			return &group
 		}
 	}
 	return nil
 }
 
-// conditionGroup define a group of conditions with the same status and severity,
-// and thus with the same priority when merging into a Ready condition.
+// conditionGroup defines a group of conditions with the same metav1.ConditionStatus
+// and polarity, and thus with the same priority when merging into a condition.
 type conditionGroup struct {
-	status     metav1.ConditionStatus
-	conditions []localizedCondition
+	status           metav1.ConditionStatus
+	negativePolarity bool
+	conditions       []localizedCondition
 }
 
-// mergePriority provides a priority value for the status and severity tuple that identifies this
+// mergePriority provides a priority value for the status and polarity tuple that identifies this
 // condition group. The mergePriority value allows an easier sorting of conditions groups.
-func (g conditionGroup) mergePriority() int {
+func (g conditionGroup) mergePriority() (p int) {
 	switch g.status {
-	case metav1.ConditionFalse:
-		return 0
 	case metav1.ConditionTrue:
-		return 1
+		p = 0
+		if !g.negativePolarity {
+			p = 2
+		}
+		return
+	case metav1.ConditionFalse:
+		p = 1
+		if g.negativePolarity {
+			p = 3
+		}
+		return
 	case metav1.ConditionUnknown:
-		return 2
+		return 4
+	default:
+		return 99
 	}
+}
 
-	// this should never happen
-	return 99
+func stringInSlice(s []string, val string) bool {
+	for _, s := range s {
+		if s == val {
+			return true
+		}
+	}
+	return false
 }

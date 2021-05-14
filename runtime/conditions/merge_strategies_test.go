@@ -38,7 +38,7 @@ func TestGetStepCounterMessage(t *testing.T) {
 		true1, true1,
 		false1, false1, false1,
 		unknown1,
-	))
+	), &mergeOptions{})
 
 	got := getStepCounterMessage(groups, 8)
 
@@ -82,7 +82,7 @@ func TestGetFirstReasonAndMessage(t *testing.T) {
 		},
 	}
 
-	groups := getConditionGroups(conditionsWithSource(setter, foo, bar))
+	groups := getConditionGroups(conditionsWithSource(setter, foo, bar), &mergeOptions{})
 
 	// getFirst should report first condition in lexicografical order if no order is specified
 	gotReason := getFirstReason(groups, nil, false)

@@ -32,6 +32,7 @@ import (
 // and more specifically for computing the target Reason and the target Message.
 type mergeOptions struct {
 	conditionTypes                     []string
+	negativePolarityConditionTypes     []string
 	addSourceRef                       bool
 	addStepCounter                     bool
 	addStepCounterIfOnlyConditionTypes []string
@@ -52,6 +53,18 @@ type MergeOption func(*mergeOptions)
 func WithConditions(t ...string) MergeOption {
 	return func(c *mergeOptions) {
 		c.conditionTypes = t
+	}
+}
+
+// WithNegativePolarityConditions instructs merge about the condition types that adhere to a "normal-false" or
+// "abnormal-true" pattern, i.e. that conditions are present with a value of True whenever something unusual
+// happens.
+//
+// NOTE: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+// IMPORTANT: This option works only while generating the Summary condition.
+func WithNegativePolarityConditions(t ...string) MergeOption {
+	return func(c *mergeOptions) {
+		c.negativePolarityConditionTypes = t
 	}
 }
 
@@ -132,10 +145,10 @@ func getMessage(groups conditionGroups, options *mergeOptions) string {
 }
 
 // getStepCounterMessage returns a message "x of y completed", where x is the number of conditions
-// with Status=true and y is the number passed to this method.
+// with Status=True and Polarity=Positive and y is the number passed to this method.
 func getStepCounterMessage(groups conditionGroups, to int) string {
 	ct := 0
-	if trueGroup := groups.TrueGroup(); trueGroup != nil {
+	if trueGroup := groups.TruePositivePolarityGroup(); trueGroup != nil {
 		ct = len(trueGroup.conditions)
 	}
 	return fmt.Sprintf("%d of %d completed", ct, to)

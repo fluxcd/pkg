@@ -185,9 +185,9 @@ func summary(from Getter, options ...MergeOption) *metav1.Condition {
 
 // mirrorOptions allows to set options for the mirror operation.
 type mirrorOptions struct {
-	fallbackTo       *bool
-	fallbackReason   string
-	fallbackMessage  string
+	fallbackTo      *bool
+	fallbackReason  string
+	fallbackMessage string
 }
 
 // MirrorOptions defines an option for mirroring conditions.

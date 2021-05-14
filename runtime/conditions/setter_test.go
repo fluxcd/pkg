@@ -199,19 +199,19 @@ func TestMarkMethods(t *testing.T) {
 	// test MarkTrue
 	MarkTrue(obj, "conditionFoo", "reasonFoo", "messageFoo")
 	g.Expect(Get(obj, "conditionFoo")).To(HaveSameStateOf(&metav1.Condition{
-		Type:   "conditionFoo",
-		Status: metav1.ConditionTrue,
-		Reason:   "reasonFoo",
-		Message:  "messageFoo",
+		Type:    "conditionFoo",
+		Status:  metav1.ConditionTrue,
+		Reason:  "reasonFoo",
+		Message: "messageFoo",
 	}))
 
 	// test MarkFalse
 	MarkFalse(obj, "conditionBar", "reasonBar", "messageBar")
 	g.Expect(Get(obj, "conditionBar")).To(HaveSameStateOf(&metav1.Condition{
-		Type:     "conditionBar",
-		Status:   metav1.ConditionFalse,
-		Reason:   "reasonBar",
-		Message:  "messageBar",
+		Type:    "conditionBar",
+		Status:  metav1.ConditionFalse,
+		Reason:  "reasonBar",
+		Message: "messageBar",
 	}))
 
 	// test MarkUnknown

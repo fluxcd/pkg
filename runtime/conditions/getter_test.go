@@ -32,10 +32,10 @@ import (
 )
 
 var (
-	nil1          *metav1.Condition
-	true1         = TrueCondition("true1", "reason true1", "message true1")
-	unknown1      = UnknownCondition("unknown1", "reason unknown1", "message unknown1")
-	false1        = FalseCondition("false1", "reason false1", "message false1")
+	nil1     *metav1.Condition
+	true1    = TrueCondition("true1", "reason true1", "message true1")
+	unknown1 = UnknownCondition("unknown1", "reason unknown1", "message unknown1")
+	false1   = FalseCondition("false1", "reason false1", "message false1")
 )
 
 func TestGetAndHas(t *testing.T) {
@@ -154,7 +154,7 @@ func TestSummary(t *testing.T) {
 			from:    getterWithConditions(foo, bar),
 			options: []MergeOption{WithStepCounter()},
 			want:    FalseCondition(meta.ReadyCondition, "reason falseBar", "1 of 2 completed"),
-		}, 
+		},
 		{
 			name:    "Returns ready condition with the summary of existing conditions (using WithStepCounterIf options)",
 			from:    getterWithConditions(foo, bar),
