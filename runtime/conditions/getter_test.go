@@ -234,7 +234,7 @@ func TestSummary(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			got := summary(tt.from, tt.options...)
+			got := summary(tt.from, meta.ReadyCondition, tt.options...)
 			if tt.want == nil {
 				g.Expect(got).To(BeNil())
 				return

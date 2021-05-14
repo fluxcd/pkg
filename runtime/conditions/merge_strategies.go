@@ -43,9 +43,10 @@ type mergeOptions struct {
 type MergeOption func(*mergeOptions)
 
 // WithConditions instructs merge about the condition types to consider when doing a merge operation;
-// if this option is not specified, all the conditions (excepts Ready) will be considered. This is required
-// so we can provide some guarantees about the semantic of the target condition without worrying about
-// side effects if someone or something adds custom conditions to the objects.
+// if this option is not specified, all the conditions (except Ready, Stalled, and Reconciling) will
+// be considered. This is required so we can provide some guarantees about the semantic of the target
+// condition without worrying about side effects if someone or something adds custom conditions to the
+// objects.
 //
 // NOTE: The order of conditions types defines the priority for determining the Reason and Message for the
 // target condition.

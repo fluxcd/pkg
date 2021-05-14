@@ -120,9 +120,9 @@ func GetObservedGeneration(from Getter, t string) int64 {
 	return 0
 }
 
-// summary returns a Ready condition with the summary of all the conditions existing
+// summary returns a condition with the summary of all the conditions existing
 // on an object. If the object does not have other conditions, no summary condition is generated.
-func summary(from Getter, options ...MergeOption) *metav1.Condition {
+func summary(from Getter, t string, options ...MergeOption) *metav1.Condition {
 	conditions := from.GetConditions()
 
 	mergeOpt := &mergeOptions{}
@@ -135,14 +135,14 @@ func summary(from Getter, options ...MergeOption) *metav1.Condition {
 	conditionsInScope := make([]localizedCondition, 0, len(conditions))
 	for i := range conditions {
 		c := conditions[i]
-		if c.Type == meta.ReadyCondition {
+		if c.Type == t {
 			continue
 		}
 
 		if mergeOpt.conditionTypes != nil {
 			found := false
-			for _, t := range mergeOpt.conditionTypes {
-				if c.Type == t {
+			for _, tt := range mergeOpt.conditionTypes {
+				if c.Type == tt {
 					found = true
 					break
 				}
@@ -163,8 +163,8 @@ func summary(from Getter, options ...MergeOption) *metav1.Condition {
 	if mergeOpt.addStepCounterIfOnlyConditionTypes != nil {
 		for _, c := range conditionsInScope {
 			found := false
-			for _, t := range mergeOpt.addStepCounterIfOnlyConditionTypes {
-				if c.Type == t {
+			for _, tt := range mergeOpt.addStepCounterIfOnlyConditionTypes {
+				if c.Type == tt {
 					found = true
 					break
 				}
@@ -188,7 +188,7 @@ func summary(from Getter, options ...MergeOption) *metav1.Condition {
 		}
 	}
 
-	return merge(conditionsInScope, meta.ReadyCondition, mergeOpt)
+	return merge(conditionsInScope, t, mergeOpt)
 }
 
 // mirrorOptions allows to set options for the mirror operation.

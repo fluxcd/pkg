@@ -242,9 +242,9 @@ func TestSetSummary(t *testing.T) {
 	g := NewWithT(t)
 	target := setterWithConditions(TrueCondition("foo", "", ""))
 
-	SetSummary(target)
+	SetSummary(target, "test")
 
-	g.Expect(Has(target, meta.ReadyCondition)).To(BeTrue())
+	g.Expect(Has(target, "test")).To(BeTrue())
 }
 
 func TestSetMirror(t *testing.T) {

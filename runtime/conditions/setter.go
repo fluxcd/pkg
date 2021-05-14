@@ -130,10 +130,10 @@ func MarkFalse(to Setter, t, reason, messageFormat string, messageArgs ...interf
 	Set(to, FalseCondition(t, reason, messageFormat, messageArgs...))
 }
 
-// SetSummary sets a Ready condition with the summary of all the conditions existing
-// on an object. If the object does not have other conditions, no summary condition is generated.
-func SetSummary(to Setter, options ...MergeOption) {
-	Set(to, summary(to, options...))
+// SetSummary creates a new summary condition with the summary of all the conditions existing on an object.
+// If the object does not have other conditions, no summary condition is generated.
+func SetSummary(to Setter, targetCondition string, options ...MergeOption) {
+	Set(to, summary(to, targetCondition, options...))
 }
 
 // SetMirror creates a new condition by mirroring the the Ready condition from a dependent object;
