@@ -142,10 +142,9 @@ func SetMirror(to Setter, targetCondition string, from Getter, options ...Mirror
 	Set(to, mirror(from, targetCondition, options...))
 }
 
-// SetAggregate creates a new condition with the aggregation of all the the Ready condition
-// from a list of dependent objects; if the Ready condition does not exists in one of the source object,
-// the object is excluded from the aggregation; if none of the source object have ready condition,
-// no target conditions is generated.
+// SetAggregate creates a new condition with the aggregation of all the conditions from a
+// list of dependency objects, or a subset using WithConditions; if none of the source objects
+// have a condition within the scope of the merge operation, no target condition is generated.
 func SetAggregate(to Setter, targetCondition string, from []Getter, options ...MergeOption) {
 	Set(to, aggregate(from, targetCondition, options...))
 }

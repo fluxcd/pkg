@@ -130,7 +130,7 @@ func summary(from Getter, t string, options ...MergeOption) *metav1.Condition {
 		o(mergeOpt)
 	}
 
-	// Identifies the conditions in scope for the Summary by taking all the existing conditions except Ready,
+	// Identifies the conditions in scope for the Summary by taking all the existing conditions except t,
 	// or, if a list of conditions types is specified, only the conditions the condition in that list.
 	conditionsInScope := make([]localizedCondition, 0, len(conditions))
 	for i := range conditions {
@@ -237,26 +237,77 @@ func mirror(from Getter, targetCondition string, options ...MirrorOptions) *meta
 	return condition
 }
 
-// Aggregates all the the Ready condition from a list of dependent objects into the target object;
-// if the Ready condition does not exists in one of the source object, the object is excluded from
-// the aggregation; if none of the source object have ready condition, no target conditions is generated.
+// aggregate the conditions from a list of depending objects into the target object; the condition
+// scope can be set using WithConditions; if none of the source objects have the conditions within
+// the scope, no target condition is generated.
 func aggregate(from []Getter, targetCondition string, options ...MergeOption) *metav1.Condition {
-	conditionsInScope := make([]localizedCondition, 0, len(from))
-	for i := range from {
-		condition := Get(from[i], meta.ReadyCondition)
-
-		conditionsInScope = append(conditionsInScope, localizedCondition{
-			Condition: condition,
-			Getter:    from[i],
-		})
-	}
-
 	mergeOpt := &mergeOptions{
-		addStepCounter: true,
 		stepCounter:    len(from),
 	}
 	for _, o := range options {
 		o(mergeOpt)
 	}
+
+	conditionsInScope := make([]localizedCondition, 0, len(from))
+	for i := range from {
+		conditions := from[i].GetConditions()
+		for i, _ := range conditions {
+			c := conditions[i]
+			if mergeOpt.conditionTypes != nil {
+				found := false
+				for _, tt := range mergeOpt.conditionTypes {
+					if c.Type == tt {
+						found = true
+						break
+					}
+				}
+				if !found {
+					continue
+				}
+			}
+
+			conditionsInScope = append(conditionsInScope, localizedCondition{
+				Condition: &c,
+				Getter:    from[i],
+			})
+		}
+	}
+
+	// If it is required to add a counter only if a subset of condition exists, check if the conditions
+	// in scope are included in this subset or not.
+	if mergeOpt.addCounterOnlyIfConditionTypes != nil {
+		for _, c := range conditionsInScope {
+			found := false
+			for _, tt := range mergeOpt.addCounterOnlyIfConditionTypes {
+				if c.Type == tt {
+					found = true
+					break
+				}
+			}
+			if !found {
+				mergeOpt.addCounter = false
+				break
+			}
+		}
+	}
+
+	// If it is required to add a source ref only if a condition type exists, check if the conditions
+	// in scope are included in this subset or not.
+	if mergeOpt.addSourceRefIfConditionTypes != nil {
+		for _, c := range conditionsInScope {
+			found := false
+			for _, tt := range mergeOpt.addSourceRefIfConditionTypes {
+				if c.Type == tt {
+					found = true
+					break
+				}
+			}
+			if found {
+				mergeOpt.addSourceRef = true
+				break
+			}
+		}
+	}
+
 	return merge(conditionsInScope, targetCondition, mergeOpt)
 }

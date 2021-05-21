@@ -33,9 +33,14 @@ import (
 type mergeOptions struct {
 	conditionTypes                     []string
 	negativePolarityConditionTypes     []string
+
 	addSourceRef                       bool
+	addSourceRefIfConditionTypes       []string
+	addCounter                         bool
+	addCounterOnlyIfConditionTypes     []string
 	addStepCounter                     bool
 	addStepCounterIfOnlyConditionTypes []string
+
 	stepCounter                        int
 }
 
@@ -50,7 +55,7 @@ type MergeOption func(*mergeOptions)
 //
 // NOTE: The order of conditions types defines the priority for determining the Reason and Message for the
 // target condition.
-// IMPORTANT: This options works only while generating the Summary condition.
+// IMPORTANT: This options works only while generating the Summaryor Aggregated condition.
 func WithConditions(t ...string) MergeOption {
 	return func(c *mergeOptions) {
 		c.conditionTypes = t
@@ -62,15 +67,38 @@ func WithConditions(t ...string) MergeOption {
 // happens.
 //
 // NOTE: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-// IMPORTANT: This option works only while generating the Summary condition.
+// IMPORTANT: This option works only while generating the Summary or Aggregated condition.
 func WithNegativePolarityConditions(t ...string) MergeOption {
 	return func(c *mergeOptions) {
 		c.negativePolarityConditionTypes = t
 	}
 }
 
+// WithCounter instructs merge to add a "x of y Type" string to the message,
+// where x is the number of conditions in the top group, y is the number of objects in scope,
+// and Type is the top group condition type.
+func WithCounter() MergeOption {
+	return func(c *mergeOptions) {
+		c.addCounter = true
+	}
+}
+
+// WithCounterIfOnly ensures a counter is show only if a subset of condition exists.
+// This may apply when you want to use a step counter while reconciling the resource, but then
+// want to move away from this notation as soon as the resource has been reconciled, and e.g. a
+// health check condition is generated
+//
+// IMPORTANT: This options requires WithStepCounter or WithStepCounterIf to be set.
+// IMPORTANT: This option works only while generating the Aggregated condition.
+func WithCounterIfOnly(t ...string) MergeOption {
+	return func(c *mergeOptions) {
+		c.addCounterOnlyIfConditionTypes = t
+	}
+}
+
 // WithStepCounter instructs merge to add a "x of y completed" string to the message,
 // where x is the number of conditions with Status=true and y is the number of conditions in scope.
+// IMPORTANT: This options works only while generating the Summary or Aggregated condition.
 func WithStepCounter() MergeOption {
 	return func(c *mergeOptions) {
 		c.addStepCounter = true
@@ -80,30 +108,38 @@ func WithStepCounter() MergeOption {
 // WithStepCounterIf adds a step counter if the value is true.
 // This can be used e.g. to add a step counter only if the object is not being deleted.
 //
-// IMPORTANT: This options works only while generating the Summary condition.
+// IMPORTANT: This option works only while generating the Summary or Aggregated condition.
 func WithStepCounterIf(value bool) MergeOption {
 	return func(c *mergeOptions) {
 		c.addStepCounter = value
 	}
 }
 
-// WithStepCounterIfOnly ensure a step counter is show only if a subset of condition exists.
+// WithStepCounterIfOnly ensures a step counter is show only if a subset of condition exists.
 // This may apply when you want to use a step counter while reconciling the resource, but then
 // want to move away from this notation as soon as the resource has been reconciled, and e.g. a
 // health check condition is generated
 //
 // IMPORTANT: This options requires WithStepCounter or WithStepCounterIf to be set.
-// IMPORTANT: This options works only while generating the Summary condition.
+// IMPORTANT: This option works only while generating the Summary or Aggregated condition.
 func WithStepCounterIfOnly(t ...string) MergeOption {
 	return func(c *mergeOptions) {
 		c.addStepCounterIfOnlyConditionTypes = t
 	}
 }
 
-// AddSourceRef instructs merge to add info about the originating object to the target Reason.
-func AddSourceRef() MergeOption {
+// WithSourceRef instructs merge to add info about the originating object to the target Reason and
+// in summaries.
+func WithSourceRef() MergeOption {
 	return func(c *mergeOptions) {
 		c.addSourceRef = true
+	}
+}
+
+// WithSourceRefIf ensures a source ref is show only if one of the types in the set exists.
+func WithSourceRefIf(t ...string) MergeOption {
+	return func(c *mergeOptions) {
+		c.addSourceRefIfConditionTypes = t
 	}
 }
 
@@ -141,8 +177,22 @@ func getMessage(groups conditionGroups, options *mergeOptions) string {
 	if options.addStepCounter {
 		return getStepCounterMessage(groups, options.stepCounter)
 	}
-
+	if options.addCounter {
+		return getCounterMessage(groups, options.stepCounter)
+	}
 	return getFirstMessage(groups, options.conditionTypes)
+}
+
+// getCounterMessage returns a "x of y <Type>", where x is the number of conditions in the top
+// group, y is the number passed to this method and <Type> is the condition type of the top
+// group.
+func getCounterMessage(groups conditionGroups, to int) string {
+	topGroup := groups.TopGroup()
+	if topGroup == nil {
+		return fmt.Sprintf("%d of %d",0, to)
+	}
+	ct := len(topGroup.conditions)
+	return fmt.Sprintf("%d of %d %s", ct, to, topGroup.conditions[0].Type)
 }
 
 // getStepCounterMessage returns a message "x of y completed", where x is the number of conditions
