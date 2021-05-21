@@ -47,7 +47,7 @@ func TestMatchConditions(t *testing.T) {
 			name: "with matching conditions",
 			actual: []metav1.Condition{
 				{
-					Type:               string("type"),
+					Type:               "type",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
@@ -56,7 +56,7 @@ func TestMatchConditions(t *testing.T) {
 			},
 			expected: []metav1.Condition{
 				{
-					Type:               string("type"),
+					Type:               "type",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
@@ -69,14 +69,14 @@ func TestMatchConditions(t *testing.T) {
 			name: "with non-matching conditions",
 			actual: []metav1.Condition{
 				{
-					Type:               string("type"),
+					Type:               "type",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 				{
-					Type:               string("type"),
+					Type:               "type",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
@@ -85,14 +85,14 @@ func TestMatchConditions(t *testing.T) {
 			},
 			expected: []metav1.Condition{
 				{
-					Type:               string("type"),
+					Type:               "type",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 				{
-					Type:               string("different"),
+					Type:               "different",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "different",
@@ -105,14 +105,14 @@ func TestMatchConditions(t *testing.T) {
 			name: "with a different number of conditions",
 			actual: []metav1.Condition{
 				{
-					Type:               string("type"),
+					Type:               "type",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 				{
-					Type:               string("type"),
+					Type:               "type",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
@@ -121,7 +121,7 @@ func TestMatchConditions(t *testing.T) {
 			},
 			expected: []metav1.Condition{
 				{
-					Type:               string("type"),
+					Type:               "type",
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
@@ -160,14 +160,14 @@ func TestMatchCondition(t *testing.T) {
 		{
 			name: "with a matching condition",
 			actual: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
 			expected: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
@@ -178,14 +178,14 @@ func TestMatchCondition(t *testing.T) {
 		{
 			name: "with a different time",
 			actual: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
 			expected: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Time{},
 				Reason:             "reason",
@@ -196,14 +196,14 @@ func TestMatchCondition(t *testing.T) {
 		{
 			name: "with a different type",
 			actual: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
 			expected: metav1.Condition{
-				Type:               string("different"),
+				Type:               "different",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
@@ -214,14 +214,14 @@ func TestMatchCondition(t *testing.T) {
 		{
 			name: "with a different status",
 			actual: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
 			expected: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionFalse,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
@@ -232,14 +232,14 @@ func TestMatchCondition(t *testing.T) {
 		{
 			name: "with a different reason",
 			actual: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
 			expected: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "different",
@@ -250,20 +250,38 @@ func TestMatchCondition(t *testing.T) {
 		{
 			name: "with a different message",
 			actual: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
 			expected: metav1.Condition{
-				Type:               string("type"),
+				Type:               "type",
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "different",
 			},
 			expectMatch: false,
+		},
+		{
+			name: "with a subset message",
+			actual: metav1.Condition{
+				Type:               "type",
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.Now(),
+				Reason:             "reason",
+				Message:            "message",
+			},
+			expected: metav1.Condition{
+				Type:               "type",
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.Now(),
+				Reason:             "reason",
+				Message:            "mes",
+			},
+			expectMatch: true,
 		},
 	}
 
