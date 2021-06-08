@@ -1,3 +1,3 @@
 module github.com/fluxcd/pkg/untar
 
-go 1.15
+go 1.16
