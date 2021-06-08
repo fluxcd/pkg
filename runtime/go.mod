@@ -5,7 +5,7 @@ go 1.16
 replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 
 require (
-	github.com/fluxcd/pkg/apis/meta v0.9.0
+	github.com/fluxcd/pkg/apis/meta v0.10.0
 	github.com/go-logr/logr v0.4.0
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/prometheus/client_golang v1.11.0
