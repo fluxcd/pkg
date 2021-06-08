@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/git
 
-go 1.15
+go 1.16
 
 require (
 	github.com/go-git/go-git/v5 v5.1.0
