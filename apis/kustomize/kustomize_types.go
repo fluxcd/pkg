@@ -86,6 +86,20 @@ type Selector struct {
 	LabelSelector string `json:"labelSelector,omitempty"`
 }
 
+// Patch contains either a StrategicMerge or a JSON6902 patch, either a file or inline,
+// and the target the patch should be applied to.
+type Patch struct {
+	// Patch contains the JSON6902 patch document with an array of
+	// operation objects.
+	// +required
+	Patch string `json:"patch,omitempty"`
+
+	// Target points to the resources that the patch document should
+	// be applied to.
+	// +optional
+	Target Selector `json:"target,omitempty"`
+}
+
 // JSON6902 is a JSON6902 operation object.
 // https://tools.ietf.org/html/rfc6902#section-4
 type JSON6902 struct {
