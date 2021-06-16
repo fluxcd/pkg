@@ -1,0 +1,22 @@
+name: Setup Flux CLI
+description: A GitHub Action for setting up controller-runtime envtest
+author: Stefan Prodan
+branding:
+  color: blue
+  icon: command
+inputs:
+  version:
+    description: 'Kubernetes version'
+    required: false
+    default: "latest"
+runs:
+  using: composite
+  steps:
+    - name: "Install setup-envtest"
+      shell: bash
+      run: |
+        go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+    - name: "Download the latest envtest binaries"
+      shell: bash
+      run: |
+        setup-envtest use ${{ inputs.version }}
