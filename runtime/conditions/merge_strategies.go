@@ -31,8 +31,8 @@ import (
 // mergeOptions allows to set strategies for merging a set of conditions into a single condition,
 // and more specifically for computing the target Reason and the target Message.
 type mergeOptions struct {
-	conditionTypes                     []string
-	negativePolarityConditionTypes     []string
+	conditionTypes                 []string
+	negativePolarityConditionTypes []string
 
 	addSourceRef                       bool
 	addSourceRefIfConditionTypes       []string
@@ -41,7 +41,7 @@ type mergeOptions struct {
 	addStepCounter                     bool
 	addStepCounterIfOnlyConditionTypes []string
 
-	stepCounter                        int
+	stepCounter int
 }
 
 // MergeOption defines an option for computing a summary of conditions.
@@ -189,7 +189,7 @@ func getMessage(groups conditionGroups, options *mergeOptions) string {
 func getCounterMessage(groups conditionGroups, to int) string {
 	topGroup := groups.TopGroup()
 	if topGroup == nil {
-		return fmt.Sprintf("%d of %d",0, to)
+		return fmt.Sprintf("%d of %d", 0, to)
 	}
 	ct := len(topGroup.conditions)
 	return fmt.Sprintf("%d of %d %s", ct, to, topGroup.conditions[0].Type)

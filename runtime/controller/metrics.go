@@ -20,9 +20,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/fluxcd/pkg/runtime/conditions"
 	"github.com/go-logr/logr"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,14 +40,16 @@ import (
 //       controller.Metrics
 //     }
 //
-// then you can call either or both of RecordDuration and
-// RecordReadinessMetric. API types used in GOTK will usually
-// already be suitable for passing (as a pointer) as the second
-// argument to `RecordReadinessMetric`.
+// Following the GOTK-standard, API types used in GOTK should implement
+// conditions.Getter to work with status condition types, and required
+// to be able to record metrics.
 //
-// When initialising controllers in main.go, use MustMakeMetrics to
+// When initialising the controllers in main.go, use MustMakeMetrics to
 // create a working Metrics value; you can supply the same value to
 // all reconcilers.
+//
+// Once initialised, metrics can be recorded by calling one of the
+// available `Record*` methods.
 type Metrics struct {
 	Scheme          *runtime.Scheme
 	MetricsRecorder *metrics.Recorder
@@ -64,7 +65,7 @@ func MustMakeMetrics(mgr ctrl.Manager) Metrics {
 	}
 }
 
-func (m Metrics) RecordDuration(ctx context.Context, obj readinessMetricsable, startTime time.Time) {
+func (m Metrics) RecordDuration(ctx context.Context, obj conditions.Getter, startTime time.Time) {
 	if m.MetricsRecorder != nil {
 		ref, err := reference.GetReference(m.Scheme, obj)
 		if err != nil {
@@ -75,7 +76,7 @@ func (m Metrics) RecordDuration(ctx context.Context, obj readinessMetricsable, s
 	}
 }
 
-func (m Metrics) RecordSuspend(ctx context.Context, obj readinessMetricsable, suspend bool) {
+func (m Metrics) RecordSuspend(ctx context.Context, obj conditions.Getter, suspend bool) {
 	if m.MetricsRecorder != nil {
 		ref, err := reference.GetReference(m.Scheme, obj)
 		if err != nil {
@@ -86,17 +87,19 @@ func (m Metrics) RecordSuspend(ctx context.Context, obj readinessMetricsable, su
 	}
 }
 
-type readinessMetricsable interface {
-	runtime.Object
-	metav1.Object
-	meta.ObjectWithStatusConditions
+func (m Metrics) RecordReadiness(ctx context.Context, obj conditions.Getter) {
+	m.RecordCondition(ctx, obj, meta.ReadyCondition)
 }
 
-func (m Metrics) RecordReadinessMetric(ctx context.Context, obj readinessMetricsable) {
-	m.RecordConditionMetric(ctx, obj, meta.ReadyCondition)
+func (m Metrics) RecordReconciling(ctx context.Context, obj conditions.Getter) {
+	m.RecordCondition(ctx, obj, meta.ReconcilingCondition)
 }
 
-func (m Metrics) RecordConditionMetric(ctx context.Context, obj readinessMetricsable, conditionType string) {
+func (m Metrics) RecordStalled(ctx context.Context, obj conditions.Getter) {
+	m.RecordCondition(ctx, obj, meta.StalledCondition)
+}
+
+func (m Metrics) RecordCondition(ctx context.Context, obj conditions.Getter, conditionType string) {
 	if m.MetricsRecorder == nil {
 		return
 	}
@@ -105,12 +108,9 @@ func (m Metrics) RecordConditionMetric(ctx context.Context, obj readinessMetrics
 		logr.FromContextOrDiscard(ctx).Error(err, "unable to get object reference to record condition metric")
 		return
 	}
-	rc := apimeta.FindStatusCondition(*obj.GetStatusConditions(), conditionType)
+	rc := conditions.Get(obj, conditionType)
 	if rc == nil {
-		rc = &metav1.Condition{
-			Type:   conditionType,
-			Status: metav1.ConditionUnknown,
-		}
+		rc = conditions.UnknownCondition(conditionType, "", "")
 	}
 	m.MetricsRecorder.RecordCondition(*ref, *rc, !obj.GetDeletionTimestamp().IsZero())
 }

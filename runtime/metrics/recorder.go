@@ -69,11 +69,9 @@ func (r *Recorder) RecordCondition(ref corev1.ObjectReference, condition metav1.
 
 func (r *Recorder) RecordSuspend(ref corev1.ObjectReference, suspend bool) {
 	var value float64
-
 	if suspend {
 		value = 1
 	}
-
 	r.suspendGauge.WithLabelValues(ref.Kind, ref.Name, ref.Namespace).Set(value)
 }
 

@@ -21,11 +21,11 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kuberecorder "k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/runtime/events"
 )
@@ -41,9 +41,9 @@ import (
 //     }
 //
 // You initialise a suitable value with MakeEvents; in most cases the
-// value only needs to be initialized once per controller, as the
-// specialised logger and object reference data are gathered from the
-// arguments provided to the Eventf method.
+// value needs to be initialized once per controller, as the specialised
+// logger and object reference data are gathered from the arguments
+// provided to the Eventf method.
 type Events struct {
 	Scheme                *runtime.Scheme
 	EventRecorder         kuberecorder.EventRecorder
@@ -58,20 +58,15 @@ func MakeEvents(mgr ctrl.Manager, controllerName string, ext *events.Recorder) E
 	}
 }
 
-type runtimeAndMetaObject interface {
-	runtime.Object
-	metav1.Object
-}
-
 // Event emits a Kubernetes event, and forwards the event to the
 // notification controller if configured.
-func (e Events) Event(ctx context.Context, obj runtimeAndMetaObject, metadata map[string]string, severity, reason, msg string) {
+func (e Events) Event(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msg string) {
 	e.Eventf(ctx, obj, metadata, severity, reason, msg)
 }
 
 // Eventf emits a Kubernetes event, and forwards the event to the
 // notification controller if configured.
-func (e Events) Eventf(ctx context.Context, obj runtimeAndMetaObject, metadata map[string]string, severity, reason, msgFmt string, args ...interface{}) {
+func (e Events) Eventf(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msgFmt string, args ...interface{}) {
 	if e.EventRecorder != nil {
 		e.EventRecorder.Eventf(obj, severityToEventType(severity), reason, msgFmt, args...)
 	}
@@ -88,6 +83,8 @@ func (e Events) Eventf(ctx context.Context, obj runtimeAndMetaObject, metadata m
 	}
 }
 
+// severityToEventType maps the given severity string to a corev1 event type.
+// In case of an unrecognised severity, EventTypeNormal is returned.
 func severityToEventType(severity string) string {
 	switch severity {
 	case events.EventSeverityError:

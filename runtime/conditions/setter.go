@@ -36,7 +36,7 @@ import (
 // use the conditions package for setting conditions.
 type Setter interface {
 	Getter
-	SetConditions([]metav1.Condition)
+	meta.ObjectWithConditionsSetter
 }
 
 // Set sets the given condition.

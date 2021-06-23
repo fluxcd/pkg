@@ -34,9 +34,7 @@ import (
 // use the conditions package for getting conditions.
 type Getter interface {
 	client.Object
-
-	// GetConditions returns the list of conditions for a GitOps Toolkit API object.
-	GetConditions() []metav1.Condition
+	meta.ObjectWithConditions
 }
 
 // Get returns the condition with the given type, if the condition does not exists,
@@ -242,7 +240,7 @@ func mirror(from Getter, targetCondition string, options ...MirrorOptions) *meta
 // the scope, no target condition is generated.
 func aggregate(from []Getter, targetCondition string, options ...MergeOption) *metav1.Condition {
 	mergeOpt := &mergeOptions{
-		stepCounter:    len(from),
+		stepCounter: len(from),
 	}
 	for _, o := range options {
 		o(mergeOpt)
