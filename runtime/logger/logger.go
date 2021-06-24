@@ -29,12 +29,18 @@ const (
 )
 
 var levelStrings = map[string]zapcore.Level{
+	// zap doesn't include trace level as a const, but it accepts any
+	// int8; logr will convert a log.V(n) to zap's scheme, so e.g.,
+	// V(2) will be custom debug level -2 in zap (i.e., `trace`
+	// below).
+	"trace": zapcore.DebugLevel - 1,
 	"debug": zapcore.DebugLevel,
 	"info":  zapcore.InfoLevel,
 	"error": zapcore.ErrorLevel,
 }
 
 var stackLevelStrings = map[string]zapcore.Level{
+	"trace": zapcore.ErrorLevel,
 	"debug": zapcore.ErrorLevel,
 	"info":  zapcore.PanicLevel,
 	"error": zapcore.PanicLevel,
@@ -52,7 +58,7 @@ func (o *Options) BindFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.LogEncoding, flagLogEncoding, "json",
 		"Log encoding format. Can be 'json' or 'console'.")
 	fs.StringVar(&o.LogLevel, flagLogLevel, "info",
-		"Log verbosity level. Can be one of 'debug', 'info', 'error'.")
+		"Log verbosity level. Can be one of 'trace', 'debug', 'info', 'error'.")
 }
 
 // NewLogger returns a logger configured with the given Options,
