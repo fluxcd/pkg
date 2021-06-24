@@ -39,6 +39,15 @@ var levelStrings = map[string]zapcore.Level{
 	"error": zapcore.ErrorLevel,
 }
 
+// These are for convenience when doing log.V(...) to log at a
+// particular level. They correspond to the logr equivalents of the
+// zap levels above.
+const (
+	TraceLevel = 2
+	DebugLevel = 1
+	InfoLevel  = 0
+)
+
 var stackLevelStrings = map[string]zapcore.Level{
 	"trace": zapcore.ErrorLevel,
 	"debug": zapcore.ErrorLevel,
