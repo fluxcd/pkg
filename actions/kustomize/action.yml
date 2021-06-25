@@ -1,15 +1,32 @@
-name: 'kustomize'
-description: 'A GitHub Action to run kustomize commands'
-author: 'Stefan Prodan'
+name: Setup kustomize CLI
+description: A GitHub Action for running kustomize commands
+author: Stefan Prodan
 branding:
-  icon: 'command'
-  color: 'blue'
+  color: blue
+  icon: command
 inputs:
   version:
-    description: 'strict semver'
-    required: false
+    description: "strict semver"
+    required: true
+    default: "4.1.3"
+  arch:
+    description: "arch can be amd64 or arm64"
+    required: true
+    default: "amd64"
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  args:
-    - ${{ inputs.version }}
+  using: composite
+  steps:
+    - name: "Download and copy the binary to /usr/local/bin"
+      shell: bash
+      run: |
+        VERSION=${{ inputs.version }}
+        ARCH=${{ inputs.arch }}
+        REPO_URL=https://github.com/kubernetes-sigs/kustomize/releases/download
+        BIN_URL="${REPO_URL}/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_${ARCH}.tar.gz"
+        curl -sL ${BIN_URL} -o /tmp/kustomize.tar.gz
+        mkdir -p /tmp/kustomize
+        tar -C /tmp/kustomize/ -zxvf /tmp/kustomize.tar.gz
+        sudo cp /tmp/kustomize/kustomize /usr/local/bin
+        rm -rf /tmp/kustomize/ /tmp/kustomize.tar.gz
+        which kustomize
+        kustomize version
