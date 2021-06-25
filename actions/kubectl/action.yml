@@ -1,15 +1,29 @@
-name: 'kubectl'
-description: 'A GitHub Action to run kubectl commands'
-author: 'Stefan Prodan'
+name: Setup kubectl CLI
+description: A GitHub Action for running kubectl commands
+author: Stefan Prodan
 branding:
-  icon: 'command'
-  color: 'blue'
+  color: blue
+  icon: command
 inputs:
   version:
-    description: 'strict semver'
-    required: false
+    description: "strict semver"
+    required: true
+    default: "1.21.1"
+  arch:
+    description: "arch can be amd64 or arm64"
+    required: true
+    default: "amd64"
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  args:
-    - ${{ inputs.version }}
+  using: composite
+  steps:
+    - name: "Download and copy the binary to /usr/local/bin"
+      shell: bash
+      run: |
+        VERSION=${{ inputs.version }}
+        ARCH=${{ inputs.arch }}
+        BIN_URL="https://storage.googleapis.com/kubernetes-release/release/v${VERSION}/bin/linux/${ARCH}/kubectl"
+        curl -sL ${BIN_URL} -o /tmp/kubectl
+        sudo cp /tmp/kubectl /usr/local/bin
+        rm -rf /tmp/kubectl
+        which kubectl
+        kubectl version --client=true

@@ -1,15 +1,31 @@
-name: 'helm'
-description: 'A GitHub Action to run Helm commands'
-author: 'Hidde Beydals'
+name: Setup helm CLI
+description: A GitHub Action for running helm commands
+author: Stefan Prodan
 branding:
-  icon: 'command'
-  color: 'blue'
+  color: blue
+  icon: command
 inputs:
   version:
-    description: 'strict semver'
-    required: false
+    description: "strict semver"
+    required: true
+    default: "3.6.1"
+  arch:
+    description: "arch can be amd64 or arm64"
+    required: true
+    default: "amd64"
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  args:
-    - ${{ inputs.version }}
+  using: composite
+  steps:
+    - name: "Download and copy the binary to /usr/local/bin"
+      shell: bash
+      run: |
+        VERSION=${{ inputs.version }}
+        ARCH=${{ inputs.arch }}
+        BIN_URL="https://get.helm.sh/helm-v${VERSION}-linux-${ARCH}.tar.gz"
+        curl -sL ${BIN_URL} -o /tmp/helm.tar.gz
+        mkdir -p /tmp/helm
+        tar -C /tmp/helm/ -zxvf /tmp/helm.tar.gz
+        sudo cp /tmp/helm/linux-${ARCH}/helm /usr/local/bin
+        rm -rf /tmp/helm/ /tmp/helm.tar.gz
+        which helm
+        helm version
