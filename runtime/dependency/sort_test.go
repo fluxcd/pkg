@@ -20,34 +20,38 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/types"
+	"github.com/fluxcd/pkg/apis/meta"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type MockDependent struct {
-	NamespacedName types.NamespacedName
-	DependsOn      []CrossNamespaceDependencyReference
+	corev1.Node
+	DependsOn      []meta.NamespacedObjectReference
 }
 
-func (d MockDependent) GetDependsOn() (types.NamespacedName, []CrossNamespaceDependencyReference) {
-	return d.NamespacedName, d.DependsOn
+func (d MockDependent) GetDependsOn() []meta.NamespacedObjectReference {
+	return d.DependsOn
 }
 
 func TestDependencySort(t *testing.T) {
 	tests := []struct {
 		name    string
 		d       []Dependent
-		want    []CrossNamespaceDependencyReference
+		want    []meta.NamespacedObjectReference
 		wantErr bool
 	}{
 		{
 			"simple",
 			[]Dependent{
-				MockDependent{
-					NamespacedName: types.NamespacedName{
-						Namespace: "default",
-						Name:      "frontend",
+				&MockDependent{
+					Node: corev1.Node{
+						ObjectMeta: v1.ObjectMeta{
+							Namespace: "default",
+							Name:      "frontend",
+						},
 					},
-					DependsOn: []CrossNamespaceDependencyReference{
+					DependsOn: []meta.NamespacedObjectReference{
 						{
 							Namespace: "linkerd",
 							Name:      "linkerd",
@@ -58,18 +62,22 @@ func TestDependencySort(t *testing.T) {
 						},
 					},
 				},
-				MockDependent{
-					NamespacedName: types.NamespacedName{
-						Namespace: "linkerd",
-						Name:      "linkerd",
+				&MockDependent{
+					Node: corev1.Node{
+						ObjectMeta: v1.ObjectMeta{
+							Namespace: "linkerd",
+							Name:      "linkerd",
+						},
 					},
 				},
-				MockDependent{
-					NamespacedName: types.NamespacedName{
-						Namespace: "default",
-						Name:      "backend",
+				&MockDependent{
+					Node: corev1.Node{
+						ObjectMeta: v1.ObjectMeta{
+							Namespace: "default",
+							Name:      "backend",
+						},
 					},
-					DependsOn: []CrossNamespaceDependencyReference{
+					DependsOn: []meta.NamespacedObjectReference{
 						{
 							Namespace: "linkerd",
 							Name:      "linkerd",
@@ -77,7 +85,7 @@ func TestDependencySort(t *testing.T) {
 					},
 				},
 			},
-			[]CrossNamespaceDependencyReference{
+			[]meta.NamespacedObjectReference{
 				{
 					Namespace: "linkerd",
 					Name:      "linkerd",
@@ -96,36 +104,42 @@ func TestDependencySort(t *testing.T) {
 		{
 			"circular dependency",
 			[]Dependent{
-				MockDependent{
-					NamespacedName: types.NamespacedName{
-						Namespace: "default",
-						Name:      "dependency",
+				&MockDependent{
+					Node: corev1.Node{
+						ObjectMeta: v1.ObjectMeta{
+							Namespace: "default",
+							Name:      "dependency",
+						},
 					},
-					DependsOn: []CrossNamespaceDependencyReference{
+					DependsOn: []meta.NamespacedObjectReference{
 						{
 							Namespace: "default",
 							Name:      "endless",
 						},
 					},
 				},
-				MockDependent{
-					NamespacedName: types.NamespacedName{
-						Namespace: "default",
-						Name:      "endless",
+				&MockDependent{
+					Node: corev1.Node{
+						ObjectMeta: v1.ObjectMeta{
+							Namespace: "default",
+							Name:      "endless",
+						},
 					},
-					DependsOn: []CrossNamespaceDependencyReference{
+					DependsOn: []meta.NamespacedObjectReference{
 						{
 							Namespace: "default",
 							Name:      "circular",
 						},
 					},
 				},
-				MockDependent{
-					NamespacedName: types.NamespacedName{
-						Namespace: "default",
-						Name:      "circular",
+				&MockDependent{
+					Node: corev1.Node{
+						ObjectMeta: v1.ObjectMeta{
+							Namespace: "default",
+							Name:      "circular",
+						},
 					},
-					DependsOn: []CrossNamespaceDependencyReference{
+					DependsOn: []meta.NamespacedObjectReference{
 						{
 							Namespace: "default",
 							Name:      "dependency",
@@ -139,25 +153,29 @@ func TestDependencySort(t *testing.T) {
 		{
 			"missing namespace",
 			[]Dependent{
-				MockDependent{
-					NamespacedName: types.NamespacedName{
-						Namespace: "application",
-						Name:      "backend",
+				&MockDependent{
+					Node: corev1.Node{
+						ObjectMeta: v1.ObjectMeta{
+							Namespace: "application",
+							Name:      "backend",
+						},
 					},
 				},
-				MockDependent{
-					NamespacedName: types.NamespacedName{
-						Namespace: "application",
-						Name:      "frontend",
+				&MockDependent{
+					Node: corev1.Node{
+						ObjectMeta: v1.ObjectMeta{
+							Namespace: "application",
+							Name:      "frontend",
+						},
 					},
-					DependsOn: []CrossNamespaceDependencyReference{
+					DependsOn: []meta.NamespacedObjectReference{
 						{
 							Name: "backend",
 						},
 					},
 				},
 			},
-			[]CrossNamespaceDependencyReference{
+			[]meta.NamespacedObjectReference{
 				{
 					Namespace: "application",
 					Name:      "backend",
@@ -186,34 +204,40 @@ func TestDependencySort(t *testing.T) {
 
 func TestDependencySort_DeadEnd(t *testing.T) {
 	d := []Dependent{
-		MockDependent{
-			NamespacedName: types.NamespacedName{
-				Namespace: "default",
-				Name:      "backend",
+		&MockDependent{
+			Node: corev1.Node{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Name:      "backend",
+				},
 			},
-			DependsOn: []CrossNamespaceDependencyReference{
+			DependsOn: []meta.NamespacedObjectReference{
 				{
 					Namespace: "default",
 					Name:      "common",
 				},
 			},
 		},
-		MockDependent{
-			NamespacedName: types.NamespacedName{
-				Namespace: "default",
-				Name:      "frontend",
+		&MockDependent{
+			Node: corev1.Node{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Name:      "frontend",
+				},
 			},
-			DependsOn: []CrossNamespaceDependencyReference{
+			DependsOn: []meta.NamespacedObjectReference{
 				{
 					Namespace: "default",
 					Name:      "infra",
 				},
 			},
 		},
-		MockDependent{
-			NamespacedName: types.NamespacedName{
-				Namespace: "default",
-				Name:      "common",
+		&MockDependent{
+			Node: corev1.Node{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Name:      "common",
+				},
 			},
 		},
 	}
