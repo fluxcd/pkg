@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package kustomize contains a selective set of Kustomize APIs for use by
-// toolkit components.
+// Package kustomize contains a selective set of Kustomize API types for use by GitOps Toolkit components.
 // +kubebuilder:object:generate=true
 package kustomize
