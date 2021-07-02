@@ -29,20 +29,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// localizedCondition defines a condition with the information of the object the conditions
-// was originated from.
+// localizedCondition defines a condition with the information of the object the conditions was originated from.
 type localizedCondition struct {
 	*metav1.Condition
 	Getter
 }
 
 // merge a list of condition into a single one.
-// This operation is designed to ensure visibility of the most relevant conditions for defining the
-// operational state of a component. E.g. If there is one error in the condition list, this one takes
-// priority over the other conditions and it is should be reflected in the target condition.
+// This operation is designed to ensure visibility of the most relevant conditions for defining the operational state of
+// a component. E.g. If there is one error in the condition list, this one takes priority over the other conditions and
+// it is should be reflected in the target condition.
 //
 // More specifically:
-// 1. Conditions are grouped by status and polarity
+// 1. Conditions are grouped by status and polarity.
 // 2. The resulting condition groups are sorted according to the following priority:
 //   - P0 - Status=True, NegativePolarity=True
 //   - P1 - Status=False, NegativePolarity=False
@@ -53,9 +52,9 @@ type localizedCondition struct {
 // 4. If the polarity of the highest priority and target priority differ, it is inverted.
 //
 // Please note that the last operation includes also the task of computing the Reason and the Message for the target
-// condition; in order to complete such task some trade-off should be made, because there is no a golden rule
-// for summarizing many Reason/Message into single Reason/Message.
-// mergeOptions allows the user to adapt this process to the specific needs by exposing a set of merge strategies.
+// condition; in order to complete such task some trade-off should be made, because there is no a golden rule for
+// summarizing many Reason/Message into single Reason/Message. mergeOptions allows the user to adapt this process to the
+// specific needs by exposing a set of merge strategies.
 func merge(conditions []localizedCondition, targetCondition string, options *mergeOptions) *metav1.Condition {
 	g := getConditionGroups(conditions, options)
 	if len(g) == 0 {
@@ -133,8 +132,8 @@ func getConditionGroups(conditions []localizedCondition, options *mergeOptions) 
 	return groups
 }
 
-// conditionGroups provides supports for grouping a list of conditions to be
-// merged into a single condition. ConditionGroups can be sorted by mergePriority.
+// conditionGroups provides supports for grouping a list of conditions to be merged into a single condition.
+// ConditionGroups can be sorted by mergePriority.
 type conditionGroups []conditionGroup
 
 func (g conditionGroups) Len() int {
@@ -170,16 +169,16 @@ func (g conditionGroups) TruePositivePolarityGroup() *conditionGroup {
 	return nil
 }
 
-// conditionGroup defines a group of conditions with the same metav1.ConditionStatus
-// and polarity, and thus with the same priority when merging into a condition.
+// conditionGroup defines a group of conditions with the same metav1.ConditionStatus and polarity, and thus with the
+// same priority when merging into a condition.
 type conditionGroup struct {
 	status           metav1.ConditionStatus
 	negativePolarity bool
 	conditions       []localizedCondition
 }
 
-// mergePriority provides a priority value for the status and polarity tuple that identifies this
-// condition group. The mergePriority value allows an easier sorting of conditions groups.
+// mergePriority provides a priority value for the status and polarity tuple that identifies this condition group. The
+// mergePriority value allows an easier sorting of conditions groups.
 func (g conditionGroup) mergePriority() (p int) {
 	switch g.status {
 	case metav1.ConditionTrue:

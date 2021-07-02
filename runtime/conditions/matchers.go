@@ -31,6 +31,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// HaveSameStateOf returns a custom matcher to check equality of a metav1.Condition, the condition message is checked
+// for a subset string match.
 func HaveSameStateOf(expected *metav1.Condition) types.GomegaMatcher {
 	return &ConditionMatcher{
 		Expected: expected,
@@ -46,7 +48,6 @@ func (matcher *ConditionMatcher) Match(actual interface{}) (success bool, err er
 	if !ok {
 		return false, errors.New("value should be a condition")
 	}
-
 	return hasSameState(actualCondition, matcher.Expected), nil
 }
 

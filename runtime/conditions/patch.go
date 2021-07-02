@@ -112,7 +112,8 @@ func WithOwnedConditions(t ...string) ApplyOption {
 	}
 }
 
-// WithForceOverwrite In case of conflicts for the owned conditions, the patch helper will always use the value provided by the controller.
+// WithForceOverwrite instructs the patch helper to always use the value provided by the controller in case of conflicts
+// for the owned conditions.
 func WithForceOverwrite(v bool) ApplyOption {
 	return func(c *applyOptions) {
 		c.forceOverwrite = v

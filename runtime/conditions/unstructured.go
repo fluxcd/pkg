@@ -40,18 +40,20 @@ var (
 )
 
 // UnstructuredGetter return a Getter object that can read conditions from an Unstructured object.
-// Important. This method should be used only with types implementing GitOps Toolkit API conditions.
+//
+// IMPORTANT: This method should be used only with types implementing status conditions with a metav1.Condition type.
 func UnstructuredGetter(u *unstructured.Unstructured) Getter {
 	return &unstructuredWrapper{Unstructured: u}
 }
 
 // UnstructuredSetter return a Setter object that can set conditions from an Unstructured object.
-// Important. This method should be used only with types implementing GitOps Toolkit API conditions.
+//
+// IMPORTANT: This method should be used only with types implementing status conditions with a metav1.Condition type.
 func UnstructuredSetter(u *unstructured.Unstructured) Setter {
 	return &unstructuredWrapper{Unstructured: u}
 }
 
-// UnstructuredUnmarshalField is a wrapper around json and unstructured objects to decode and copy a specific field
+// UnstructuredUnmarshalField is a wrapper around JSON and Unstructured objects to decode and copy a specific field
 // value into an object.
 func UnstructuredUnmarshalField(u *unstructured.Unstructured, v interface{}, fields ...string) error {
 	value, found, err := unstructured.NestedFieldNoCopy(u.Object, fields...)
@@ -81,8 +83,8 @@ type unstructuredWrapper struct {
 // In more details:
 // - Errors during JSON-unmarshal are ignored and a empty collection list is returned.
 // - It's not possible to detect if the object has an empty condition list or if it does not implement conditions;
-//   in both cases the operation returns an empty slice is returned.
-// - If the object doesn't implement conditions on under status as defined in GitOps Toolkit API,
+//   in both cases the operation returns an empty slice.
+// - If the object doesn't implement status conditions as defined in GitOps Toolkit API,
 //   JSON-unmarshal matches incoming object keys to the keys; this can lead to to conditions values partially set.
 func (c *unstructuredWrapper) GetConditions() []metav1.Condition {
 	conditions := []metav1.Condition{}

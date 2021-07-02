@@ -30,15 +30,14 @@ import (
 	"github.com/fluxcd/pkg/apis/meta"
 )
 
-// Getter interface defines methods that a GitOps Toolkit API object should implement in order to
-// use the conditions package for getting conditions.
+// Getter interface defines methods that a Kubernetes resource object should implement in order to use the conditions
+// package for getting conditions.
 type Getter interface {
 	client.Object
 	meta.ObjectWithConditions
 }
 
-// Get returns the condition with the given type, if the condition does not exists,
-// it returns nil.
+// Get returns the condition with the given type, if the condition does not exists, it returns nil.
 func Get(from Getter, t string) *metav1.Condition {
 	conditions := from.GetConditions()
 	if conditions == nil {
@@ -58,8 +57,8 @@ func Has(from Getter, t string) bool {
 	return Get(from, t) != nil
 }
 
-// IsTrue is true if the condition with the given type is True, otherwise it return false
-// if the condition is not True or if the condition does not exist (is nil).
+// IsTrue is true if the condition with the given type is True, otherwise it return false if the condition is not True
+// or if the condition does not exist (is nil).
 func IsTrue(from Getter, t string) bool {
 	if c := Get(from, t); c != nil {
 		return c.Status == metav1.ConditionTrue
@@ -67,8 +66,8 @@ func IsTrue(from Getter, t string) bool {
 	return false
 }
 
-// IsFalse is true if the condition with the given type is False, otherwise it return false
-// if the condition is not False or if the condition does not exist (is nil).
+// IsFalse is true if the condition with the given type is False, otherwise it return false if the condition is not
+// False or if the condition does not exist (is nil).
 func IsFalse(from Getter, t string) bool {
 	if c := Get(from, t); c != nil {
 		return c.Status == metav1.ConditionFalse
@@ -76,8 +75,7 @@ func IsFalse(from Getter, t string) bool {
 	return false
 }
 
-// IsUnknown is true if the condition with the given type is Unknown or if the condition
-// does not exist (is nil).
+// IsUnknown is true if the condition with the given type is Unknown or if the condition does not exist (is nil).
 func IsUnknown(from Getter, t string) bool {
 	if c := Get(from, t); c != nil {
 		return c.Status == metav1.ConditionUnknown
@@ -101,8 +99,7 @@ func GetMessage(from Getter, t string) string {
 	return ""
 }
 
-// GetLastTransitionTime returns the LastTransitionType or nil if the condition
-// does not exist (is nil).
+// GetLastTransitionTime returns the LastTransitionType or nil if the condition does not exist (is nil).
 func GetLastTransitionTime(from Getter, t string) *metav1.Time {
 	if c := Get(from, t); c != nil {
 		return &c.LastTransitionTime
@@ -118,8 +115,8 @@ func GetObservedGeneration(from Getter, t string) int64 {
 	return 0
 }
 
-// summary returns a condition with the summary of all the conditions existing
-// on an object. If the object does not have other conditions, no summary condition is generated.
+// summary returns a condition with the summary of all the conditions existing on an object. If the object does not have
+// other conditions, no summary condition is generated.
 func summary(from Getter, t string, options ...MergeOption) *metav1.Condition {
 	conditions := from.GetConditions()
 
@@ -199,8 +196,8 @@ type mirrorOptions struct {
 // MirrorOptions defines an option for mirroring conditions.
 type MirrorOptions func(*mirrorOptions)
 
-// WithFallbackValue specify a fallback value to use in case the mirrored condition does not exists;
-// in case the fallbackValue is false, given values for reason, and message will be used.
+// WithFallbackValue specify a fallback value to use in case the mirrored condition does not exists; in case the
+// fallbackValue is false, given values for reason and message will be used.
 func WithFallbackValue(fallbackValue bool, reason string, message string) MirrorOptions {
 	return func(c *mirrorOptions) {
 		c.fallbackTo = &fallbackValue
@@ -209,8 +206,8 @@ func WithFallbackValue(fallbackValue bool, reason string, message string) Mirror
 	}
 }
 
-// mirror mirrors the Ready condition from a dependent object into the target condition;
-// if the Ready condition does not exists in the source object, no target conditions is generated.
+// mirror mirrors the Ready condition from a dependent object into the target condition; if the Ready condition does not
+// exists in the source object, no target conditions is generated.
 func mirror(from Getter, targetCondition string, options ...MirrorOptions) *metav1.Condition {
 	mirrorOpt := &mirrorOptions{}
 	for _, o := range options {
@@ -235,9 +232,9 @@ func mirror(from Getter, targetCondition string, options ...MirrorOptions) *meta
 	return condition
 }
 
-// aggregate the conditions from a list of depending objects into the target object; the condition
-// scope can be set using WithConditions; if none of the source objects have the conditions within
-// the scope, no target condition is generated.
+// aggregate the conditions from a list of depending objects into the target object; the condition scope can be set
+// using WithConditions; if none of the source objects have the conditions within the scope, no target condition is
+// generated.
 func aggregate(from []Getter, targetCondition string, options ...MergeOption) *metav1.Condition {
 	mergeOpt := &mergeOptions{
 		stepCounter: len(from),

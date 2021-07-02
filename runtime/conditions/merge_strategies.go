@@ -28,8 +28,8 @@ import (
 	"strings"
 )
 
-// mergeOptions allows to set strategies for merging a set of conditions into a single condition,
-// and more specifically for computing the target Reason and the target Message.
+// mergeOptions allows to set strategies for merging a set of conditions into a single condition, and more specifically
+// for computing the target Reason and the target Message.
 type mergeOptions struct {
 	conditionTypes                 []string
 	negativePolarityConditionTypes []string
@@ -47,15 +47,14 @@ type mergeOptions struct {
 // MergeOption defines an option for computing a summary of conditions.
 type MergeOption func(*mergeOptions)
 
-// WithConditions instructs merge about the condition types to consider when doing a merge operation;
-// if this option is not specified, all the conditions (except Ready, Stalled, and Reconciling) will
-// be considered. This is required so we can provide some guarantees about the semantic of the target
-// condition without worrying about side effects if someone or something adds custom conditions to the
-// objects.
+// WithConditions instructs merge about the condition types to consider when doing a merge operation; if this option is
+// not specified, all the conditions (except Ready, Stalled, and Reconciling) will be considered. This is required so we
+// can provide some guarantees about the semantic of the target condition without worrying about side effects if someone
+// or something adds custom conditions to the objects.
 //
-// NOTE: The order of conditions types defines the priority for determining the Reason and Message for the
-// target condition.
-// IMPORTANT: This options works only while generating the Summaryor Aggregated condition.
+// NOTE: The order of conditions types defines the priority for determining the Reason and Message for the target
+// condition.
+// IMPORTANT: This options works only while generating a Summary or Aggregated condition.
 func WithConditions(t ...string) MergeOption {
 	return func(c *mergeOptions) {
 		c.conditionTypes = t
@@ -63,8 +62,7 @@ func WithConditions(t ...string) MergeOption {
 }
 
 // WithNegativePolarityConditions instructs merge about the condition types that adhere to a "normal-false" or
-// "abnormal-true" pattern, i.e. that conditions are present with a value of True whenever something unusual
-// happens.
+// "abnormal-true" pattern, i.e. that conditions are present with a value of True whenever something unusual happens.
 //
 // NOTE: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
 // IMPORTANT: This option works only while generating the Summary or Aggregated condition.
@@ -74,9 +72,8 @@ func WithNegativePolarityConditions(t ...string) MergeOption {
 	}
 }
 
-// WithCounter instructs merge to add a "x of y Type" string to the message,
-// where x is the number of conditions in the top group, y is the number of objects in scope,
-// and Type is the top group condition type.
+// WithCounter instructs merge to add a "x of y Type" string to the message, where x is the number of conditions in the
+// top group, y is the number of objects in scope, and Type is the top group condition type.
 func WithCounter() MergeOption {
 	return func(c *mergeOptions) {
 		c.addCounter = true
@@ -84,9 +81,8 @@ func WithCounter() MergeOption {
 }
 
 // WithCounterIfOnly ensures a counter is show only if a subset of condition exists.
-// This may apply when you want to use a step counter while reconciling the resource, but then
-// want to move away from this notation as soon as the resource has been reconciled, and e.g. a
-// health check condition is generated
+// This may apply when you want to use a step counter while reconciling the resource, but then want to move away from
+// this notation as soon as the resource has been reconciled, and e.g. a health check condition is generated.
 //
 // IMPORTANT: This options requires WithStepCounter or WithStepCounterIf to be set.
 // IMPORTANT: This option works only while generating the Aggregated condition.
@@ -96,9 +92,10 @@ func WithCounterIfOnly(t ...string) MergeOption {
 	}
 }
 
-// WithStepCounter instructs merge to add a "x of y completed" string to the message,
-// where x is the number of conditions with Status=true and y is the number of conditions in scope.
-// IMPORTANT: This options works only while generating the Summary or Aggregated condition.
+// WithStepCounter instructs merge to add a "x of y completed" string to the message, where x is the number of
+// conditions with Status=true and y is the number of conditions in scope.
+//
+// IMPORTANT: This option works only while generating the Summary or Aggregated condition.
 func WithStepCounter() MergeOption {
 	return func(c *mergeOptions) {
 		c.addStepCounter = true
@@ -116,9 +113,8 @@ func WithStepCounterIf(value bool) MergeOption {
 }
 
 // WithStepCounterIfOnly ensures a step counter is show only if a subset of condition exists.
-// This may apply when you want to use a step counter while reconciling the resource, but then
-// want to move away from this notation as soon as the resource has been reconciled, and e.g. a
-// health check condition is generated
+// This may apply when you want to use a step counter while reconciling the resource, but then want to move away from
+// this notation as soon as the resource has been reconciled, and e.g. a health check condition is generated.
 //
 // IMPORTANT: This options requires WithStepCounter or WithStepCounterIf to be set.
 // IMPORTANT: This option works only while generating the Summary or Aggregated condition.
@@ -171,8 +167,8 @@ func localizeReason(reason string, from Getter) string {
 }
 
 // getMessage returns the message to be applied to the condition resulting by merging a set of condition groups.
-// The message is computed according to the given mergeOptions, but in case of errors or warning a
-// summary of existing errors is automatically added.
+// The message is computed according to the given mergeOptions, but in case of errors or warning a summary of existing
+// errors is automatically added.
 func getMessage(groups conditionGroups, options *mergeOptions) string {
 	if options.addStepCounter {
 		return getStepCounterMessage(groups, options.stepCounter)
@@ -183,9 +179,8 @@ func getMessage(groups conditionGroups, options *mergeOptions) string {
 	return getFirstMessage(groups, options.conditionTypes)
 }
 
-// getCounterMessage returns a "x of y <Type>", where x is the number of conditions in the top
-// group, y is the number passed to this method and <Type> is the condition type of the top
-// group.
+// getCounterMessage returns a "x of y <Type>", where x is the number of conditions in the top group, y is the number
+// passed to this method and <Type> is the condition type of the top group.
 func getCounterMessage(groups conditionGroups, to int) string {
 	topGroup := groups.TopGroup()
 	if topGroup == nil {
@@ -195,8 +190,8 @@ func getCounterMessage(groups conditionGroups, to int) string {
 	return fmt.Sprintf("%d of %d %s", ct, to, topGroup.conditions[0].Type)
 }
 
-// getStepCounterMessage returns a message "x of y completed", where x is the number of conditions
-// with Status=True and Polarity=Positive and y is the number passed to this method.
+// getStepCounterMessage returns a message "x of y completed", where x is the number of conditions with Status=True and
+// Polarity=Positive and y is the number passed to this method.
 func getStepCounterMessage(groups conditionGroups, to int) string {
 	ct := 0
 	if trueGroup := groups.TruePositivePolarityGroup(); trueGroup != nil {

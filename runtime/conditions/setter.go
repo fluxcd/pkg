@@ -32,7 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Setter interface defines methods that a GitOps Toolkit API object should implement in order to
+// Setter is an interface that defines methods a Kubernetes object should implement in order to
 // use the conditions package for setting conditions.
 type Setter interface {
 	Getter
@@ -41,8 +41,8 @@ type Setter interface {
 
 // Set sets the given condition.
 //
-// NOTE: If a condition already exists, the LastTransitionTime is updated only if a change is detected
-// in any of the following fields: Status, Reason, and Message. The ObservedGeneration is always updated.
+// NOTE: If a condition already exists, the LastTransitionTime is updated only if a change is detected in any of the
+// following fields: Status, Reason, and Message. The ObservedGeneration is always updated.
 func Set(to Setter, condition *metav1.Condition) {
 	if to == nil || condition == nil {
 		return
@@ -85,7 +85,7 @@ func Set(to Setter, condition *metav1.Condition) {
 	to.SetConditions(conditions)
 }
 
-// TrueCondition returns a condition with Status=True and the given type.
+// TrueCondition returns a condition with Status=True and the given type, reason and message.
 func TrueCondition(t, reason, messageFormat string, messageArgs ...interface{}) *metav1.Condition {
 	return &metav1.Condition{
 		Type:    t,
@@ -95,7 +95,7 @@ func TrueCondition(t, reason, messageFormat string, messageArgs ...interface{}) 
 	}
 }
 
-// FalseCondition returns a condition with Status=False and the given type.
+// FalseCondition returns a condition with Status=False and the given type, reason and message.
 func FalseCondition(t, reason, messageFormat string, messageArgs ...interface{}) *metav1.Condition {
 	return &metav1.Condition{
 		Type:    t,
@@ -105,7 +105,7 @@ func FalseCondition(t, reason, messageFormat string, messageArgs ...interface{})
 	}
 }
 
-// UnknownCondition returns a condition with Status=Unknown and the given type.
+// UnknownCondition returns a condition with Status=Unknown and the given type, reason and message.
 func UnknownCondition(t, reason, messageFormat string, messageArgs ...interface{}) *metav1.Condition {
 	return &metav1.Condition{
 		Type:    t,
@@ -115,17 +115,17 @@ func UnknownCondition(t, reason, messageFormat string, messageArgs ...interface{
 	}
 }
 
-// MarkTrue sets Status=True for the condition with the given type.
+// MarkTrue sets Status=True for the condition with the given type, reason and message.
 func MarkTrue(to Setter, t, reason, messageFormat string, messageArgs ...interface{}) {
 	Set(to, TrueCondition(t, reason, messageFormat, messageArgs...))
 }
 
-// MarkUnknown sets Status=Unknown for the condition with the given type.
+// MarkUnknown sets Status=Unknown for the condition with the given type, reason and message.
 func MarkUnknown(to Setter, t, reason, messageFormat string, messageArgs ...interface{}) {
 	Set(to, UnknownCondition(t, reason, messageFormat, messageArgs...))
 }
 
-// MarkFalse sets Status=False for the condition with the given type.
+// MarkFalse sets Status=False for the condition with the given type, reason and message.
 func MarkFalse(to Setter, t, reason, messageFormat string, messageArgs ...interface{}) {
 	Set(to, FalseCondition(t, reason, messageFormat, messageArgs...))
 }
@@ -142,9 +142,9 @@ func SetMirror(to Setter, targetCondition string, from Getter, options ...Mirror
 	Set(to, mirror(from, targetCondition, options...))
 }
 
-// SetAggregate creates a new condition with the aggregation of all the conditions from a
-// list of dependency objects, or a subset using WithConditions; if none of the source objects
-// have a condition within the scope of the merge operation, no target condition is generated.
+// SetAggregate creates a new condition with the aggregation of all the conditions from a list of dependency objects,
+// or a subset using WithConditions; if none of the source objects have a condition within the scope of the merge
+// operation, no target condition is generated.
 func SetAggregate(to Setter, targetCondition string, from []Getter, options ...MergeOption) {
 	Set(to, aggregate(from, targetCondition, options...))
 }
@@ -166,16 +166,17 @@ func Delete(to Setter, t string) {
 }
 
 // conditionWeights defines the weight of condition types that have priority in lexicographicLess.
+// TODO(hidde): given Reconciling is an abnormality-true type, and SHOULD only be present on the
+//  resource if applicable, I think it actually should have a higher priority than Ready.
 var conditionWeights = map[string]int{
 	meta.StalledCondition:     0,
 	meta.ReadyCondition:       1,
 	meta.ReconcilingCondition: 2,
 }
 
-// lexicographicLess returns true if a condition is less than another with regards to the
-// to order of conditions designed for convenience of the consumer, i.e. kubectl.
-// The condition types in conditionWeights always go first, sorted by their defined weight,
-// followed by all the other conditions sorted lexicographically by Type.
+// lexicographicLess returns true if a condition is less than another with regards to the to order of conditions
+// designed for convenience of the consumer, i.e. kubectl. The condition types in conditionWeights always go first,
+// sorted by their defined weight, followed by all the other conditions sorted lexicographically by Type.
 func lexicographicLess(i, j *metav1.Condition) bool {
 	w1, ok1 := conditionWeights[i.Type]
 	w2, ok2 := conditionWeights[j.Type]
@@ -189,9 +190,8 @@ func lexicographicLess(i, j *metav1.Condition) bool {
 	}
 }
 
-// hasSameState returns true if a condition has the same state of another; state is defined
-// by the union of following fields: Type, Status, Reason, and Message (it excludes
-// LastTransitionTime and ObservedGeneration).
+// hasSameState returns true if a condition has the same state of another; state is defined by the union of following
+// fields: Type, Status, Reason, and Message (it excludes LastTransitionTime and ObservedGeneration).
 func hasSameState(i, j *metav1.Condition) bool {
 	return i.Type == j.Type &&
 		i.Status == j.Status &&

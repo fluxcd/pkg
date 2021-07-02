@@ -31,8 +31,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// MatchConditions returns a custom matcher to check equality of metav1.Conditions;
-// condition messages are checked for a subset string match.
+// MatchConditions returns a custom matcher to check equality of a metav1.Condition slice, the condition messages are
+// checked for a subset string match.
 func MatchConditions(expected []metav1.Condition) types.GomegaMatcher {
 	return &matchConditions{
 		expected: expected,
@@ -48,7 +48,6 @@ func (m matchConditions) Match(actual interface{}) (success bool, err error) {
 	for _, condition := range m.expected {
 		elems = append(elems, MatchCondition(condition))
 	}
-
 	return ConsistOf(elems).Match(actual)
 }
 
