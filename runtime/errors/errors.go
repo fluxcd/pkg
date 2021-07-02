@@ -22,9 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// ReconciliationError is returned on a reconciliation failure for a resource,
-// it includes the Kind and NamespacedName of the resource the reconciliation
-// was performed for, and the underlying Err.
+// ReconciliationError is describes a generic reconciliation error for a resource, it includes the Kind and NamespacedName
+// of the resource, and any underlying Err.
 type ReconciliationError struct {
 	Kind           string
 	NamespacedName types.NamespacedName
@@ -39,39 +38,43 @@ func (e *ReconciliationError) Unwrap() error {
 	return e.Err
 }
 
-// SourceNotReadyError is returned when a source is not in a ready condition
-// during a reconciliation attempt, it includes the Kind and NamespacedName of
-// the source.
-type SourceNotReadyError struct {
+// ResourceNotReadyError describes an error in which a referred resource is not in a meta.ReadyCondition state,
+// it includes the Kind and NamespacedName, and any underlying Err.
+type ResourceNotReadyError struct {
 	Kind           string
 	NamespacedName types.NamespacedName
+	Err            error
 }
 
-func (e *SourceNotReadyError) Error() string {
-	return fmt.Sprintf("%s source '%s' is not ready", e.Kind, e.NamespacedName.String())
+func (e *ResourceNotReadyError) Error() string {
+	return fmt.Sprintf("%s resource '%s' is not ready", e.Kind, e.NamespacedName.String())
 }
 
-// SourceNotFoundError is returned if a referred source was not found, it
-// includes the Kind and NamespacedName of the source.
-type SourceNotFoundError struct {
+func (e *ResourceNotReadyError) Unwrap() error {
+	return e.Err
+}
+
+// ResourceNotFoundError describes an error in which a referred resource could not be found,
+// it includes the Kind and NamespacedName, and any underlying Err.
+type ResourceNotFoundError struct {
 	Kind           string
 	NamespacedName types.NamespacedName
+	Err            error
 }
 
-func (e *SourceNotFoundError) Error() string {
-	return fmt.Sprintf("%s source '%s' does not exist", e.Kind, e.NamespacedName.String())
+func (e *ResourceNotFoundError) Error() string {
+	return fmt.Sprintf("%s resource '%s' could not be found", e.Kind, e.NamespacedName.String())
 }
 
-// UnsupportedSourceKindError is returned if a referred source is of an
-// unsupported kind, it includes the Kind and Namespace of the source, and MAY
-// contain a string slice of SupportedKinds.
-type UnsupportedSourceKindError struct {
+// UnsupportedResourceKindError describes an error in which a referred resource is of an unsupported kind,
+// it includes the Kind and NamespacedName of the resource, and any underlying Err.
+type UnsupportedResourceKindError struct {
 	Kind           string
 	NamespacedName types.NamespacedName
 	SupportedKinds []string
 }
 
-func (e *UnsupportedSourceKindError) Error() string {
+func (e *UnsupportedResourceKindError) Error() string {
 	err := fmt.Sprintf("source '%s' with kind %s is not supported", e.NamespacedName.String(), e.Kind)
 	if len(e.SupportedKinds) == 0 {
 		return err
@@ -79,53 +82,8 @@ func (e *UnsupportedSourceKindError) Error() string {
 	return fmt.Sprintf("%s (must be one of: %q)", err, e.SupportedKinds)
 }
 
-// ArtifactAcquisitionError is returned if the artifact of a source could not be
-// acquired, it includes the Kind and NamespacedName of the source that
-// advertised the artifact, and MAY contain an underlying Err.
-type ArtifactAcquisitionError struct {
-	Kind           string
-	NamespacedName types.NamespacedName
-	Err            error
-}
-
-func (e *ArtifactAcquisitionError) Error() string {
-	err := fmt.Sprintf("failed to acquire %s artifact from '%s'", e.Kind, e.NamespacedName.String())
-	if e.Err == nil {
-		return err
-	}
-	return fmt.Sprintf("%s: %v", err, e.Err)
-}
-
-func (e *ArtifactAcquisitionError) Unwrap() error {
-	return e.Err
-}
-
-// DependencyNotReadyError is returned if a referred dependency resource is not
-// in a ready condition, it includes the Kind and NamespacedName of the
-// dependency.
-type DependencyNotReadyError struct {
-	Kind           string
-	NamespacedName types.NamespacedName
-}
-
-func (e *DependencyNotReadyError) Error() string {
-	return fmt.Sprintf("dependency '%s' of kind %s is not ready", e.NamespacedName.String(), e.Kind)
-}
-
-// DependencyNotFoundError is returned if a referred dependency resource was not
-// found, it includes the Kind and NamespacedName of the dependency.
-type DependencyNotFoundError struct {
-	Kind           string
-	NamespacedName types.NamespacedName
-}
-
-func (e *DependencyNotFoundError) Error() string {
-	return fmt.Sprintf("dependency '%s' of kind %s does not exist", e.NamespacedName, e.Kind)
-}
-
-// GarbageCollectionError is returned on a garbage collection failure for a
-// resource, it includes the Kind and NamespacedName the garbage collection
-// failed for, and the underlying Err.
+// GarbageCollectionError is describes a garbage collection error for a resources, it includes the Kind and
+// NamespacedName of the resource, and the underlying Err.
 type GarbageCollectionError struct {
 	Kind           string
 	NamespacedName types.NamespacedName
