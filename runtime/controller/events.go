@@ -30,26 +30,28 @@ import (
 	"github.com/fluxcd/pkg/runtime/events"
 )
 
-// Events is a helper struct that adds the capability of sending
-// events to the Kubernetes API and to the GitOps Toolkit notification
-// controller. You use it by embedding it in your reconciler struct:
+// Events is a helper struct that adds the capability of sending events to the Kubernetes API and an external event
+// recorder, like the GitOps Toolkit notification-controller.
 //
-//     type MyTypeReconciler {
-//         client.Client
-//         // ... etc.
-//         controller.Events
-//     }
+// Use it by embedding it in your reconciler struct:
 //
-// You initialise a suitable value with MakeEvents; in most cases the
-// value needs to be initialized once per controller, as the specialised
-// logger and object reference data are gathered from the arguments
-// provided to the Eventf method.
+//	type MyTypeReconciler {
+//  	client.Client
+//      // ... etc.
+//      controller.Events
+//	}
+//
+// Use MakeEvents to create a working Events value; in most cases the value needs to be initialised just once per
+// controller, as the specialised logger and object reference data are gathered from the arguments provided to the
+// Eventf method.
 type Events struct {
 	Scheme                *runtime.Scheme
 	EventRecorder         kuberecorder.EventRecorder
 	ExternalEventRecorder *events.Recorder
 }
 
+// MakeEvents creates a new Events, with the Events.Scheme set to that of the given mgr and a newly initialised
+// Events.EventRecorder for the given controllerName.
 func MakeEvents(mgr ctrl.Manager, controllerName string, ext *events.Recorder) Events {
 	return Events{
 		Scheme:                mgr.GetScheme(),
@@ -58,14 +60,12 @@ func MakeEvents(mgr ctrl.Manager, controllerName string, ext *events.Recorder) E
 	}
 }
 
-// Event emits a Kubernetes event, and forwards the event to the
-// notification controller if configured.
+// Event emits a Kubernetes event, and forwards the event to the ExternalEventRecorder if configured.
 func (e Events) Event(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msg string) {
 	e.Eventf(ctx, obj, metadata, severity, reason, msg)
 }
 
-// Eventf emits a Kubernetes event, and forwards the event to the
-// notification controller if configured.
+// Eventf emits a Kubernetes event, and forwards the event to the ExternalEventRecorder if configured.
 func (e Events) Eventf(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msgFmt string, args ...interface{}) {
 	if e.EventRecorder != nil {
 		e.EventRecorder.Eventf(obj, severityToEventType(severity), reason, msgFmt, args...)
@@ -83,7 +83,7 @@ func (e Events) Eventf(ctx context.Context, obj client.Object, metadata map[stri
 	}
 }
 
-// severityToEventType maps the given severity string to a corev1 event type.
+// severityToEventType maps the given severity string to a corev1 EventType.
 // In case of an unrecognised severity, EventTypeNormal is returned.
 func severityToEventType(severity string) string {
 	switch severity {

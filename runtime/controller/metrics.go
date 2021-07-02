@@ -31,30 +31,32 @@ import (
 	"github.com/fluxcd/pkg/runtime/metrics"
 )
 
-// Metrics adds the capability for recording GOTK-standard metrics to
-// a reconciler. Use by embedding into the reconciler struct:
+// Metrics is a helper struct that adds the capability for recording GitOps Toolkit standard metrics to a reconciler.
 //
-//     type MyTypeReconciler struct {
-//       client.Client
-//       // ...
-//       controller.Metrics
-//     }
+// Use it by embedding it in your reconciler struct:
 //
-// Following the GOTK-standard, API types used in GOTK should implement
-// conditions.Getter to work with status condition types, and required
-// to be able to record metrics.
+//	type MyTypeReconciler {
+//  	client.Client
+//      // ... etc.
+//      controller.Metrics
+//	}
 //
-// When initialising the controllers in main.go, use MustMakeMetrics to
-// create a working Metrics value; you can supply the same value to
-// all reconcilers.
+// Following the GitOps Toolkit conventions, API types used in GOTK SHOULD implement conditions.Getter to work with
+// status condition types, and this convention MUST be followed to be able to record metrics using this helper.
 //
-// Once initialised, metrics can be recorded by calling one of the
-// available `Record*` methods.
+// Use MustMakeMetrics to create a working Metrics value; you can supply the same value to all reconcilers.
+//
+// Once initialised, metrics can be recorded by calling one of the available `Record*` methods.
 type Metrics struct {
 	Scheme          *runtime.Scheme
 	MetricsRecorder *metrics.Recorder
 }
 
+// MustMakeMetrics creates a new Metrics with a new metrics.Recorder, and the Metrics.Scheme set to that of the given
+// mgr.
+// It attempts to register the metrics collectors in the controller-runtime metrics registry, which panics upon the
+// first registration that causes an error. Which usually happens if you try to initialize a Metrics value twice for
+// your controller.
 func MustMakeMetrics(mgr ctrl.Manager) Metrics {
 	metricsRecorder := metrics.NewRecorder()
 	crtlmetrics.Registry.MustRegister(metricsRecorder.Collectors()...)
@@ -65,6 +67,7 @@ func MustMakeMetrics(mgr ctrl.Manager) Metrics {
 	}
 }
 
+// RecordDuration records the duration of a reconcile attempt for the given obj based on the given startTime.
 func (m Metrics) RecordDuration(ctx context.Context, obj conditions.Getter, startTime time.Time) {
 	if m.MetricsRecorder != nil {
 		ref, err := reference.GetReference(m.Scheme, obj)
@@ -76,6 +79,7 @@ func (m Metrics) RecordDuration(ctx context.Context, obj conditions.Getter, star
 	}
 }
 
+// RecordSuspend records the suspension of the given obj based on the given suspend value.
 func (m Metrics) RecordSuspend(ctx context.Context, obj conditions.Getter, suspend bool) {
 	if m.MetricsRecorder != nil {
 		ref, err := reference.GetReference(m.Scheme, obj)
@@ -87,18 +91,22 @@ func (m Metrics) RecordSuspend(ctx context.Context, obj conditions.Getter, suspe
 	}
 }
 
+// RecordReadiness records the meta.ReadyCondition status for the given obj.
 func (m Metrics) RecordReadiness(ctx context.Context, obj conditions.Getter) {
 	m.RecordCondition(ctx, obj, meta.ReadyCondition)
 }
 
+// RecordReconciling records the meta.ReconcilingCondition status for the given obj.
 func (m Metrics) RecordReconciling(ctx context.Context, obj conditions.Getter) {
 	m.RecordCondition(ctx, obj, meta.ReconcilingCondition)
 }
 
+// RecordStalled records the meta.StalledCondition status for the given obj.
 func (m Metrics) RecordStalled(ctx context.Context, obj conditions.Getter) {
 	m.RecordCondition(ctx, obj, meta.StalledCondition)
 }
 
+// RecordCondition records the status of the given conditionType for the given obj.
 func (m Metrics) RecordCondition(ctx context.Context, obj conditions.Getter, conditionType string) {
 	if m.MetricsRecorder == nil {
 		return
