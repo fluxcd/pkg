@@ -73,7 +73,7 @@ func buildGraph(d []Dependent) (tarjan.Graph, map[string]meta.NamespacedObjectRe
 	for i := 0; i < len(d); i++ {
 		ref := meta.NamespacedObjectReference{
 			Namespace: d[i].GetNamespace(),
-			Name: d[i].GetName(),
+			Name:      d[i].GetName(),
 		}
 		deps := d[i].GetDependsOn()
 		g[namespacedNameObjRef(ref)] = buildEdges(deps, ref.Namespace)

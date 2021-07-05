@@ -27,7 +27,7 @@ import (
 
 type MockDependent struct {
 	corev1.Node
-	DependsOn      []meta.NamespacedObjectReference
+	DependsOn []meta.NamespacedObjectReference
 }
 
 func (d MockDependent) GetDependsOn() []meta.NamespacedObjectReference {
