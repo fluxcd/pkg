@@ -29,8 +29,8 @@ type Option interface {
 
 // HelperOptions contains options for patch options.
 type HelperOptions struct {
-	// IncludeStatusObservedGeneration sets the status.observedGeneration field
-	// on the incoming object to match metadata.generation, only if there is a change.
+	// IncludeStatusObservedGeneration sets the status.observedGeneration field on the incoming object to match
+	// metadata.generation, only if there is a change.
 	IncludeStatusObservedGeneration bool
 
 	// ForceOverwriteConditions allows the patch helper to overwrite conditions in case of conflicts.
@@ -38,7 +38,8 @@ type HelperOptions struct {
 	ForceOverwriteConditions bool
 
 	// OwnedConditions defines condition types owned by the controller.
-	// In case of conflicts for the owned conditions, the patch helper will always use the value provided by the controller.
+	// In case of conflicts for the owned conditions, the patch helper will always use the value provided by the
+	// controller.
 	OwnedConditions []string
 }
 
@@ -51,8 +52,8 @@ func (w WithForceOverwriteConditions) ApplyToHelper(in *HelperOptions) {
 	in.ForceOverwriteConditions = true
 }
 
-// WithStatusObservedGeneration sets the status.observedGeneration field
-// on the incoming object to match metadata.generation, only if there is a change.
+// WithStatusObservedGeneration sets the status.observedGeneration field on the incoming object to match
+// metadata.generation, only if there is a change.
 type WithStatusObservedGeneration struct{}
 
 // ApplyToHelper applies this configuration to the given HelperOptions.

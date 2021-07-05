@@ -40,6 +40,86 @@ import (
 )
 
 // Helper is a utility for ensuring the proper patching of objects.
+//
+// The Helper MUST be initialised before a set of modifications within the scope of an envisioned patch are made
+// to an object, so that the difference in state can be utilised to calculate a patch that can be used on a new revision
+// of the resource in case of conflicts.
+//
+// A common pattern for reconcilers is to initialise a NewHelper at the beginning of their Reconcile method, after
+// having fetched the latest revision for the resource from the API server, and then defer the call of Helper.Patch.
+// This ensures any modifications made to the spec and the status (conditions) object of the resource are always
+// persisted at the end of a reconcile run.
+//
+//	func (r *FooReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, retErr error) {
+//		// Retrieve the object from the API server
+//		obj := &v1.Foo{}
+//		if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+//			return ctrl.Result{}, client.IgnoreNotFound(err)
+//		}
+//
+// 		// Initialize the patch helper
+//		patchHelper, err := patch.NewHelper(obj, r.Client)
+//		if err != nil {
+//			return ctrl.Result{}, err
+//		}
+//
+//		// Always attempt to patch the object and status after each reconciliation
+//		defer func() {
+//			// Patch the object, ignoring conflicts on the conditions owned by this controller
+//			patchOpts := []patch.Option{
+//				patch.WithOwnedConditions{
+//					Conditions: []string{
+//						meta.ReadyCondition,
+//						meta.ReconcilingCondition,
+//						meta.ProgressingReason,
+//						// any other "owned conditions"
+//					},
+//				},
+//			}
+//
+//			// Determine if the resource is still being reconciled, or if it has stalled, and record this observation
+//			if retErr == nil && (result.IsZero() || !result.Requeue) {
+//				conditions.Delete(obj, meta.ReconcilingCondition)
+//
+//				// We have now observed this generation
+//				patchOpts = append(patchOpts, patch.WithStatusObservedGeneration{})
+//
+//				readyCondition := conditions.Get(obj, meta.ReadyCondition)
+//				switch readyCondition.Status {
+//				case metav1.ConditionFalse:
+//					// As we are no longer reconciling and the end-state is not ready, the reconciliation has stalled
+//					conditions.MarkTrue(obj, meta.StalledCondition, readyCondition.Reason, readyCondition.Message)
+//				case metav1.ConditionTrue:
+//					// As we are no longer reconciling and the end-state is ready, the reconciliation is no longer stalled
+//					conditions.Delete(obj, meta.StalledCondition)
+//				}
+//			}
+//
+//			// Finally, patch the resource
+//			if err := patchHelper.Patch(ctx, obj, patchOpts...); err != nil {
+//				retErr = kerrors.NewAggregate([]error{retErr, err})
+//			}
+//		}()
+//
+//		// ...start with actual reconciliation logic
+//	}
+//
+// Using this pattern, one-off or scoped patches for a subset of a reconcile operation can be made by initialising a new
+// Helper using NewHelper with the current state of the resource, making the modifications, and then directly applying
+// the patch using Helper.Patch, for example:
+//
+//	func (r *FooReconciler) subsetReconcile(ctx context.Context, obj *v1.Foo) (ctrl.Result, error) {
+//		patchHelper, err := patch.NewHelper(obj, r.Client)
+//		if err != nil {
+//			return ctrl.Result{}, err
+//		}
+//
+//		// Set CustomField in status object of resource
+//		obj.Status.CustomField = "value"
+//
+//		// Patch now only attempts to persist CustomField
+//		patchHelper.Patch(ctx, obj, nil)
+//	}
 type Helper struct {
 	client       client.Client
 	gvk          schema.GroupVersionKind
@@ -161,15 +241,15 @@ func (h *Helper) patchStatus(ctx context.Context, obj client.Object) error {
 	return h.client.Status().Patch(ctx, afterObject, client.MergeFrom(beforeObject))
 }
 
-// patchStatusConditions issues a patch if there are any changes to the conditions slice under
-// the status subresource. This is a special case and it's handled separately given that
-// we allow different controllers to act on conditions of the same object.
+// patchStatusConditions issues a patch if there are any changes to the conditions slice under the status subresource.
+// This is a special case and it's handled separately given that we allow different controllers to act on conditions of
+// the same object.
 //
-// This method has an internal backoff loop. When a conflict is detected, the method
-// asks the Client for the a new version of the object we're trying to patch.
+// This method has an internal backoff loop. When a conflict is detected, the method asks the Client for the a new
+// version of the object we're trying to patch.
 //
-// Condition changes are then applied to the latest version of the object, and if there are
-// no unresolvable conflicts, the patch is sent again.
+// Condition changes are then applied to the latest version of the object, and if there are no unresolvable conflicts,
+// the patch is sent again.
 func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, forceOverwrite bool, ownedConditions []string) error {
 	// Nothing to do if the object isn't a condition patcher.
 	if !h.isConditionsSetter {
@@ -245,7 +325,8 @@ func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, f
 	})
 }
 
-// calculatePatch returns the before/after objects to be given in a controller-runtime patch, scoped down to the absolute necessary.
+// calculatePatch returns the before/after objects to be given in a controller-runtime patch, scoped down to the
+// absolute necessary.
 func (h *Helper) calculatePatch(afterObj client.Object, focus patchType) (client.Object, client.Object, error) {
 	// Get a shallow unsafe copy of the before/after object in unstructured form.
 	before := unsafeUnstructuredCopy(h.before, focus, h.isConditionsSetter)
@@ -268,8 +349,8 @@ func (h *Helper) shouldPatch(in string) bool {
 	return h.changes[in]
 }
 
-// calculate changes tries to build a patch from the before/after objects we have
-// and store in a map which top-level fields (e.g. `metadata`, `spec`, `status`, etc.) have changed.
+// calculate changes tries to build a patch from the before/after objects we have and store in a map which top-level
+// fields (e.g. `metadata`, `spec`, `status`, etc.) have changed.
 func (h *Helper) calculateChanges(after client.Object) (map[string]bool, error) {
 	// Calculate patch data.
 	patch := client.MergeFrom(h.beforeObject)
