@@ -18,9 +18,8 @@ package transform
 
 // MergeMaps merges map b into given map a and returns the result.
 // It allows overwrites of map values with flat values, and vice versa.
-// This is copied from https://github.com/helm/helm/blob/v3.3.0/pkg/cli/values/options.go#L88,
-// as the public chartutil.CoalesceTables function does not allow
-// overwriting maps with flat values.
+//
+// Originally copied over from https://github.com/helm/helm/blob/v3.3.0/pkg/cli/values/options.go#L88.
 func MergeMaps(a, b map[string]interface{}) map[string]interface{} {
 	out := make(map[string]interface{}, len(a))
 	for k, v := range a {
