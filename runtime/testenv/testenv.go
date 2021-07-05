@@ -94,16 +94,14 @@ func (o *options) withDefaults() {
 type Option func(*options)
 
 // WithScheme configures the runtime.Scheme for the Environment.
-// If no scheme is configured, the Environment defaults to the global
-// runtime.Scheme.
+// If no scheme is configured, the Environment defaults to the global runtime.Scheme.
 func WithScheme(scheme *runtime.Scheme) Option {
 	return func(o *options) {
 		o.scheme = scheme
 	}
 }
 
-// WithCRDPath configures the paths the envtest.Environment should look
-// at for Custom Resource Definitions.
+// WithCRDPath configures the paths the envtest.Environment should look at for Custom Resource Definitions.
 func WithCRDPath(path ...string) Option {
 	return func(o *options) {
 		o.crdDirectoryPaths = append(o.crdDirectoryPaths, path...)
@@ -112,9 +110,8 @@ func WithCRDPath(path ...string) Option {
 
 // New creates a new environment spinning up a local api-server.
 //
-// NOTE: This function should be called only once for each package you're
-// running tests within, usually the environment is initialized in a
-// suite_test.go or <package>_test.go file within a `TestMain` function.
+// NOTE: This function should be called only once for each package you are running tests within, usually the environment
+// is initialized in a suite_test.go or <package>_test.go file within a `TestMain` function.
 func New(o ...Option) *Environment {
 	opts := options{}
 	for _, apply := range o {
