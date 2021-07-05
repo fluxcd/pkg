@@ -55,14 +55,30 @@ var stackLevelStrings = map[string]zapcore.Level{
 	"error": zapcore.PanicLevel,
 }
 
-// Options contains the configuration options for the logger.
+// Options contains the configuration options for the runtime logger.
+//
+// The struct can be used in the main.go file of your controller by binding it to the main flag set, and then utilizing
+// the configured options later:
+//
+//	func main() {
+//		var (
+//			// other controller specific configuration variables
+//			loggerOptions logger.Options
+//		)
+//
+//		// Bind the options to the main flag set, and parse it
+//		loggerOptions.BindFlags(flag.CommandLine)
+//		flag.Parse()
+//
+//		// Use the values during the initialisation of the logger
+//		ctrl.SetLogger(logger.NewLogger(logOptions))
+//  }
 type Options struct {
 	LogEncoding string
 	LogLevel    string
 }
 
-// BindFlags will parse the given flagset for logger option flags and
-// set the Options accordingly.
+// BindFlags will parse the given pflag.FlagSet for logger option flags and set the Options accordingly.
 func (o *Options) BindFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.LogEncoding, flagLogEncoding, "json",
 		"Log encoding format. Can be 'json' or 'console'.")
@@ -70,8 +86,7 @@ func (o *Options) BindFlags(fs *pflag.FlagSet) {
 		"Log verbosity level. Can be one of 'trace', 'debug', 'info', 'error'.")
 }
 
-// NewLogger returns a logger configured with the given Options,
-// and timestamps set to the ISO8601 format.
+// NewLogger returns a logger configured with the given Options, and timestamps set to the ISO8601 format.
 func NewLogger(opts Options) logr.Logger {
 	zapOpts := zap.Options{
 		EncoderConfigOptions: []zap.EncoderConfigOption{
