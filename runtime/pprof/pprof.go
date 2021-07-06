@@ -43,7 +43,7 @@ var endpoints = map[string]http.Handler{
 
 // SetupHandlers registers the pprof endpoints on the metrics server of the given mgr.
 //
-// The func can be used in the main.go file of your, after initialisation of the manager:
+// The func can be used in the main.go file of your controller, after initialisation of the manager:
 //
 //	func main() {
 //		mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
@@ -52,7 +52,7 @@ var endpoints = map[string]http.Handler{
 //			os.Exit(1)
 //		}
 //		pprof.SetupHandlers(mgr, log)
-//  }
+// 	}
 func SetupHandlers(mgr ctrl.Manager, log logr.Logger) {
 	// Only set the fraction if there is no existing setting
 	if runtime.SetMutexProfileFraction(-1) == 0 {

@@ -111,7 +111,7 @@ func WithCRDPath(path ...string) Option {
 // New creates a new environment spinning up a local api-server.
 //
 // NOTE: This function should be called only once for each package you are running tests within, usually the environment
-// is initialized in a suite_test.go or <package>_test.go file within a `TestMain` function.
+// is initialised in a suite_test.go or <package>_test.go file within a `TestMain` function.
 func New(o ...Option) *Environment {
 	opts := options{}
 	for _, apply := range o {

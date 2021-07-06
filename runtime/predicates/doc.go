@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package predicates provides generic predicates for GitOps Toolkit components to filter events conform standards.
+// Package predicates provides generic controller-runtime predicates for GitOps Toolkit components to filter events.
 package predicates

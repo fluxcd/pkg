@@ -26,7 +26,7 @@ import (
 
 // SetupChecks configures simple default ready and health probes on the given mgr.
 //
-// The func can be used in the main.go file of your, after initialisation of the manager:
+// The func can be used in the main.go file of your controller, after initialisation of the manager:
 //
 //	func main() {
 //		mgr, err := ctrl.NewManager(cfg, ctrl.Options{})

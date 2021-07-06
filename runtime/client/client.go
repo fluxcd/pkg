@@ -44,7 +44,7 @@ const (
 //
 //		// Get a runtime Kubernetes client configuration with the options set
 //		restConfig := client.GetConfigOrDie(clientOptions)
-//  }
+//	}
 type Options struct {
 	// QPS indicates the maximum queries-per-second of requests sent to to the Kubernetes API, defaults to 20.
 	QPS float32

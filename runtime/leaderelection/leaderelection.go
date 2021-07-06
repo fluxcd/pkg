@@ -54,7 +54,7 @@ const (
 //			RenewDeadline:                 &leaderElectionOptions.RenewDeadline,
 //			RetryPeriod:                   &leaderElectionOptions.RetryPeriod,
 //		})
-//  }
+//	}
 type Options struct {
 	// Enable determines whether or not to use leader election when starting the manager.
 	Enable bool

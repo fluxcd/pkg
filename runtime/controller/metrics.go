@@ -55,7 +55,7 @@ type Metrics struct {
 // MustMakeMetrics creates a new Metrics with a new metrics.Recorder, and the Metrics.Scheme set to that of the given
 // mgr.
 // It attempts to register the metrics collectors in the controller-runtime metrics registry, which panics upon the
-// first registration that causes an error. Which usually happens if you try to initialize a Metrics value twice for
+// first registration that causes an error. Which usually happens if you try to initialise a Metrics value twice for
 // your controller.
 func MustMakeMetrics(mgr ctrl.Manager) Metrics {
 	metricsRecorder := metrics.NewRecorder()

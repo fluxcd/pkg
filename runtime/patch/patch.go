@@ -57,7 +57,7 @@ import (
 //			return ctrl.Result{}, client.IgnoreNotFound(err)
 //		}
 //
-// 		// Initialize the patch helper
+// 		// Initialise the patch helper
 //		patchHelper, err := patch.NewHelper(obj, r.Client)
 //		if err != nil {
 //			return ctrl.Result{}, err
@@ -131,7 +131,7 @@ type Helper struct {
 	isConditionsSetter bool
 }
 
-// NewHelper returns an initialized Helper.
+// NewHelper returns an initialised Helper.
 func NewHelper(obj client.Object, crClient client.Client) (*Helper, error) {
 	// Get the GroupVersionKind of the object,
 	// used to validate against later on.

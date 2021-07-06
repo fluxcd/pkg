@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package controller offers embeddable structs for usage in your controller and underlying reconcilers, to help with
+// Package controller offers embeddable structs for use in your controller and underlying reconcilers, to help with
 // conforming to GitOps Toolkit conventions.
 package controller

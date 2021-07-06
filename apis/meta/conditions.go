@@ -46,12 +46,16 @@ const (
 	// encountered an error during the reconcile process or it has made insufficient progress (timeout).
 	// The Condition adheres to an "abnormal-true" polarity pattern, and MUST only be present on the resource if the
 	// Condition is True.
+	// For more information about polarity patterns, see:
+	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
 	StalledCondition string = "Stalled"
 
 	// ReconcilingCondition indicates the controller is currently working on reconciling the latest changes. This MAY be
 	// True for multiple reconciliation attempts, e.g. when an transient error occurred.
 	// The Condition adheres to an "abnormal-true" polarity pattern, and MUST only be present on the resource if the
 	// Condition is True.
+	// For more information about polarity patterns, see:
+	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
 	ReconcilingCondition string = "Reconciling"
 )
 
