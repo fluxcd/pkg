@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Flux authors
+Copyright 2021 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package predicates
+package meta
 
-// ReconcilateAtChangedPredicate detects meta.ReconcileAtAnnotation changes.
-//
-// DEPRECATED: use ReconcileRequestedPredicate instead.
-type ReconcilateAtChangedPredicate struct {
-	ReconcileRequestedPredicate
+// ObjectWithDependencies describes a Kubernetes resource object with dependencies.
+// +k8s:deepcopy-gen=false
+type ObjectWithDependencies interface {
+	// GetDependsOn returns a NamespacedObjectReference list the object depends on.
+	GetDependsOn() []NamespacedObjectReference
 }

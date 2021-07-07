@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Valid values for event severity.
+// These constants define valid event severity values.
 const (
 	// EventSeverityInfo represents an informational event, usually
 	// informing about changes.
@@ -31,8 +31,8 @@ const (
 	EventSeverityError string = "error"
 )
 
-// +kubebuilder:object:generate=true
 // Event is a report of an event issued by a controller.
+// +kubebuilder:object:generate=true
 type Event struct {
 	// The object that this event is about.
 	// +required

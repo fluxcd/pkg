@@ -20,50 +20,33 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/internal/tarjan"
 )
 
-// Dependent provides an interface for resources that maintain
-// CrossNamespaceDependencyReference list.
+// Dependent interface defines methods that a Kubernetes resource object should implement in order to use the dependency
+// package for ordering dependencies.
 type Dependent interface {
-	// GetDependsOn returns the Dependent's types.NamespacedName,
-	// and the CrossNamespaceDependencyReference slice it depends on.
-	GetDependsOn() (types.NamespacedName, []CrossNamespaceDependencyReference)
+	client.Object
+	meta.ObjectWithDependencies
 }
 
-// CrossNamespaceDependencyReference holds the reference to a dependency.
-type CrossNamespaceDependencyReference struct {
-	// Namespace holds the namespace reference of a dependency.
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
-
-	// Name holds the name reference of a dependency.
-	// +required
-	Name string `json:"name"`
-}
-
-func (r CrossNamespaceDependencyReference) String() string {
-	if r.Namespace == "" {
-		return r.Name
-	}
-	return fmt.Sprintf("%s%c%s", r.Namespace, types.Separator, r.Name)
-}
-
-// CircularDependencyError contains the circular dependency chains
-// that were detected while sorting the Dependent dependencies.
+// CircularDependencyError contains the circular dependency chains that were detected while sorting the Dependent
+// dependencies.
 type CircularDependencyError [][]string
 
 func (e CircularDependencyError) Error() string {
 	return fmt.Sprintf("circular dependencies: %v", [][]string(e))
 }
 
-// Sort sorts the Dependent slice based on their listed
-// dependencies using Tarjan's strongly connected components algorithm.
-func Sort(d []Dependent) ([]CrossNamespaceDependencyReference, error) {
+// Sort sorts the Dependent slice based on their listed dependencies using Tarjan's strongly connected components
+// algorithm.
+func Sort(d []Dependent) ([]meta.NamespacedObjectReference, error) {
 	g, l := buildGraph(d)
 	sccs := tarjan.SCC(g)
-	var sorted []CrossNamespaceDependencyReference
+	var sorted []meta.NamespacedObjectReference
 	var circular CircularDependencyError
 	for i := 0; i < len(sccs); i++ {
 		s := sccs[i]
@@ -84,18 +67,22 @@ func Sort(d []Dependent) ([]CrossNamespaceDependencyReference, error) {
 	return sorted, nil
 }
 
-func buildGraph(d []Dependent) (tarjan.Graph, map[string]CrossNamespaceDependencyReference) {
+func buildGraph(d []Dependent) (tarjan.Graph, map[string]meta.NamespacedObjectReference) {
 	g := make(tarjan.Graph)
-	l := make(map[string]CrossNamespaceDependencyReference)
+	l := make(map[string]meta.NamespacedObjectReference)
 	for i := 0; i < len(d); i++ {
-		name, deps := d[i].GetDependsOn()
-		g[name.String()] = buildEdges(deps, name.Namespace)
-		l[name.String()] = CrossNamespaceDependencyReference(name)
+		ref := meta.NamespacedObjectReference{
+			Namespace: d[i].GetNamespace(),
+			Name:      d[i].GetName(),
+		}
+		deps := d[i].GetDependsOn()
+		g[namespacedNameObjRef(ref)] = buildEdges(deps, ref.Namespace)
+		l[namespacedNameObjRef(ref)] = ref
 	}
 	return g, l
 }
 
-func buildEdges(d []CrossNamespaceDependencyReference, defaultNamespace string) tarjan.Edges {
+func buildEdges(d []meta.NamespacedObjectReference, defaultNamespace string) tarjan.Edges {
 	if len(d) == 0 {
 		return nil
 	}
@@ -104,7 +91,11 @@ func buildEdges(d []CrossNamespaceDependencyReference, defaultNamespace string) 
 		if v.Namespace == "" {
 			v.Namespace = defaultNamespace
 		}
-		e[v.String()] = struct{}{}
+		e[namespacedNameObjRef(v)] = struct{}{}
 	}
 	return e
+}
+
+func namespacedNameObjRef(ref meta.NamespacedObjectReference) string {
+	return ref.Namespace + string(types.Separator) + ref.Name
 }

@@ -23,15 +23,12 @@ import (
 	metav1 "github.com/fluxcd/pkg/apis/meta"
 )
 
-// ReconcileRequestedPredicate implements an update predicate
-// function for meta.ReconcileAtAnnotation changes.
+// ReconcileRequestedPredicate implements an update predicate function for meta.ReconcileRequestAnnotation changes.
+// This predicate will skip update events that have no meta.ReconcileRequestAnnotation change.
 //
-// This predicate will skip update events that have no
-// meta.ReconcileAtAnnotation change.
-// It is intended to be used in conjunction with the
-// predicate.GenerationChangedPredicate, as in the following example:
+// It is intended to be used in conjunction with the predicate.GenerationChangedPredicate, as in the following example:
 //
-// Controller.Watch(
+//	Controller.Watch(
 //		&source.Kind{Type: v1.MyCustomKind},
 // 		&handler.EnqueueRequestForObject{},
 //		predicate.Or(predicate.GenerationChangedPredicate{}, predicates.ReconcileRequestedPredicate{}))
@@ -39,8 +36,7 @@ type ReconcileRequestedPredicate struct {
 	predicate.Funcs
 }
 
-// Update implements the default UpdateEvent filter for validating
-// meta.ReconcileAtAnnotation changes.
+// Update implements the default UpdateEvent filter for validating meta.ReconcileRequestAnnotation changes.
 func (ReconcileRequestedPredicate) Update(e event.UpdateEvent) bool {
 	if e.ObjectOld == nil || e.ObjectNew == nil {
 		return false

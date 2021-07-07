@@ -16,45 +16,41 @@ limitations under the License.
 
 package meta
 
-// LocalObjectReference contains enough information to let you locate
-// the referenced object inside the same namespace
+// LocalObjectReference contains enough information to locate the referenced Kubernetes resource object.
 type LocalObjectReference struct {
-	// Name of the referent
+	// Name of the referent.
 	// +required
 	Name string `json:"name"`
 }
 
-// NamespacedObjectReference contains enough information to let you locate
-// the referenced object in any namespace
+// NamespacedObjectReference contains enough information to locate the referenced Kubernetes resource object in any
+// namespace.
 type NamespacedObjectReference struct {
-	// Name of the referent
+	// Name of the referent.
 	// +required
 	Name string `json:"name"`
 
-	// Namespace of the referent,
-	// when not specified it acts as LocalObjectReference
+	// Namespace of the referent, when not specified it acts as LocalObjectReference.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// NamespacedObjectKindReference contains enough information to let you locate
-// the typed referenced object in any namespace
+// NamespacedObjectKindReference contains enough information to locate the typed referenced Kubernetes resource object
+// in any namespace.
 type NamespacedObjectKindReference struct {
-	// API version of the referent,
-	// if not specified the Kubernetes preferred version will be used
+	// API version of the referent, if not specified the Kubernetes preferred version will be used.
 	// +optional
 	APIVersion string `json:"apiVersion,omitempty"`
 
-	// Kind of the referent
+	// Kind of the referent.
 	// +required
 	Kind string `json:"kind"`
 
-	// Name of the referent
+	// Name of the referent.
 	// +required
 	Name string `json:"name"`
 
-	// Namespace of the referent,
-	// when not specified it acts as LocalObjectReference
+	// Namespace of the referent, when not specified it acts as LocalObjectReference.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 }

@@ -19,23 +19,50 @@ package pprof
 import (
 	"net/http"
 	"net/http/pprof"
+	"runtime"
 
 	"github.com/go-logr/logr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+// HTTPPrefixPProf is the prefix appended to all endpoints.
+const HTTPPrefixPProf = "/debug/pprof"
+
 var endpoints = map[string]http.Handler{
-	"/debug/pprof/":        http.HandlerFunc(pprof.Index),
-	"/debug/pprof/cmdline": http.HandlerFunc(pprof.Cmdline),
-	"/debug/pprof/profile": http.HandlerFunc(pprof.Profile),
-	"/debug/pprof/symbol":  http.HandlerFunc(pprof.Symbol),
-	"/debug/pprof/trace":   http.HandlerFunc(pprof.Trace),
+	HTTPPrefixPProf + "/":             http.HandlerFunc(pprof.Index),
+	HTTPPrefixPProf + "/cmdline":      http.HandlerFunc(pprof.Cmdline),
+	HTTPPrefixPProf + "/profile":      http.HandlerFunc(pprof.Profile),
+	HTTPPrefixPProf + "/symbol":       http.HandlerFunc(pprof.Symbol),
+	HTTPPrefixPProf + "/trace":        http.HandlerFunc(pprof.Trace),
+	HTTPPrefixPProf + "/heap":         pprof.Handler("heap"),
+	HTTPPrefixPProf + "/goroutine":    pprof.Handler("goroutine"),
+	HTTPPrefixPProf + "/threadcreate": pprof.Handler("threadcreate"),
+	HTTPPrefixPProf + "/block":        pprof.Handler("block"),
+	HTTPPrefixPProf + "/mutex":        pprof.Handler("mutex"),
 }
 
-func SetupHandlers(mgr ctrl.Manager, setupLog logr.Logger) {
+// SetupHandlers registers the pprof endpoints on the metrics server of the given mgr.
+//
+// The func can be used in the main.go file of your controller, after initialisation of the manager:
+//
+//	func main() {
+//		mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
+//		if err != nil {
+//			log.Error(err, "unable to start manager")
+//			os.Exit(1)
+//		}
+//		pprof.SetupHandlers(mgr, log)
+// 	}
+func SetupHandlers(mgr ctrl.Manager, log logr.Logger) {
+	// Only set the fraction if there is no existing setting
+	if runtime.SetMutexProfileFraction(-1) == 0 {
+		// Default to report 1 out of 5 mutex events, on average
+		runtime.SetMutexProfileFraction(5)
+	}
+
 	for p, h := range endpoints {
 		if err := mgr.AddMetricsExtraHandler(p, h); err != nil {
-			setupLog.Error(err, "unable to add pprof handler")
+			log.Error(err, "unable to add pprof handler")
 		}
 	}
 }

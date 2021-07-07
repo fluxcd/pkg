@@ -30,35 +30,54 @@ const (
 	flagRetryPeriod     = "leader-election-retry-period"
 )
 
-// Options contains the configuration options for the leader election.
+// Options contains the runtime configuration for leader election.
+//
+// The struct can be used in the main.go file of your controller by binding it to the main flag set, and then utilizing
+// the configured options later:
+//
+//	func main() {
+//		var (
+//			// other controller specific configuration variables
+//			leaderElectionOptions leaderelection.Options
+//		)
+//
+//		// Bind the options to the main flag set, and parse it
+//		leaderElectionOptions.BindFlags(flag.CommandLine)
+//		flag.Parse()
+//
+//		// Use the values during the initialisation of the manager
+//		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+//			...other options
+//			LeaderElection:                leaderElectionOptions.Enable,
+//			LeaderElectionReleaseOnCancel: leaderElectionOptions.ReleaseOnCancel,
+//			LeaseDuration:                 &leaderElectionOptions.LeaseDuration,
+//			RenewDeadline:                 &leaderElectionOptions.RenewDeadline,
+//			RetryPeriod:                   &leaderElectionOptions.RetryPeriod,
+//		})
+//	}
 type Options struct {
-	// Enable determines whether or not to use leader election when
-	// starting the manager.
+	// Enable determines whether or not to use leader election when starting the manager.
 	Enable bool
 
-	// ReleaseOnCancel defines if the leader should step down voluntarily
-	// when the Manager ends. This requires the binary to immediately end when the
-	// Manager is stopped, otherwise this setting is unsafe. Setting this significantly
-	// speeds up voluntary leader transitions as the new leader doesn't have to wait
-	// LeaseDuration time first.
+	// ReleaseOnCancel defines if the leader should step down voluntarily when the Manager ends. This requires the
+	// binary to immediately end when the Manager is stopped, otherwise this setting is unsafe. Setting this
+	// significantly speeds up voluntary leader transitions as the new leader doesn't have to wait LeaseDuration time
+	// first.
 	ReleaseOnCancel bool
 
-	// LeaseDuration is the duration that non-leader candidates will
-	// wait to force acquire leadership. This is measured against time of
-	// last observed ack. Default is 35 seconds.
+	// LeaseDuration is the duration that non-leader candidates will wait to force acquire leadership. This is measured
+	// against time of last observed ack. Default is 35 seconds.
 	LeaseDuration time.Duration
 
-	// RenewDeadline is the duration that the acting controlplane will retry
-	// refreshing leadership before giving up. Default is 30 seconds.
+	// RenewDeadline is the duration that the acting controlplane will retry refreshing leadership before giving up.
+	// Default is 30 seconds.
 	RenewDeadline time.Duration
 
-	// RetryPeriod is the duration the LeaderElector clients should wait
-	// between tries of actions. Default is 5 seconds.
+	// RetryPeriod is the duration the LeaderElector clients should wait between tries of actions. Default is 5 seconds.
 	RetryPeriod time.Duration
 }
 
-// BindFlags will parse the given flagset for leader election option flags
-// and set the Options accordingly.
+// BindFlags will parse the given pflag.FlagSet for leader election option flags and set the Options accordingly.
 func (o *Options) BindFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&o.Enable, flagEnable, false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")

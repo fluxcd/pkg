@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Flux authors
+Copyright 2021 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package predicates
-
-// ReconcilateAtChangedPredicate detects meta.ReconcileAtAnnotation changes.
+// Package testenv contains helpers to create and work with an encapsulated local Kubernetes test environment.
 //
-// DEPRECATED: use ReconcileRequestedPredicate instead.
-type ReconcilateAtChangedPredicate struct {
-	ReconcileRequestedPredicate
-}
+// For general advice around testing, see: https://cluster-api.sigs.k8s.io/developer/testing.html
+//
+// For more information about the encapsulated local Kubernetes test environment, see:
+// https://book.kubebuilder.io/reference/envtest.html
+package testenv

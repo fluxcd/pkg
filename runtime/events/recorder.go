@@ -38,12 +38,12 @@ type Recorder struct {
 	// Name of the controller that emits events.
 	ReportingController string
 
-	// Retryable HTTP client
+	// Retryable HTTP client.
 	Client *retryablehttp.Client
 }
 
 // NewRecorder creates an event Recorder with default settings.
-// The recorder performs automatic retries for connection errors and 500-range response code.
+// The recorder performs automatic retries for connection errors and 500-range response codes.
 func NewRecorder(webhook, reportingController string) (*Recorder, error) {
 	if _, err := url.Parse(webhook); err != nil {
 		return nil, err
@@ -77,8 +77,7 @@ func (r *Recorder) EventErrorf(
 	return r.Eventf(object, metadata, EventSeverityError, reason, messageFmt, args...)
 }
 
-// Eventf constructs an event from the given information
-// and performs an HTTP POST to the webhook address.
+// Eventf constructs an event from the given information and performs a HTTP POST to the webhook address.
 func (r *Recorder) Eventf(
 	object corev1.ObjectReference,
 	metadata map[string]string,

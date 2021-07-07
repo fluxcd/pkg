@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Flux authors
+Copyright 2021 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package predicates
-
-// ReconcilateAtChangedPredicate detects meta.ReconcileAtAnnotation changes.
-//
-// DEPRECATED: use ReconcileRequestedPredicate instead.
-type ReconcilateAtChangedPredicate struct {
-	ReconcileRequestedPredicate
-}
+// Package pprof contains a helper to register pprof endpoints on a controller-runtime manager.
+package pprof
