@@ -6,6 +6,9 @@ VERSION=${1:-2.3.1}
 
 curl -sL https://go.kubebuilder.io/dl/${VERSION}/linux/amd64 | tar -xz -C /tmp/
 
+# remove kubectl as this is supposed to be installed separately
+rm /tmp/kubebuilder_${VERSION}_linux_amd64/kubectl
+
 mkdir -p $GITHUB_WORKSPACE/kubebuilder
 mv /tmp/kubebuilder_${VERSION}_linux_amd64/* $GITHUB_WORKSPACE/kubebuilder/
 ls -lh $GITHUB_WORKSPACE/kubebuilder/bin
