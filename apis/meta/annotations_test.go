@@ -41,8 +41,8 @@ func TestGetAnnotationValue(t *testing.T) {
 	}
 	obj.Status.SetLastHandledReconcileRequest(val)
 
-	// set one annotation: should detect a change
-	obj.Annotations[ReconcileAtAnnotation] = time.Now().Format(time.RFC3339Nano)
+	// set annotation: should detect a change
+	obj.Annotations[ReconcileRequestAnnotation] = time.Now().Format(time.RFC3339Nano)
 	val, ok = ReconcileAnnotationValue(obj.Annotations)
 	if !ok {
 		t.Error("expected ReconcileAnnotationValue to return true when an annotation is set")
@@ -54,7 +54,7 @@ func TestGetAnnotationValue(t *testing.T) {
 
 	obj.Status.SetLastHandledReconcileRequest(val)
 
-	// set the other annotation; should detect a change
+	// update annotation; should detect a change
 	obj.Annotations[ReconcileRequestAnnotation] = time.Now().Format(time.RFC3339Nano)
 	val, ok = ReconcileAnnotationValue(obj.Annotations)
 	if !ok {
