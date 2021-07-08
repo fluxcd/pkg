@@ -13,6 +13,12 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+This file is modified from the source at
+https://github.com/kubernetes-sigs/cluster-api/blob/aa049f15e75d3ac715c2a1a1e58d34fa77280eef/internal/envtest/environment.go,
+and initially adapted to provide test environment utilities for any
+controller while staying in control over the runtime scheme and CRD
+setup.
 */
 
 package testenv
