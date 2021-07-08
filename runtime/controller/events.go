@@ -61,12 +61,24 @@ func MakeEvents(mgr ctrl.Manager, controllerName string, ext *events.Recorder) E
 }
 
 // Event emits a Kubernetes event, and forwards the event to the ExternalEventRecorder if configured.
-func (e Events) Event(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msg string) {
-	e.Eventf(ctx, obj, metadata, severity, reason, msg)
+// Use EventWithMeta or EventWithMetaf if you want to attach metadata to the external event.
+func (e Events) Event(ctx context.Context, obj client.Object, severity, reason, msg string) {
+	e.EventWithMetaf(ctx, obj, nil, severity, reason, msg)
 }
 
 // Eventf emits a Kubernetes event, and forwards the event to the ExternalEventRecorder if configured.
-func (e Events) Eventf(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msgFmt string, args ...interface{}) {
+// Use EventWithMeta or EventWithMetaf if you want to attach metadata to the external event.
+func (e Events) Eventf(ctx context.Context, obj client.Object, severity, reason, msgFmt string, args ...interface{}) {
+	e.EventWithMetaf(ctx, obj, nil, severity, reason, msgFmt, args...)
+}
+
+// EventWithMeta emits a Kubernetes event, and forwards the event and metadata to the ExternalEventRecorder if configured.
+func (e Events) EventWithMeta(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msg string) {
+	e.EventWithMetaf(ctx, obj, metadata, severity, reason, msg)
+}
+
+// EventWithMetaf emits a Kubernetes event, and forwards the event and metadata to the ExternalEventRecorder if configured.
+func (e Events) EventWithMetaf(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msgFmt string, args ...interface{}) {
 	if e.EventRecorder != nil {
 		e.EventRecorder.Eventf(obj, severityToEventType(severity), reason, msgFmt, args...)
 	}
