@@ -31,3 +31,11 @@ The packages build upon the following standards:
 - [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md)
 - [Kubernetes meta API conditions](https://github.com/kubernetes/enhancements/blob/master/keps/sig-api-machinery/1623-standardize-conditions/README.md)
 - [kstatus](https://github.com/kubernetes-sigs/cli-utils/tree/master/pkg/kstatus)
+
+## Usage
+
+To use the packages in your project, import `runtime` using `go get` or your dependency manager of choice:
+
+```shell
+go get github.com/fluxcd/pkg/runtime
+```
