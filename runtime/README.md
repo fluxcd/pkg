@@ -23,3 +23,11 @@ must be) used together to help with common operations.
 - Become a toolbox for all problems, packages must be of interest to a wide range of controllers (and specifically,
   their runtime operations) before introduction should be considered.
 - Adopt conflicting standards without breaking MAJOR version; opinions with versioning.
+
+## Supported standards
+
+The packages build upon the following standards:
+
+- [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md)
+- [Kubernetes meta API conditions](https://github.com/kubernetes/enhancements/blob/master/keps/sig-api-machinery/1623-standardize-conditions/README.md)
+- [kstatus](https://github.com/kubernetes-sigs/cli-utils/tree/master/pkg/kstatus)
