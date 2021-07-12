@@ -166,11 +166,11 @@ instructions on how to use the package.
 ### Testing
 
 The [`testenv`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv) package can be utilized to control the
-lifecycle of a local Kubernetes api-server used for testing purposes, and offers a set of helper utilities to
-work with resources on the cluster.
+lifecycle of a local Kubernetes api-server used for testing purposes, it is built upon controller-runtime's [`envtest`](https://book.kubebuilder.io/reference/envtest.html),
+and can be further configured using the same environment variables.
 
-It allows control over the runtime scheme and
-Custom Resource Defintions using [`testenv.WithScheme`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv#WithCRDPath)
+The package offers an additional set of helper utilities around `envtest`, allowing configuration of the runtime
+scheme and Custom Resource Definitions using [`testenv.WithScheme`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv#WithCRDPath)
 and [`testenv.WithCRDPath`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv#WithCRDPath).
 
 For all available functions, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv).
