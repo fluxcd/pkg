@@ -73,6 +73,15 @@ More specifically, it allows you to:
 
 For all available functions, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions).
 
+### Forwarding Events
+
+The [`events`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/events) package contains an `events.Recorder` which can
+be used to forward events to an external endpoint that understands the `events.Event` payload. For [GitOps
+Toolkit](https://fluxcd.io/docs/components/) controllers, this is the notification-controller endpoint.
+
+The package is best used in combination with the [`controller.Metrics` helper](#Controller-helpers), as this allows you
+to record _and_ forward Kubernetes Events using the same API.
+
 ### Controller helpers
 
 The [`controller`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller) package offers a collection of helpers
