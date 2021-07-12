@@ -24,7 +24,8 @@ must be) used together to help with common operations.
 
 - Become a toolbox for all problems, packages must be of interest to a wide range of controllers (and specifically,
   their runtime operations) before introduction should be considered.
-- Adopt conflicting standards without breaking MAJOR version; opinions with versioning.
+- Adopting every relevant standard. Potential integrations will be carefully considered, and where they break backward
+  compatibility, introduced only in major version releases.
 
 ## Supported standards
 
@@ -120,7 +121,7 @@ The package is best used in combination with the [`controller.Events` helper](#C
 ### Controller helpers
 
 The [`controller`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller) package offers a collection of helpers
-that can be embedded into a reconciler struct to provide them the capabilitiy to e.g. send Kubernetes Events and/or
+that can be embedded into a reconciler struct to provide them the capability to e.g. send Kubernetes Events and/or
 record metrics.
 
 | Helper | Description | Reference |
@@ -131,7 +132,7 @@ record metrics.
 ### Predicates
 
 The [`predicates`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/predicates) package offers a set of [GitOps
-Toolkit](https://fluxcd.io/docs/components/) common controller-runtime predicates, to for example notice annotation
+Toolkit](https://fluxcd.io/docs/components/) common controller-runtime predicates, for example to notice annotation
 changes.
 
 | Predicate | Description | Reference |
