@@ -1,4 +1,4 @@
-name: Setup Flux CLI
+name: Setup envtest
 description: A GitHub Action for setting up controller-runtime envtest
 author: Stefan Prodan
 branding:
@@ -16,7 +16,9 @@ runs:
       shell: bash
       run: |
         go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-    - name: "Download the latest envtest binaries"
+    - name: "Download envtest binaries and set KUBEBUILDER_ASSETS"
       shell: bash
       run: |
         setup-envtest use ${{ inputs.version }}
+        ENVTEST_DIR=$(setup-envtest use -i ${{ inputs.version }} -p path)
+        echo "KUBEBUILDER_ASSETS=$ENVTEST_DIR" >> $GITHUB_ENV
