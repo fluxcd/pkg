@@ -123,6 +123,16 @@ record metrics.
 | `controller.Events` | Provides the capabilities to send Events to the Kubernetes API and an external event recorder | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Events) |
 | `controller.Metrics` | Provides the capabilities to record a set of common Prometheus metrics for a Kubernetes resource object | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Metrics) |
 
+### Dependency ordering
+
+The [`dependency`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/dependency) package provides a topological sort
+function for Kubernetes resource objects that implement the [`dependency.Dependent`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/dependency#Dependent)
+interface. For example used in situations where you want to be able to schedule reconciliations as
+efficiently as possible, or in sequential batches in the right order.
+
+**NB:** at present the dependency ordering only works for dependencies of the same type, this should be changed or expanded in a
+future iteration, partly because it would enable [flux2#1599](https://github.com/fluxcd/flux2/discussions/1599).
+
 ### Debugging
 
 The [`pprof`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/pprof) package allows setting up additional [Go `pprof`](https://golang.org/pkg/net/http/pprof/)
