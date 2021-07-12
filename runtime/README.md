@@ -1,5 +1,7 @@
 # runtime
 
+[![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime)
+
 runtime offers a set of standard controller runtime packages that can be used on their own, but are best (and at times,
 must be) used together to help with common operations.
 
@@ -34,8 +36,39 @@ The packages build upon the following standards:
 
 ## Usage
 
-To use the packages in your project, import `runtime` using `go get` or your dependency manager of choice:
+To use the packages in your project, import `github.com/fluxcd/pkg/runtime` using `go get` or your dependency manager
+of choice:
 
 ```shell
 go get github.com/fluxcd/pkg/runtime
 ```
+
+### Working with Conditions
+
+The [`conditions`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions)
+package can be used on resources that implement the [`conditions.Getter`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#Getter)
+and/or [`conditions.Setter`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#Setter)
+interface, to enhance the experience of working with Conditions on a Kubernetes resource object during reconcile
+operations.
+
+More specifically, it allows you to:
+
+- Get a Condition from a Kubernetes resource, or a specific value from a Condition, using
+  [`conditions.Get`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#Get)
+  or one of the other available getter functions like
+  [`conditions.GetMessage`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#GetMessage).
+- Check if a Kubernetes resource has a Condition of a given type using
+  [`conditions.Has`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#Has),
+  or if it bears a Condition in a certain state, for example with
+  [`conditions.IsFalse`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#IsFalse).
+- Compose [`metav1.Condition`](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) structs in a certain
+  state using e.g. [`conditions.TrueCondition`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#TrueCondition)
+  or [`conditions.FalseCondition`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#FalseCondition).
+- Modify the conditions on a Kubernetes resource object using [`conditions.Set`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#Set)
+  or one of the available scoped functions like [`conditions.MarkTrue`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#MarkTrue).
+- Compose conditions based on other state and/or configurations using
+  [`conditions.SetAggregate`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#SetAggregate),
+  [`conditions.SetMirror`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#SetMirror)
+  and [`conditions.SetSummary`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#SetSummary).
+
+For all available functions, see the [package documentation](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions).
