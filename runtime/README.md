@@ -82,6 +82,14 @@ Toolkit](https://fluxcd.io/docs/components/) controllers, this is the notificati
 The package is best used in combination with the [`controller.Metrics` helper](#Controller-helpers), as this allows you
 to record _and_ forward Kubernetes Events using the same API.
 
+### Recording Metrics
+
+The [`metrics`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/metrics) package offers a `metrics.Recorder` with a
+set of Prometheus collectors for common [GitOps Toolkit](https://fluxcd.io/docs/components/) Kubernetes
+resource objects metric points (`gotk_*`).
+
+The package is best used in combination with the [`controller.Events` helper](#Controller-helpers), as this allows you to record metrics using controller-runtime types.
+
 ### Controller helpers
 
 The [`controller`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller) package offers a collection of helpers
