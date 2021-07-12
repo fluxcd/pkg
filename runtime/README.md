@@ -84,6 +84,10 @@ More specifically, it allows you to:
 
 For all available functions, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions).
 
+The package combines well with the [genric meta API package types](https://pkg.go.dev/github.com/fluxcd/pkg/apis/meta),
+and understands the [kstatus](#Supported-standards) Condition types if set up with
+[`conditions.WithNegativePolarityConditions`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#WithNegativePolarityConditions).
+
 ### Safe patching
 
 The [`patch`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch) package offers a helper utility to safely patch
