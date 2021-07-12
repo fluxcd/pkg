@@ -72,3 +72,14 @@ More specifically, it allows you to:
   and [`conditions.SetSummary`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#SetSummary).
 
 For all available functions, see the [package documentation](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions).
+
+### Runtime configuration options
+
+Several packages are available to align common runtime configuration flags across a set of controllers, easing the
+end-user operator experience.
+
+| Package | Description | Package documentation |
+|---|---|---|
+| `client` | Kubernetes runtime client configurations like QPS and burst | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/client?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/client) |
+| `leaderelection` | Kubernetes leader election configurations like the lease duration | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/leaderelection?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/leaderelection) |
+| `logger` | Runtime logger configurations like the encoding and log level | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/logger?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/logger) |
