@@ -73,6 +73,17 @@ More specifically, it allows you to:
 
 For all available functions, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions).
 
+### Controller helpers
+
+The [`controller`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller) package offers a collection of helpers
+that can be embedded into a reconciler struct to provide them the capabilitiy to e.g. send Kubernetes Events and/or
+record metrics.
+
+| Helper | Description | Reference |
+|---|---|---|
+| `controller.Events` | Provides the capabilities to send Events to the Kubernetes API and an external event recorder | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Events) |
+| `controller.Metrics` | Provides the capabilities to record a set of common Prometheus metrics for a Kubernetes resource object | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Metrics) |
+
 ### Safe patching
 
 The [`patch`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch) package offers a helper utility to safely patch
