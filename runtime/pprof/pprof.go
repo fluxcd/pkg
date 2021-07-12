@@ -25,10 +25,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-// HTTPPrefixPProf is the prefix appended to all endpoints.
+// HTTPPrefixPProf is the prefix appended to all Endpoints.
 const HTTPPrefixPProf = "/debug/pprof"
 
-var endpoints = map[string]http.Handler{
+// Endpoints defines the debugging endpoints that are added by SetupHandlers.
+var Endpoints = map[string]http.Handler{
 	HTTPPrefixPProf + "/":             http.HandlerFunc(pprof.Index),
 	HTTPPrefixPProf + "/cmdline":      http.HandlerFunc(pprof.Cmdline),
 	HTTPPrefixPProf + "/profile":      http.HandlerFunc(pprof.Profile),
@@ -60,7 +61,7 @@ func SetupHandlers(mgr ctrl.Manager, log logr.Logger) {
 		runtime.SetMutexProfileFraction(5)
 	}
 
-	for p, h := range endpoints {
+	for p, h := range Endpoints {
 		if err := mgr.AddMetricsExtraHandler(p, h); err != nil {
 			log.Error(err, "unable to add pprof handler")
 		}

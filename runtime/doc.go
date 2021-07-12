@@ -14,6 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package runtime and subpackages contain generic helpers for use
-// with controller-runtime.
+// Package runtime and subpackages contain generic helpers for use with controller-runtime.
 package runtime
