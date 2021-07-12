@@ -83,3 +83,12 @@ end-user operator experience.
 | `client` | Kubernetes runtime client configurations like QPS and burst | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/client?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/client) |
 | `leaderelection` | Kubernetes leader election configurations like the lease duration | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/leaderelection?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/leaderelection) |
 | `logger` | Runtime logger configurations like the encoding and log level | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/logger?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/logger) |
+
+### Debugging
+
+The [`pprof`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/pprof) package allows setting up additional [Go `pprof`](https://golang.org/pkg/net/http/pprof/)
+HTTP handlers on the metrics endpoint of a controller-runtime manager for debugging purposes. A list of exposed
+endpoints can be found in [`pprof.Endpoints`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/pprof#Endpoints).
+
+See the [package documentation](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/pprof#SetupHandlers) for further
+instructions on how to use the package.
