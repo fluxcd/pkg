@@ -127,6 +127,16 @@ record metrics.
 | `controller.Events` | Provides the capabilities to send Events to the Kubernetes API and an external event recorder | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Events) |
 | `controller.Metrics` | Provides the capabilities to record a set of common Prometheus metrics for a Kubernetes resource object | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Metrics) |
 
+### Predicates
+
+The [`predicates`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/predicates) package offers a set of [GitOps
+Toolkit](https://fluxcd.io/docs/components/) common controller-runtime predicates, to for example notice annotation
+changes.
+
+| Predicate | Description | Reference |
+|---|---|---|
+| `predicates.ReconcileRequestedPredicate` | Filter `meta.ReconcileRequestAnnotation` changes from update events |  [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/predicates?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/predicates#ReconcileRequestedPredicate) |
+
 ### Errors
 
 The [`errors`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/errors) package contains a set of error types for
