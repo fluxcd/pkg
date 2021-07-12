@@ -71,14 +71,14 @@ More specifically, it allows you to:
   [`conditions.SetMirror`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#SetMirror)
   and [`conditions.SetSummary`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions#SetSummary).
 
-For all available functions, see the [package documentation](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions).
+For all available functions, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions).
 
 ### Runtime configuration options
 
 Several packages are available to align common runtime configuration flags across a set of controllers, easing the
 end-user operator experience.
 
-| Package | Description | Package documentation |
+| Package | Description | Reference |
 |---|---|---|
 | `client` | Kubernetes runtime client configurations like QPS and burst | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/client?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/client) |
 | `leaderelection` | Kubernetes leader election configurations like the lease duration | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/leaderelection?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/leaderelection) |
@@ -90,5 +90,17 @@ The [`pprof`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/pprof) package al
 HTTP handlers on the metrics endpoint of a controller-runtime manager for debugging purposes. A list of exposed
 endpoints can be found in [`pprof.Endpoints`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/pprof#Endpoints).
 
-See the [package documentation](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/pprof#SetupHandlers) for further
+See the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/pprof#SetupHandlers) for further
 instructions on how to use the package.
+
+### Testing
+
+The [`testenv`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv) package can be utilized to control the
+lifecycle of a local Kubernetes api-server used for testing purposes, and offers a set of helper utilities to
+work with resources on the cluster.
+
+It allows control over the runtime scheme and
+Custom Resource Defintions using [`testenv.WithScheme`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv#WithCRDPath)
+and [`testenv.WithCRDPath`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv#WithCRDPath).
+
+For all available functions, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/testenv).
