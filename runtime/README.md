@@ -73,6 +73,17 @@ More specifically, it allows you to:
 
 For all available functions, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/conditions).
 
+### Safe patching
+
+The [`patch`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch) package offers a helper utility to safely patch
+a Kubernetes resource while taking into account a set of configuration options, and attempting to resolve merge
+conflicts and retry before bailing.
+
+It can be configured to understand "owned" Condition types using [`patch.WithOwnedConditions`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch#WithOwnedConditions),
+and offers other options like [`patch.WithObservedGeneration`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch#WithStatusObservedGeneration).
+
+For all available functions and examples, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch).
+
 ### Runtime configuration options
 
 Several packages are available to align common runtime configuration flags across a set of controllers, easing the
