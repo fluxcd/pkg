@@ -31,6 +31,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/fluxcd/pkg/runtime/conditions/testdata"
 )
 
 func TestUnstructuredGetConditions(t *testing.T) {
@@ -38,12 +40,10 @@ func TestUnstructuredGetConditions(t *testing.T) {
 
 	scheme := runtime.NewScheme()
 	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
-	scheme.AddKnownTypes(fakeSchemeGroupVersion,
-		&fake{},
-	)
+	g.Expect(testdata.AddFakeToScheme(scheme)).To(Succeed())
 
 	// GetConditions should return conditions from an unstructured object
-	c := &fake{}
+	c := &testdata.Fake{}
 	c.SetConditions(conditionList(true1))
 	u := &unstructured.Unstructured{}
 	g.Expect(scheme.Convert(c, u, nil)).To(Succeed())
@@ -51,7 +51,7 @@ func TestUnstructuredGetConditions(t *testing.T) {
 	g.Expect(UnstructuredGetter(u).GetConditions()).To(haveSameConditionsOf(conditionList(true1)))
 
 	// GetConditions should return nil for an unstructured object with empty conditions
-	c = &fake{}
+	c = &testdata.Fake{}
 	u = &unstructured.Unstructured{}
 	g.Expect(scheme.Convert(c, u, nil)).To(Succeed())
 
@@ -89,11 +89,9 @@ func TestUnstructuredSetConditions(t *testing.T) {
 	// gets an unstructured with empty conditions
 	scheme := runtime.NewScheme()
 	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
-	scheme.AddKnownTypes(fakeSchemeGroupVersion,
-		&fake{},
-	)
+	g.Expect(testdata.AddFakeToScheme(scheme)).To(Succeed())
 
-	c := &fake{}
+	c := &testdata.Fake{}
 	u := &unstructured.Unstructured{}
 	g.Expect(scheme.Convert(c, u, nil)).To(Succeed())
 

@@ -29,6 +29,8 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/fluxcd/pkg/runtime/conditions/testdata"
 )
 
 func TestNewPatch(t *testing.T) {
@@ -263,9 +265,9 @@ func TestApply(t *testing.T) {
 func TestApplyDoesNotAlterLastTransitionTime(t *testing.T) {
 	g := NewWithT(t)
 
-	before := &fake{}
-	after := &fake{
-		Status: fakeStatus{
+	before := &testdata.Fake{}
+	after := &testdata.Fake{
+		Status: testdata.FakeStatus{
 			Conditions: []metav1.Condition{
 				{
 					Type:               "foo",
@@ -275,7 +277,7 @@ func TestApplyDoesNotAlterLastTransitionTime(t *testing.T) {
 			},
 		},
 	}
-	latest := &fake{}
+	latest := &testdata.Fake{}
 
 	// latest has no conditions, so we are actually adding the
 	// condition but in this case we should not set the LastTransitionTime

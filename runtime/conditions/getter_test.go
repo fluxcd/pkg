@@ -29,6 +29,8 @@ import (
 	"github.com/fluxcd/pkg/apis/meta"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/fluxcd/pkg/runtime/conditions/testdata"
 )
 
 var (
@@ -41,7 +43,7 @@ var (
 func TestGetAndHas(t *testing.T) {
 	g := NewWithT(t)
 
-	obj := &fake{}
+	obj := &testdata.Fake{}
 
 	g.Expect(Has(obj, "conditionBaz")).To(BeFalse())
 	g.Expect(Get(obj, "conditionBaz")).To(BeNil())
@@ -350,7 +352,7 @@ func TestAggregate(t *testing.T) {
 }
 
 func getterWithConditions(conditions ...*metav1.Condition) Getter {
-	obj := &fake{}
+	obj := &testdata.Fake{}
 	obj.SetConditions(conditionList(conditions...))
 	return obj
 }
