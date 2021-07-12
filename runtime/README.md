@@ -30,6 +30,7 @@ must be) used together to help with common operations.
 
 The packages build upon the following standards:
 
+- [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime)
 - [Kubernetes API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md)
 - [Kubernetes meta API conditions](https://github.com/kubernetes/enhancements/blob/master/keps/sig-api-machinery/1623-standardize-conditions/README.md)
 - [kstatus](https://github.com/kubernetes-sigs/cli-utils/tree/master/pkg/kstatus)
