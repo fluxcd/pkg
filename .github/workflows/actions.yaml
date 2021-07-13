@@ -1,8 +1,10 @@
-name: build
+name: actions
 
 on:
   pull_request:
   push:
+    paths:
+      - 'actions/**'
     branches:
       - main
 
@@ -23,13 +25,8 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: 1.16.x
-      - name: Setup envtest
-        uses: ./actions/envtest
-      - name: Run tests
-        run: make all
-      - name: Check if working tree is dirty
-        run: |
-          if [[ $(git diff --stat) != '' ]]; then
-            echo 'run make test and commit changes'
-            exit 1
-          fi
+      - uses: ./actions/envtest
+      - uses: ./actions/kubectl
+      - uses: ./actions/kustomize
+      - uses: ./actions/helm
+      - uses: ./actions/kubebuilder

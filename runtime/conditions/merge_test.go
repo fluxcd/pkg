@@ -26,9 +26,11 @@ package conditions
 import (
 	"testing"
 
-	"github.com/fluxcd/pkg/apis/meta"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/runtime/conditions/testdata"
 )
 
 func TestNewConditionsGroup(t *testing.T) {
@@ -40,7 +42,7 @@ func TestNewConditionsGroup(t *testing.T) {
 
 	conditions := []*metav1.Condition{nil1, true1, true1, false1, unknown1, negativeFalseReconciling, negativeTrueStalled, negativeUnknownReconciling}
 
-	got := getConditionGroups(conditionsWithSource(&fake{}, conditions...), &mergeOptions{
+	got := getConditionGroups(conditionsWithSource(&testdata.Fake{}, conditions...), &mergeOptions{
 		negativePolarityConditionTypes: []string{meta.ReconcilingCondition, meta.StalledCondition},
 	})
 
@@ -164,7 +166,7 @@ func TestMergeRespectPriority(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			got := merge(conditionsWithSource(&fake{}, tt.conditions...), "foo", &mergeOptions{
+			got := merge(conditionsWithSource(&testdata.Fake{}, tt.conditions...), "foo", &mergeOptions{
 				negativePolarityConditionTypes: tt.negativeConditions,
 			})
 

@@ -28,12 +28,14 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/fluxcd/pkg/runtime/conditions/testdata"
 )
 
 func TestGetStepCounterMessage(t *testing.T) {
 	g := NewWithT(t)
 
-	groups := getConditionGroups(conditionsWithSource(&fake{},
+	groups := getConditionGroups(conditionsWithSource(&testdata.Fake{},
 		nil1,
 		true1, true1,
 		false1, false1, false1,
@@ -49,7 +51,7 @@ func TestGetStepCounterMessage(t *testing.T) {
 func TestLocalizeReason(t *testing.T) {
 	g := NewWithT(t)
 
-	getter := &fake{
+	getter := &testdata.Fake{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Fake",
 		},
@@ -73,7 +75,7 @@ func TestGetFirstReasonAndMessage(t *testing.T) {
 	foo := FalseCondition("foo", "falseFoo", "message falseFoo")
 	bar := FalseCondition("bar", "falseBar", "message falseBar")
 
-	setter := &fake{
+	setter := &testdata.Fake{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Fake",
 		},

@@ -27,12 +27,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fluxcd/pkg/apis/meta"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/runtime/conditions/testdata"
 )
 
 func TestHasSameState(t *testing.T) {
@@ -208,7 +210,7 @@ func TestSetLastTransitionTime(t *testing.T) {
 func TestMarkMethods(t *testing.T) {
 	g := NewWithT(t)
 
-	obj := &fake{}
+	obj := &testdata.Fake{}
 
 	// test MarkTrue
 	MarkTrue(obj, "conditionFoo", "reasonFoo", "messageFoo")
@@ -269,7 +271,7 @@ func TestSetAggregate(t *testing.T) {
 }
 
 func setterWithConditions(conditions ...*metav1.Condition) Setter {
-	obj := &fake{}
+	obj := &testdata.Fake{}
 	obj.SetConditions(conditionList(conditions...))
 	return obj
 }
