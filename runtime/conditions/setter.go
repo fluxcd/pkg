@@ -166,12 +166,10 @@ func Delete(to Setter, t string) {
 }
 
 // conditionWeights defines the weight of condition types that have priority in lexicographicLess.
-// TODO(hidde): given Reconciling is an abnormality-true type, and SHOULD only be present on the
-//  resource if applicable, I think it actually should have a higher priority than Ready.
 var conditionWeights = map[string]int{
 	meta.StalledCondition:     0,
-	meta.ReadyCondition:       1,
-	meta.ReconcilingCondition: 2,
+	meta.ReconcilingCondition: 1,
+	meta.ReadyCondition:       2,
 }
 
 // lexicographicLess returns true if a condition is less than another with regards to the to order of conditions

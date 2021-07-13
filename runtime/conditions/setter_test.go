@@ -88,8 +88,8 @@ func TestLexicographicLess(t *testing.T) {
 	g.Expect(lexicographicLess(stalled, ready)).To(BeTrue())
 	g.Expect(lexicographicLess(ready, stalled)).To(BeFalse())
 
-	g.Expect(lexicographicLess(ready, reconciling)).To(BeTrue())
-	g.Expect(lexicographicLess(reconciling, ready)).To(BeFalse())
+	g.Expect(lexicographicLess(reconciling, ready)).To(BeTrue())
+	g.Expect(lexicographicLess(ready, reconciling)).To(BeFalse())
 
 	g.Expect(lexicographicLess(stalled, reconciling)).To(BeTrue())
 	g.Expect(lexicographicLess(reconciling, stalled)).To(BeFalse())
