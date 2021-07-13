@@ -76,6 +76,24 @@ func (s *GitServer) KeyDir(dir string) *GitServer {
 	return s
 }
 
+// InstallUpdateHook installs a hook script that will run running
+// _before_ a push is accepted, as described at
+//
+//    https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks
+//
+// The provided string is written as an executable script to the hooks
+// directory; start with a hashbang to make sure it'll run, e.g.,
+//
+//     #!/bin/bash
+func (s *GitServer) InstallUpdateHook(script string) *GitServer {
+	if s.config.Hooks == nil {
+		s.config.Hooks = &gitkit.HookScripts{}
+	}
+	s.config.Hooks.Update = script
+	s.config.AutoHooks = true
+	return s
+}
+
 // Auth switches authentication on for both HTTP and SSH servers.
 // It's not possible to switch authentication on for just one of
 // them. The username and password provided are _only_ used for
