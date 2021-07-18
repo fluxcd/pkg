@@ -2,6 +2,8 @@ VER?=0.0.1
 MODULES=$(shell find . -mindepth 2 -maxdepth 4 -type f -name 'go.mod' | cut -c 3- | sed 's|/[^/]*$$||' | sort -u | tr / :)
 targets=$(addprefix test-, $(MODULES))
 root_dir=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+ENVTEST_BIN_VERSION?=latest
+KUBEBUILDER_ASSETS?=$(shell $(SETUP_ENVTEST) use -i $(ENVTEST_BIN_VERSION) -p path)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -25,8 +27,8 @@ vet-%:
 generate-%: controller-gen
 	cd $(subst :,/,$*); $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..."
 
-test-%: generate-% tidy-% fmt-% vet-%
-	cd $(subst :,/,$*); go test ./... -coverprofile cover.out
+test-%: generate-% tidy-% fmt-% vet-% setup-envtest
+	cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... -coverprofile cover.out
 
 release-%:
 	$(eval REL_PATH=$(subst :,/,$*))
@@ -50,4 +52,20 @@ ifeq (, $(shell which controller-gen))
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
+endif
+
+# Find or download setup-envtest
+setup-envtest:
+ifeq (, $(shell which setup-envtest))
+	@{ \
+	set -e ;\
+	SETUP_ENVTEST_TMP_DIR=$$(mktemp -d) ;\
+	cd $$SETUP_ENVTEST_TMP_DIR ;\
+	go mod init tmp ;\
+	go get sigs.k8s.io/controller-runtime/tools/setup-envtest@latest ;\
+	rm -rf $$SETUP_ENVTEST_TMP_DIR ;\
+	}
+SETUP_ENVTEST=$(GOBIN)/setup-envtest
+else
+SETUP_ENVTEST=$(shell which setup-envtest)
 endif
