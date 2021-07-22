@@ -1,6 +1,7 @@
 package gittestserver
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ func TestCreateSSHServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(srv.Root())
 	// without setting the key dir, the SSH server will fail to start
 	srv.KeyDir(srv.Root())
 	errc := make(chan error)
@@ -31,6 +33,7 @@ func TestListenSSH(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(srv.Root())
 	srv.KeyDir(srv.Root())
 	if err = srv.ListenSSH(); err != nil {
 		t.Fatal(err)
