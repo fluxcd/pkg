@@ -130,6 +130,25 @@ func MarkFalse(to Setter, t, reason, messageFormat string, messageArgs ...interf
 	Set(to, FalseCondition(t, reason, messageFormat, messageArgs...))
 }
 
+// MarkReconciling sets meta.ReconcilingCondition=True with the given reason and message, and deletes the
+// meta.StalledCondition. This is normally called at the beginning of a reconcile run for an object.
+// For more information about the condition types, see the kstatus spec:
+// https://github.com/kubernetes-sigs/cli-utils/blob/e351b2bc43cec2107ba1d874c3dec54fd0956c59/pkg/kstatus/README.md#conditions
+func MarkReconciling(to Setter, reason, messageFormat string, messageArgs ...interface{}) {
+	Delete(to, meta.StalledCondition)
+	MarkTrue(to, meta.ReconcilingCondition, reason, messageFormat, messageArgs...)
+}
+
+// MarkStalled sets meta.StalledCondition=True with the given reason and message, and deletes the
+// meta.ReconcilingCondition. This is normally deferred and conditionally called at the end of a reconcile run for an
+// object. A common approach is to mark the object stalled if the object is not requeued as a reconcile result.
+// For more information about the condition types, see the kstatus spec:
+// https://github.com/kubernetes-sigs/cli-utils/blob/e351b2bc43cec2107ba1d874c3dec54fd0956c59/pkg/kstatus/README.md#conditions
+func MarkStalled(to Setter, reason, messageFormat string, messageArgs ...interface{}) {
+	Delete(to, meta.ReconcilingCondition)
+	MarkTrue(to, meta.StalledCondition, reason, messageFormat, messageArgs...)
+}
+
 // SetSummary creates a new summary condition with the summary of all the conditions existing on an object.
 // If the object does not have other conditions, no summary condition is generated.
 func SetSummary(to Setter, targetCondition string, options ...MergeOption) {

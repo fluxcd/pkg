@@ -34,10 +34,16 @@ import (
 )
 
 var (
-	nil1     *metav1.Condition
-	true1    = TrueCondition("true1", "reason true1", "message true1")
-	unknown1 = UnknownCondition("unknown1", "reason unknown1", "message unknown1")
-	false1   = FalseCondition("false1", "reason false1", "message false1")
+	nil1             *metav1.Condition
+	true1            = TrueCondition("true1", "reason true1", "message true1")
+	unknown1         = UnknownCondition("unknown1", "reason unknown1", "message unknown1")
+	false1           = FalseCondition("false1", "reason false1", "message false1")
+	readyTrue        = TrueCondition(meta.ReadyCondition, "reason readyTrue", "message readyTrue")
+	readyFalse       = FalseCondition(meta.ReadyCondition, "reason readyFalse", "message readyFalse")
+	stalledTrue      = TrueCondition(meta.StalledCondition, "reason stalledTrue", "message stalledTrue")
+	stalledFalse     = FalseCondition(meta.StalledCondition, "reason stalledFalse", "message stalledFalse")
+	reconcilingTrue  = TrueCondition(meta.ReconcilingCondition, "reason reconcilingTrue", "message reconcilingTrue")
+	reconcilingFalse = TrueCondition(meta.ReconcilingCondition, "reason reconcilingFalse", "message reconcilingFalse")
 )
 
 func TestGetAndHas(t *testing.T) {
@@ -96,6 +102,29 @@ func TestIsMethods(t *testing.T) {
 	// test GetObservedGeneration
 	g.Expect(GetObservedGeneration(obj, "nil1")).To(BeZero())
 	g.Expect(GetObservedGeneration(obj, "false2")).ToNot(BeZero())
+}
+
+func TestIsReadyStalledReconciling(t *testing.T) {
+	g := NewWithT(t)
+
+	readyObj := getterWithConditions(readyTrue, stalledFalse)
+	stalledObj := getterWithConditions(stalledTrue, readyFalse)
+	reconcilingObj := getterWithConditions(reconcilingTrue, stalledFalse)
+
+	// test IsReady
+	g.Expect(IsReady(readyObj)).To(BeTrue())
+	g.Expect(IsReady(stalledObj)).To(BeFalse())
+	g.Expect(IsReady(reconcilingObj)).To(BeFalse())
+
+	// test IsStalled
+	g.Expect(IsStalled(stalledObj)).To(BeTrue())
+	g.Expect(IsStalled(readyObj)).To(BeFalse())
+	g.Expect(IsStalled(reconcilingObj)).To(BeFalse())
+
+	// test IsReconciling
+	g.Expect(IsReconciling(reconcilingObj)).To(BeTrue())
+	g.Expect(IsReconciling(stalledObj)).To(BeFalse())
+	g.Expect(IsReconciling(readyObj)).To(BeFalse())
 }
 
 func TestMirror(t *testing.T) {
