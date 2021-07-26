@@ -126,6 +126,11 @@ func (s *GitServer) StartHTTP() error {
 func (s *GitServer) StartHTTPS(cert, key, ca []byte, serverName string) error {
 	s.StopHTTP()
 	service := gitkit.New(s.config)
+	if s.config.Auth {
+		service.AuthFunc = func(cred gitkit.Credential, _ *gitkit.Request) (bool, error) {
+			return cred.Username == s.username && cred.Password == s.password, nil
+		}
+	}
 	if err := service.Setup(); err != nil {
 		return err
 	}
