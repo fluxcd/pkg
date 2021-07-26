@@ -57,8 +57,8 @@ func Has(from Getter, t string) bool {
 	return Get(from, t) != nil
 }
 
-// IsTrue is true if the condition with the given type is True, otherwise it return false if the condition is not True
-// or if the condition does not exist (is nil).
+// IsTrue is true if the condition with the given type is True, otherwise it is false if the condition is not True or if
+// the condition does not exist (is nil).
 func IsTrue(from Getter, t string) bool {
 	if c := Get(from, t); c != nil {
 		return c.Status == metav1.ConditionTrue
@@ -66,8 +66,8 @@ func IsTrue(from Getter, t string) bool {
 	return false
 }
 
-// IsFalse is true if the condition with the given type is False, otherwise it return false if the condition is not
-// False or if the condition does not exist (is nil).
+// IsFalse is true if the condition with the given type is False, otherwise it is false if the condition is not False or
+// if the condition does not exist (is nil).
 func IsFalse(from Getter, t string) bool {
 	if c := Get(from, t); c != nil {
 		return c.Status == metav1.ConditionFalse
@@ -81,6 +81,24 @@ func IsUnknown(from Getter, t string) bool {
 		return c.Status == metav1.ConditionUnknown
 	}
 	return true
+}
+
+// IsReady is true if IsStalled and IsReconciling are False, and meta.ReadyCondition is True, otherwise it is false if
+// the condition is not True or if it does not exist (is nil).
+func IsReady(from Getter) bool {
+	return !IsStalled(from) && !IsReconciling(from) && IsTrue(from, meta.ReadyCondition)
+}
+
+// IsStalled is true if meta.StalledCondition is True and meta.ReconcilingCondition is False or does not exist,
+// otherwise it is false.
+func IsStalled(from Getter) bool {
+	return !IsTrue(from, meta.ReconcilingCondition) && IsTrue(from, meta.StalledCondition)
+}
+
+// IsReconciling is true if meta.ReconcilingCondition is True and meta.StalledCondition is False or does not exist,
+// otherwise it is false.
+func IsReconciling(from Getter) bool {
+	return !IsTrue(from, meta.StalledCondition) && IsTrue(from, meta.ReconcilingCondition)
 }
 
 // GetReason returns a nil safe string of Reason for the condition with the given type.

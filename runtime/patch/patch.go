@@ -71,7 +71,7 @@ import (
 //					Conditions: []string{
 //						meta.ReadyCondition,
 //						meta.ReconcilingCondition,
-//						meta.ProgressingReason,
+//						meta.StalledCondition,
 //						// any other "owned conditions"
 //					},
 //				},

@@ -238,6 +238,28 @@ func TestMarkMethods(t *testing.T) {
 		Reason:  "reasonBaz",
 		Message: "messageBaz",
 	}))
+
+	// test MarkReconciling
+	MarkTrue(obj, meta.StalledCondition, "reasonStalled", "messageStalled")
+	MarkReconciling(obj, "reasonReconciling", "messageReconciling")
+	g.Expect(Get(obj, meta.ReconcilingCondition)).To(HaveSameStateOf(&metav1.Condition{
+		Type:    meta.ReconcilingCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  "reasonReconciling",
+		Message: "messageReconciling",
+	}))
+	g.Expect(IsUnknown(obj, meta.StalledCondition)).To(BeTrue())
+
+	// test MarkStalled
+	MarkTrue(obj, meta.ReconcilingCondition, "reasonReconciling", "messageReconciling")
+	MarkStalled(obj, "reasonStalled", "messageStalled")
+	g.Expect(Get(obj, meta.StalledCondition)).To(HaveSameStateOf(&metav1.Condition{
+		Type:    meta.StalledCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  "reasonStalled",
+		Message: "messageStalled",
+	}))
+	g.Expect(IsUnknown(obj, meta.ReconcilingCondition)).To(BeTrue())
 }
 
 func TestSetSummary(t *testing.T) {
