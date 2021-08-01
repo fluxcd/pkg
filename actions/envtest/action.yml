@@ -1,6 +1,6 @@
 name: Setup envtest
 description: A GitHub Action for setting up controller-runtime envtest
-author: Stefan Prodan
+author: Flux project
 branding:
   color: blue
   icon: command
@@ -10,15 +10,7 @@ inputs:
     required: false
     default: "latest"
 runs:
-  using: composite
-  steps:
-    - name: "Install setup-envtest"
-      shell: bash
-      run: |
-        go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-    - name: "Download envtest binaries and set KUBEBUILDER_ASSETS"
-      shell: bash
-      run: |
-        setup-envtest use ${{ inputs.version }}
-        ENVTEST_DIR=$(setup-envtest use -i ${{ inputs.version }} -p path)
-        echo "KUBEBUILDER_ASSETS=$ENVTEST_DIR" >> $GITHUB_ENV
+  using: docker
+  image: Dockerfile
+  args:
+    - ${{ inputs.version }}
