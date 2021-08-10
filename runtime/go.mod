@@ -2,9 +2,13 @@ module github.com/fluxcd/pkg/runtime
 
 go 1.16
 
-replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
+replace (
+	github.com/fluxcd/pkg/apis/acl => ../apis/acl
+	github.com/fluxcd/pkg/apis/meta => ../apis/meta
+)
 
 require (
+	github.com/fluxcd/pkg/apis/acl v0.0.1
 	github.com/fluxcd/pkg/apis/meta v0.11.0-rc.1
 	github.com/go-logr/logr v0.4.0
 	github.com/google/go-cmp v0.5.5
