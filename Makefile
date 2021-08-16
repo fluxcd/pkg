@@ -3,7 +3,7 @@ MODULES=$(shell find . -mindepth 2 -maxdepth 4 -type f -name 'go.mod' | cut -c 3
 targets=$(addprefix test-, $(MODULES))
 root_dir=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 ENVTEST_BIN_VERSION?=latest
-KUBEBUILDER_ASSETS?=$(shell $(SETUP_ENVTEST) use -i $(ENVTEST_BIN_VERSION) -p path)
+KUBEBUILDER_ASSETS?="$(shell $(SETUP_ENVTEST) use -i $(ENVTEST_BIN_VERSION) -p path)"
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
