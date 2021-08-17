@@ -50,6 +50,9 @@ import (
 // This ensures any modifications made to the spec and the status (conditions) object of the resource are always
 // persisted at the end of a reconcile run.
 //
+// The example below assumes that you will use the Reconciling condition to signal that progress can be made; if it is
+// not present, and the Ready condition is not true, the resource will be marked as stalled.
+//
 //	func (r *FooReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, retErr error) {
 //		// Retrieve the object from the API server
 //		obj := &v1.Foo{}
@@ -77,21 +80,23 @@ import (
 //				},
 //			}
 //
-//			// Determine if the resource is still being reconciled, or if it has stalled, and record this observation
+//			// On a clean exit, determine if the resource is still being reconciled, or if it has stalled, and record this observation
 //			if retErr == nil && (result.IsZero() || !result.Requeue) {
-//				conditions.Delete(obj, meta.ReconcilingCondition)
-//
 //				// We have now observed this generation
 //				patchOpts = append(patchOpts, patch.WithStatusObservedGeneration{})
 //
 //				readyCondition := conditions.Get(obj, meta.ReadyCondition)
-//				switch readyCondition.Status {
-//				case metav1.ConditionFalse:
+//				switch {
+//				case readyCondition.Status == metav1.ConditionTrue:
+//					// As we are no longer reconciling and the end-state is ready, the reconciliation is no longer stalled or progressing, so clear these
+//					conditions.Delete(obj, meta.StalledCondition)
+//					conditions.Delete(obj, meta.ReconcilingCondition)
+//				case conditions.IsReconciling(obj):
+//					// This implies stalling is not set; nothing to do
+//					break
+//				case readyCondition.Status == metav1.ConditionFalse:
 //					// As we are no longer reconciling and the end-state is not ready, the reconciliation has stalled
 //					conditions.MarkTrue(obj, meta.StalledCondition, readyCondition.Reason, readyCondition.Message)
-//				case metav1.ConditionTrue:
-//					// As we are no longer reconciling and the end-state is ready, the reconciliation is no longer stalled
-//					conditions.Delete(obj, meta.StalledCondition)
 //				}
 //			}
 //
