@@ -4,7 +4,7 @@ set -eu
 
 VERSION=${1:-2.3.1}
 
-curl -sL https://go.kubebuilder.io/dl/${VERSION}/linux/amd64 | tar -xz -C /tmp/
+curl -sL https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${VERSION}/kubebuilder_${VERSION}_linux_amd64.tar.gz | tar -xz -C /tmp/
 
 mkdir -p $GITHUB_WORKSPACE/kubebuilder
 mv /tmp/kubebuilder_${VERSION}_linux_amd64/* $GITHUB_WORKSPACE/kubebuilder/
