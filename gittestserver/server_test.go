@@ -2,7 +2,6 @@ package gittestserver
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -83,15 +82,15 @@ func TestHTTPSServer(t *testing.T) {
 	}
 	defer os.RemoveAll(srv.Root())
 
-	examplePublicKey, err := ioutil.ReadFile("../testdata/certs/server.pem")
+	examplePublicKey, err := os.ReadFile("../testdata/certs/server.pem")
 	if err != nil {
 		t.Fatal(err)
 	}
-	examplePrivateKey, err := ioutil.ReadFile("../testdata/certs/server-key.pem")
+	examplePrivateKey, err := os.ReadFile("../testdata/certs/server-key.pem")
 	if err != nil {
 		t.Fatal(err)
 	}
-	exampleCA, err := ioutil.ReadFile("../testdata/certs/ca.pem")
+	exampleCA, err := os.ReadFile("../testdata/certs/ca.pem")
 	if err != nil {
 		t.Fatal(err)
 	}

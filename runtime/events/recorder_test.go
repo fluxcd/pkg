@@ -18,7 +18,7 @@ package events
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,7 +29,7 @@ import (
 
 func TestEventRecorder_Eventf(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
 		var payload Event
@@ -63,7 +63,7 @@ func TestEventRecorder_Eventf(t *testing.T) {
 
 func TestEventRecorder_Eventf_Retry(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
 		var payload Event
@@ -90,7 +90,7 @@ func TestEventRecorder_Eventf_Retry(t *testing.T) {
 
 func TestEventRecorder_Eventf_RateLimited(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
 		var payload Event

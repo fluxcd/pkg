@@ -19,7 +19,7 @@ package testserver
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -44,7 +44,7 @@ func testMiddlewareResult(t *testing.T, client *http.Client, addr string, want s
 		t.Errorf("failed to GET %s: %v", addr, err)
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Error(err)
 	}
@@ -79,19 +79,19 @@ func TestHTTPSServer(t *testing.T) {
 	}
 	defer os.RemoveAll(srv.Root())
 
-	examplePublicKey, err := ioutil.ReadFile("../testdata/certs/server.pem")
+	examplePublicKey, err := os.ReadFile("../testdata/certs/server.pem")
 	if err != nil {
 		t.Fatal(err)
 	}
-	examplePrivateKey, err := ioutil.ReadFile("../testdata/certs/server-key.pem")
+	examplePrivateKey, err := os.ReadFile("../testdata/certs/server-key.pem")
 	if err != nil {
 		t.Fatal(err)
 	}
-	exampleCA, err := ioutil.ReadFile("../testdata/certs/ca.pem")
+	exampleCA, err := os.ReadFile("../testdata/certs/ca.pem")
 	if err != nil {
 		t.Fatal(err)
 	}
-	caCert, err := ioutil.ReadFile("../testdata/certs/ca.pem")
+	caCert, err := os.ReadFile("../testdata/certs/ca.pem")
 	if err != nil {
 		t.Fatal(err)
 	}

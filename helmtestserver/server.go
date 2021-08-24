@@ -17,7 +17,7 @@ limitations under the License.
 package helmtestserver
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"helm.sh/helm/v3/pkg/action"
@@ -30,7 +30,7 @@ import (
 // NewTempHelmServer returns a HTTP HelmServer with a newly created
 // temp dir as repository docroot.
 func NewTempHelmServer() (*HelmServer, error) {
-	tmpDir, err := ioutil.TempDir("", "helm-test-")
+	tmpDir, err := os.MkdirTemp("", "helm-test-")
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *HelmServer) GenerateIndex() error {
 		return err
 	}
 	f := filepath.Join(s.HTTPServer.Root(), "index.yaml")
-	return ioutil.WriteFile(f, d, 0644)
+	return os.WriteFile(f, d, 0644)
 }
 
 // PackageChart attempts to package the chart at the given path, to be served
