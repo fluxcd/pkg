@@ -19,16 +19,16 @@ package testserver
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 )
 
 // NewTempHTTPServer returns a HTTPServer with a newly created temp
 // dir as the docroot.
 func NewTempHTTPServer() (*HTTPServer, error) {
-	tmpDir, err := ioutil.TempDir("", "http-test-")
+	tmpDir, err := os.MkdirTemp("", "http-test-")
 	if err != nil {
 		return nil, err
 	}

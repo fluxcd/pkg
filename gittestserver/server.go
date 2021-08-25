@@ -19,9 +19,9 @@ package gittestserver
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 
 	"github.com/sosedoff/gitkit"
@@ -30,7 +30,7 @@ import (
 // NewTempGitServer returns a GitServer with a newly created temp
 // dir as repository docroot.
 func NewTempGitServer() (*GitServer, error) {
-	tmpDir, err := ioutil.TempDir("", "git-server-test-")
+	tmpDir, err := os.MkdirTemp("", "git-server-test-")
 	if err != nil {
 		return nil, err
 	}

@@ -22,7 +22,6 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -30,7 +29,7 @@ import (
 // NewTempArtifactServer returns an ArtifactServer with a newly created temp
 // dir as the artifact docroot.
 func NewTempArtifactServer() (*ArtifactServer, error) {
-	tmpDir, err := ioutil.TempDir("", "artifact-test-")
+	tmpDir, err := os.MkdirTemp("", "artifact-test-")
 	if err != nil {
 		return nil, err
 	}

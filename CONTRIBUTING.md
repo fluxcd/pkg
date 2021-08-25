@@ -33,7 +33,7 @@ meeting](https://docs.google.com/document/d/1l_M0om0qUEN_NNiGgpqJ2tvsF2iioHkaARD
 You can run the unit tests by simply doing
 
 ```bash
-make test
+make all
 ```
 
 ## Acceptance policy
