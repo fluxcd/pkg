@@ -83,6 +83,13 @@ func (r *Recorder) Eventf(
 	metadata map[string]string,
 	severity, reason string,
 	messageFmt string, args ...interface{}) error {
+
+	// Do not send trace events to notification controller,
+	// traces are persisted as Kubernetes events only.
+	if severity == EventSeverityTrace {
+		return nil
+	}
+
 	if r.Client == nil {
 		return fmt.Errorf("retryable HTTP client has not been initialized")
 	}
