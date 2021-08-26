@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package events provides a Recorder and additional helpers to record Kubernetes Events on a external HTTP endpoint.
+// Package events provides a Recorder and additional helpers to record Kubernetes Events on an external HTTP endpoint.
 package events

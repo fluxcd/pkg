@@ -23,6 +23,9 @@ import (
 
 // These constants define valid event severity values.
 const (
+	// EventSeverityTrace represents a trace event, usually
+	// informing about actions taken during reconciliation.
+	EventSeverityTrace string = "trace"
 	// EventSeverityInfo represents an informational event, usually
 	// informing about changes.
 	EventSeverityInfo string = "info"
@@ -38,8 +41,8 @@ type Event struct {
 	// +required
 	InvolvedObject corev1.ObjectReference `json:"involvedObject"`
 
-	// Severity type of this event (info, error)
-	// +kubebuilder:validation:Enum=info;error
+	// Severity type of this event (trace, info, error)
+	// +kubebuilder:validation:Enum=trace,info;error
 	// +required
 	Severity string `json:"severity"`
 
