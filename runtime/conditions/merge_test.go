@@ -179,6 +179,53 @@ func TestMergeRespectPriority(t *testing.T) {
 	}
 }
 
+func TestMergeRespectGeneration(t *testing.T) {
+	tests := []struct {
+		name               string
+		negativeConditions []string
+		conditions         []*metav1.Condition
+		mergeOpts          []MergeOption
+		want               *metav1.Condition
+	}{
+		{
+			name:               "without generation",
+			negativeConditions: []string{true1.Type},
+			conditions: []*metav1.Condition{
+				conditionWithGeneration(false1, 1),
+				conditionWithGeneration(true1, 2),
+				conditionWithGeneration(unknown1, 3),
+			},
+			want: FalseCondition("foo", "reason true1", "message true1"),
+		},
+		{
+			name:               "with generation",
+			negativeConditions: []string{true1.Type},
+			conditions: []*metav1.Condition{
+				conditionWithGeneration(false1, 1),
+				conditionWithGeneration(unknown1, 4),
+				conditionWithGeneration(true1, 4),
+			},
+			mergeOpts: []MergeOption{WithLatestGeneration()},
+			want:      FalseCondition("foo", "reason true1", "message true1"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			mo := &mergeOptions{
+				negativePolarityConditionTypes: tt.negativeConditions,
+			}
+			for _, o := range tt.mergeOpts {
+				o(mo)
+			}
+			got := merge(conditionsWithSource(&testdata.Fake{}, tt.conditions...), "foo", mo)
+			g.Expect(got).To(HaveSameStateOf(tt.want))
+		})
+	}
+}
+
 func conditionsWithSource(obj Setter, conditions ...*metav1.Condition) []localizedCondition {
 	obj.SetConditions(conditionList(conditions...))
 
@@ -191,4 +238,9 @@ func conditionsWithSource(obj Setter, conditions ...*metav1.Condition) []localiz
 	}
 
 	return ret
+}
+
+func conditionWithGeneration(condition *metav1.Condition, generation int64) *metav1.Condition {
+	condition.ObservedGeneration = generation
+	return condition
 }
