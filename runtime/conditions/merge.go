@@ -41,15 +41,17 @@ type localizedCondition struct {
 // it is should be reflected in the target condition.
 //
 // More specifically:
-// 1. Conditions are grouped by status and polarity.
+// 1. Conditions are grouped by status, polarity and observed generation (optional).
 // 2. The resulting condition groups are sorted according to the following priority:
 //   - P0 - Status=True, NegativePolarity=True
 //   - P1 - Status=False, NegativePolarity=False
-//   - P2 - Condition=True, NegativePolarity=False
+//   - P2 - Status=True, NegativePolarity=False
 //   - P3 - Status=False, NegativePolarity=True
 //   - P4 - Status=Unknown
 // 3. The group with highest priority is used to determine status, and other info of the target condition.
 // 4. If the polarity of the highest priority and target priority differ, it is inverted.
+// 5. If the observed generation is considered, the condition groups with the latest generation get the highest
+// priority.
 //
 // Please note that the last operation includes also the task of computing the Reason and the Message for the target
 // condition; in order to complete such task some trade-off should be made, because there is no a golden rule for
@@ -98,6 +100,10 @@ func getConditionGroups(conditions []localizedCondition, options *mergeOptions) 
 		for i := range groups {
 			if groups[i].status == condition.Status &&
 				groups[i].negativePolarity == stringInSlice(options.negativePolarityConditionTypes, condition.Type) {
+				// If withLatestGeneration is true, add to group only if the generation match.
+				if options.withLatestGeneration && groups[i].generation != condition.ObservedGeneration {
+					continue
+				}
 				groups[i].conditions = append(groups[i].conditions, condition)
 				added = true
 				break
@@ -108,8 +114,22 @@ func getConditionGroups(conditions []localizedCondition, options *mergeOptions) 
 				conditions:       []localizedCondition{condition},
 				status:           condition.Status,
 				negativePolarity: stringInSlice(options.negativePolarityConditionTypes, condition.Type),
+				generation:       condition.ObservedGeneration,
 			})
 		}
+	}
+
+	// If withLatestGeneration is true, form a conditionGroups of the groups
+	// with the latest generation.
+	if options.withLatestGeneration {
+		latestGen := groups.latestGeneration()
+		latestGroups := conditionGroups{}
+		for _, g := range groups {
+			if g.generation == latestGen {
+				latestGroups = append(latestGroups, g)
+			}
+		}
+		groups = latestGroups
 	}
 
 	// sort groups by priority
@@ -169,12 +189,24 @@ func (g conditionGroups) TruePositivePolarityGroup() *conditionGroup {
 	return nil
 }
 
-// conditionGroup defines a group of conditions with the same metav1.ConditionStatus and polarity, and thus with the
+// latestGeneration returns the latest generation of the conditionGroups.
+func (g conditionGroups) latestGeneration() int64 {
+	var max int64
+	for _, group := range g {
+		if group.generation > max {
+			max = group.generation
+		}
+	}
+	return max
+}
+
+// conditionGroup defines a group of conditions with the same metav1.ConditionStatus, polarity and observed generation, and thus with the
 // same priority when merging into a condition.
 type conditionGroup struct {
 	status           metav1.ConditionStatus
 	negativePolarity bool
 	conditions       []localizedCondition
+	generation       int64
 }
 
 // mergePriority provides a priority value for the status and polarity tuple that identifies this condition group. The

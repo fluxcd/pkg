@@ -42,6 +42,8 @@ type mergeOptions struct {
 	addStepCounterIfOnlyConditionTypes []string
 
 	stepCounter int
+
+	withLatestGeneration bool
 }
 
 // MergeOption defines an option for computing a summary of conditions.
@@ -229,5 +231,13 @@ func getFirstCondition(g conditionGroups, priority []string) *localizedCondition
 			}
 		}
 		return &topGroup.conditions[0]
+	}
+}
+
+// WithLatestGeneration instructs merge to consider the conditions with the
+// latest observed generation only.
+func WithLatestGeneration() MergeOption {
+	return func(c *mergeOptions) {
+		c.withLatestGeneration = true
 	}
 }
