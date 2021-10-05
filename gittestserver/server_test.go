@@ -3,9 +3,12 @@ package gittestserver
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	gogit "github.com/go-git/go-git/v5"
 )
 
 func TestCreateSSHServer(t *testing.T) {
@@ -104,5 +107,45 @@ func TestHTTPSServer(t *testing.T) {
 	addr := srv.HTTPAddress()
 	if !strings.HasPrefix(addr, "https://") {
 		t.Errorf("URL given for HTTPS server doesn't start with https://, got: %s", addr)
+	}
+}
+
+func TestInitRepo(t *testing.T) {
+	srv, err := NewTempGitServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.Auth("test-user", "test-pswd")
+	defer os.RemoveAll(srv.Root())
+	srv.KeyDir(srv.Root())
+	if err = srv.StartHTTP(); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.StopHTTP()
+
+	repoPath := "bar/test-reponame"
+	err = srv.InitRepo("testdata/git/repo1", "main", repoPath)
+	if err != nil {
+		t.Fatalf("failed to initialize repo: %v", err)
+	}
+
+	// Clone and verify the repo.
+	cloneDir, err := os.MkdirTemp("", "test-clone-")
+	if err != nil {
+		t.Fatalf("failed to create clone dir: %v", err)
+	}
+	defer os.RemoveAll(cloneDir)
+
+	repoURL := srv.HTTPAddressWithCredentials() + "/" + repoPath
+	_, err = gogit.PlainClone(cloneDir, false, &gogit.CloneOptions{
+		URL: repoURL,
+	})
+	if err != nil {
+		t.Fatalf("failed to clone repo: %v", err)
+	}
+
+	// Check file from clone.
+	if _, err := os.Stat(filepath.Join(cloneDir, "foo.txt")); os.IsNotExist(err) {
+		t.Error("expected foo.txt to exist")
 	}
 }

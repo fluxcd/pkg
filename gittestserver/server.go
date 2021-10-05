@@ -19,11 +19,19 @@ package gittestserver
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/go-git/go-billy/v5/memfs"
+	gogit "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/sosedoff/gitkit"
 )
 
@@ -243,4 +251,94 @@ func (s *GitServer) SSHAddress() string {
 		return "ssh://git@" + s.sshServer.Address()
 	}
 	return ""
+}
+
+// InitRepo initializes a new repository in the git server with the given
+// fixture at the repoPath.
+func (s *GitServer) InitRepo(fixture, branch, repoPath string) error {
+	// Create a bare repo to initialize.
+	localRepo := filepath.Join(s.Root(), repoPath)
+	_, err := gogit.PlainInit(localRepo, true)
+	if err != nil {
+		return err
+	}
+
+	// Create a new repo with the provided fixture.
+	repo, err := gogit.Init(memory.NewStorage(), memfs.New())
+	if err != nil {
+		return err
+	}
+	branchRef := plumbing.NewBranchReferenceName(branch)
+	if err = repo.CreateBranch(&config.Branch{
+		Name:   branch,
+		Remote: gogit.DefaultRemoteName,
+		Merge:  branchRef,
+	}); err != nil {
+		return err
+	}
+	if err := commitFromFixture(repo, fixture); err != nil {
+		return err
+	}
+
+	// Push to the local repo.
+	localRepoURL := fmt.Sprintf("file://%s", localRepo)
+	if _, err = repo.CreateRemote(&config.RemoteConfig{
+		Name: gogit.DefaultRemoteName,
+		URLs: []string{localRepoURL},
+	}); err != nil {
+		return err
+	}
+	return repo.Push(&gogit.PushOptions{
+		RefSpecs: []config.RefSpec{"refs/heads/*:refs/heads/*"},
+	})
+}
+
+func commitFromFixture(repo *gogit.Repository, fixture string) error {
+	working, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+	fs := working.Filesystem
+
+	if err = filepath.Walk(fixture, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return fs.MkdirAll(fs.Join(path[len(fixture):]), info.Mode())
+		}
+
+		fileBytes, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		ff, err := fs.Create(path[len(fixture):])
+		if err != nil {
+			return err
+		}
+		defer ff.Close()
+
+		_, err = ff.Write(fileBytes)
+		return err
+	}); err != nil {
+		return err
+	}
+
+	_, err = working.Add(".")
+	if err != nil {
+		return err
+	}
+
+	if _, err = working.Commit("Fixtures from "+fixture, &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Testbot",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
