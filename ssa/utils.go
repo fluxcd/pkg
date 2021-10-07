@@ -201,5 +201,10 @@ func IsKustomization(object *unstructured.Unstructured) bool {
 }
 
 func isImmutableError(err error) bool {
-	return strings.Contains(err.Error(), "field is immutable")
+	for _, s := range []string{"field is immutable", "cannot change roleRef"} {
+		if strings.Contains(err.Error(), s) {
+			return true
+		}
+	}
+	return false
 }
