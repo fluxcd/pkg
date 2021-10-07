@@ -281,3 +281,13 @@ func (e *Environment) CreateNamespace(ctx context.Context, generateName string) 
 	}
 	return ns, nil
 }
+
+// AddUser provisions a new user for connecting to this Environment. The user
+// will have the specified name & belong to the specified groups.
+//
+// If a "base" config is specified, the returned REST Config will contain those
+// settings as well as any required by the authentication method. It can also
+// be used to specify options like QPS.
+func (e *Environment) AddUser(user envtest.User, baseConfig *rest.Config) (*envtest.AuthenticatedUser, error) {
+	return e.env.AddUser(user, baseConfig)
+}
