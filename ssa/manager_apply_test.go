@@ -45,6 +45,7 @@ func TestApply(t *testing.T) {
 
 	configMapName, configMap := getFirstObject(objects, "ConfigMap", id)
 	secretName, secret := getFirstObject(objects, "Secret", id)
+	crbName, crb := getFirstObject(objects, "ClusterRoleBinding", id)
 
 	t.Run("creates objects in order", func(t *testing.T) {
 		// create objects
@@ -193,6 +194,30 @@ func TestApply(t *testing.T) {
 		// verify the secret was updated in cluster with the right data value
 		if diff := cmp.Diff(val, base64.StdEncoding.EncodeToString([]byte("val-secret"))); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("recreates immutable RBAC", func(t *testing.T) {
+		// update roleRef
+		err = unstructured.SetNestedField(crb.Object, "test", "roleRef", "name")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// force apply
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, true, timeout)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// verify the binding was recreated
+		for _, entry := range changeSet.Entries {
+			if entry.Subject == crbName {
+				if diff := cmp.Diff(string(CreatedAction), entry.Action); diff != "" {
+					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+				}
+				break
+			}
 		}
 	})
 }

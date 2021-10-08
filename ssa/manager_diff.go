@@ -90,20 +90,29 @@ func (m *ResourceManager) hasDrifted(existingObject, dryRunObject *unstructured.
 		return true
 	}
 
-	if _, ok := existingObject.Object["spec"]; ok {
-		if !apiequality.Semantic.DeepDerivative(dryRunObject.Object["spec"], existingObject.Object["spec"]) {
+	var found bool
+	for _, field := range []string{"spec", "webhooks", "rules", "subjects", "roleRef", "subsets"} {
+		if _, ok := existingObject.Object[field]; ok {
+			found = true
+		}
+		if hasFieldDrifted(existingObject, dryRunObject, field) {
 			return true
 		}
-	} else if _, ok := existingObject.Object["webhooks"]; ok {
-		if !apiequality.Semantic.DeepDerivative(dryRunObject.Object["webhooks"], existingObject.Object["webhooks"]) {
-			return true
-		}
-	} else {
+	}
+
+	if !found {
 		if !apiequality.Semantic.DeepDerivative(dryRunObject.Object, existingObject.Object) {
 			return true
 		}
 	}
 
+	return false
+}
+
+func hasFieldDrifted(existingObject, dryRunObject *unstructured.Unstructured, field string) bool {
+	if _, ok := existingObject.Object[field]; ok {
+		return !apiequality.Semantic.DeepDerivative(dryRunObject.Object[field], existingObject.Object[field])
+	}
 	return false
 }
 
@@ -129,7 +138,11 @@ func (m *ResourceManager) validationError(object *unstructured.Unstructured, err
 		reason = fmt.Sprintf("%v", status.Type)
 	}
 
-	return fmt.Errorf("%s dry-run falied, reason: %s, error: %w",
+	if reason != "" {
+		reason = fmt.Sprintf(", reason: %s", reason)
+	}
+
+	return fmt.Errorf("%s dry-run failed%s, error: %w",
 		FmtUnstructured(object), reason, err)
 
 }
