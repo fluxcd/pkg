@@ -42,7 +42,7 @@ type Event struct {
 	InvolvedObject corev1.ObjectReference `json:"involvedObject"`
 
 	// Severity type of this event (trace, info, error)
-	// +kubebuilder:validation:Enum=trace,info;error
+	// +kubebuilder:validation:Enum=trace;info;error
 	// +required
 	Severity string `json:"severity"`
 

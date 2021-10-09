@@ -25,6 +25,8 @@ vet-%:
 	cd $(subst :,/,$*); go vet ./...
 
 generate-%: controller-gen
+	# Run schemapatch to validate all the kubebuilder markers before generation.
+	cd $(subst :,/,$*); $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..."
 	cd $(subst :,/,$*); $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..."
 
 test-%: generate-% tidy-% fmt-% vet-% setup-envtest
