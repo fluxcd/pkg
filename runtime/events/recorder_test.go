@@ -25,8 +25,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -50,9 +48,7 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	scheme := runtime.NewScheme()
-	require.NoError(t, clientgoscheme.AddToScheme(scheme))
-	eventRecorder, err := NewRecorder(scheme, ctrl.Log, ts.URL, "test-controller")
+	eventRecorder, err := NewRecorder(env, ctrl.Log, ts.URL, "test-controller")
 	require.NoError(t, err)
 
 	obj := &corev1.ConfigMap{}
@@ -86,9 +82,7 @@ func TestEventRecorder_AnnotatedEventf_Retry(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	scheme := runtime.NewScheme()
-	require.NoError(t, clientgoscheme.AddToScheme(scheme))
-	eventRecorder, err := NewRecorder(scheme, ctrl.Log, ts.URL, "test-controller")
+	eventRecorder, err := NewRecorder(env, ctrl.Log, ts.URL, "test-controller")
 	require.NoError(t, err)
 	eventRecorder.Client.RetryMax = 2
 
@@ -115,9 +109,7 @@ func TestEventRecorder_AnnotatedEventf_RateLimited(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	scheme := runtime.NewScheme()
-	require.NoError(t, clientgoscheme.AddToScheme(scheme))
-	eventRecorder, err := NewRecorder(scheme, ctrl.Log, ts.URL, "test-controller")
+	eventRecorder, err := NewRecorder(env, ctrl.Log, ts.URL, "test-controller")
 	require.NoError(t, err)
 	eventRecorder.Client.RetryMax = 2
 
@@ -125,6 +117,6 @@ func TestEventRecorder_AnnotatedEventf_RateLimited(t *testing.T) {
 	obj.Namespace = "gitops-system"
 	obj.Name = "webapp"
 
-	eventRecorder.AnnotatedEventf(obj, nil, "sync", "sync %s", obj.Name)
+	eventRecorder.AnnotatedEventf(obj, nil, corev1.EventTypeNormal, "sync", "sync %s", obj.Name)
 	require.Equal(t, 1, requestCount)
 }

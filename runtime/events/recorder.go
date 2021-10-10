@@ -32,9 +32,27 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kuberecorder "k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/reference"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-// Recorder posts events to the webhook address.
+// Recorder posts events to the Kubernetes API and any other event recorder webhook address, like the GitOps Toolkit
+// notification-controller.
+//
+// Use it by embedding EventRecorder in reconciler struct:
+//
+//  import (
+//  	...
+//  	kuberecorder "k8s.io/client-go/tools/record"
+//  	...
+//  )
+//
+//  type MyTypeReconciler {
+//   	client.Client
+//  	// ... etc.
+//  	kuberecorder.EventRecorder
+//  }
+//
+// Use NewRecorder to create a working Recorder.
 type Recorder struct {
 	// URL address of the events endpoint.
 	Webhook string
@@ -45,7 +63,10 @@ type Recorder struct {
 	// Retryable HTTP client.
 	Client *retryablehttp.Client
 
-	// Scheme of the recorded objects.
+	// EventRecorder is the Kubernetes event recorder.
+	EventRecorder kuberecorder.EventRecorder
+
+	// Scheme to look up the recorded objects.
 	Scheme *runtime.Scheme
 
 	// Log is the recorder logger.
@@ -54,9 +75,10 @@ type Recorder struct {
 
 var _ kuberecorder.EventRecorder = &Recorder{}
 
-// NewRecorder creates an event Recorder with default settings.
-// The recorder performs automatic retries for connection errors and 500-range response codes.
-func NewRecorder(scheme *runtime.Scheme, log logr.Logger, webhook, reportingController string) (*Recorder, error) {
+// NewRecorder creates an event Recorder with a Kubernetes event recorder and an external event recorder based on the
+// given webhook. The recorder performs automatic retries for connection errors and 500-range response codes from the
+// external recorder.
+func NewRecorder(mgr ctrl.Manager, log logr.Logger, webhook, reportingController string) (*Recorder, error) {
 	if _, err := url.Parse(webhook); err != nil {
 		return nil, err
 	}
@@ -67,10 +89,11 @@ func NewRecorder(scheme *runtime.Scheme, log logr.Logger, webhook, reportingCont
 	httpClient.Logger = nil
 
 	return &Recorder{
-		Scheme:              scheme,
+		Scheme:              mgr.GetScheme(),
 		Webhook:             webhook,
 		ReportingController: reportingController,
 		Client:              httpClient,
+		EventRecorder:       mgr.GetEventRecorderFor(reportingController),
 		Log:                 log,
 	}, nil
 }
@@ -101,10 +124,14 @@ func (r *Recorder) AnnotatedEventf(
 	severity := eventTypeToSeverity(eventtype)
 
 	// Do not send trace events to notification controller,
-	// traces are persisted as Kubernetes events only.
+	// traces are persisted as Kubernetes events only as normal events.
 	if severity == EventSeverityTrace {
+		r.EventRecorder.AnnotatedEventf(object, annotations, corev1.EventTypeNormal, reason, messageFmt, args...)
 		return
 	}
+
+	// Forward the event to the Kubernetes recorder.
+	r.EventRecorder.AnnotatedEventf(object, annotations, eventtype, reason, messageFmt, args...)
 
 	if r.Client == nil {
 		err := fmt.Errorf("retryable HTTP client has not been initialized")
