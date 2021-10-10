@@ -19,11 +19,9 @@ package controller
 import (
 	"context"
 
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kuberecorder "k8s.io/client-go/tools/record"
-	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -80,18 +78,10 @@ func (e Events) EventWithMeta(ctx context.Context, obj client.Object, metadata m
 // EventWithMetaf emits a Kubernetes event, and forwards the event and metadata to the ExternalEventRecorder if configured.
 func (e Events) EventWithMetaf(ctx context.Context, obj client.Object, metadata map[string]string, severity, reason, msgFmt string, args ...interface{}) {
 	if e.EventRecorder != nil {
-		e.EventRecorder.Eventf(obj, severityToEventType(severity), reason, msgFmt, args...)
+		e.EventRecorder.AnnotatedEventf(obj, metadata, severityToEventType(severity), reason, msgFmt, args...)
 	}
 	if e.ExternalEventRecorder != nil {
-		ref, err := reference.GetReference(e.Scheme, obj)
-		if err != nil {
-			logr.FromContextOrDiscard(ctx).Error(err, "unable to get object reference to send event")
-			return
-		}
-		if err := e.ExternalEventRecorder.Eventf(*ref, metadata, severity, reason, msgFmt, args...); err != nil {
-			logr.FromContextOrDiscard(ctx).Error(err, "unable to send event")
-			return
-		}
+		e.ExternalEventRecorder.AnnotatedEventf(obj, metadata, severityToEventType(severity), reason, msgFmt, args...)
 	}
 }
 

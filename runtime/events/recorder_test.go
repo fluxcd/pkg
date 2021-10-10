@@ -25,10 +25,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-func TestEventRecorder_Eventf(t *testing.T) {
+func TestEventRecorder_AnnotatedEventf(t *testing.T) {
+	requestCount := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
 		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
@@ -36,7 +41,7 @@ func TestEventRecorder_Eventf(t *testing.T) {
 		err = json.Unmarshal(b, &payload)
 		require.NoError(t, err)
 
-		require.Equal(t, "GitRepository", payload.InvolvedObject.Kind)
+		require.Equal(t, "ConfigMap", payload.InvolvedObject.Kind)
 		require.Equal(t, "webapp", payload.InvolvedObject.Name)
 		require.Equal(t, "gitops-system", payload.InvolvedObject.Namespace)
 		require.Equal(t, "true", payload.Metadata["test"])
@@ -45,24 +50,31 @@ func TestEventRecorder_Eventf(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	eventRecorder, err := NewRecorder(ts.URL, "test-controller")
+	scheme := runtime.NewScheme()
+	require.NoError(t, clientgoscheme.AddToScheme(scheme))
+	eventRecorder, err := NewRecorder(scheme, ctrl.Log, ts.URL, "test-controller")
 	require.NoError(t, err)
 
-	obj := corev1.ObjectReference{
-		Kind:      "GitRepository",
-		Namespace: "gitops-system",
-		Name:      "webapp",
-	}
+	obj := &corev1.ConfigMap{}
+	obj.Namespace = "gitops-system"
+	obj.Name = "webapp"
+
 	meta := map[string]string{
 		"test": "true",
 	}
 
-	err = eventRecorder.EventInfof(obj, meta, "sync", "sync %s", obj.Name)
-	require.NoError(t, err)
+	eventRecorder.AnnotatedEventf(obj, meta, corev1.EventTypeNormal, "sync", "sync %s", obj.Name)
+	require.Equal(t, 2, requestCount)
+
+	// When a trace event is sent, it's dropped, no new request.
+	eventRecorder.AnnotatedEventf(obj, meta, EventTypeTrace, "sync", "sync %s", obj.Name)
+	require.Equal(t, 2, requestCount)
 }
 
-func TestEventRecorder_Eventf_Retry(t *testing.T) {
+func TestEventRecorder_AnnotatedEventf_Retry(t *testing.T) {
+	requestCount := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
 		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
@@ -74,22 +86,24 @@ func TestEventRecorder_Eventf_Retry(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	eventRecorder, err := NewRecorder(ts.URL, "test-controller")
+	scheme := runtime.NewScheme()
+	require.NoError(t, clientgoscheme.AddToScheme(scheme))
+	eventRecorder, err := NewRecorder(scheme, ctrl.Log, ts.URL, "test-controller")
 	require.NoError(t, err)
 	eventRecorder.Client.RetryMax = 2
 
-	obj := corev1.ObjectReference{
-		Kind:      "GitRepository",
-		Namespace: "gitops-system",
-		Name:      "webapp",
-	}
+	obj := &corev1.ConfigMap{}
+	obj.Namespace = "gitops-system"
+	obj.Name = "webapp"
 
-	err = eventRecorder.EventErrorf(obj, nil, "sync", "sync %s", obj.Name)
-	require.Error(t, err)
+	eventRecorder.AnnotatedEventf(obj, nil, corev1.EventTypeNormal, "sync", "sync %s", obj.Name)
+	require.True(t, requestCount > 1)
 }
 
-func TestEventRecorder_Eventf_RateLimited(t *testing.T) {
+func TestEventRecorder_AnnotatedEventf_RateLimited(t *testing.T) {
+	requestCount := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
 		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
@@ -101,16 +115,16 @@ func TestEventRecorder_Eventf_RateLimited(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	eventRecorder, err := NewRecorder(ts.URL, "test-controller")
+	scheme := runtime.NewScheme()
+	require.NoError(t, clientgoscheme.AddToScheme(scheme))
+	eventRecorder, err := NewRecorder(scheme, ctrl.Log, ts.URL, "test-controller")
 	require.NoError(t, err)
 	eventRecorder.Client.RetryMax = 2
 
-	obj := corev1.ObjectReference{
-		Kind:      "GitRepository",
-		Namespace: "gitops-system",
-		Name:      "webapp",
-	}
+	obj := &corev1.ConfigMap{}
+	obj.Namespace = "gitops-system"
+	obj.Name = "webapp"
 
-	err = eventRecorder.EventInfof(obj, nil, "sync", "sync %s", obj.Name)
-	require.NoError(t, err)
+	eventRecorder.AnnotatedEventf(obj, nil, "sync", "sync %s", obj.Name)
+	require.Equal(t, 1, requestCount)
 }
