@@ -231,6 +231,8 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 	}
 
 	for _, u := range objects {
+		unstructured.RemoveNestedField(u.Object, "metadata", "creationTimestamp")
+
 		switch u.GetKind() {
 		case "Pod":
 			var d corev1.Pod
