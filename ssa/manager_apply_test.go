@@ -247,3 +247,43 @@ func TestApply_SetNativeKindsDefaults(t *testing.T) {
 		}
 	})
 }
+
+func TestApply_NoOp(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("fix")
+	objects, err := readManifest("testdata/test3.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	if err := SetNativeKindsDefaults(objects); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("creates objects", func(t *testing.T) {
+		// create objects
+		_, err := manager.ApplyAllStaged(ctx, objects, false, timeout)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("skips apply", func(t *testing.T) {
+		// apply changes
+		changeSet, err := manager.ApplyAll(ctx, objects, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if entry.Action != string(UnchangedAction) {
+				t.Errorf("Diff found for %s", entry.String())
+			}
+		}
+	})
+}

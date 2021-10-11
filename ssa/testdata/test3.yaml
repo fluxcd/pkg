@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "%[1]s"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "%[1]s"
+  namespace: "%[1]s"
+  creationTimestamp: null
+data: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "empty-%[1]s"
+  namespace: "%[1]s"
+  creationTimestamp: null
+  labels:
+    app: some-operator
+data:
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "string-data-%[1]s"
+  namespace: "%[1]s"
+  creationTimestamp: null
+stringData:
+  test: test
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "data-%[1]s"
+  namespace: "%[1]s"
+data: {}
