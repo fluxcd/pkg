@@ -91,7 +91,7 @@ func (m *ResourceManager) hasDrifted(existingObject, dryRunObject *unstructured.
 	}
 
 	var found bool
-	for _, field := range []string{"spec", "webhooks", "rules", "subjects", "roleRef", "subsets", "data", "stringData", "immutable"} {
+	for _, field := range []string{"spec", "webhooks", "rules", "subjects", "roleRef", "subsets", "data", "binaryData", "stringData", "immutable"} {
 		if _, ok := existingObject.Object[field]; ok {
 			found = true
 		}
