@@ -234,97 +234,107 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 	for _, u := range objects {
 		unstructured.RemoveNestedField(u.Object, "metadata", "creationTimestamp")
 
-		switch u.GetKind() {
-		case "Pod":
-			var d corev1.Pod
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-
-			setProtoDefault(&d.Spec)
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-			u.Object = out
-		case "Deployment":
-			var d appsv1.Deployment
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-
-			setProtoDefault(&d.Spec.Template.Spec)
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-			u.Object = out
-		case "StatefulSet":
-			var d appsv1.StatefulSet
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-
-			setProtoDefault(&d.Spec.Template.Spec)
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-			u.Object = out
-		case "DaemonSet":
-			var d appsv1.DaemonSet
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-
-			setProtoDefault(&d.Spec.Template.Spec)
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-			u.Object = out
-		case "ReplicaSet":
-			var d appsv1.ReplicaSet
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-
-			setProtoDefault(&d.Spec.Template.Spec)
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-			u.Object = out
-		case "Service":
-			var d corev1.Service
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-			}
-
-			// set port protocol default
-			// workaround for: https://github.com/kubernetes-sigs/structured-merge-diff/issues/130
-			for i, port := range d.Spec.Ports {
-				if port.Protocol == "" {
-					d.Spec.Ports[i].Protocol = "TCP"
+		switch u.GetAPIVersion() {
+		case "v1":
+			switch u.GetKind() {
+			case "Service":
+				var d corev1.Service
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
 				}
+
+				// set port protocol default
+				// workaround for: https://github.com/kubernetes-sigs/structured-merge-diff/issues/130
+				for i, port := range d.Spec.Ports {
+					if port.Protocol == "" {
+						d.Spec.Ports[i].Protocol = "TCP"
+					}
+				}
+
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
+			case "Pod":
+				var d corev1.Pod
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+
+				setProtoDefault(&d.Spec)
+
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
 			}
 
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+		case "apps/v1":
+			switch u.GetKind() {
+			case "Deployment":
+				var d appsv1.Deployment
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+
+				setProtoDefault(&d.Spec.Template.Spec)
+
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
+			case "StatefulSet":
+				var d appsv1.StatefulSet
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+
+				setProtoDefault(&d.Spec.Template.Spec)
+
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
+			case "DaemonSet":
+				var d appsv1.DaemonSet
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+
+				setProtoDefault(&d.Spec.Template.Spec)
+
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
+			case "ReplicaSet":
+				var d appsv1.ReplicaSet
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+
+				setProtoDefault(&d.Spec.Template.Spec)
+
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
 			}
-			u.Object = out
+		}
+
+		switch u.GetKind() {
 		case "HorizontalPodAutoscaler":
 			switch u.GetAPIVersion() {
 			case "autoscaling/v2beta1":
