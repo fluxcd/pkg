@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v2beta1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -325,7 +326,19 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 			}
 			u.Object = out
 		case "HorizontalPodAutoscaler":
-			if strings.Contains(u.GetAPIVersion(), "autoscaling/v2") {
+			switch u.GetAPIVersion() {
+			case "autoscaling/v2beta1":
+				var d autoscalingv1.HorizontalPodAutoscaler
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
+			case "autoscaling/v2beta2":
 				var d autoscalingv2.HorizontalPodAutoscaler
 				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
 				if err != nil {
@@ -336,6 +349,7 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
 				}
 				u.Object = out
+
 			}
 		}
 	}
