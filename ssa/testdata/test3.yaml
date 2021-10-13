@@ -19,8 +19,6 @@ metadata:
   creationTimestamp: null
   labels:
     app: some-operator
-data:
-
 ---
 apiVersion: v1
 kind: Secret

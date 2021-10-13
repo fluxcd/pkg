@@ -115,3 +115,84 @@ func TestDiff(t *testing.T) {
 		}
 	})
 }
+
+func TestDiff_Removals(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("diff")
+	objects, err := readManifest("testdata/test4.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetNativeKindsDefaults(objects)
+
+	configMapName, configMap := getFirstObject(objects, "ConfigMap", id)
+
+	if _, err = manager.ApplyAllStaged(ctx, objects, false, timeout); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("generates empty diff for unchanged object", func(t *testing.T) {
+		changeSetEntry, err := manager.Diff(ctx, configMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(configMapName, changeSetEntry.Subject); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+
+		if diff := cmp.Diff(string(UnchangedAction), changeSetEntry.Action); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+
+		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, false); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("generates diff for added map entry", func(t *testing.T) {
+		newVal := "diff-test"
+		err = unstructured.SetNestedField(configMap.Object, newVal, "data", "token")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		changeSetEntry, err := manager.Diff(ctx, configMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+
+		if !strings.Contains(changeSetEntry.Diff, newVal) {
+			t.Errorf("Mismatch from expected value, want %s", newVal)
+		}
+
+		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, false); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("generates diff for removed map entry", func(t *testing.T) {
+		unstructured.RemoveNestedField(configMap.Object, "data", "token")
+
+		changeSetEntry, err := manager.Diff(ctx, configMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+
+		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, false); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+}

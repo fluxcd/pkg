@@ -75,7 +75,7 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 	return m.changeSetEntry(dryRunObject, UnchangedAction), nil
 }
 
-// hasDrifted detects changes to metadata labels, metadata annotations, spec and webhooks.
+// hasDrifted detects changes to metadata labels, annotations and spec.
 func (m *ResourceManager) hasDrifted(existingObject, dryRunObject *unstructured.Unstructured) bool {
 	if dryRunObject.GetResourceVersion() == "" {
 		return true
@@ -90,30 +90,29 @@ func (m *ResourceManager) hasDrifted(existingObject, dryRunObject *unstructured.
 		return true
 	}
 
-	var found bool
-	for _, field := range []string{"spec", "webhooks", "rules", "subjects", "roleRef", "subsets", "data", "binaryData", "stringData", "immutable"} {
-		if _, ok := existingObject.Object[field]; ok {
-			found = true
-		}
-		if hasFieldDrifted(existingObject, dryRunObject, field) {
-			return true
-		}
-	}
+	return hasObjectDrifted(dryRunObject, existingObject)
+}
 
-	if !found {
-		if !apiequality.Semantic.DeepDerivative(dryRunObject.Object, existingObject.Object) {
-			return true
-		}
+// hasFieldDrifted performs a semantic equality check of the specified field
+func hasFieldDrifted(dryRunObject, existingObject *unstructured.Unstructured, field string) bool {
+	if _, ok := existingObject.Object[field]; ok {
+		return !apiequality.Semantic.DeepEqual(dryRunObject.Object[field], existingObject.Object[field])
 	}
-
 	return false
 }
 
-func hasFieldDrifted(existingObject, dryRunObject *unstructured.Unstructured, field string) bool {
-	if _, ok := existingObject.Object[field]; ok {
-		return !apiequality.Semantic.DeepDerivative(dryRunObject.Object[field], existingObject.Object[field])
-	}
-	return false
+// hasObjectDrifted removes the metadata and status fields from both objects
+// then performs a semantic equality check of the remaining fields
+func hasObjectDrifted(dryRunObject, existingObject *unstructured.Unstructured) bool {
+	dryRunObj := dryRunObject.DeepCopy()
+	unstructured.RemoveNestedField(dryRunObj.Object, "metadata")
+	unstructured.RemoveNestedField(dryRunObj.Object, "status")
+
+	existingObj := existingObject.DeepCopy()
+	unstructured.RemoveNestedField(existingObj.Object, "metadata")
+	unstructured.RemoveNestedField(existingObj.Object, "status")
+
+	return !apiequality.Semantic.DeepEqual(dryRunObj.Object, existingObj.Object)
 }
 
 // validationError formats the given error and hides sensitive data
