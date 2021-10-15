@@ -37,7 +37,11 @@ import (
 
 // Wait checks if the given set of objects has been fully reconciled.
 func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, interval, timeout time.Duration) error {
-	objectsMeta := object.UnstructuredsToObjMetas(objects)
+	objectsMeta, err := object.UnstructuredsToObjMetas(objects)
+	if err != nil {
+		return err
+	}
+
 	statusCollector := collector.NewResourceStatusCollector(objectsMeta)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
