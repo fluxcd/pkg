@@ -6,6 +6,6 @@ replace github.com/fluxcd/pkg/testserver => ../testserver
 
 require (
 	github.com/fluxcd/pkg/testserver v0.1.0
-	helm.sh/helm/v3 v3.7.0
+	helm.sh/helm/v3 v3.7.1
 	sigs.k8s.io/yaml v1.3.0
 )
