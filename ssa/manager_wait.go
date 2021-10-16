@@ -42,7 +42,16 @@ func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, interval, t
 		return err
 	}
 
-	statusCollector := collector.NewResourceStatusCollector(objectsMeta)
+	if len(objectsMeta) == 0 {
+		return nil
+	}
+
+	return m.WaitForSet(objectsMeta, interval, timeout)
+}
+
+// WaitForSet checks if the given set of ObjMetadata has been fully reconciled.
+func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, interval, timeout time.Duration) error {
+	statusCollector := collector.NewResourceStatusCollector(set)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -51,7 +60,7 @@ func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, interval, t
 		PollInterval: interval,
 		UseCache:     true,
 	}
-	eventsChan := m.poller.Poll(ctx, objectsMeta, opts)
+	eventsChan := m.poller.Poll(ctx, set, opts)
 
 	lastStatus := make(map[object.ObjMetadata]*event.ResourceStatus)
 
@@ -70,6 +79,7 @@ func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, interval, t
 				}
 				rss = append(rss, rs)
 			}
+
 			desired := status.CurrentStatus
 			aggStatus := aggregator.AggregateStatus(rss, desired)
 			if aggStatus == desired {

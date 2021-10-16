@@ -20,6 +20,8 @@ package ssa
 import (
 	"fmt"
 	"strings"
+
+	"sigs.k8s.io/cli-utils/pkg/object"
 )
 
 // Action represents the action type performed by the reconciliation process.
@@ -69,12 +71,28 @@ func (c *ChangeSet) ToMap() map[string]string {
 	return res
 }
 
+func (c *ChangeSet) ToObjMetadataSet() object.ObjMetadataSet {
+	var res []object.ObjMetadata
+	for _, entry := range c.Entries {
+		res = append(res, entry.ObjMetadata)
+	}
+	return res
+}
+
 // ChangeSetEntry defines the result of an action performed on an object.
 type ChangeSetEntry struct {
+	// ObjMetadata holds the unique identifier of this entry.
+	ObjMetadata object.ObjMetadata
+
+	// GroupVersion holds the API group version of this entry.
+	GroupVersion string
+
 	// Subject represents the Object ID in the format 'kind/namespace/name'.
 	Subject string
+
 	// Action represents the action type taken by the reconciler for this object.
 	Action string
+
 	// Diff contains the YAML diff resulting from server-side apply dry-run.
 	Diff string
 }
