@@ -120,6 +120,9 @@ func (r *Recorder) AnnotatedEventf(
 		r.Log.Error(err, "failed to get object reference")
 	}
 
+	// Add object info in the logger.
+	log := r.Log.WithValues("name", ref.Name, "namespace", ref.Namespace, "reconciler kind", ref.Kind)
+
 	// Convert the eventType to severity.
 	severity := eventTypeToSeverity(eventtype)
 
@@ -135,7 +138,7 @@ func (r *Recorder) AnnotatedEventf(
 
 	if r.Client == nil {
 		err := fmt.Errorf("retryable HTTP client has not been initialized")
-		r.Log.Error(err, "unable to record event")
+		log.Error(err, "unable to record event")
 		return
 	}
 
@@ -143,25 +146,25 @@ func (r *Recorder) AnnotatedEventf(
 
 	if ref.Kind == "" {
 		err := fmt.Errorf("failed to get object kind")
-		r.Log.Error(err, "unable to record event")
+		log.Error(err, "unable to record event")
 		return
 	}
 
 	if ref.Name == "" {
 		err := fmt.Errorf("failed to get object name")
-		r.Log.Error(err, "unable to record event")
+		log.Error(err, "unable to record event")
 		return
 	}
 
 	if ref.Namespace == "" {
 		err := fmt.Errorf("failed to get object namespace")
-		r.Log.Error(err, "unable to record event")
+		log.Error(err, "unable to record event")
 		return
 	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		r.Log.Error(err, "failed to get hostname")
+		log.Error(err, "failed to get hostname")
 		return
 	}
 
@@ -178,7 +181,7 @@ func (r *Recorder) AnnotatedEventf(
 
 	body, err := json.Marshal(event)
 	if err != nil {
-		r.Log.Error(err, "failed to marshal object into json")
+		log.Error(err, "failed to marshal object into json")
 		return
 	}
 
@@ -189,7 +192,7 @@ func (r *Recorder) AnnotatedEventf(
 	}
 
 	if _, err := r.Client.Post(r.Webhook, "application/json", body); err != nil {
-		r.Log.Error(err, "unable to record event")
+		log.Error(err, "unable to record event")
 		return
 	}
 }
