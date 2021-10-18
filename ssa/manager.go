@@ -20,6 +20,7 @@ package ssa
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/polling"
+	"sigs.k8s.io/cli-utils/pkg/object"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -70,6 +71,11 @@ func (m *ResourceManager) GetOwnerLabels(name, namespace string) map[string]stri
 	}
 }
 
-func (m *ResourceManager) changeSetEntry(object *unstructured.Unstructured, action Action) *ChangeSetEntry {
-	return &ChangeSetEntry{Subject: FmtUnstructured(object), Action: string(action)}
+func (m *ResourceManager) changeSetEntry(o *unstructured.Unstructured, action Action) *ChangeSetEntry {
+	return &ChangeSetEntry{
+		ObjMetadata:  object.UnstructuredToObjMetaOrDie(o),
+		GroupVersion: o.GroupVersionKind().Version,
+		Subject:      FmtUnstructured(o),
+		Action:       string(action),
+	}
 }
