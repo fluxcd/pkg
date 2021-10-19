@@ -34,6 +34,9 @@ const (
 	EventSeverityError string = "error"
 )
 
+// EventTypeTrace represents a trace event.
+const EventTypeTrace string = "Trace"
+
 // Event is a report of an event issued by a controller.
 // +kubebuilder:object:generate=true
 type Event struct {
