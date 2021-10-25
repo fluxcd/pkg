@@ -263,31 +263,33 @@ func (s *GitServer) InitRepo(fixture, branch, repoPath string) error {
 		return err
 	}
 
-	// Create a new repo with the provided fixture.
+	// Create a new repo with the provided fixture. This creates a repo with
+	// default branch as "master".
 	repo, err := gogit.Init(memory.NewStorage(), memfs.New())
 	if err != nil {
 		return err
 	}
-	branchRef := plumbing.NewBranchReferenceName(branch)
-	if err = repo.CreateBranch(&config.Branch{
-		Name:   branch,
-		Remote: gogit.DefaultRemoteName,
-		Merge:  branchRef,
-	}); err != nil {
-		return err
-	}
-	if err := commitFromFixture(repo, fixture); err != nil {
-		return err
-	}
 
-	// Push to the local repo.
-	localRepoURL := fmt.Sprintf("file://%s", localRepo)
+	// Add a remote to the local repo.
+	localRepoURL := getLocalURL(localRepo)
 	if _, err = repo.CreateRemote(&config.RemoteConfig{
 		Name: gogit.DefaultRemoteName,
 		URLs: []string{localRepoURL},
 	}); err != nil {
 		return err
 	}
+
+	if err := commitFromFixture(repo, fixture); err != nil {
+		return err
+	}
+
+	// Checkout to create the target branch if it's not the default branch.
+	if branch != "master" {
+		if err := checkout(repo, branch); err != nil {
+			return err
+		}
+	}
+
 	return repo.Push(&gogit.PushOptions{
 		RefSpecs: []config.RefSpec{"refs/heads/*:refs/heads/*"},
 	})
@@ -341,4 +343,25 @@ func commitFromFixture(repo *gogit.Repository, fixture string) error {
 	}
 
 	return nil
+}
+
+func checkout(repo *gogit.Repository, branch string) error {
+	branchRef := plumbing.NewBranchReferenceName(branch)
+	w, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+	h, err := repo.Head()
+	if err != nil {
+		return err
+	}
+	return w.Checkout(&gogit.CheckoutOptions{
+		Hash:   h.Hash(),
+		Branch: branchRef,
+		Create: true,
+	})
+}
+
+func getLocalURL(localPath string) string {
+	return fmt.Sprintf("file://%s", localPath)
 }

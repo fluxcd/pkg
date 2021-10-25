@@ -9,6 +9,7 @@ import (
 	"time"
 
 	gogit "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 )
 
 func TestCreateSSHServer(t *testing.T) {
@@ -111,41 +112,85 @@ func TestHTTPSServer(t *testing.T) {
 }
 
 func TestInitRepo(t *testing.T) {
-	srv, err := NewTempGitServer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv.Auth("test-user", "test-pswd")
-	defer os.RemoveAll(srv.Root())
-	srv.KeyDir(srv.Root())
-	if err = srv.StartHTTP(); err != nil {
-		t.Fatal(err)
-	}
-	defer srv.StopHTTP()
-
 	repoPath := "bar/test-reponame"
-	err = srv.InitRepo("testdata/git/repo1", "main", repoPath)
-	if err != nil {
-		t.Fatalf("failed to initialize repo: %v", err)
+	initBranch := "test-branch"
+
+	tests := []struct {
+		name     string
+		testFunc func(srv *GitServer, repoURL string)
+	}{
+		{
+			name: "clone repo without any reference",
+			testFunc: func(srv *GitServer, repoURL string) {
+				cloneDir, err := os.MkdirTemp("", "test-clone-")
+				if err != nil {
+					t.Fatalf("failed to create clone dir: %v", err)
+				}
+				defer os.RemoveAll(cloneDir)
+
+				// Clone the branch.
+				_, err = gogit.PlainClone(cloneDir, false, &gogit.CloneOptions{
+					URL: repoURL,
+				})
+				if err != nil {
+					t.Fatalf("failed to clone repo: %v", err)
+				}
+
+				// Check file from clone.
+				if _, err := os.Stat(filepath.Join(cloneDir, "foo.txt")); os.IsNotExist(err) {
+					t.Error("expected foo.txt to exist")
+				}
+			},
+		},
+		{
+			name: "clone initialized repo branch",
+			testFunc: func(srv *GitServer, repoURL string) {
+				cloneDir, err := os.MkdirTemp("", "test-clone-")
+				if err != nil {
+					t.Fatalf("failed to create clone dir: %v", err)
+				}
+				defer os.RemoveAll(cloneDir)
+
+				// Clone the branch.
+				_, err = gogit.PlainClone(cloneDir, false, &gogit.CloneOptions{
+					URL:           repoURL,
+					ReferenceName: plumbing.NewBranchReferenceName("test-branch"),
+				})
+				if err != nil {
+					t.Fatalf("failed to clone repo: %v", err)
+				}
+
+				// Check file from clone.
+				if _, err := os.Stat(filepath.Join(cloneDir, "foo.txt")); os.IsNotExist(err) {
+					t.Error("expected foo.txt to exist")
+				}
+			},
+		},
 	}
 
-	// Clone and verify the repo.
-	cloneDir, err := os.MkdirTemp("", "test-clone-")
-	if err != nil {
-		t.Fatalf("failed to create clone dir: %v", err)
-	}
-	defer os.RemoveAll(cloneDir)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, err := NewTempGitServer()
+			if err != nil {
+				t.Fatal(err)
+			}
+			srv.Auth("test-user", "test-pswd")
+			defer os.RemoveAll(srv.Root())
+			srv.KeyDir(srv.Root())
+			if err = srv.StartHTTP(); err != nil {
+				t.Fatal(err)
+			}
+			defer srv.StopHTTP()
 
-	repoURL := srv.HTTPAddressWithCredentials() + "/" + repoPath
-	_, err = gogit.PlainClone(cloneDir, false, &gogit.CloneOptions{
-		URL: repoURL,
-	})
-	if err != nil {
-		t.Fatalf("failed to clone repo: %v", err)
-	}
+			// Initialize a repo.
+			err = srv.InitRepo("testdata/git/repo1", initBranch, repoPath)
+			if err != nil {
+				t.Fatalf("failed to initialize repo: %v", err)
+			}
 
-	// Check file from clone.
-	if _, err := os.Stat(filepath.Join(cloneDir, "foo.txt")); os.IsNotExist(err) {
-		t.Error("expected foo.txt to exist")
+			repoURL := srv.HTTPAddressWithCredentials() + "/" + repoPath
+
+			tt.testFunc(srv, repoURL)
+		})
 	}
 }
