@@ -1,3 +1,3 @@
 module github.com/fluxcd/pkg/apis/acl
 
-go 1.16
+go 1.17
