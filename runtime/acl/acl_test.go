@@ -105,14 +105,12 @@ func TestAclAuthorization(t *testing.T) {
 			g := NewWithT(t)
 			g.Expect(testEnv.CreateAndWait(ctx, tt.namespace)).ToNot(HaveOccurred())
 
-			hasAccess, err := aclAuth.HasAccessToRef(ctx, tt.object, tt.reference, tt.referenceAcl)
+			err := aclAuth.HasAccessToRef(ctx, tt.object, tt.reference, tt.referenceAcl)
 			if tt.wantErr {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(hasAccess).To(BeFalse())
+				g.Expect(IsAccessDenied(err)).To(BeTrue())
 				return
 			}
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(hasAccess).To(BeTrue())
 		})
 	}
 }
