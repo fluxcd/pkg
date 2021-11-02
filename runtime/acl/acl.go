@@ -29,6 +29,24 @@ import (
 	aclapi "github.com/fluxcd/pkg/apis/acl"
 )
 
+// AccessDeniedError represents a failed access control list check.
+type AccessDeniedError string
+
+func (e AccessDeniedError) Error() string {
+	return string(e)
+}
+
+func accessDeniedErrorf(f string, args ...interface{}) error {
+	return AccessDeniedError(fmt.Sprintf(f, args...))
+}
+
+// IsAccessDenied returns true if the supplied error is an access denied error; e.g., as returned by
+// HasAccessToRef.
+func IsAccessDenied(e error) bool {
+	_, ok := e.(AccessDeniedError)
+	return ok
+}
+
 // Authorization is an ACL helper for asserting access to cross-namespace references.
 type Authorization struct {
 	client client.Client
@@ -40,23 +58,26 @@ func NewAuthorization(kubeClient client.Client) *Authorization {
 	return &Authorization{client: kubeClient}
 }
 
-// HasAccessToRef asserts if a namespaced object has access to a cross-namespace reference based on the ACL defined on the referenced object.
-func (a *Authorization) HasAccessToRef(ctx context.Context, object client.Object, reference types.NamespacedName, acl *aclapi.AccessFrom) (bool, error) {
+// HasAccessToRef checks if a namespaced object has access to a cross-namespace reference based on
+// the ACL defined on the referenced object. It returns `nil` if access is possible, or an
+// AccessDeniedError if it is not possible; any other kind of error indicates that the check could
+// not be completed.
+func (a *Authorization) HasAccessToRef(ctx context.Context, object client.Object, reference types.NamespacedName, acl *aclapi.AccessFrom) error {
 	// grant access if the object is in the same namespace as the reference
 	if reference.Namespace == "" || object.GetNamespace() == reference.Namespace {
-		return true, nil
+		return nil
 	}
 
 	// deny access if no ACL is defined on the reference
 	if acl == nil {
-		return false, fmt.Errorf("'%s/%s' can't be accessed due to missing ACL labels on 'accessFrom'",
+		return accessDeniedErrorf("'%s/%s' can't be accessed due to missing ACL labels on 'accessFrom'",
 			reference.Namespace, reference.Name)
 	}
 
 	// get the object's namespace labels
 	var sourceNamespace corev1.Namespace
 	if err := a.client.Get(ctx, types.NamespacedName{Name: object.GetNamespace()}, &sourceNamespace); err != nil {
-		return false, err
+		return err
 	}
 	sourceLabels := sourceNamespace.GetLabels()
 
@@ -64,13 +85,13 @@ func (a *Authorization) HasAccessToRef(ctx context.Context, object client.Object
 	for _, selector := range acl.NamespaceSelectors {
 		sel, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: selector.MatchLabels})
 		if err != nil {
-			return false, err
+			return err
 		}
 		if sel.Matches(labels.Set(sourceLabels)) {
-			return true, nil
+			return nil
 		}
 	}
 
-	return false, fmt.Errorf("'%s/%s' can't be accessed due to ACL labels mismatch on namespace '%s'",
+	return accessDeniedErrorf("'%s/%s' can't be accessed due to ACL labels mismatch on namespace '%s'",
 		reference.Namespace, reference.Name, object.GetNamespace())
 }
