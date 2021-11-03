@@ -38,6 +38,7 @@ func TestAclAuthorization(t *testing.T) {
 			panic(fmt.Sprintf("Failed to start the testenv: %v", err))
 		}
 	}()
+	<-testEnv.Manager.Elected()
 	defer testEnv.Stop()
 
 	aclAuth := NewAuthorization(testEnv.Client)
