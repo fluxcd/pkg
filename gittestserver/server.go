@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -60,6 +61,9 @@ func NewGitServer(docroot string) *GitServer {
 	}
 }
 
+// HTTPMiddleware is a git http server middleware.
+type HTTPMiddleware func(http.Handler) http.Handler
+
 // GitServer is a git server for testing purposes.
 // It can serve git repositories over HTTP and SSH.
 type GitServer struct {
@@ -68,6 +72,12 @@ type GitServer struct {
 	sshServer  *gitkit.SSH
 	// Set these to configure HTTP auth
 	username, password string
+	httpMiddlewares    []HTTPMiddleware
+}
+
+// AddHTTPMiddlewares adds http middlewares to the git server.
+func (s *GitServer) AddHTTPMiddlewares(httpMiddlewares ...HTTPMiddleware) {
+	s.httpMiddlewares = append(s.httpMiddlewares, httpMiddlewares...)
 }
 
 // AutoCreate enables the automatic creation of a non-existing Git
@@ -126,7 +136,8 @@ func (s *GitServer) StartHTTP() error {
 	if err := service.Setup(); err != nil {
 		return err
 	}
-	s.httpServer = httptest.NewServer(service)
+	handler := buildHTTPHandler(service, s.httpMiddlewares...)
+	s.httpServer = httptest.NewServer(handler)
 	return nil
 }
 
@@ -142,7 +153,8 @@ func (s *GitServer) StartHTTPS(cert, key, ca []byte, serverName string) error {
 	if err := service.Setup(); err != nil {
 		return err
 	}
-	s.httpServer = httptest.NewUnstartedServer(service)
+	handler := buildHTTPHandler(service, s.httpMiddlewares...)
+	s.httpServer = httptest.NewUnstartedServer(handler)
 
 	config := tls.Config{}
 
@@ -364,4 +376,12 @@ func checkout(repo *gogit.Repository, branch string) error {
 
 func getLocalURL(localPath string) string {
 	return fmt.Sprintf("file://%s", localPath)
+}
+
+// buildHTTPHandler chains a given http handler with the given middlewares.
+func buildHTTPHandler(handler http.Handler, middlewares ...HTTPMiddleware) http.Handler {
+	for _, middleware := range middlewares {
+		handler = middleware(handler)
+	}
+	return handler
 }

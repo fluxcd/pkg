@@ -2,6 +2,7 @@ package gittestserver
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -192,5 +193,46 @@ func TestInitRepo(t *testing.T) {
 
 			tt.testFunc(srv, repoURL)
 		})
+	}
+}
+
+func TestGitServer_AddHTTPMiddlewares(t *testing.T) {
+	repoPath := "bar/test-reponame"
+	initBranch := "test-branch"
+
+	srv, err := NewTempGitServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.Auth("test-user", "test-pswd")
+	defer os.RemoveAll(srv.Root())
+	srv.KeyDir(srv.Root())
+
+	// Add a middleware.
+	middleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "something failed", http.StatusInternalServerError)
+		})
+	}
+	srv.AddHTTPMiddlewares(middleware)
+
+	if err = srv.StartHTTP(); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.StopHTTP()
+
+	// Initialize a repo.
+	err = srv.InitRepo("testdata/git/repo1", initBranch, repoPath)
+	if err != nil {
+		t.Fatalf("failed to initialize repo: %v", err)
+	}
+	repoURL := srv.HTTPAddressWithCredentials() + "/" + repoPath
+
+	// Clone the branch.
+	_, err = gogit.PlainClone("some-non-existing-dir", false, &gogit.CloneOptions{
+		URL: repoURL,
+	})
+	if !strings.Contains(err.Error(), "status code: 500") {
+		t.Errorf("expected error status code 500, got: %v", err)
 	}
 }
