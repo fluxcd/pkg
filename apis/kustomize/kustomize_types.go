@@ -83,10 +83,11 @@ type Selector struct {
 	LabelSelector string `json:"labelSelector,omitempty"`
 }
 
-// Patch contains either a StrategicMerge or a JSON6902 patch, either a file or inline, and the target the patch should
+// Patch contains an inline StrategicMerge or JSON6902 patch, and the target the patch should
 // be applied to.
 type Patch struct {
-	// Patch contains the JSON6902 patch document with an array of operation objects.
+	// Patch contains an inline StrategicMerge patch or an inline JSON6902 patch with 
+	// an array of operation objects.
 	// +required
 	Patch string `json:"patch,omitempty"`
 
