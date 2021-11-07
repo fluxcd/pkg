@@ -206,6 +206,16 @@ func IsKustomization(object *unstructured.Unstructured) bool {
 	return false
 }
 
+// IsEncryptedSecret checks if the given object is a Kubernetes Secret encrypted with Mozilla SOPS.
+func IsEncryptedSecret(object *unstructured.Unstructured) bool {
+	if object.GetKind() == "Secret" && object.GetAPIVersion() == "v1" {
+		if _, found, _ := unstructured.NestedFieldNoCopy(object.Object, "sops"); found {
+			return true
+		}
+	}
+	return false
+}
+
 func isImmutableError(err error) bool {
 	for _, s := range []string{"field is immutable", "cannot change roleRef"} {
 		if strings.Contains(err.Error(), s) {
