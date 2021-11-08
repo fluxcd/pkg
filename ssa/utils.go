@@ -215,6 +215,17 @@ func isImmutableError(err error) bool {
 	return false
 }
 
+// AnyInMetadata searches for the specified key-value pairs in labels and annotations,
+// returns true if at least one key-value pair matches.
+func AnyInMetadata(object *unstructured.Unstructured, metadata map[string]string) bool {
+	for key, val := range metadata {
+		if object.GetLabels()[key] == val || object.GetAnnotations()[key] == val {
+			return true
+		}
+	}
+	return false
+}
+
 // SetNativeKindsDefaults implements workarounds for server-side apply upstream bugs affecting Kubernetes < 1.22
 // ContainerPort missing default TCP proto: https://github.com/kubernetes-sigs/structured-merge-diff/issues/130
 // ServicePort missing default TCP proto: https://github.com/kubernetes/kubernetes/pull/98576
