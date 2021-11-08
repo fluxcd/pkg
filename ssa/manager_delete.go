@@ -57,7 +57,7 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 		}
 	}
 
-	if err := m.client.Delete(ctx, existingObject); err != nil {
+	if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil {
 		return m.changeSetEntry(object, UnknownAction),
 			fmt.Errorf("%s delete failed, error: %w", FmtUnstructured(object), err)
 	}
