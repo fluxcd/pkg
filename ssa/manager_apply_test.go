@@ -287,3 +287,78 @@ func TestApply_NoOp(t *testing.T) {
 		}
 	})
 }
+
+func TestApply_Exclusions(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("ignore")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, configMap := getFirstObject(objects, "ConfigMap", id)
+
+	t.Run("creates objects", func(t *testing.T) {
+		// create objects
+		_, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("skips apply", func(t *testing.T) {
+		// mutate in-cluster object
+		configMapClone := configMap.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(configMapClone), configMapClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		meta := map[string]string{
+			"fluxcd.io/ignore": "true",
+		}
+		configMapClone.SetAnnotations(meta)
+
+		if err := unstructured.SetNestedField(configMapClone.Object, "val", "data", "key"); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := manager.client.Update(ctx, configMapClone); err != nil {
+			t.Fatal(err)
+		}
+
+		// apply with exclusions
+		changeSet, err := manager.ApplyAll(ctx, objects, ApplyOptions{
+			Force:       false,
+			Exclusions:  meta,
+			WaitTimeout: time.Second,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if entry.Action != string(UnchangedAction) {
+				t.Errorf("Diff found for %s", entry.String())
+			}
+		}
+	})
+
+	t.Run("applies changes", func(t *testing.T) {
+		// apply changes without exclusions
+		changeSet, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if entry.Action != string(ConfiguredAction) && entry.Subject == FmtUnstructured(configMap) {
+				t.Errorf("Expected %s, got %s", ConfiguredAction, entry.Action)
+			}
+		}
+	})
+
+}
