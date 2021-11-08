@@ -35,8 +35,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// WaitOptions contains options for wait requests.
+type WaitOptions struct {
+	// Interval defines how often to poll the cluster for the latest state of the resources.
+	Interval time.Duration
+
+	// Timeout defines after which interval should the engine give up on waiting for resources
+	// to become ready.
+	Timeout time.Duration
+}
+
+// DefaultWaitOptions returns the default wait options where the poll interval is set to
+// five seconds and the timeout to one minute.
+func DefaultWaitOptions() WaitOptions {
+	return WaitOptions{
+		Interval: 5 * time.Second,
+		Timeout:  60 * time.Second,
+	}
+}
+
 // Wait checks if the given set of objects has been fully reconciled.
-func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, interval, timeout time.Duration) error {
+func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, opts WaitOptions) error {
 	objectsMeta, err := object.UnstructuredsToObjMetas(objects)
 	if err != nil {
 		return err
@@ -46,21 +65,21 @@ func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, interval, t
 		return nil
 	}
 
-	return m.WaitForSet(objectsMeta, interval, timeout)
+	return m.WaitForSet(objectsMeta, opts)
 }
 
 // WaitForSet checks if the given set of ObjMetadata has been fully reconciled.
-func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, interval, timeout time.Duration) error {
+func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions) error {
 	statusCollector := collector.NewResourceStatusCollector(set)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
-	opts := polling.Options{
-		PollInterval: interval,
+	pollingOpts := polling.Options{
+		PollInterval: opts.Interval,
 		UseCache:     true,
 	}
-	eventsChan := m.poller.Poll(ctx, set, opts)
+	eventsChan := m.poller.Poll(ctx, set, pollingOpts)
 
 	lastStatus := make(map[object.ObjMetadata]*event.ResourceStatus)
 
@@ -122,12 +141,12 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, interval, timeou
 }
 
 // WaitForTermination waits for the given objects to be deleted from the cluster.
-func (m *ResourceManager) WaitForTermination(objects []*unstructured.Unstructured, interval, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func (m *ResourceManager) WaitForTermination(objects []*unstructured.Unstructured, opts WaitOptions) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
 	for _, object := range objects {
-		if err := wait.PollImmediate(interval, timeout, m.isDeleted(ctx, object)); err != nil {
+		if err := wait.PollImmediate(opts.Interval, opts.Timeout, m.isDeleted(ctx, object)); err != nil {
 			return fmt.Errorf("%s termination timeout, error: %w", FmtUnstructured(object), err)
 		}
 	}

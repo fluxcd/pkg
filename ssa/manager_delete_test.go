@@ -91,7 +91,7 @@ func TestDelete(t *testing.T) {
 			t.Error(err)
 		}
 
-		if err := manager.WaitForTermination(objects, time.Second, 5*time.Second); err != nil {
+		if err := manager.WaitForTermination(objects, WaitOptions{time.Second, 5 * time.Second}); err != nil {
 			// workaround for https://github.com/kubernetes-sigs/controller-runtime/issues/880
 			if !strings.Contains(err.Error(), "Namespace/") {
 				t.Error(err)
