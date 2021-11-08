@@ -44,7 +44,7 @@ func TestDiff(t *testing.T) {
 	if err := unstructured.SetNestedField(secret.Object, false, "immutable"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = manager.ApplyAllStaged(ctx, objects, false, timeout); err != nil {
+	if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -130,7 +130,7 @@ func TestDiff_Removals(t *testing.T) {
 
 	configMapName, configMap := getFirstObject(objects, "ConfigMap", id)
 
-	if _, err = manager.ApplyAllStaged(ctx, objects, false, timeout); err != nil {
+	if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -148,7 +148,7 @@ func TestDiff_Removals(t *testing.T) {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
-		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, false); err != nil {
+		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, DefaultApplyOptions()); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -173,7 +173,7 @@ func TestDiff_Removals(t *testing.T) {
 			t.Errorf("Mismatch from expected value, want %s", newVal)
 		}
 
-		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, false); err != nil {
+		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, DefaultApplyOptions()); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -190,7 +190,7 @@ func TestDiff_Removals(t *testing.T) {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
-		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, false); err != nil {
+		if _, err = manager.ApplyAll(ctx, []*unstructured.Unstructured{configMap}, DefaultApplyOptions()); err != nil {
 			t.Fatal(err)
 		}
 	})
