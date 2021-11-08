@@ -29,8 +29,38 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// DeleteOptions contains options for delete requests.
+type DeleteOptions struct {
+	// PropagationPolicy determined whether and how garbage collection will be
+	// performed.
+	PropagationPolicy metav1.DeletionPropagation
+
+	// Inclusions determines which in-cluster objects are subject to deletion
+	// based on the specified key-value pairs.
+	// A nil Inclusions map means all objects are subject to deletion
+	// irregardless of their metadata labels.
+	Inclusions map[string]string
+
+	// Exclusions determines which in-cluster objects are skipped from deletion
+	// based on the specified key-value pairs.
+	// A nil Exclusions map means all objects are subject to deletion
+	// irregardless of their metadata labels and annotations.
+	Exclusions map[string]string
+}
+
+// DefaultDeleteOptions returns the default delete options where the propagation
+// policy is set to background.
+func DefaultDeleteOptions() DeleteOptions {
+	return DeleteOptions{
+		PropagationPolicy: metav1.DeletePropagationBackground,
+		Inclusions:        nil,
+		Exclusions:        nil,
+	}
+}
+
 // Delete deletes the given object (not found errors are ignored).
-func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstructured, labelSelector map[string]string, skipFor map[string]string) (*ChangeSetEntry, error) {
+func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstructured, opts DeleteOptions) (*ChangeSetEntry, error) {
+
 	existingObject := object.DeepCopy()
 	err := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 	if err != nil {
@@ -41,7 +71,7 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 		return m.changeSetEntry(object, DeletedAction), nil
 	}
 
-	sel, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: labelSelector})
+	sel, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: opts.Inclusions})
 	if err != nil {
 		return m.changeSetEntry(object, UnknownAction),
 			fmt.Errorf("%s label selector failed, error: %w", FmtUnstructured(object), err)
@@ -51,13 +81,11 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
-	for n, s := range skipFor {
-		if existingObject.GetLabels()[n] == s || existingObject.GetAnnotations()[n] == s {
-			return m.changeSetEntry(object, UnchangedAction), nil
-		}
+	if AnyInMetadata(object, opts.Exclusions) {
+		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
-	if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil {
+	if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(opts.PropagationPolicy)); err != nil {
 		return m.changeSetEntry(object, UnknownAction),
 			fmt.Errorf("%s delete failed, error: %w", FmtUnstructured(object), err)
 	}
@@ -66,14 +94,13 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 }
 
 // DeleteAll deletes the given set of objects (not found errors are ignored).
-// The given objects are filtered based on the metadata present in-cluster.
-func (m *ResourceManager) DeleteAll(ctx context.Context, objects []*unstructured.Unstructured, labelSelector map[string]string, skipFor map[string]string) (*ChangeSet, error) {
+func (m *ResourceManager) DeleteAll(ctx context.Context, objects []*unstructured.Unstructured, opts DeleteOptions) (*ChangeSet, error) {
 	sort.Sort(sort.Reverse(SortableUnstructureds(objects)))
 	changeSet := NewChangeSet()
 
 	var errors string
 	for _, object := range objects {
-		cse, err := m.Delete(ctx, object, labelSelector, skipFor)
+		cse, err := m.Delete(ctx, object, opts)
 		if cse != nil {
 			changeSet.Add(*cse)
 		}
