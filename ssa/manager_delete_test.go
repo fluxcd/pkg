@@ -42,7 +42,7 @@ func TestDelete(t *testing.T) {
 	_, configMap := getFirstObject(objects, "ConfigMap", id)
 	_, role := getFirstObject(objects, "ClusterRole", id)
 
-	if _, err = manager.ApplyAllStaged(ctx, objects, false, timeout); err != nil {
+	if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
 		t.Fatal(err)
 	}
 

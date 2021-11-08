@@ -45,7 +45,7 @@ func TestWaitForSet(t *testing.T) {
 	_, cr := getFirstObject(objects, "ClusterTest", id)
 
 	t.Run("waits for CRD and CR", func(t *testing.T) {
-		cs, err := manager.Apply(ctx, crd, false)
+		cs, err := manager.Apply(ctx, crd, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -54,7 +54,7 @@ func TestWaitForSet(t *testing.T) {
 			t.Errorf("wait failed for CRD: %v", err)
 		}
 
-		changeSet, err := manager.ApplyAll(ctx, objects, false)
+		changeSet, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}

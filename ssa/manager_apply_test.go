@@ -49,7 +49,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("creates objects in order", func(t *testing.T) {
 		// create objects
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, false, timeout)
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +78,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("does not apply unchanged objects", func(t *testing.T) {
 		// no-op apply
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, false, timeout)
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +101,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// apply changes
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, false, timeout)
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,7 +146,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// apply and expect to fail
-		_, err := manager.ApplyAllStaged(ctx, objects, false, timeout)
+		_, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err == nil {
 			t.Fatal("Expected error got none")
 		}
@@ -160,7 +160,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("force applies immutable secret", func(t *testing.T) {
 		// force apply
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, true, timeout)
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{Force: true, WaitTimeout: timeout})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +205,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// force apply
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, true, timeout)
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{Force: true, WaitTimeout: timeout})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -241,7 +241,7 @@ func TestApply_SetNativeKindsDefaults(t *testing.T) {
 
 	t.Run("creates objects", func(t *testing.T) {
 		// create objects
-		_, err := manager.ApplyAllStaged(ctx, objects, false, timeout)
+		_, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -267,7 +267,7 @@ func TestApply_NoOp(t *testing.T) {
 
 	t.Run("creates objects", func(t *testing.T) {
 		// create objects
-		_, err := manager.ApplyAllStaged(ctx, objects, false, timeout)
+		_, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -275,7 +275,7 @@ func TestApply_NoOp(t *testing.T) {
 
 	t.Run("skips apply", func(t *testing.T) {
 		// apply changes
-		changeSet, err := manager.ApplyAll(ctx, objects, false)
+		changeSet, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
