@@ -360,5 +360,4 @@ func TestApply_Exclusions(t *testing.T) {
 			}
 		}
 	})
-
 }

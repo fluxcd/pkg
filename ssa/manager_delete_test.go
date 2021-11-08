@@ -39,6 +39,11 @@ func TestDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	opts := DefaultDeleteOptions()
+	opts.Inclusions = manager.GetOwnerLabels("app1", "default")
+
 	_, configMap := getFirstObject(objects, "ConfigMap", id)
 	_, role := getFirstObject(objects, "ClusterRole", id)
 
@@ -47,7 +52,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	t.Run("deletes objects in order", func(t *testing.T) {
-		changeSet, err := manager.DeleteAll(ctx, objects, DefaultDeleteOptions())
+		changeSet, err := manager.DeleteAll(ctx, objects, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -86,7 +91,7 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("waits for objects termination", func(t *testing.T) {
-		_, err := manager.DeleteAll(ctx, objects, DefaultDeleteOptions())
+		_, err := manager.DeleteAll(ctx, objects, opts)
 		if err != nil {
 			t.Error(err)
 		}
@@ -96,6 +101,63 @@ func TestDelete(t *testing.T) {
 			if !strings.Contains(err.Error(), "Namespace/") {
 				t.Error(err)
 			}
+		}
+	})
+}
+
+func TestDelete_Exclusions(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("ignore")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, configMap := getFirstObject(objects, "ConfigMap", id)
+
+	t.Run("creates objects", func(t *testing.T) {
+		// create objects
+		_, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("skips delete", func(t *testing.T) {
+		// mutate in-cluster object
+		configMapClone := configMap.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(configMapClone), configMapClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		meta := map[string]string{
+			"fluxcd.io/ignore": "true",
+		}
+		configMapClone.SetAnnotations(meta)
+
+		if err := manager.client.Update(ctx, configMapClone); err != nil {
+			t.Fatal(err)
+		}
+
+		opts := DefaultDeleteOptions()
+		opts.Exclusions = meta
+		changeSet, err := manager.DeleteAll(ctx, objects, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if entry.Action != string(UnchangedAction) && entry.Subject == FmtUnstructured(configMap) {
+				t.Errorf("Expected %s, got %s", UnchangedAction, entry.Action)
+			}
+		}
+
+		if err := manager.client.Get(ctx, client.ObjectKeyFromObject(configMapClone), configMapClone); err != nil {
+			t.Error(err)
 		}
 	})
 }

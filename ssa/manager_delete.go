@@ -81,7 +81,7 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
-	if AnyInMetadata(object, opts.Exclusions) {
+	if AnyInMetadata(existingObject, opts.Exclusions) {
 		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
