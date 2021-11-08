@@ -32,6 +32,12 @@ type ApplyOptions struct {
 	// Force configures the engine to recreate objects that contain immutable field changes.
 	Force bool
 
+	// Exclusions determines which in-cluster objects are skipped from apply
+	// based on the specified key-value pairs.
+	// A nil Exclusions map means all objects are applied
+	// irregardless of their metadata labels and annotations.
+	Exclusions map[string]string
+
 	// WaitTimeout defines after which interval should the engine give up on waiting for
 	// cluster scoped resources to become ready.
 	WaitTimeout time.Duration
@@ -41,6 +47,7 @@ type ApplyOptions struct {
 func DefaultApplyOptions() ApplyOptions {
 	return ApplyOptions{
 		Force:       false,
+		Exclusions:  nil,
 		WaitTimeout: 60 * time.Second,
 	}
 }
@@ -51,6 +58,10 @@ func DefaultApplyOptions() ApplyOptions {
 func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstructured, opts ApplyOptions) (*ChangeSetEntry, error) {
 	existingObject := object.DeepCopy()
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
+
+	if existingObject != nil && AnyInMetadata(existingObject, opts.Exclusions) {
+		return m.changeSetEntry(object, UnchangedAction), nil
+	}
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
@@ -91,6 +102,11 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 	for _, object := range objects {
 		existingObject := object.DeepCopy()
 		_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
+
+		if existingObject != nil && AnyInMetadata(existingObject, opts.Exclusions) {
+			changeSet.Add(*m.changeSetEntry(existingObject, UnchangedAction))
+			continue
+		}
 
 		dryRunObject := object.DeepCopy()
 		if err := m.dryRunApply(ctx, dryRunObject); err != nil {
