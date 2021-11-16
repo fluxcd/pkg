@@ -23,7 +23,7 @@ runs:
         ARCH=${{ inputs.arch }}
         REPO_URL=https://github.com/kubernetes-sigs/kustomize/releases/download
         BIN_URL="${REPO_URL}/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_${ARCH}.tar.gz"
-        curl -sL ${BIN_URL} -o /tmp/kustomize.tar.gz
+        curl -fL --no-progress-meter ${BIN_URL} -o /tmp/kustomize.tar.gz
         mkdir -p /tmp/kustomize
         tar -C /tmp/kustomize/ -zxvf /tmp/kustomize.tar.gz
         sudo cp /tmp/kustomize/kustomize /usr/local/bin
