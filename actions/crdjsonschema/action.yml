@@ -11,9 +11,13 @@ inputs:
   output:
     description: 'Path to a local dir where to write the JSON file'
     required: true
+  combined_filename:
+    description: 'Combined CRD schemas filename'
+    required: true
 runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
     - ${{ inputs.crd }}
     - ${{ inputs.output }}
+    - ${{ inputs.combined_filename }}
