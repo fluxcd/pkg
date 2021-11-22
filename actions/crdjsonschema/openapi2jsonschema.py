@@ -105,9 +105,19 @@ def append_no_duplicates(obj, key, value):
         obj[key].append(value)
 
 
-def write_schema_file(schema, filename):
+def insert_api_version_kind_and_objectmeta(schema, api_version, kind, object_meta):
+    schema["properties"]["apiVersion"]["enum"] = [api_version]
+    schema["properties"]["apiVersion"]["default"] = api_version
+    schema["properties"]["kind"]["enum"] = [kind]
+    schema["properties"]["kind"]["default"] = kind
+    schema["properties"]["metadata"] = object_meta
+    return schema
+
+
+def write_schema_file(schema, api_version, kind, object_meta, filename):
     schemaJSON = ""
 
+    schema = insert_api_version_kind_and_objectmeta(schema, api_version, kind, object_meta)
     schema = additional_properties(schema)
     schema = replace_int_or_string(schema)
     schemaJSON = json.dumps(schema, indent=2)
@@ -118,13 +128,27 @@ def write_schema_file(schema, filename):
     f.write(schemaJSON)
     f.close()
     print("{filename}".format(filename=filename))
+    return schema
 
 
 if len(sys.argv) == 0:
     print("missing file")
     exit(1)
 
-for crdFile in sys.argv[1:]:
+
+# This is the object meta v1 schema file taken from Instrumenta
+# https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/master-standalone/objectmeta-meta-v1.json
+object_meta_f = open("objectmeta-meta-v1.json")
+object_meta = json.loads(object_meta_f.read())
+object_meta_f.close()
+
+one_of = list()
+
+# first arg is the combined schemas filename
+combined_schemas_filename = sys.argv[1]
+
+# second arg and the rest are CRD files to process
+for crdFile in sys.argv[2:]:
     if crdFile.startswith("http"):
       f = urllib.request.urlopen(crdFile)
     else:
@@ -139,24 +163,45 @@ for crdFile in sys.argv[1:]:
             filename_format = os.getenv("FILENAME_FORMAT", "{kind}-{group}-{version}")
             filename = ""
             if "spec" in y and "validation" in y["spec"] and "openAPIV3Schema" in y["spec"]["validation"]:
+                kind = y["spec"]["names"]["kind"]
+                version = y["spec"]["version"]
                 filename = filename_format.format(
-                    kind=y["spec"]["names"]["kind"],
+                    kind=kind,
                     group=y["spec"]["group"].split(".")[0],
-                    version=y["spec"]["version"],
+                    version=version,
                 ).lower() + ".json"
 
+                api_version = y["spec"]["group"] + "/" + version
                 schema = y["spec"]["validation"]["openAPIV3Schema"]
-                write_schema_file(schema, filename)
+                schema = write_schema_file(schema, api_version, kind, object_meta, filename)
+                one_of.append(schema)
             elif "spec" in y and "versions" in y["spec"]:
                 for version in y["spec"]["versions"]:
                     if "schema" in version and "openAPIV3Schema" in version["schema"]:
+                        kind = y["spec"]["names"]["kind"]
                         filename = filename_format.format(
-                            kind=y["spec"]["names"]["kind"],
+                            kind=kind,
                             group=y["spec"]["group"].split(".")[0],
                             version=version["name"],
                         ).lower() + ".json"
 
+                        api_version = y["spec"]["group"] + "/" + version["name"]
                         schema = version["schema"]["openAPIV3Schema"]
-                        write_schema_file(schema, filename)
+                        schema = write_schema_file(schema, api_version, kind, object_meta, filename)
+                        one_of.append(schema)
+
+
+all_schemas = {
+    "description": "Auto-generated CRD JSON schema for Flux",
+    "title": "Flux CRD JSON schemas",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "oneOf": one_of,
+}
+
+all_schemas_json = json.dumps(all_schemas, indent=2)
+all_schemas_f = open(combined_schemas_filename, "w")
+all_schemas_f.write(all_schemas_json)
+all_schemas_f.close()
+print(combined_schemas_filename)
 
 exit(0)
