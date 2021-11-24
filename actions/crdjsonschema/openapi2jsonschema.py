@@ -138,7 +138,7 @@ if len(sys.argv) == 0:
 
 # This is the object meta v1 schema file taken from Instrumenta
 # https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/master-standalone/objectmeta-meta-v1.json
-object_meta_f = open("objectmeta-meta-v1.json")
+object_meta_f = open("/objectmeta-meta-v1.json")
 object_meta = json.loads(object_meta_f.read())
 object_meta_f.close()
 
