@@ -44,8 +44,6 @@ func TestApply(t *testing.T) {
 	manager.SetOwnerLabels(objects, "app1", "default")
 
 	configMapName, configMap := getFirstObject(objects, "ConfigMap", id)
-	secretName, secret := getFirstObject(objects, "Secret", id)
-	crbName, crb := getFirstObject(objects, "ClusterRoleBinding", id)
 
 	t.Run("creates objects in order", func(t *testing.T) {
 		// create objects
@@ -137,6 +135,29 @@ func TestApply(t *testing.T) {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 	})
+}
+
+func TestApply_Force(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("apply")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	secretName, secret := getFirstObject(objects, "Secret", id)
+	crbName, crb := getFirstObject(objects, "ClusterRoleBinding", id)
+	stName, st := getFirstObject(objects, "StorageClass", id)
+
+	// create objects
+	if _, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("fails to apply immutable secret", func(t *testing.T) {
 		// update a value in the secret
@@ -213,6 +234,36 @@ func TestApply(t *testing.T) {
 		// verify the binding was recreated
 		for _, entry := range changeSet.Entries {
 			if entry.Subject == crbName {
+				if diff := cmp.Diff(string(CreatedAction), entry.Action); diff != "" {
+					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+				}
+				break
+			}
+		}
+	})
+
+	t.Run("recreates immutable StorageClass", func(t *testing.T) {
+		// update parameters
+		err = unstructured.SetNestedField(st.Object, "true", "parameters", "encrypted")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// apply and expect to fail
+		_, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err == nil {
+			t.Fatal("Expected error got none")
+		}
+
+		// force apply
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{Force: true, WaitTimeout: timeout})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// verify the storage class was recreated
+		for _, entry := range changeSet.Entries {
+			if entry.Subject == stName {
 				if diff := cmp.Diff(string(CreatedAction), entry.Action); diff != "" {
 					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 				}

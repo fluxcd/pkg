@@ -27,6 +27,7 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v2beta1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
@@ -207,10 +208,10 @@ func IsKustomization(object *unstructured.Unstructured) bool {
 }
 
 func isImmutableError(err error) bool {
-	for _, s := range []string{"field is immutable", "cannot change roleRef"} {
-		if strings.Contains(err.Error(), s) {
-			return true
-		}
+	// Detect immutability like kubectl does
+	// https://github.com/kubernetes/kubectl/blob/8165f83007/pkg/cmd/apply/patcher.go#L201
+	if errors.IsConflict(err) || errors.IsInvalid(err) {
+		return true
 	}
 	return false
 }
