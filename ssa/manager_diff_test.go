@@ -19,6 +19,7 @@ package ssa
 
 import (
 	"context"
+	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
 	"time"
@@ -49,7 +50,7 @@ func TestDiff(t *testing.T) {
 	}
 
 	t.Run("generates empty diff for unchanged object", func(t *testing.T) {
-		changeSetEntry, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, _, err := manager.Diff(ctx, configMap)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -70,7 +71,7 @@ func TestDiff(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSetEntry, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, configMap)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,7 +80,8 @@ func TestDiff(t *testing.T) {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
-		if !strings.Contains(changeSetEntry.Diff, newVal) {
+		mergedObjYaml, _ := yaml.Marshal(mergedObj)
+		if !strings.Contains(string(mergedObjYaml), newVal) {
 			t.Errorf("Mismatch from expected value, want %s", newVal)
 		}
 	})
@@ -97,21 +99,23 @@ func TestDiff(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSetEntry, err := manager.Diff(ctx, secret)
+		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, secret)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		mergedObjYaml, _ := yaml.Marshal(mergedObj)
 
 		if diff := cmp.Diff(secretName, changeSetEntry.Subject); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
-		if !strings.Contains(changeSetEntry.Diff, newKey) {
-			t.Errorf("Mismatch from expected value, got %s", changeSetEntry.Diff)
+		if !strings.Contains(string(mergedObjYaml), newKey) {
+			t.Errorf("Mismatch from expected value, got %s", string(mergedObjYaml))
 		}
 
-		if strings.Contains(changeSetEntry.Diff, newVal) {
-			t.Errorf("Mismatch from expected value, got %s", changeSetEntry.Diff)
+		if strings.Contains(string(mergedObjYaml), newVal) {
+			t.Errorf("Mismatch from expected value, got %s", string(mergedObjYaml))
 		}
 	})
 }
@@ -135,7 +139,7 @@ func TestDiff_Removals(t *testing.T) {
 	}
 
 	t.Run("generates empty diff for unchanged object", func(t *testing.T) {
-		changeSetEntry, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, _, err := manager.Diff(ctx, configMap)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,16 +164,18 @@ func TestDiff_Removals(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSetEntry, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, configMap)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		mergedObjYaml, _ := yaml.Marshal(mergedObj)
 
 		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
-		if !strings.Contains(changeSetEntry.Diff, newVal) {
+		if !strings.Contains(string(mergedObjYaml), newVal) {
 			t.Errorf("Mismatch from expected value, want %s", newVal)
 		}
 
@@ -181,7 +187,7 @@ func TestDiff_Removals(t *testing.T) {
 	t.Run("generates diff for removed map entry", func(t *testing.T) {
 		unstructured.RemoveNestedField(configMap.Object, "data", "token")
 
-		changeSetEntry, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, _, err := manager.Diff(ctx, configMap)
 		if err != nil {
 			t.Fatal(err)
 		}

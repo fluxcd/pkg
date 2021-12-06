@@ -92,9 +92,6 @@ type ChangeSetEntry struct {
 
 	// Action represents the action type taken by the reconciler for this object.
 	Action string
-
-	// Diff contains the YAML diff resulting from server-side apply dry-run.
-	Diff string
 }
 
 func (e ChangeSetEntry) String() string {

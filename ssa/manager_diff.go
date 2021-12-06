@@ -22,28 +22,26 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 )
 
-// Diff performs a server-side apply dry-un and returns the fields that changed in YAML format.
+// Diff performs a server-side apply dry-un and returns the live and merged objects if drift is detected.
 // If the diff contains Kubernetes Secrets, the data values are masked.
-func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstructured) (*ChangeSetEntry, error) {
+func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstructured) (*ChangeSetEntry, *unstructured.Unstructured, *unstructured.Unstructured, error) {
 	existingObject := object.DeepCopy()
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-		return nil, m.validationError(dryRunObject, err)
+		return nil, nil, nil, m.validationError(dryRunObject, err)
 	}
 
 	if dryRunObject.GetResourceVersion() == "" {
-		return m.changeSetEntry(dryRunObject, CreatedAction), nil
+		return m.changeSetEntry(dryRunObject, CreatedAction), nil, nil, nil
 	}
 
 	if m.hasDrifted(existingObject, dryRunObject) {
@@ -55,24 +53,20 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 		if dryRunObject.GetKind() == "Secret" {
 			d, err := MaskSecret(dryRunObject, "******")
 			if err != nil {
-				return nil, fmt.Errorf("masking secret data failed, error: %w", err)
+				return nil, nil, nil, fmt.Errorf("masking secret data failed, error: %w", err)
 			}
 			dryRunObject = d
 			ex, err := MaskSecret(existingObject, "*****")
 			if err != nil {
-				return nil, fmt.Errorf("masking secret data failed, error: %w", err)
+				return nil, nil, nil, fmt.Errorf("masking secret data failed, error: %w", err)
 			}
 			existingObject = ex
 		}
 
-		d, _ := yaml.Marshal(dryRunObject)
-		e, _ := yaml.Marshal(existingObject)
-		cse.Diff = cmp.Diff(string(e), string(d))
-
-		return cse, nil
+		return cse, existingObject, dryRunObject, nil
 	}
 
-	return m.changeSetEntry(dryRunObject, UnchangedAction), nil
+	return m.changeSetEntry(dryRunObject, UnchangedAction), nil, nil, nil
 }
 
 // hasDrifted detects changes to metadata labels, annotations and spec.
@@ -91,14 +85,6 @@ func (m *ResourceManager) hasDrifted(existingObject, dryRunObject *unstructured.
 	}
 
 	return hasObjectDrifted(dryRunObject, existingObject)
-}
-
-// hasFieldDrifted performs a semantic equality check of the specified field
-func hasFieldDrifted(dryRunObject, existingObject *unstructured.Unstructured, field string) bool {
-	if _, ok := existingObject.Object[field]; ok {
-		return !apiequality.Semantic.DeepEqual(dryRunObject.Object[field], existingObject.Object[field])
-	}
-	return false
 }
 
 // hasObjectDrifted removes the metadata and status fields from both objects
