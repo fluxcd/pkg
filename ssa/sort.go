@@ -25,6 +25,41 @@ import (
 	"sigs.k8s.io/cli-utils/pkg/object"
 )
 
+type KindOrder struct {
+	First []string
+	Last  []string
+}
+
+// ReconcileOrder holds the list of the Kubernetes native kinds that
+// describes in which order they are reconciled.
+var ReconcileOrder = KindOrder{
+	First: []string{
+		"CustomResourceDefinition",
+		"Namespace",
+		"ResourceQuota",
+		"StorageClass",
+		"ServiceAccount",
+		"PodSecurityPolicy",
+		"Role",
+		"ClusterRole",
+		"RoleBinding",
+		"ClusterRoleBinding",
+		"ConfigMap",
+		"Secret",
+		"Service",
+		"LimitRange",
+		"PriorityClass",
+		"Deployment",
+		"StatefulSet",
+		"CronJob",
+		"PodDisruptionBudget",
+	},
+	Last: []string{
+		"MutatingWebhookConfiguration",
+		"ValidatingWebhookConfiguration",
+	},
+}
+
 type SortableUnstructureds []*unstructured.Unstructured
 
 var _ sort.Interface = SortableUnstructureds{}
@@ -66,36 +101,12 @@ func computeKind2index() map[string]int {
 	// a Service should come before things that refer to it.
 	// Namespace should be first.
 	// In some cases order just specified to provide determinism.
-	orderFirst := []string{
-		"CustomResourceDefinition",
-		"Namespace",
-		"ResourceQuota",
-		"StorageClass",
-		"ServiceAccount",
-		"PodSecurityPolicy",
-		"Role",
-		"ClusterRole",
-		"RoleBinding",
-		"ClusterRoleBinding",
-		"ConfigMap",
-		"Secret",
-		"Service",
-		"LimitRange",
-		"PriorityClass",
-		"Deployment",
-		"StatefulSet",
-		"CronJob",
-		"PodDisruptionBudget",
+
+	kind2indexResult := make(map[string]int, len(ReconcileOrder.First)+len(ReconcileOrder.Last))
+	for i, n := range ReconcileOrder.First {
+		kind2indexResult[n] = -len(ReconcileOrder.First) + i
 	}
-	orderLast := []string{
-		"MutatingWebhookConfiguration",
-		"ValidatingWebhookConfiguration",
-	}
-	kind2indexResult := make(map[string]int, len(orderFirst)+len(orderLast))
-	for i, n := range orderFirst {
-		kind2indexResult[n] = -len(orderFirst) + i
-	}
-	for i, n := range orderLast {
+	for i, n := range ReconcileOrder.Last {
 		kind2indexResult[n] = 1 + i
 	}
 	return kind2indexResult
