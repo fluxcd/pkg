@@ -94,8 +94,6 @@ func less(i, j object.ObjMetadata) bool {
 	return i.Name < j.Name
 }
 
-var kind2index = computeKind2index()
-
 func computeKind2index() map[string]int {
 	// An attempt to order things to help k8s, e.g.
 	// a Service should come before things that refer to it.
@@ -114,7 +112,7 @@ func computeKind2index() map[string]int {
 
 // getIndexByKind returns the index of the kind respecting the order
 func getIndexByKind(kind string) int {
-	return kind2index[kind]
+	return computeKind2index()[kind]
 }
 
 func Equals(i, j schema.GroupKind) bool {
