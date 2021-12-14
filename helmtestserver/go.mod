@@ -7,7 +7,7 @@ replace github.com/fluxcd/pkg/testserver => ../testserver
 require (
 	github.com/fluxcd/pkg/testserver v0.1.0
 	github.com/garyburd/redigo v1.6.3 // indirect
-	helm.sh/helm/v3 v3.7.1
+	helm.sh/helm/v3 v3.7.2
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -18,9 +18,9 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
-	github.com/Masterminds/squirrel v1.5.0 // indirect
+	github.com/Masterminds/squirrel v1.5.2 // indirect
 	github.com/Microsoft/go-winio v0.4.17 // indirect
-	github.com/Microsoft/hcsshim v0.8.21 // indirect
+	github.com/Microsoft/hcsshim v0.8.23 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
@@ -117,24 +117,47 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
 	google.golang.org/grpc v1.38.0 // indirect
-	google.golang.org/protobuf v1.26.0 // indirect
+	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/gorp.v1 v1.7.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/api v0.22.1 // indirect
-	k8s.io/apiextensions-apiserver v0.22.1 // indirect
-	k8s.io/apimachinery v0.22.1 // indirect
-	k8s.io/apiserver v0.22.1 // indirect
-	k8s.io/cli-runtime v0.22.1 // indirect
-	k8s.io/client-go v0.22.1 // indirect
-	k8s.io/component-base v0.22.1 // indirect
+	k8s.io/api v0.22.4 // indirect
+	k8s.io/apiextensions-apiserver v0.22.4 // indirect
+	k8s.io/apimachinery v0.22.4 // indirect
+	k8s.io/apiserver v0.22.4 // indirect
+	k8s.io/cli-runtime v0.22.4 // indirect
+	k8s.io/client-go v0.22.4 // indirect
+	k8s.io/component-base v0.22.4 // indirect
 	k8s.io/klog/v2 v2.9.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e // indirect
-	k8s.io/kubectl v0.22.1 // indirect
-	k8s.io/utils v0.0.0-20210707171843-4b05e18ac7d9 // indirect
+	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
+	k8s.io/kubectl v0.22.4 // indirect
+	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a // indirect
 	oras.land/oras-go v0.4.0 // indirect
 	sigs.k8s.io/kustomize/api v0.8.11 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 )
+
+// Fix CVE-2021-41092
+// Due to https://github.com/oras-project/oras-go/blob/v0.4.0/go.mod#L14
+// pulled in by Helm.
+replace github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
+
+// Fix CVE-2021-32760
+// Fix CVE-2021-41103
+// Fix CVE-2021-41190
+// Due to https://github.com/oras-project/oras-go/blob/v0.4.0/go.mod#L13,
+// pulled in by Helm.
+replace github.com/containerd/containerd => github.com/containerd/containerd v1.5.8
+
+// Fix CVE-2021-30465
+// Fix CVE-2021-43784
+// Fix GO-2021-0085
+// Fix GO-2021-0087
+replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.0.3
+
+// Fix CVE-2021-41190
+// Due to https://github.com/oras-project/oras-go/blob/v0.4.0/go.mod#L21,
+// pulled in by Helm.
+replace github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2
