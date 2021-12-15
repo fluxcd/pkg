@@ -22,7 +22,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.16.x
+          go-version: 1.17.x
       - name: Setup envtest
         uses: ./actions/envtest
       - name: Run tests
@@ -30,6 +30,7 @@ jobs:
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then
-            echo 'run make test and commit changes'
+            git --no-pager diff
+            echo 'run make all and commit changes'
             exit 1
           fi
