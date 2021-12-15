@@ -10,8 +10,8 @@ replace (
 require (
 	github.com/fluxcd/pkg/apis/acl v0.0.1
 	github.com/fluxcd/pkg/apis/meta v0.11.0-rc.1
-	github.com/go-logr/logr v1.2.0
-	github.com/google/go-cmp v0.5.5
+	github.com/go-logr/logr v1.2.2
+	github.com/google/go-cmp v0.5.6
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/onsi/gomega v1.17.0
 	github.com/pkg/errors v0.9.1
@@ -36,7 +36,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.1.2 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
@@ -51,7 +51,7 @@ require (
 	github.com/prometheus/procfs v0.6.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	golang.org/x/net v0.0.0-20210825183410-e898025ed96a // indirect
+	golang.org/x/net v0.0.0-20211215060638-4ddde0e984e9 // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
 	golang.org/x/sys v0.0.0-20211029165221-6e7872819dc8 // indirect
 	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b // indirect
