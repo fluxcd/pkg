@@ -8,8 +8,8 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/apis/acl v0.0.1
-	github.com/fluxcd/pkg/apis/meta v0.11.0-rc.1
+	github.com/fluxcd/pkg/apis/acl v0.0.3
+	github.com/fluxcd/pkg/apis/meta v0.11.0-rc.3
 	github.com/go-logr/logr v1.2.2
 	github.com/google/go-cmp v0.5.6
 	github.com/hashicorp/go-retryablehttp v0.6.8
