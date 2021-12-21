@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-vars
+  namespace: apps
+data:
+  prometheus_scrape: '"true"'
+  prometheus_port: '"9797"'
+  image: "nginx:1.21.4"
