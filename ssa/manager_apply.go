@@ -65,7 +65,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-		if opts.Force && isImmutableError(err) {
+		if opts.Force && IsImmutableError(err) {
 			if err := m.client.Delete(ctx, existingObject); err != nil {
 				return nil, fmt.Errorf("%s immutable field detected, failed to delete object, error: %w",
 					FmtUnstructured(dryRunObject), err)
@@ -110,7 +110,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 
 		dryRunObject := object.DeepCopy()
 		if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-			if opts.Force && isImmutableError(err) {
+			if opts.Force && IsImmutableError(err) {
 				if err := m.client.Delete(ctx, existingObject); err != nil {
 					return nil, fmt.Errorf("%s immutable field detected, failed to delete object, error: %w",
 						FmtUnstructured(dryRunObject), err)

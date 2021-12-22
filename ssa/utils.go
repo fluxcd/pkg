@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/cli-utils/pkg/object"
 	"sigs.k8s.io/yaml"
@@ -71,7 +70,7 @@ func MaskSecret(object *unstructured.Unstructured, mask string) (*unstructured.U
 	}
 
 	if found {
-		for k, _ := range data {
+		for k := range data {
 			data[k] = mask
 		}
 
@@ -113,7 +112,7 @@ func ReadObjects(r io.Reader) ([]*unstructured.Unstructured, error) {
 		}
 
 		if obj.IsList() {
-			err = obj.EachListItem(func(item apiruntime.Object) error {
+			err = obj.EachListItem(func(item runtime.Object) error {
 				obj := item.(*unstructured.Unstructured)
 				objects = append(objects, obj)
 				return nil
@@ -207,7 +206,8 @@ func IsKustomization(object *unstructured.Unstructured) bool {
 	return false
 }
 
-func isImmutableError(err error) bool {
+// IsImmutableError checks if the given error is an immutable error.
+func IsImmutableError(err error) bool {
 	// Detect immutability like kubectl does
 	// https://github.com/kubernetes/kubectl/blob/8165f83007/pkg/cmd/apply/patcher.go#L201
 	if errors.IsConflict(err) || errors.IsInvalid(err) {
