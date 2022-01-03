@@ -82,12 +82,10 @@ func TestApply(t *testing.T) {
 		}
 
 		// verify the change set contains only unchanged actions
-		var output []string
 		for _, entry := range changeSet.Entries {
 			if diff := cmp.Diff(string(UnchangedAction), entry.Action); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s\n%v", diff, changeSet)
 			}
-			output = append(output, entry.Subject)
 		}
 	})
 

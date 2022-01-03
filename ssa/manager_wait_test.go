@@ -73,8 +73,7 @@ func TestWaitForSet(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var observedGeneration int64
-		observedGeneration = 1
+		var observedGeneration int64 = 1
 		clusterCR.SetManagedFields(nil)
 		err = unstructured.SetNestedField(clusterCR.Object, observedGeneration, "status", "observedGeneration")
 		if err != nil {
