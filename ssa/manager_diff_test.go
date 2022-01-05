@@ -202,3 +202,93 @@ func TestDiff_Removals(t *testing.T) {
 	})
 
 }
+
+func TestDiffHPA(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("diff")
+	objects, err := readManifest("testdata/test6.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hpaName, hpa := getFirstObject(objects, "HorizontalPodAutoscaler", id)
+	var metrics []interface{}
+
+	if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("generates empty diff for unchanged object", func(t *testing.T) {
+		changeSetEntry, _, _, err := manager.Diff(ctx, hpa)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(hpaName, changeSetEntry.Subject); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+
+		if diff := cmp.Diff(string(UnchangedAction), changeSetEntry.Action); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("generates diff for removed metric", func(t *testing.T) {
+		metrics, _, err = unstructured.NestedSlice(hpa.Object, "spec", "metrics")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = unstructured.SetNestedSlice(hpa.Object, metrics[:1], "spec", "metrics")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		changeSetEntry, _, _, err := manager.Diff(ctx, hpa)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+
+		if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("generates empty diff for unchanged metric", func(t *testing.T) {
+		changeSetEntry, _, _, err := manager.Diff(ctx, hpa)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(string(UnchangedAction), changeSetEntry.Action); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("generates diff for added metric", func(t *testing.T) {
+		err = unstructured.SetNestedSlice(hpa.Object, metrics, "spec", "metrics")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		changeSetEntry, _, _, err := manager.Diff(ctx, hpa)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+
+		if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
+			t.Fatal(err)
+		}
+	})
+}

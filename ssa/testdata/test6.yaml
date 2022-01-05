@@ -1,0 +1,51 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "%[1]s"
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: "%[1]s"
+  namespace: "%[1]s"
+spec:
+  behavior:
+    scaleDown:
+      policies:
+        - periodSeconds: 15
+          type: Percent
+          value: 100
+      selectPolicy: Max
+      stabilizationWindowSeconds: 60
+    scaleUp:
+      policies:
+        - periodSeconds: 15
+          type: Pods
+          value: 4
+        - periodSeconds: 15
+          type: Percent
+          value: 100
+      selectPolicy: Max
+      stabilizationWindowSeconds: 0
+  maxReplicas: 30
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: nginx_http_requests_total
+        target:
+          averageValue: "4"
+          type: AverageValue
+    - type: Pods
+      pods:
+        metric:
+          name: nginx_http_requests_total2
+        target:
+          averageValue: "4"
+          type: AverageValue
+  minReplicas: 2
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
