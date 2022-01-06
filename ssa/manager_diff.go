@@ -87,18 +87,23 @@ func (m *ResourceManager) hasDrifted(existingObject, dryRunObject *unstructured.
 	return hasObjectDrifted(dryRunObject, existingObject)
 }
 
-// hasObjectDrifted removes the metadata and status fields from both objects
-// then performs a semantic equality check of the remaining fields
-func hasObjectDrifted(dryRunObject, existingObject *unstructured.Unstructured) bool {
-	dryRunObj := dryRunObject.DeepCopy()
-	unstructured.RemoveNestedField(dryRunObj.Object, "metadata")
-	unstructured.RemoveNestedField(dryRunObj.Object, "status")
-
-	existingObj := existingObject.DeepCopy()
-	unstructured.RemoveNestedField(existingObj.Object, "metadata")
-	unstructured.RemoveNestedField(existingObj.Object, "status")
+// hasObjectDrifted performs a semantic equality check of the given objects' spec
+func hasObjectDrifted(existingObject, dryRunObject *unstructured.Unstructured) bool {
+	existingObj := prepareObjectForDiff(existingObject)
+	dryRunObj := prepareObjectForDiff(dryRunObject)
 
 	return !apiequality.Semantic.DeepEqual(dryRunObj.Object, existingObj.Object)
+}
+
+// prepareObjectForDiff removes the metadata and status fields from the given object
+func prepareObjectForDiff(object *unstructured.Unstructured) *unstructured.Unstructured {
+	deepCopy := object.DeepCopy()
+	unstructured.RemoveNestedField(deepCopy.Object, "metadata")
+	unstructured.RemoveNestedField(deepCopy.Object, "status")
+	if err := fixHorizontalPodAutoscaler(deepCopy); err != nil {
+		return object
+	}
+	return deepCopy
 }
 
 // validationError formats the given error and hides sensitive data
