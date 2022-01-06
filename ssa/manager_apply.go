@@ -21,8 +21,11 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -76,6 +79,11 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return nil, m.validationError(dryRunObject, err)
 	}
 
+	if err := m.cleanupManagedFields(ctx, existingObject); err != nil {
+		return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
+			FmtUnstructured(existingObject), err)
+	}
+
 	// do not apply objects that have not drifted to avoid bumping the resource version
 	if !m.hasDrifted(existingObject, dryRunObject) {
 		return m.changeSetEntry(object, UnchangedAction), nil
@@ -119,6 +127,11 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 			}
 
 			return nil, m.validationError(dryRunObject, err)
+		}
+
+		if err := m.cleanupManagedFields(ctx, existingObject); err != nil {
+			return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
+				FmtUnstructured(object), err)
 		}
 
 		if m.hasDrifted(existingObject, dryRunObject) {
@@ -200,4 +213,54 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 		client.FieldOwner(m.owner.Field),
 	}
 	return m.client.Patch(ctx, object, client.Apply, opts...)
+}
+
+const kubectlManager = "kubectl"
+
+// cleanupManagedFields removes the client-side-apply managers and kubectl server-side-apply
+// from metadata.managedFields and patches the object in-cluster.
+// Workaround for Kubernetes bug https://github.com/kubernetes/kubernetes/issues/99003.
+func (m *ResourceManager) cleanupManagedFields(ctx context.Context, object *unstructured.Unstructured) error {
+	if object == nil {
+		return nil
+	}
+
+	existingObject := object.DeepCopy()
+	existingFields := existingObject.GetManagedFields()
+	if len(existingFields) == 0 {
+		return nil
+	}
+
+	var fields []metav1.ManagedFieldsEntry
+	for _, entry := range existingFields {
+		// remove the kubectl and kubectl-client-side-apply managed fields
+		if strings.HasPrefix(entry.Manager, kubectlManager) {
+			continue
+		}
+
+		// remove the kustomize-controller managed fields created with client-side-apply
+		if entry.Manager == "kustomize-controller" && entry.Operation == metav1.ManagedFieldsOperationUpdate {
+			continue
+		}
+
+		fields = append(fields, entry)
+	}
+
+	// no patching is needed exit early
+	if len(fields) == len(existingFields) {
+		return nil
+	}
+
+	existingObject.SetManagedFields(fields)
+
+	// remove the obsolete json data to free up the space in etcd
+	annotations := existingObject.GetAnnotations()
+	if val, ok := annotations[corev1.LastAppliedConfigAnnotation]; ok && val != "" {
+		annotations[corev1.LastAppliedConfigAnnotation] = ""
+		existingObject.SetAnnotations(annotations)
+	}
+
+	patch := client.MergeFrom(object)
+
+	return m.Client().Patch(ctx, existingObject, patch)
 }

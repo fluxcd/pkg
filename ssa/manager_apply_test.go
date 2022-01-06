@@ -410,3 +410,82 @@ func TestApply_Exclusions(t *testing.T) {
 		}
 	})
 }
+
+func TestApply_ManagedFields(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("fix")
+	objects, err := readManifest("testdata/test2.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, deployObject := getFirstObject(objects, "Deployment", id)
+
+	if err := SetNativeKindsDefaults(objects); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("creates objects as kubectl", func(t *testing.T) {
+		for _, object := range objects {
+			obj := object.DeepCopy()
+			if err := manager.client.Create(ctx, obj, client.FieldOwner(kubectlManager)); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		deploy := deployObject.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range deploy.GetManagedFields() {
+			if diff := cmp.Diff(kubectlManager, entry.Manager); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		}
+	})
+
+	t.Run("adds labels", func(t *testing.T) {
+		manager.SetOwnerLabels(objects, "app1", "default")
+
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(entry.Action, string(ConfiguredAction)); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		}
+	})
+
+	t.Run("takes ownership of all fields", func(t *testing.T) {
+		changeSet, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(entry.Action, string(UnchangedAction)); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		}
+
+		deploy := deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range deploy.GetManagedFields() {
+			if diff := cmp.Diff(manager.owner.Field, entry.Manager); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		}
+	})
+}
