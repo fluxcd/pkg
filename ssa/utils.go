@@ -458,3 +458,12 @@ func fixHorizontalPodAutoscaler(object *unstructured.Unstructured) error {
 	}
 	return nil
 }
+
+func containsItemString(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}

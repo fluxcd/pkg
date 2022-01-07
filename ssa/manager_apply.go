@@ -215,7 +215,10 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 	return m.client.Patch(ctx, object, client.Apply, opts...)
 }
 
-const kubectlManager = "kubectl"
+const (
+	kubectlManager     = "kubectl"
+	beforeApplyManager = "before-first-apply"
+)
 
 // cleanupManagedFields removes the client-side-apply managers and kubectl server-side-apply
 // from metadata.managedFields and patches the object in-cluster.
@@ -243,12 +246,22 @@ func (m *ResourceManager) cleanupManagedFields(ctx context.Context, object *unst
 			continue
 		}
 
+		//  remove the before-first-apply manager (this will happen at the 2nd apply, after kubectl is gone)
+		if entry.Manager == beforeApplyManager && entry.Operation == metav1.ManagedFieldsOperationUpdate {
+			continue
+		}
+
 		fields = append(fields, entry)
 	}
 
 	// no patching is needed exit early
 	if len(fields) == len(existingFields) {
 		return nil
+	}
+
+	// clearing managed fields requires an empty entry
+	if len(fields) == 0 {
+		fields = append(fields, metav1.ManagedFieldsEntry{})
 	}
 
 	existingObject.SetManagedFields(fields)

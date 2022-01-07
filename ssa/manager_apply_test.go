@@ -449,7 +449,7 @@ func TestApply_ManagedFields(t *testing.T) {
 		}
 	})
 
-	t.Run("adds labels", func(t *testing.T) {
+	t.Run("removes kubectl manager", func(t *testing.T) {
 		manager.SetOwnerLabels(objects, "app1", "default")
 
 		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
@@ -462,18 +462,25 @@ func TestApply_ManagedFields(t *testing.T) {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 		}
-	})
 
-	t.Run("takes ownership of all fields", func(t *testing.T) {
-		changeSet, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
+		deploy := deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		for _, entry := range changeSet.Entries {
-			if diff := cmp.Diff(entry.Action, string(UnchangedAction)); diff != "" {
-				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		expectedManagers := []string{beforeApplyManager, manager.owner.Field}
+		for _, entry := range deploy.GetManagedFields() {
+			if !containsItemString(expectedManagers, entry.Manager) {
+				t.Errorf("Mismatch from expected values, want %v got %s", expectedManagers, entry.Manager)
 			}
+		}
+	})
+
+	t.Run("removes before-first-apply manager at 2nd apply", func(t *testing.T) {
+		_, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
 		}
 
 		deploy := deployObject.DeepCopy()
@@ -483,6 +490,7 @@ func TestApply_ManagedFields(t *testing.T) {
 		}
 
 		for _, entry := range deploy.GetManagedFields() {
+			t.Log(entry)
 			if diff := cmp.Diff(manager.owner.Field, entry.Manager); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
