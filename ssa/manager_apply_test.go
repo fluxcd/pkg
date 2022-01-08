@@ -421,6 +421,7 @@ func TestApply_ManagedFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	manager.SetOwnerLabels(objects, "app1", "default")
 
 	_, deployObject := getFirstObject(objects, "Deployment", id)
 
@@ -450,15 +451,13 @@ func TestApply_ManagedFields(t *testing.T) {
 	})
 
 	t.Run("removes kubectl manager", func(t *testing.T) {
-		manager.SetOwnerLabels(objects, "app1", "default")
-
 		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		for _, entry := range changeSet.Entries {
-			if diff := cmp.Diff(entry.Action, string(ConfiguredAction)); diff != "" {
+			if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 		}
@@ -472,6 +471,7 @@ func TestApply_ManagedFields(t *testing.T) {
 		expectedManagers := []string{beforeApplyManager, manager.owner.Field}
 		for _, entry := range deploy.GetManagedFields() {
 			if !containsItemString(expectedManagers, entry.Manager) {
+				t.Log(entry)
 				t.Errorf("Mismatch from expected values, want %v got %s", expectedManagers, entry.Manager)
 			}
 		}
@@ -490,8 +490,8 @@ func TestApply_ManagedFields(t *testing.T) {
 		}
 
 		for _, entry := range deploy.GetManagedFields() {
-			t.Log(entry)
 			if diff := cmp.Diff(manager.owner.Field, entry.Manager); diff != "" {
+				t.Log(entry)
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 		}
