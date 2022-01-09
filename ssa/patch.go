@@ -28,12 +28,12 @@ import (
 // jsonPatch defines a patch as specified by RFC 6902
 // https://www.rfc-editor.org/rfc/rfc6902
 type jsonPatch struct {
-	Operation string `json:"op"`
-	Path      string `json:"path"`
-	Value     string `json:"value,omitempty"`
+	Operation string                      `json:"op"`
+	Path      string                      `json:"path"`
+	Value     []metav1.ManagedFieldsEntry `json:"value,omitempty"`
 }
 
-// newPatchRemove returns a jsonPatch for removing the specified path
+// newPatchRemove returns a jsonPatch for removing the specified path.
 func newPatchRemove(path string) jsonPatch {
 	return jsonPatch{
 		Operation: "remove",
@@ -41,7 +41,54 @@ func newPatchRemove(path string) jsonPatch {
 	}
 }
 
-// patchRemoveAnnotations returns a jsonPatch array for removing annotations with matching keys
+// newPatchRemove returns a jsonPatch for removing the specified path.
+func newPatchReplace(path string, value []metav1.ManagedFieldsEntry) jsonPatch {
+	return jsonPatch{
+		Operation: "replace",
+		Path:      path,
+		Value:     value,
+	}
+}
+
+// FiledManager identifies a workflow that's managing fields.
+type FiledManager struct {
+	// Name is the name of the workflow managing fields.
+	Name string `json:"name"`
+
+	// OperationType is the type of operation performed by this manager, can be 'update' or 'apply'.
+	OperationType metav1.ManagedFieldsOperationType `json:"operationType"`
+}
+
+// patchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching prefix and operation type.
+func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FiledManager) []jsonPatch {
+	objEntries := object.GetManagedFields()
+	if len(objEntries) == 0 {
+		return nil
+	}
+
+	var patches []jsonPatch
+	entries := make([]metav1.ManagedFieldsEntry, 0, len(objEntries))
+	for _, entry := range objEntries {
+		exclude := false
+		for _, manager := range managers {
+			if strings.HasPrefix(entry.Manager, manager.Name) && entry.Operation == manager.OperationType {
+				exclude = true
+				break
+			}
+		}
+		if !exclude {
+			entries = append(entries, entry)
+		}
+	}
+
+	if len(entries) == 0 {
+		entries = append(entries, metav1.ManagedFieldsEntry{})
+	}
+
+	return append(patches, newPatchReplace("/metadata/managedFields", entries))
+}
+
+// patchRemoveAnnotations returns a jsonPatch array for removing annotations with matching keys.
 func patchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []jsonPatch {
 	var patches []jsonPatch
 	annotations := object.GetAnnotations()
@@ -49,24 +96,6 @@ func patchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []
 		if _, ok := annotations[key]; ok {
 			path := fmt.Sprintf("/metadata/annotations/%s", strings.ReplaceAll(key, "/", "~1"))
 			patches = append(patches, newPatchRemove(path))
-		}
-	}
-	return patches
-}
-
-// patchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching prefix and operation type
-func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []string, operation metav1.ManagedFieldsOperationType) []jsonPatch {
-	var patches []jsonPatch
-	entries := object.GetManagedFields()
-	for entryIndex, entry := range entries {
-		if entry.Operation == operation {
-			for _, manager := range managers {
-				if strings.HasPrefix(entry.Manager, manager) {
-					path := fmt.Sprintf("/metadata/managedFields/%v", entryIndex)
-					patches = append(patches, newPatchRemove(path))
-					break
-				}
-			}
 		}
 	}
 	return patches

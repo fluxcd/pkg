@@ -34,25 +34,55 @@ import (
 // ApplyOptions contains options for server-side apply requests.
 type ApplyOptions struct {
 	// Force configures the engine to recreate objects that contain immutable field changes.
-	Force bool
+	Force bool `json:"force"`
 
 	// Exclusions determines which in-cluster objects are skipped from apply
 	// based on the specified key-value pairs.
 	// A nil Exclusions map means all objects are applied
-	// irregardless of their metadata labels and annotations.
-	Exclusions map[string]string
+	// regardless of their metadata labels and annotations.
+	Exclusions map[string]string `json:"exclusions"`
 
 	// WaitTimeout defines after which interval should the engine give up on waiting for
 	// cluster scoped resources to become ready.
-	WaitTimeout time.Duration
+	WaitTimeout time.Duration `json:"waitTimeout"`
+
+	// Cleanup defines which in-cluster metadata entries are to be removed before applying objects.
+	Cleanup ApplyCleanupOptions `json:"cleanup"`
 }
 
-// DefaultApplyOptions returns the default apply options where force apply is disabled.
+// ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
+type ApplyCleanupOptions struct {
+	// Annotations defines which 'metadata.annotations' keys should be removed from in-cluster objects.
+	Annotations []string `json:"annotations"`
+
+	// FieldManagers defines which `metadata.managedFields` managers should be removed from in-cluster objects.
+	FieldManagers []FiledManager `json:"fieldManagers"`
+}
+
+// DefaultApplyOptions returns the default apply options where force apply is disabled and the
+// kubectl annotation, client-side and server-side field managers are removed from in-cluster objects.
 func DefaultApplyOptions() ApplyOptions {
 	return ApplyOptions{
 		Force:       false,
 		Exclusions:  nil,
 		WaitTimeout: 60 * time.Second,
+		Cleanup: ApplyCleanupOptions{
+			Annotations: []string{corev1.LastAppliedConfigAnnotation},
+			FieldManagers: []FiledManager{
+				{
+					Name:          "kubectl",
+					OperationType: metav1.ManagedFieldsOperationApply,
+				},
+				{
+					Name:          "kubectl",
+					OperationType: metav1.ManagedFieldsOperationUpdate,
+				},
+				{
+					Name:          "before-first-apply",
+					OperationType: metav1.ManagedFieldsOperationUpdate,
+				},
+			},
+		},
 	}
 }
 
@@ -80,7 +110,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return nil, m.validationError(dryRunObject, err)
 	}
 
-	patched, err := m.cleanupManagedFields(ctx, existingObject)
+	patched, err := m.cleanupMetadata(ctx, existingObject, opts.Cleanup)
 	if err != nil {
 		return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
 			FmtUnstructured(existingObject), err)
@@ -131,7 +161,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 			return nil, m.validationError(dryRunObject, err)
 		}
 
-		patched, err := m.cleanupManagedFields(ctx, existingObject)
+		patched, err := m.cleanupMetadata(ctx, existingObject, opts.Cleanup)
 		if err != nil {
 			return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
 				FmtUnstructured(existingObject), err)
@@ -218,32 +248,21 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 	return m.client.Patch(ctx, object, client.Apply, opts...)
 }
 
-const (
-	kubectlManager     = "kubectl"
-	beforeApplyManager = "before-first-apply"
-)
-
-// cleanupManagedFields removes the kubectl manager from metadata.managedFields
-// and the last-applied-configuration annotation using the HTTP PATCH method.
-// Workaround for Kubernetes issue https://github.com/kubernetes/kubernetes/issues/99003.
-func (m *ResourceManager) cleanupManagedFields(ctx context.Context, object *unstructured.Unstructured) (bool, error) {
+// cleanupMetadata performs an HTTP PATCH request to remove entries from metadata.annotations and metadata.managedFields.
+func (m *ResourceManager) cleanupMetadata(ctx context.Context, object *unstructured.Unstructured, opts ApplyCleanupOptions) (bool, error) {
 	if object == nil {
 		return false, nil
 	}
 	existingObject := object.DeepCopy()
 	var patches []jsonPatch
 
-	// remove last-applied-configuration annotation
-	annotationKeys := []string{corev1.LastAppliedConfigAnnotation}
-	patches = append(patches, patchRemoveAnnotations(existingObject, annotationKeys)...)
+	if len(opts.Annotations) > 0 {
+		patches = append(patches, patchRemoveAnnotations(existingObject, opts.Annotations)...)
+	}
 
-	// remove kubectl update managers
-	updateManagers := []string{kubectlManager, beforeApplyManager, "kustomize-controller"}
-	patches = append(patches, patchRemoveFieldsManagers(existingObject, updateManagers, metav1.ManagedFieldsOperationUpdate)...)
-
-	// remove kubectl apply managers
-	applyManagers := []string{kubectlManager}
-	patches = append(patches, patchRemoveFieldsManagers(existingObject, applyManagers, metav1.ManagedFieldsOperationApply)...)
+	if len(opts.FieldManagers) > 0 {
+		patches = append(patches, patchRemoveFieldsManagers(existingObject, opts.FieldManagers)...)
+	}
 
 	// no patching is needed exit early
 	if len(patches) == 0 {

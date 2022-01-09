@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"sort"
 	"testing"
 	"time"
@@ -432,25 +433,14 @@ func TestApply_ManagedFields(t *testing.T) {
 	t.Run("creates objects as kubectl", func(t *testing.T) {
 		for _, object := range objects {
 			obj := object.DeepCopy()
-			if err := manager.client.Create(ctx, obj, client.FieldOwner(kubectlManager)); err != nil {
+			obj.SetAnnotations(map[string]string{corev1.LastAppliedConfigAnnotation: "test"})
+			if err := manager.client.Create(ctx, obj, client.FieldOwner("kubectl-client-side-apply")); err != nil {
 				t.Fatal(err)
-			}
-		}
-
-		deploy := deployObject.DeepCopy()
-		err = manager.client.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		for _, entry := range deploy.GetManagedFields() {
-			if diff := cmp.Diff(kubectlManager, entry.Manager); diff != "" {
-				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 		}
 	})
 
-	t.Run("removes kubectl manager", func(t *testing.T) {
+	t.Run("removes kubectl client-side-apply manager and annotation", func(t *testing.T) {
 		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
@@ -468,7 +458,11 @@ func TestApply_ManagedFields(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		expectedManagers := []string{beforeApplyManager, manager.owner.Field}
+		if _, ok := deploy.GetAnnotations()[corev1.LastAppliedConfigAnnotation]; ok {
+			t.Errorf("%s not removed", corev1.LastAppliedConfigAnnotation)
+		}
+
+		expectedManagers := []string{"before-first-apply", manager.owner.Field}
 		for _, entry := range deploy.GetManagedFields() {
 			if !containsItemString(expectedManagers, entry.Manager) {
 				t.Log(entry)
@@ -477,13 +471,32 @@ func TestApply_ManagedFields(t *testing.T) {
 		}
 	})
 
-	t.Run("removes before-first-apply manager at 2nd apply", func(t *testing.T) {
-		_, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
+	t.Run("removes kubectl server-side-apply manager", func(t *testing.T) {
+		for _, object := range objects {
+			obj := object.DeepCopy()
+			if err := manager.client.Patch(ctx, obj, client.Apply, client.FieldOwner("kubectl")); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		deploy := deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		deploy := deployObject.DeepCopy()
+		changeSet, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		}
+
+		deploy = deployObject.DeepCopy()
 		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
 		if err != nil {
 			t.Fatal(err)
