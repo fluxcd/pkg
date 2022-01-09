@@ -434,6 +434,9 @@ func TestApply_ManagedFields(t *testing.T) {
 		for _, object := range objects {
 			obj := object.DeepCopy()
 			obj.SetAnnotations(map[string]string{corev1.LastAppliedConfigAnnotation: "test"})
+			labels := obj.GetLabels()
+			labels[corev1.LastAppliedConfigAnnotation] = "test"
+			obj.SetLabels(labels)
 			if err := manager.client.Create(ctx, obj, client.FieldOwner("kubectl-client-side-apply")); err != nil {
 				t.Fatal(err)
 			}
@@ -441,7 +444,9 @@ func TestApply_ManagedFields(t *testing.T) {
 	})
 
 	t.Run("removes kubectl client-side-apply manager and annotation", func(t *testing.T) {
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		opts := DefaultApplyOptions()
+		opts.Cleanup.Labels = []string{corev1.LastAppliedConfigAnnotation}
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -459,7 +464,11 @@ func TestApply_ManagedFields(t *testing.T) {
 		}
 
 		if _, ok := deploy.GetAnnotations()[corev1.LastAppliedConfigAnnotation]; ok {
-			t.Errorf("%s not removed", corev1.LastAppliedConfigAnnotation)
+			t.Errorf("%s annotation not removed", corev1.LastAppliedConfigAnnotation)
+		}
+
+		if _, ok := deploy.GetLabels()[corev1.LastAppliedConfigAnnotation]; ok {
+			t.Errorf("%s label not removed", corev1.LastAppliedConfigAnnotation)
 		}
 
 		expectedManagers := []string{"before-first-apply", manager.owner.Field}

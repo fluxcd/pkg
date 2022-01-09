@@ -53,10 +53,13 @@ type ApplyOptions struct {
 // ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
 type ApplyCleanupOptions struct {
 	// Annotations defines which 'metadata.annotations' keys should be removed from in-cluster objects.
-	Annotations []string `json:"annotations"`
+	Annotations []string `json:"annotations,omitempty"`
+
+	// Labels defines which 'metadata.labels' keys should be removed from in-cluster objects.
+	Labels []string `json:"labels,omitempty"`
 
 	// FieldManagers defines which `metadata.managedFields` managers should be removed from in-cluster objects.
-	FieldManagers []FiledManager `json:"fieldManagers"`
+	FieldManagers []FiledManager `json:"fieldManagers,omitempty"`
 }
 
 // DefaultApplyOptions returns the default apply options where force apply is disabled and the
@@ -248,7 +251,7 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 	return m.client.Patch(ctx, object, client.Apply, opts...)
 }
 
-// cleanupMetadata performs an HTTP PATCH request to remove entries from metadata.annotations and metadata.managedFields.
+// cleanupMetadata performs an HTTP PATCH request to remove entries from metadata annotations, labels and managedFields.
 func (m *ResourceManager) cleanupMetadata(ctx context.Context, object *unstructured.Unstructured, opts ApplyCleanupOptions) (bool, error) {
 	if object == nil {
 		return false, nil
@@ -258,6 +261,10 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context, object *unstructu
 
 	if len(opts.Annotations) > 0 {
 		patches = append(patches, patchRemoveAnnotations(existingObject, opts.Annotations)...)
+	}
+
+	if len(opts.Labels) > 0 {
+		patches = append(patches, patchRemoveLabels(existingObject, opts.Labels)...)
 	}
 
 	if len(opts.FieldManagers) > 0 {
@@ -271,7 +278,7 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context, object *unstructu
 
 	rawPatch, err := json.Marshal(patches)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 	patch := client.RawPatch(types.JSONPatchType, rawPatch)
 

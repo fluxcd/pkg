@@ -62,9 +62,6 @@ type FiledManager struct {
 // patchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching prefix and operation type.
 func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FiledManager) []jsonPatch {
 	objEntries := object.GetManagedFields()
-	if len(objEntries) == 0 {
-		return nil
-	}
 
 	var patches []jsonPatch
 	entries := make([]metav1.ManagedFieldsEntry, 0, len(objEntries))
@@ -81,6 +78,10 @@ func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fil
 		}
 	}
 
+	if len(entries) == len(objEntries) {
+		return nil
+	}
+
 	if len(entries) == 0 {
 		entries = append(entries, metav1.ManagedFieldsEntry{})
 	}
@@ -95,6 +96,19 @@ func patchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []
 	for _, key := range keys {
 		if _, ok := annotations[key]; ok {
 			path := fmt.Sprintf("/metadata/annotations/%s", strings.ReplaceAll(key, "/", "~1"))
+			patches = append(patches, newPatchRemove(path))
+		}
+	}
+	return patches
+}
+
+// patchRemoveLabels returns a jsonPatch array for removing labels with matching keys.
+func patchRemoveLabels(object *unstructured.Unstructured, keys []string) []jsonPatch {
+	var patches []jsonPatch
+	labels := object.GetLabels()
+	for _, key := range keys {
+		if _, ok := labels[key]; ok {
+			path := fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(key, "/", "~1"))
 			patches = append(patches, newPatchRemove(path))
 		}
 	}
