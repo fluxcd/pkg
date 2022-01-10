@@ -5,7 +5,7 @@ go 1.17
 replace github.com/fluxcd/pkg/testserver => ../testserver
 
 require (
-	github.com/fluxcd/pkg/testserver v0.1.0
+	github.com/fluxcd/pkg/testserver v0.2.0
 	github.com/garyburd/redigo v1.6.3 // indirect
 	helm.sh/helm/v3 v3.7.2
 	sigs.k8s.io/yaml v1.3.0
@@ -84,7 +84,7 @@ require (
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.0.2 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -140,16 +140,12 @@ require (
 )
 
 // Fix CVE-2021-41092
-// Due to https://github.com/oras-project/oras-go/blob/v0.4.0/go.mod#L14
-// pulled in by Helm.
+// Due to https://github.com/oras-project/oras-go/ pulled in by Helm.
 replace github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 
-// Fix CVE-2021-32760
-// Fix CVE-2021-41103
-// Fix CVE-2021-41190
-// Due to https://github.com/oras-project/oras-go/blob/v0.4.0/go.mod#L13,
-// pulled in by Helm.
-replace github.com/containerd/containerd => github.com/containerd/containerd v1.5.8
+// Fix CVE-2021-43816
+// Due to https://github.com/oras-project/oras-go/ pulled in by Helm.
+replace github.com/containerd/containerd => github.com/containerd/containerd v1.5.9
 
 // Fix CVE-2021-30465
 // Fix CVE-2021-43784
@@ -158,6 +154,5 @@ replace github.com/containerd/containerd => github.com/containerd/containerd v1.
 replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.0.3
 
 // Fix CVE-2021-41190
-// Due to https://github.com/oras-project/oras-go/blob/v0.4.0/go.mod#L21,
-// pulled in by Helm.
+// Due to https://github.com/oras-project/oras-go/ pulled in by Helm.
 replace github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2
