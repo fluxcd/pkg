@@ -68,7 +68,9 @@ func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fil
 	for _, entry := range objEntries {
 		exclude := false
 		for _, manager := range managers {
-			if strings.HasPrefix(entry.Manager, manager.Name) && entry.Operation == manager.OperationType {
+			if strings.HasPrefix(entry.Manager, manager.Name) &&
+				entry.Operation == manager.OperationType &&
+				entry.Subresource == "" {
 				exclude = true
 				break
 			}
