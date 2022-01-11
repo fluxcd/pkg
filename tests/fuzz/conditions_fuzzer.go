@@ -3,10 +3,13 @@
 
 /*
 Copyright 2021 The Flux authors
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
+
     http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,8 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// FuzzGetterConditions implements a fuzzer that
-// targets SetSummary()
+// FuzzGetterConditions implements a fuzzer that targets
+// conditions.SetSummary().
 func FuzzGetterConditions(data []byte) int {
 	f := fuzz.NewConsumer(data)
 
@@ -57,8 +60,8 @@ func FuzzGetterConditions(data []byte) int {
 	return 1
 }
 
-// FuzzConditionsMatch implements a fuzzer that
-// that targets Match()
+// FuzzConditionsMatch implements a fuzzer that that targets
+// MatchCondition.Match().
 func FuzzConditionsMatch(data []byte) int {
 	f := fuzz.NewConsumer(data)
 	condition := metav1.Condition{}
@@ -79,8 +82,7 @@ func FuzzConditionsMatch(data []byte) int {
 	return 1
 }
 
-// newGetter allows the fuzzer to create a Getter
-// This is just a utility
+// newGetter allows the fuzzer to create a Getter.
 func newGetter(f *fuzz.ConsumeFuzzer) (Getter, error) {
 	obj := &testdata.Fake{}
 	noOfConditions, err := f.GetInt()
@@ -102,8 +104,7 @@ func newGetter(f *fuzz.ConsumeFuzzer) (Getter, error) {
 	return obj, nil
 }
 
-// newSetter allows the fuzzer to create a Setter
-// This is just a utility
+// newSetter allows the fuzzer to create a Setter.
 func newSetter(f *fuzz.ConsumeFuzzer) (Setter, error) {
 	obj := &testdata.Fake{}
 	noOfConditions, err := f.GetInt()
@@ -124,7 +125,7 @@ func newSetter(f *fuzz.ConsumeFuzzer) (Setter, error) {
 	return obj, nil
 }
 
-// FuzzPatchApply implements a fuzzer that targets patch.Apply
+// FuzzPatchApply implements a fuzzer that targets Patch.Apply.
 func FuzzPatchApply(data []byte) int {
 	f := fuzz.NewConsumer(data)
 
@@ -146,8 +147,8 @@ func FuzzPatchApply(data []byte) int {
 	return 1
 }
 
-// FuzzConditionsUnstructured implements a fuzzer
-// that targets GetConditions()
+// FuzzConditionsUnstructured implements a fuzzer that targets
+// Getter.GetConditions.
 func FuzzConditionsUnstructured(data []byte) int {
 	u := &unstructured.Unstructured{}
 	f := fuzz.NewConsumer(data)
