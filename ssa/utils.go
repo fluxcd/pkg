@@ -52,14 +52,14 @@ func FmtObjMetadata(obj object.ObjMetadata) string {
 
 // FmtUnstructured returns the object ID in the format <kind>/<namespace>/<name>.
 func FmtUnstructured(obj *unstructured.Unstructured) string {
-	return FmtObjMetadata(object.UnstructuredToObjMetaOrDie(obj))
+	return FmtObjMetadata(object.UnstructuredToObjMetadata(obj))
 }
 
 // FmtUnstructuredList returns a line per object in the format <kind>/<namespace>/<name>.
 func FmtUnstructuredList(objects []*unstructured.Unstructured) string {
 	var b strings.Builder
 	for _, obj := range objects {
-		b.WriteString(FmtObjMetadata(object.UnstructuredToObjMetaOrDie(obj)) + "\n")
+		b.WriteString(FmtObjMetadata(object.UnstructuredToObjMetadata(obj)) + "\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }

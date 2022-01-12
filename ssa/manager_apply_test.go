@@ -21,12 +21,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -412,12 +413,31 @@ func TestApply_Exclusions(t *testing.T) {
 	})
 }
 
-func TestApply_ManagedFields(t *testing.T) {
+func TestApply_Cleanup(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	id := generateName("fix")
+	applyOpts := DefaultApplyOptions()
+	applyOpts.Cleanup = ApplyCleanupOptions{
+		Annotations: []string{corev1.LastAppliedConfigAnnotation},
+		FieldManagers: []FiledManager{
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationApply,
+			},
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+			{
+				Name:          "before-first-apply",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+		},
+	}
+
+	id := generateName("cleanup")
 	objects, err := readManifest("testdata/test2.yaml", id)
 	if err != nil {
 		t.Fatal(err)
@@ -444,9 +464,8 @@ func TestApply_ManagedFields(t *testing.T) {
 	})
 
 	t.Run("removes kubectl client-side-apply manager and annotation", func(t *testing.T) {
-		opts := DefaultApplyOptions()
-		opts.Cleanup.Labels = []string{corev1.LastAppliedConfigAnnotation}
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, opts)
+		applyOpts.Cleanup.Labels = []string{corev1.LastAppliedConfigAnnotation}
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, applyOpts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -494,7 +513,7 @@ func TestApply_ManagedFields(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSet, err := manager.ApplyAll(ctx, objects, DefaultApplyOptions())
+		changeSet, err := manager.ApplyAll(ctx, objects, applyOpts)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -56,11 +56,7 @@ func DefaultWaitOptions() WaitOptions {
 
 // Wait checks if the given set of objects has been fully reconciled.
 func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, opts WaitOptions) error {
-	objectsMeta, err := object.UnstructuredsToObjMetas(objects)
-	if err != nil {
-		return err
-	}
-
+	objectsMeta := object.UnstructuredSetToObjMetadataSet(objects)
 	if len(objectsMeta) == 0 {
 		return nil
 	}

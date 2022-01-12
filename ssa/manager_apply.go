@@ -24,8 +24,6 @@ import (
 	"sort"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,30 +60,12 @@ type ApplyCleanupOptions struct {
 	FieldManagers []FiledManager `json:"fieldManagers,omitempty"`
 }
 
-// DefaultApplyOptions returns the default apply options where force apply is disabled and the
-// kubectl annotation, client-side and server-side field managers are removed from in-cluster objects.
+// DefaultApplyOptions returns the default apply options where force apply is disabled.
 func DefaultApplyOptions() ApplyOptions {
 	return ApplyOptions{
 		Force:       false,
 		Exclusions:  nil,
 		WaitTimeout: 60 * time.Second,
-		Cleanup: ApplyCleanupOptions{
-			Annotations: []string{corev1.LastAppliedConfigAnnotation},
-			FieldManagers: []FiledManager{
-				{
-					Name:          "kubectl",
-					OperationType: metav1.ManagedFieldsOperationApply,
-				},
-				{
-					Name:          "kubectl",
-					OperationType: metav1.ManagedFieldsOperationUpdate,
-				},
-				{
-					Name:          "before-first-apply",
-					OperationType: metav1.ManagedFieldsOperationUpdate,
-				},
-			},
-		},
 	}
 }
 
