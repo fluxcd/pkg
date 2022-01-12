@@ -71,3 +71,24 @@ SETUP_ENVTEST=$(GOBIN)/setup-envtest
 else
 SETUP_ENVTEST=$(shell which setup-envtest)
 endif
+
+
+fuzz-build:
+	rm -rf $(shell pwd)/build/fuzz/
+	mkdir -p $(shell pwd)/build/fuzz/out/
+
+	docker build . --tag local-fuzzing:latest -f tests/fuzz/Dockerfile.builder
+	docker run --rm -it \
+		-e FUZZING_LANGUAGE=go -e FUZZ_SECONDS=600 -e MODE=batch \
+		-e CIFUZZ_DEBUG='True' -e OSS_FUZZ_PROJECT_NAME=fluxcd \
+		-e SANITIZER=address \
+		-v "$(shell pwd)/build/fuzz/out":/out \
+		local-fuzzing:latest
+
+fuzz-smoketest: fuzz-build
+	docker run --rm -ti \
+		-v "$(shell pwd)/build/fuzz/out":/out \
+		-v "$(shell pwd)/tests/fuzz/oss_fuzz_run.sh":/runner.sh \
+		-e ENVTEST_BIN_VERSION=$(ENVTEST_BIN_VERSION) \
+		gcr.io/oss-fuzz/fluxcd \
+		bash -c "/runner.sh"
