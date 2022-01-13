@@ -19,10 +19,6 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - name: Setup envtest
-        uses: ./actions/envtest
-        with:
-          version: "1.19.2"
       - name: Run tests
         uses: ./.github/actions/run-tests
         env:
