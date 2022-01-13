@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -406,6 +408,132 @@ func TestApply_Exclusions(t *testing.T) {
 		for _, entry := range changeSet.Entries {
 			if entry.Action != string(ConfiguredAction) && entry.Subject == FmtUnstructured(configMap) {
 				t.Errorf("Expected %s, got %s", ConfiguredAction, entry.Action)
+			}
+		}
+	})
+}
+
+func TestApply_Cleanup(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	applyOpts := DefaultApplyOptions()
+	applyOpts.Cleanup = ApplyCleanupOptions{
+		Annotations: []string{corev1.LastAppliedConfigAnnotation},
+		FieldManagers: []FiledManager{
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationApply,
+			},
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+			{
+				Name:          "before-first-apply",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+		},
+	}
+
+	id := generateName("cleanup")
+	objects, err := readManifest("testdata/test2.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	_, deployObject := getFirstObject(objects, "Deployment", id)
+
+	if err := SetNativeKindsDefaults(objects); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("creates objects as kubectl", func(t *testing.T) {
+		for _, object := range objects {
+			obj := object.DeepCopy()
+			obj.SetAnnotations(map[string]string{corev1.LastAppliedConfigAnnotation: "test"})
+			labels := obj.GetLabels()
+			labels[corev1.LastAppliedConfigAnnotation] = "test"
+			obj.SetLabels(labels)
+			if err := manager.client.Create(ctx, obj, client.FieldOwner("kubectl-client-side-apply")); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
+	t.Run("removes kubectl client-side-apply manager and annotation", func(t *testing.T) {
+		applyOpts.Cleanup.Labels = []string{corev1.LastAppliedConfigAnnotation}
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, applyOpts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		}
+
+		deploy := deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, ok := deploy.GetAnnotations()[corev1.LastAppliedConfigAnnotation]; ok {
+			t.Errorf("%s annotation not removed", corev1.LastAppliedConfigAnnotation)
+		}
+
+		if _, ok := deploy.GetLabels()[corev1.LastAppliedConfigAnnotation]; ok {
+			t.Errorf("%s label not removed", corev1.LastAppliedConfigAnnotation)
+		}
+
+		expectedManagers := []string{"before-first-apply", manager.owner.Field}
+		for _, entry := range deploy.GetManagedFields() {
+			if !containsItemString(expectedManagers, entry.Manager) {
+				t.Log(entry)
+				t.Errorf("Mismatch from expected values, want %v got %s", expectedManagers, entry.Manager)
+			}
+		}
+	})
+
+	t.Run("removes kubectl server-side-apply manager", func(t *testing.T) {
+		for _, object := range objects {
+			obj := object.DeepCopy()
+			if err := manager.client.Patch(ctx, obj, client.Apply, client.FieldOwner("kubectl")); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		deploy := deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		changeSet, err := manager.ApplyAll(ctx, objects, applyOpts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		}
+
+		deploy = deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range deploy.GetManagedFields() {
+			if diff := cmp.Diff(manager.owner.Field, entry.Manager); diff != "" {
+				t.Log(entry)
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 		}
 	})

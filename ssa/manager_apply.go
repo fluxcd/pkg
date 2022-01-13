@@ -19,28 +19,45 @@ package ssa
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ApplyOptions contains options for server-side apply requests.
 type ApplyOptions struct {
 	// Force configures the engine to recreate objects that contain immutable field changes.
-	Force bool
+	Force bool `json:"force"`
 
 	// Exclusions determines which in-cluster objects are skipped from apply
 	// based on the specified key-value pairs.
 	// A nil Exclusions map means all objects are applied
-	// irregardless of their metadata labels and annotations.
-	Exclusions map[string]string
+	// regardless of their metadata labels and annotations.
+	Exclusions map[string]string `json:"exclusions"`
 
 	// WaitTimeout defines after which interval should the engine give up on waiting for
 	// cluster scoped resources to become ready.
-	WaitTimeout time.Duration
+	WaitTimeout time.Duration `json:"waitTimeout"`
+
+	// Cleanup defines which in-cluster metadata entries are to be removed before applying objects.
+	Cleanup ApplyCleanupOptions `json:"cleanup"`
+}
+
+// ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
+type ApplyCleanupOptions struct {
+	// Annotations defines which 'metadata.annotations' keys should be removed from in-cluster objects.
+	Annotations []string `json:"annotations,omitempty"`
+
+	// Labels defines which 'metadata.labels' keys should be removed from in-cluster objects.
+	Labels []string `json:"labels,omitempty"`
+
+	// FieldManagers defines which `metadata.managedFields` managers should be removed from in-cluster objects.
+	FieldManagers []FiledManager `json:"fieldManagers,omitempty"`
 }
 
 // DefaultApplyOptions returns the default apply options where force apply is disabled.
@@ -76,8 +93,14 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return nil, m.validationError(dryRunObject, err)
 	}
 
+	patched, err := m.cleanupMetadata(ctx, existingObject, opts.Cleanup)
+	if err != nil {
+		return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
+			FmtUnstructured(existingObject), err)
+	}
+
 	// do not apply objects that have not drifted to avoid bumping the resource version
-	if !m.hasDrifted(existingObject, dryRunObject) {
+	if !patched && !m.hasDrifted(existingObject, dryRunObject) {
 		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
@@ -121,7 +144,13 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 			return nil, m.validationError(dryRunObject, err)
 		}
 
-		if m.hasDrifted(existingObject, dryRunObject) {
+		patched, err := m.cleanupMetadata(ctx, existingObject, opts.Cleanup)
+		if err != nil {
+			return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
+				FmtUnstructured(existingObject), err)
+		}
+
+		if patched || m.hasDrifted(existingObject, dryRunObject) {
 			toApply = append(toApply, object)
 			if dryRunObject.GetResourceVersion() == "" {
 				changeSet.Add(*m.changeSetEntry(dryRunObject, CreatedAction))
@@ -200,4 +229,38 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 		client.FieldOwner(m.owner.Field),
 	}
 	return m.client.Patch(ctx, object, client.Apply, opts...)
+}
+
+// cleanupMetadata performs an HTTP PATCH request to remove entries from metadata annotations, labels and managedFields.
+func (m *ResourceManager) cleanupMetadata(ctx context.Context, object *unstructured.Unstructured, opts ApplyCleanupOptions) (bool, error) {
+	if object == nil {
+		return false, nil
+	}
+	existingObject := object.DeepCopy()
+	var patches []jsonPatch
+
+	if len(opts.Annotations) > 0 {
+		patches = append(patches, patchRemoveAnnotations(existingObject, opts.Annotations)...)
+	}
+
+	if len(opts.Labels) > 0 {
+		patches = append(patches, patchRemoveLabels(existingObject, opts.Labels)...)
+	}
+
+	if len(opts.FieldManagers) > 0 {
+		patches = append(patches, patchRemoveFieldsManagers(existingObject, opts.FieldManagers)...)
+	}
+
+	// no patching is needed exit early
+	if len(patches) == 0 {
+		return false, nil
+	}
+
+	rawPatch, err := json.Marshal(patches)
+	if err != nil {
+		return false, err
+	}
+	patch := client.RawPatch(types.JSONPatchType, rawPatch)
+
+	return true, m.client.Patch(ctx, existingObject, patch, client.FieldOwner(m.owner.Field))
 }
