@@ -288,8 +288,6 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 	}
 
 	for _, u := range objects {
-		unstructured.RemoveNestedField(u.Object, "metadata", "creationTimestamp")
-
 		switch u.GetAPIVersion() {
 		case "v1":
 			switch u.GetKind() {
@@ -417,6 +415,10 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 				u.Object = out
 			}
 		}
+
+		// remove fields that are not supposed to be present in manifests
+		unstructured.RemoveNestedField(u.Object, "metadata", "creationTimestamp")
+		unstructured.RemoveNestedField(u.Object, "status")
 	}
 	return nil
 }
