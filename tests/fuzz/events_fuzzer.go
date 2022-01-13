@@ -37,10 +37,10 @@ import (
 )
 
 var (
-	doOnce sync.Once
-	env    *testenv.Environment
-	ts     *httptest.Server
-	ctx    = ctrl.SetupSignalHandler()
+	doOnce  sync.Once
+	fuzzEnv *testenv.Environment
+	fuzzTs  *httptest.Server
+	fuzzCtx = ctrl.SetupSignalHandler()
 )
 
 const defaultBinVersion = "1.23"
@@ -82,7 +82,7 @@ func FuzzEventf(data []byte) int {
 		}
 	})
 
-	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	fuzzTs = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			return
@@ -94,24 +94,24 @@ func FuzzEventf(data []byte) int {
 			return
 		}
 	}))
-	defer ts.Close()
+	defer fuzzTs.Close()
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 
-	env = testenv.New(
+	fuzzEnv = testenv.New(
 		testenv.WithScheme(scheme),
 	)
 
 	go func() {
 		fmt.Println("Starting the test environment")
-		if err := env.Start(ctx); err != nil {
+		if err := fuzzEnv.Start(fuzzCtx); err != nil {
 			panic(fmt.Sprintf("Failed to start the test environment manager: %v", err))
 		}
 	}()
-	<-env.Manager.Elected()
+	<-fuzzEnv.Manager.Elected()
 
-	eventRecorder, err := NewRecorder(env, ctrl.Log, ts.URL, "test-controller")
+	eventRecorder, err := NewRecorder(fuzzEnv, ctrl.Log, fuzzTs.URL, "test-controller")
 	if err != nil {
 		return 0
 	}
@@ -136,7 +136,7 @@ func FuzzEventf(data []byte) int {
 	}
 	eventRecorder.Eventf(&obj, eventtype, reason, obj.Name)
 
-	if err = env.Stop(); err != nil {
+	if err = fuzzEnv.Stop(); err != nil {
 		return 0
 	}
 
