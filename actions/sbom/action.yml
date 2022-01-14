@@ -1,0 +1,29 @@
+name: Generate SBOM for container images
+description: A GitHub Action for generating SBOM in spdx-json format
+author: Stefan Prodan
+branding:
+  color: blue
+  icon: command
+inputs:
+  version:
+    description: "Syft version"
+    required: false
+  image:
+    description: "container image URL"
+    required: true
+  output:
+    description: "SBOM file path"
+    required: true
+    default: "/tmp/sbom.spdx.json"
+runs:
+  using: composite
+  steps:
+    - name: "Install Anchore Syft"
+      shell: bash
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | \
+          sh -s -- -b /usr/local/bin ${{ inputs.version }}
+    - name: "Generate SBOM"
+      shell: bash
+      run: |
+        syft packages ${{ inputs.image }} --output spdx-json > ${{ inputs.output }}
