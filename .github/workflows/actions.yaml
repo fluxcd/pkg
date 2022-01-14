@@ -30,3 +30,9 @@ jobs:
       - uses: ./actions/kustomize
       - uses: ./actions/helm
       - uses: ./actions/kubebuilder
+      - uses: ./actions/sbom
+        with:
+          image: ghcr.io/fluxcd/kustomize-controller:v0.19.1
+      - name: Check SBOM
+        run:
+          cat /tmp/sbom.spdx.json | grep "fluxcd/pkg/ssa"
