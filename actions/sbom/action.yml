@@ -10,7 +10,7 @@ inputs:
     required: false
   image:
     description: "container image URL"
-    required: true
+    required: false
   output:
     description: "SBOM file path"
     required: true
@@ -36,5 +36,6 @@ runs:
         cat "${TMP_FILE}" | sh -s -- -b /usr/local/bin ${{ inputs.version }}
     - name: "Generate SBOM"
       shell: bash
+      if: ${{ inputs.image }}
       run: |
         syft packages ${{ inputs.image }} --output spdx-json > ${{ inputs.output }}
