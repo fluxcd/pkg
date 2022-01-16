@@ -79,8 +79,10 @@ var _ kuberecorder.EventRecorder = &Recorder{}
 // given webhook. The recorder performs automatic retries for connection errors and 500-range response codes from the
 // external recorder.
 func NewRecorder(mgr ctrl.Manager, log logr.Logger, webhook, reportingController string) (*Recorder, error) {
-	if _, err := url.Parse(webhook); err != nil {
-		return nil, err
+	if webhook != "" {
+		if _, err := url.Parse(webhook); err != nil {
+			return nil, err
+		}
 	}
 
 	httpClient := retryablehttp.NewClient()
@@ -135,6 +137,12 @@ func (r *Recorder) AnnotatedEventf(
 
 	// Forward the event to the Kubernetes recorder.
 	r.EventRecorder.AnnotatedEventf(object, annotations, eventtype, reason, messageFmt, args...)
+
+	// If no webhook address is provided, skip posting to event recorder
+	// endpoint.
+	if r.Webhook == "" {
+		return
+	}
 
 	if r.Client == nil {
 		err := fmt.Errorf("retryable HTTP client has not been initialized")
