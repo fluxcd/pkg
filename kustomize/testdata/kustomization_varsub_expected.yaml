@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    environment: prod
+    region: eu-central-1
+  name: app
+  namespace: apps
+spec:
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "9797"
+        prometheus.io/scrape: "true"
+      labels:
+        app: app
+    spec:
+      containers:
+      - image: nginx:1.21.4
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi

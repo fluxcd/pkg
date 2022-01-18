@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: apps
+  labels:
+    environment: ${cluster_env:=dev}
+    region: ${cluster_region}
+spec:
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: ${prometheus_scrape:=false}
+        prometheus.io/port: ${prometheus_port}
+      labels:
+        app: app
+    spec:
+      containers:
+      - name: nginx
+        image: ${image}
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
