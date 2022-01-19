@@ -30,6 +30,7 @@ jobs:
       - uses: ./actions/kustomize
       - uses: ./actions/helm
       - uses: ./actions/kubebuilder
+      - uses: ./actions/sops
       - uses: ./actions/sbom
         with:
           image: ghcr.io/fluxcd/kustomize-controller:v0.19.1
