@@ -91,6 +91,34 @@ func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fil
 	return append(patches, newPatchReplace("/metadata/managedFields", entries))
 }
 
+// patchReplaceFieldsManagers returns a jsonPatch array for replacing the managers with matching prefix and operation type
+// with the specified manager name and an apply operation.
+func patchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FiledManager, name string) []jsonPatch {
+	objEntries := object.GetManagedFields()
+
+	var patches []jsonPatch
+	entries := make([]metav1.ManagedFieldsEntry, 0, len(objEntries))
+	renamed := false
+	for _, entry := range objEntries {
+		for _, manager := range managers {
+			if strings.HasPrefix(entry.Manager, manager.Name) &&
+				entry.Operation == manager.OperationType &&
+				entry.Subresource == "" {
+				entry.Manager = name
+				entry.Operation = metav1.ManagedFieldsOperationApply
+				renamed = true
+			}
+		}
+		entries = append(entries, entry)
+	}
+
+	if !renamed {
+		return nil
+	}
+
+	return append(patches, newPatchReplace("/metadata/managedFields", entries))
+}
+
 // patchRemoveAnnotations returns a jsonPatch array for removing annotations with matching keys.
 func patchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []jsonPatch {
 	var patches []jsonPatch

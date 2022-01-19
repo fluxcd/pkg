@@ -248,7 +248,7 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context, object *unstructu
 	}
 
 	if len(opts.FieldManagers) > 0 {
-		patches = append(patches, patchRemoveFieldsManagers(existingObject, opts.FieldManagers)...)
+		patches = append(patches, patchReplaceFieldsManagers(existingObject, opts.FieldManagers, m.owner.Field)...)
 	}
 
 	// no patching is needed exit early
