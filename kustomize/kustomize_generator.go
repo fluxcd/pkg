@@ -50,11 +50,14 @@ const (
 	originalKustomizationFile = "kustomization.yaml.original"
 )
 
-type action string
+// Action is the action that was taken on the kustomization file
+type Action string
 
 const (
-	createdAction   action = "created"
-	unchangedAction action = "unchanged"
+	// CreatedAction is the action that was taken when creating the kustomization file
+	CreatedAction Action = "created"
+	// UnchangedAction is the action that was taken when the kustomization file was unchanged
+	UnchangedAction Action = "unchanged"
 )
 
 // Generator is a kustomize generator
@@ -65,7 +68,7 @@ type Generator struct {
 }
 
 // SavingOptions is a function that can be used to apply saving options to a kustomization
-type SavingOptions func(dirPath, file string, action action) error
+type SavingOptions func(dirPath, file string, action Action) error
 
 // NewGenerator creates a new kustomize generator
 func NewGenerator(kustomization unstructured.Unstructured) *Generator {
@@ -76,9 +79,9 @@ func NewGenerator(kustomization unstructured.Unstructured) *Generator {
 
 // WithSaveOriginalKustomization will save the original kustomization file
 func WithSaveOriginalKustomization() SavingOptions {
-	return func(dirPath, kfile string, action action) error {
+	return func(dirPath, kfile string, action Action) error {
 		// copy the original kustomization.yaml to the directory if we did not create it
-		if action != createdAction {
+		if action != CreatedAction {
 			if err := copyFile(kfile, filepath.Join(dirPath, originalKustomizationFile)); err != nil {
 				errf := CleanDirectory(dirPath, action)
 				return fmt.Errorf("%v %v", err, errf)
@@ -98,7 +101,7 @@ func WithSaveOriginalKustomization() SavingOptions {
 // if err != nil {
 // 	log.Fatal(err)
 // }
-func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (action, error) {
+func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, error) {
 	action, err := g.generateKustomization(dirPath)
 	if err != nil {
 		errf := CleanDirectory(dirPath, action)
@@ -360,14 +363,14 @@ func (g *Generator) getNestedSlice(fields ...string) ([]interface{}, bool, error
 	return val, ok, nil
 }
 
-func (g *Generator) generateKustomization(dirPath string) (action, error) {
+func (g *Generator) generateKustomization(dirPath string) (Action, error) {
 	fs := filesys.MakeFsOnDisk()
 
 	// Determine if there already is a Kustomization file at the root,
 	// as this means we do not have to generate one.
 	for _, kfilename := range konfig.RecognizedKustomizationFileNames() {
 		if kpath := filepath.Join(dirPath, kfilename); fs.Exists(kpath) && !fs.IsDir(kpath) {
-			return unchangedAction, nil
+			return UnchangedAction, nil
 		}
 	}
 
@@ -415,18 +418,18 @@ func (g *Generator) generateKustomization(dirPath string) (action, error) {
 
 	abs, err := filepath.Abs(dirPath)
 	if err != nil {
-		return unchangedAction, err
+		return UnchangedAction, err
 	}
 
 	files, err := scan(abs)
 	if err != nil {
-		return unchangedAction, err
+		return UnchangedAction, err
 	}
 
 	kfile := filepath.Join(dirPath, konfig.DefaultKustomizationFileName())
 	f, err := fs.Create(kfile)
 	if err != nil {
-		return unchangedAction, err
+		return UnchangedAction, err
 	}
 	f.Close()
 
@@ -446,11 +449,11 @@ func (g *Generator) generateKustomization(dirPath string) (action, error) {
 	kd, err := yaml.Marshal(kus)
 	if err != nil {
 		// delete the kustomization file
-		errf := CleanDirectory(dirPath, createdAction)
-		return unchangedAction, fmt.Errorf("%v %v", err, errf)
+		errf := CleanDirectory(dirPath, CreatedAction)
+		return UnchangedAction, fmt.Errorf("%v %v", err, errf)
 	}
 
-	return createdAction, os.WriteFile(kfile, kd, os.ModePerm)
+	return CreatedAction, os.WriteFile(kfile, kd, os.ModePerm)
 }
 
 func adaptSelector(selector *kustomize.Selector) (output *kustypes.Selector) {
@@ -489,7 +492,7 @@ func BuildKustomization(fs filesys.FileSystem, dirPath string) (resmap.ResMap, e
 }
 
 // CleanDirectory removes the kustomization.yaml file from the given directory.
-func CleanDirectory(dirPath string, action action) error {
+func CleanDirectory(dirPath string, action Action) error {
 	kfile := filepath.Join(dirPath, konfig.DefaultKustomizationFileName())
 	originalFile := filepath.Join(dirPath, originalKustomizationFile)
 
@@ -501,7 +504,7 @@ func CleanDirectory(dirPath string, action action) error {
 		}
 	}
 
-	if action == createdAction {
+	if action == CreatedAction {
 		return os.Remove(kfile)
 	}
 
