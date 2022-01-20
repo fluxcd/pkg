@@ -91,3 +91,80 @@ func TestCmpMaskData(t *testing.T) {
 	}
 
 }
+
+func TestReadKubernetesObjects(t *testing.T) {
+	testCases := []struct {
+		name        string
+		resources   string
+		expectError bool
+	}{
+		{
+			name: "valid resources",
+			resources: `
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: crossplane-provider-aws1
+spec:
+  package: crossplane/provider-aws:v0.23.0
+  controllerConfigRef:
+    name: provider-aws
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: crossplane-provider-aws2
+spec:
+  package: crossplane/provider-aws:v0.23.0
+  controllerConfigRef:
+    name: provider-aws
+`,
+			expectError: false,
+		},
+		{
+			name: "some invalid resources",
+			resources: `
+---
+piVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: crossplane-provider-aws1
+spec:
+  package: crossplane/provider-aws:v0.23.0
+  controllerConfigRef:
+    name: provider-aws
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: crossplane-provider-aws2
+spec:
+  package: crossplane/provider-aws:v0.23.0
+  controllerConfigRef:
+    name: provider-aws
+`,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ReadKubernetesObjects(strings.NewReader(tc.resources))
+			if err != nil && !tc.expectError {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			if err != nil && tc.expectError {
+				validObj, readErr := ReadObjects(strings.NewReader(tc.resources))
+				if readErr != nil {
+					t.Errorf("unexpected error: %v", readErr)
+				}
+
+				if len(validObj) != 1 {
+					t.Errorf("unexpected objects: %v", validObj)
+				}
+			}
+		})
+	}
+}
