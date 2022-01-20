@@ -499,7 +499,7 @@ func TestApply_Cleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("removes kubectl server-side-apply manager", func(t *testing.T) {
+	t.Run("replaces kubectl server-side-apply manager", func(t *testing.T) {
 		for _, object := range objects {
 			obj := object.DeepCopy()
 			if err := manager.client.Patch(ctx, obj, client.Apply, client.FieldOwner("kubectl")); err != nil {
