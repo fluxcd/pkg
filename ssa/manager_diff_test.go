@@ -50,7 +50,7 @@ func TestDiff(t *testing.T) {
 	}
 
 	t.Run("generates empty diff for unchanged object", func(t *testing.T) {
-		changeSetEntry, _, _, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, _, err := manager.Diff(ctx, configMap, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +71,7 @@ func TestDiff(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, configMap, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,7 +99,7 @@ func TestDiff(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, secret)
+		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, secret, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,7 +139,7 @@ func TestDiff_Removals(t *testing.T) {
 	}
 
 	t.Run("generates empty diff for unchanged object", func(t *testing.T) {
-		changeSetEntry, _, _, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, _, err := manager.Diff(ctx, configMap, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,7 +164,7 @@ func TestDiff_Removals(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, mergedObj, err := manager.Diff(ctx, configMap, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -187,7 +187,7 @@ func TestDiff_Removals(t *testing.T) {
 	t.Run("generates diff for removed map entry", func(t *testing.T) {
 		unstructured.RemoveNestedField(configMap.Object, "data", "token")
 
-		changeSetEntry, _, _, err := manager.Diff(ctx, configMap)
+		changeSetEntry, _, _, err := manager.Diff(ctx, configMap, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -222,7 +222,7 @@ func TestDiffHPA(t *testing.T) {
 	}
 
 	t.Run("generates empty diff for unchanged object", func(t *testing.T) {
-		changeSetEntry, _, _, err := manager.Diff(ctx, hpa)
+		changeSetEntry, _, _, err := manager.Diff(ctx, hpa, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -247,7 +247,7 @@ func TestDiffHPA(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSetEntry, _, _, err := manager.Diff(ctx, hpa)
+		changeSetEntry, _, _, err := manager.Diff(ctx, hpa, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -262,7 +262,7 @@ func TestDiffHPA(t *testing.T) {
 	})
 
 	t.Run("generates empty diff for unchanged metric", func(t *testing.T) {
-		changeSetEntry, _, _, err := manager.Diff(ctx, hpa)
+		changeSetEntry, _, _, err := manager.Diff(ctx, hpa, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -278,7 +278,7 @@ func TestDiffHPA(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		changeSetEntry, _, _, err := manager.Diff(ctx, hpa)
+		changeSetEntry, _, _, err := manager.Diff(ctx, hpa, DefaultDiffOptions())
 		if err != nil {
 			t.Fatal(err)
 		}

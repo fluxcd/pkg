@@ -34,11 +34,36 @@ const (
 	diffMask    = "******"
 )
 
+// DiffOptions contains options for server-side dry-run apply requests.
+type DiffOptions struct {
+	// Exclusions determines which in-cluster objects are skipped from dry-run apply
+	// based on the specified key-value pairs.
+	// A nil Exclusions map means all objects are applied
+	// regardless of their metadata labels and annotations.
+	Exclusions map[string]string `json:"exclusions"`
+}
+
+// DefaultDiffOptions returns the default dry-run apply options.
+func DefaultDiffOptions() DiffOptions {
+	return DiffOptions{
+		Exclusions: nil,
+	}
+}
+
 // Diff performs a server-side apply dry-un and returns the live and merged objects if drift is detected.
 // If the diff contains Kubernetes Secrets, the data values are masked.
-func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstructured) (*ChangeSetEntry, *unstructured.Unstructured, *unstructured.Unstructured, error) {
+func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstructured, opts DiffOptions) (
+	*ChangeSetEntry,
+	*unstructured.Unstructured,
+	*unstructured.Unstructured,
+	error,
+) {
 	existingObject := object.DeepCopy()
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
+
+	if existingObject != nil && AnyInMetadata(existingObject, opts.Exclusions) {
+		return m.changeSetEntry(existingObject, UnchangedAction), nil, nil, nil
+	}
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
