@@ -92,24 +92,24 @@ func TestCmpMaskData(t *testing.T) {
 
 }
 
-func TestReadKubernetesObjects(t *testing.T) {
+func TestReadObjects_DropsInvalid(t *testing.T) {
 	testCases := []struct {
-		name        string
-		resources   string
-		expectError bool
+		name      string
+		resources string
+		expected  int
 	}{
 		{
 			name: "valid resources",
 			resources: `
 ---
-apiVersion: pkg.crossplane.io/v1
-kind: Provider
+apiVersion: v1
+kind: Secret
 metadata:
-  name: crossplane-provider-aws1
-spec:
-  package: crossplane/provider-aws:v0.23.0
-  controllerConfigRef:
-    name: provider-aws
+  name: test
+  namespace: default
+immutable: true
+stringData:
+  key: "private-key"
 ---
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
@@ -120,7 +120,7 @@ spec:
   controllerConfigRef:
     name: provider-aws
 `,
-			expectError: false,
+			expected: 2,
 		},
 		{
 			name: "some invalid resources",
@@ -135,35 +135,28 @@ spec:
   controllerConfigRef:
     name: provider-aws
 ---
-apiVersion: pkg.crossplane.io/v1
-kind: Provider
+apiVersion: v1
+kind: Secret
 metadata:
-  name: crossplane-provider-aws2
-spec:
-  package: crossplane/provider-aws:v0.23.0
-  controllerConfigRef:
-    name: provider-aws
+  name: test
+  namespace: default
+immutable: true
+stringData:
+  key: "private-key"
 `,
-			expectError: true,
+			expected: 1,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := ReadKubernetesObjects(strings.NewReader(tc.resources))
-			if err != nil && !tc.expectError {
+			objects, err := ReadObjects(strings.NewReader(tc.resources))
+			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 
-			if err != nil && tc.expectError {
-				validObj, readErr := ReadObjects(strings.NewReader(tc.resources))
-				if readErr != nil {
-					t.Errorf("unexpected error: %v", readErr)
-				}
-
-				if len(validObj) != 1 {
-					t.Errorf("unexpected objects: %v", validObj)
-				}
+			if len(objects) != tc.expected {
+				t.Errorf("unexpected number of objects in %v", objects)
 			}
 		})
 	}

@@ -176,50 +176,6 @@ func ReadObjects(r io.Reader) ([]*unstructured.Unstructured, error) {
 	return objects, nil
 }
 
-// ReadKubernetesObjects decodes the YAML or JSON documents from the given reader into unstructured Kubernetes API objects.
-// If any of the given resources do not subscribe to the Kubernetes Object interface, an error is returned.
-func ReadKubernetesObjects(r io.Reader) ([]*unstructured.Unstructured, error) {
-	reader := yamlutil.NewYAMLOrJSONDecoder(r, 2048)
-	objects := make([]*unstructured.Unstructured, 0)
-
-	for {
-		obj := &unstructured.Unstructured{}
-		err := reader.Decode(obj)
-		if err != nil {
-			if err == io.EOF {
-				err = nil
-				break
-			}
-			return objects, err
-		}
-
-		if obj.Object == nil {
-			continue
-		}
-
-		if obj.IsList() {
-			err = obj.EachListItem(func(item runtime.Object) error {
-				obj := item.(*unstructured.Unstructured)
-				if !IsKubernetesObject(obj) {
-					return fmt.Errorf("failed to decode Kubernetes object from: %v", obj)
-				}
-				objects = append(objects, obj)
-				return nil
-			})
-			if err != nil {
-				return objects, err
-			}
-			continue
-		}
-
-		if !IsKubernetesObject(obj) {
-			return objects, fmt.Errorf("failed to decode Kubernetes object from: %v", obj)
-		}
-	}
-
-	return objects, nil
-}
-
 // ObjectToYAML encodes the given Kubernetes API object to YAML.
 func ObjectToYAML(object *unstructured.Unstructured) string {
 	var builder strings.Builder
