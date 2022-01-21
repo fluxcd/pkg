@@ -25,6 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const managedFieldsPath = "/metadata/managedFields"
+
 // jsonPatch defines a patch as specified by RFC 6902
 // https://www.rfc-editor.org/rfc/rfc6902
 type jsonPatch struct {
@@ -50,8 +52,8 @@ func newPatchReplace(path string, value []metav1.ManagedFieldsEntry) jsonPatch {
 	}
 }
 
-// FiledManager identifies a workflow that's managing fields.
-type FiledManager struct {
+// FieldManager identifies a workflow that's managing fields.
+type FieldManager struct {
 	// Name is the name of the workflow managing fields.
 	Name string `json:"name"`
 
@@ -60,7 +62,7 @@ type FiledManager struct {
 }
 
 // patchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching prefix and operation type.
-func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FiledManager) []jsonPatch {
+func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FieldManager) []jsonPatch {
 	objEntries := object.GetManagedFields()
 
 	var patches []jsonPatch
@@ -88,12 +90,12 @@ func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fil
 		entries = append(entries, metav1.ManagedFieldsEntry{})
 	}
 
-	return append(patches, newPatchReplace("/metadata/managedFields", entries))
+	return append(patches, newPatchReplace(managedFieldsPath, entries))
 }
 
 // patchReplaceFieldsManagers returns a jsonPatch array for replacing the managers with matching prefix and operation type
 // with the specified manager name and an apply operation.
-func patchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FiledManager, name string) []jsonPatch {
+func patchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FieldManager, name string) []jsonPatch {
 	objEntries := object.GetManagedFields()
 
 	var patches []jsonPatch
@@ -116,7 +118,7 @@ func patchReplaceFieldsManagers(object *unstructured.Unstructured, managers []Fi
 		return nil
 	}
 
-	return append(patches, newPatchReplace("/metadata/managedFields", entries))
+	return append(patches, newPatchReplace(managedFieldsPath, entries))
 }
 
 // patchRemoveAnnotations returns a jsonPatch array for removing annotations with matching keys.

@@ -148,12 +148,11 @@ func (m *ResourceManager) hasDrifted(existingObject, dryRunObject *unstructured.
 		return true
 	}
 
-	if !apiequality.Semantic.DeepDerivative(dryRunObject.GetLabels(), existingObject.GetLabels()) {
+	if !apiequality.Semantic.DeepEqual(dryRunObject.GetLabels(), existingObject.GetLabels()) {
 		return true
-
 	}
 
-	if !apiequality.Semantic.DeepDerivative(dryRunObject.GetAnnotations(), existingObject.GetAnnotations()) {
+	if !apiequality.Semantic.DeepEqual(dryRunObject.GetAnnotations(), existingObject.GetAnnotations()) {
 		return true
 	}
 

@@ -421,7 +421,7 @@ func TestApply_Cleanup(t *testing.T) {
 	applyOpts := DefaultApplyOptions()
 	applyOpts.Cleanup = ApplyCleanupOptions{
 		Annotations: []string{corev1.LastAppliedConfigAnnotation},
-		FieldManagers: []FiledManager{
+		FieldManagers: []FieldManager{
 			{
 				Name:          "kubectl",
 				OperationType: metav1.ManagedFieldsOperationApply,

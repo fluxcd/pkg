@@ -57,7 +57,7 @@ type ApplyCleanupOptions struct {
 	Labels []string `json:"labels,omitempty"`
 
 	// FieldManagers defines which `metadata.managedFields` managers should be removed from in-cluster objects.
-	FieldManagers []FiledManager `json:"fieldManagers,omitempty"`
+	FieldManagers []FieldManager `json:"fieldManagers,omitempty"`
 }
 
 // DefaultApplyOptions returns the default apply options where force apply is disabled.
