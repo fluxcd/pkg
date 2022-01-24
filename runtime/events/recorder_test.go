@@ -120,3 +120,14 @@ func TestEventRecorder_AnnotatedEventf_RateLimited(t *testing.T) {
 	eventRecorder.AnnotatedEventf(obj, nil, corev1.EventTypeNormal, "sync", "sync %s", obj.Name)
 	require.Equal(t, 1, requestCount)
 }
+
+func TestEventRecorder_Webhook(t *testing.T) {
+	_, err := NewRecorder(env, ctrl.Log, "", "test-controller")
+	require.NoError(t, err)
+
+	_, err = NewRecorder(env, ctrl.Log, " http://example.com", "test-controller")
+	require.Error(t, err)
+
+	_, err = NewRecorder(env, ctrl.Log, "http://example.com", "test-controller")
+	require.NoError(t, err)
+}

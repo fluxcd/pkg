@@ -19,6 +19,7 @@ package events
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -33,6 +34,8 @@ import (
 	kuberecorder "k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/fluxcd/pkg/runtime/logger"
 )
 
 // Recorder posts events to the Kubernetes API and any other event recorder webhook address, like the GitOps Toolkit
@@ -79,8 +82,10 @@ var _ kuberecorder.EventRecorder = &Recorder{}
 // given webhook. The recorder performs automatic retries for connection errors and 500-range response codes from the
 // external recorder.
 func NewRecorder(mgr ctrl.Manager, log logr.Logger, webhook, reportingController string) (*Recorder, error) {
-	if _, err := url.Parse(webhook); err != nil {
-		return nil, err
+	if webhook != "" {
+		if _, err := url.Parse(webhook); err != nil {
+			return nil, err
+		}
 	}
 
 	httpClient := retryablehttp.NewClient()
@@ -109,6 +114,7 @@ func (r *Recorder) Eventf(object runtime.Object, eventtype, reason, messageFmt s
 }
 
 // AnnotatedEventf constructs an event from the given information and performs a HTTP POST to the webhook address.
+// It also logs the event if debug logs are enabled in the logger.
 func (r *Recorder) AnnotatedEventf(
 	object runtime.Object,
 	annotations map[string]string,
@@ -123,6 +129,16 @@ func (r *Recorder) AnnotatedEventf(
 	// Add object info in the logger.
 	log := r.Log.WithValues("name", ref.Name, "namespace", ref.Namespace, "reconciler kind", ref.Kind)
 
+	// Log the event if in debug mode.
+	if log.GetSink().Enabled(logger.DebugLevel) {
+		msg := fmt.Sprintf(messageFmt, args...)
+		if eventtype == corev1.EventTypeWarning {
+			log.Error(errors.New(reason), msg, "annotations", annotations)
+		} else {
+			log.Info(msg, "reason", reason, "annotations", annotations)
+		}
+	}
+
 	// Convert the eventType to severity.
 	severity := eventTypeToSeverity(eventtype)
 
@@ -135,6 +151,12 @@ func (r *Recorder) AnnotatedEventf(
 
 	// Forward the event to the Kubernetes recorder.
 	r.EventRecorder.AnnotatedEventf(object, annotations, eventtype, reason, messageFmt, args...)
+
+	// If no webhook address is provided, skip posting to event recorder
+	// endpoint.
+	if r.Webhook == "" {
+		return
+	}
 
 	if r.Client == nil {
 		err := fmt.Errorf("retryable HTTP client has not been initialized")
