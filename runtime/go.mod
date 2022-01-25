@@ -5,9 +5,11 @@ go 1.17
 replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 
 require (
+	github.com/fluxcd/pkg/apis/acl v0.0.3
 	github.com/fluxcd/pkg/apis/meta v0.10.2
 	github.com/go-logr/logr v1.2.0
 	github.com/hashicorp/go-retryablehttp v0.6.8
+	github.com/onsi/gomega v1.17.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/spf13/pflag v1.0.5
