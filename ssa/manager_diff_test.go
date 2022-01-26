@@ -19,13 +19,13 @@ package ssa
 
 import (
 	"context"
-	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/yaml"
 )
 
 func TestDiff(t *testing.T) {
@@ -291,4 +291,52 @@ func TestDiffHPA(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestHasDrifted_Metadata(t *testing.T) {
+	id := generateName("drifted")
+	objects, err := readManifest("testdata/test7.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, deploy := getFirstObject(objects, "Deployment", id)
+	deploy.SetResourceVersion("1")
+
+	annotatedDeploy := deploy.DeepCopy()
+	unstructured.RemoveNestedField(deploy.Object, "metadata", "annotations", "annotated")
+
+	labeledDeploy := deploy.DeepCopy()
+	unstructured.RemoveNestedField(labeledDeploy.Object, "metadata", "labels", "labeled")
+
+	tests := []struct {
+		name    string
+		obj     *unstructured.Unstructured
+		drifted bool
+	}{
+		{
+			name:    "returns false if object is unchanged",
+			obj:     deploy,
+			drifted: false,
+		},
+		{
+			name:    "returns true if an annotation is removed",
+			obj:     annotatedDeploy,
+			drifted: true,
+		},
+		{
+			name:    "returns true if an label is removed",
+			obj:     labeledDeploy,
+			drifted: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hasDrifted := manager.hasDrifted(tt.obj, deploy)
+			if hasDrifted != tt.drifted {
+				t.Errorf("expected hasDrifted to be %t but got %t\n objects.", tt.drifted, hasDrifted)
+			}
+		})
+	}
 }
