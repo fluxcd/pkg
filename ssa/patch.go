@@ -130,7 +130,7 @@ each_entry:
 
 				// if no previous managedField was found,
 				// rename the first match.
-				if prevManagedFields == empty || prevManagedFields.FieldsV1 == nil {
+				if prevManagedFields == empty {
 					entry.Manager = name
 					entry.Operation = metav1.ManagedFieldsOperationApply
 					prevManagedFields = entry
@@ -138,22 +138,11 @@ each_entry:
 					continue each_entry
 				}
 
-				prevManagedSet, err := FieldsToSet(*prevManagedFields.FieldsV1)
+				mergedField, err := mergeManagedFieldsV1(prevManagedFields.FieldsV1, entry.FieldsV1)
 				if err != nil {
-					return nil, fmt.Errorf("unable to convert managed field to set: %s", err)
+					return nil, fmt.Errorf("unable to merge managed fields: '%w'", err)
 				}
-				curManagedSet, err := FieldsToSet(*entry.FieldsV1)
-				if err != nil {
-					return nil, fmt.Errorf("unable to convert managed field to set: %s", err)
-				}
-
-				unionSet := prevManagedSet.Union(&curManagedSet)
-				unionField, err := SetToFields(*unionSet)
-				if err != nil {
-					return nil, fmt.Errorf("unable to convert managed set to field: %s", err)
-				}
-
-				prevManagedFields.FieldsV1 = &unionField
+				prevManagedFields.FieldsV1 = mergedField
 				edited = true
 				continue each_entry
 			}
@@ -167,6 +156,38 @@ each_entry:
 
 	entries = append(entries, prevManagedFields)
 	return append(patches, newPatchReplace(managedFieldsPath, entries)), nil
+}
+
+func mergeManagedFieldsV1(prevField *metav1.FieldsV1, newField *metav1.FieldsV1) (*metav1.FieldsV1, error) {
+	if prevField == nil && newField == nil {
+		return nil, nil
+	}
+
+	if prevField == nil {
+		return newField, nil
+	}
+
+	if newField == nil {
+		return prevField, nil
+	}
+
+	prevSet, err := FieldsToSet(*prevField)
+	if err != nil {
+		return nil, err
+	}
+
+	newSet, err := FieldsToSet(*newField)
+	if err != nil {
+		return nil, err
+	}
+
+	unionSet := prevSet.Union(&newSet)
+	mergedField, err := SetToFields(*unionSet)
+	if err != nil {
+		return nil, fmt.Errorf("unable to convert managed set to field: %s", err)
+	}
+
+	return &mergedField, nil
 }
 
 // patchRemoveAnnotations returns a jsonPatch array for removing annotations with matching keys.
