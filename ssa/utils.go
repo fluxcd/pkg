@@ -419,7 +419,12 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 
 		// remove fields that are not supposed to be present in manifests
 		unstructured.RemoveNestedField(u.Object, "metadata", "creationTimestamp")
-		unstructured.RemoveNestedField(u.Object, "status")
+
+		// remove status but for CRDs (kstatus wait doesn't work with empty status fields)
+		if u.GetKind() != "CustomResourceDefinition" {
+			unstructured.RemoveNestedField(u.Object, "status")
+		}
+
 	}
 	return nil
 }
