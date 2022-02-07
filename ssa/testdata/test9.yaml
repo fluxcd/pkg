@@ -1,0 +1,31 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "%[1]s"
+  namespace: "%[1]s"
+  labels:
+    app: test
+spec:
+  ingressClassName: internal
+  rules:
+    - host: host1.internal
+      http:
+        paths:
+          - backend:
+              service:
+                name: podinfo
+                port:
+                  name: http
+            path: /
+            pathType: Prefix
+    - host: host2.internal
+      http:
+        paths:
+          - backend:
+              service:
+                name: podinfo
+                port:
+                  name: http
+            path: /
+            pathType: Prefix

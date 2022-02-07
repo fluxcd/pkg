@@ -538,3 +538,133 @@ func TestApply_Cleanup(t *testing.T) {
 		}
 	})
 }
+
+func TestApply_CleanupRemovals(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	applyOpts := DefaultApplyOptions()
+	applyOpts.Cleanup = ApplyCleanupOptions{
+		Annotations: []string{corev1.LastAppliedConfigAnnotation},
+		FieldManagers: []FieldManager{
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationApply,
+			},
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+			{
+				Name:          "before-first-apply",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+		},
+	}
+
+	id := generateName("cleanup-removal")
+	objects, err := readManifest("testdata/test8.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	editedObjects, err := readManifest("testdata/test9.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.SetOwnerLabels(objects, "app1", "default")
+	manager.SetOwnerLabels(editedObjects, "app1", "default")
+
+	_, ingressObject := getFirstObject(objects, "Ingress", id)
+
+	t.Run("creates objects using manager apply", func(t *testing.T) {
+		applyOpts.Cleanup.Labels = []string{corev1.LastAppliedConfigAnnotation}
+		_, err := manager.ApplyAllStaged(ctx, objects, applyOpts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ingress := ingressObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(ingress), ingress)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectedManagers := []string{manager.owner.Field}
+		for _, entry := range ingress.GetManagedFields() {
+			if !containsItemString(expectedManagers, entry.Manager) {
+				t.Log(entry)
+				t.Errorf("Mismatch from expected values, want %v got %s", expectedManagers, entry.Manager)
+			}
+		}
+	})
+
+	t.Run("applies edited objects as kubectl", func(t *testing.T) {
+		for _, object := range editedObjects {
+			obj := object.DeepCopy()
+			obj.SetAnnotations(map[string]string{corev1.LastAppliedConfigAnnotation: "test"})
+			labels := obj.GetLabels()
+			labels[corev1.LastAppliedConfigAnnotation] = "test"
+			obj.SetLabels(labels)
+			if err := manager.client.Patch(ctx, obj, client.Merge, client.FieldOwner("kubectl-client-side-apply")); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		ingress := ingressObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(ingress), ingress)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectedManagers := []string{"kubectl-client-side-apply", manager.owner.Field}
+		for _, entry := range ingress.GetManagedFields() {
+			if !containsItemString(expectedManagers, entry.Manager) {
+				t.Log(entry)
+				t.Errorf("Mismatch from expected values, want %v got %s", expectedManagers, entry.Manager)
+			}
+		}
+
+		rules, _, err := unstructured.NestedSlice(ingress.Object, "spec", "rules")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(rules) != 2 {
+			t.Errorf("expected to two rules in Ingress, got %d", len(rules))
+		}
+	})
+
+	t.Run("applies edited object using manager apply", func(t *testing.T) {
+		applyOpts.Cleanup.Labels = []string{corev1.LastAppliedConfigAnnotation}
+		_, err := manager.ApplyAllStaged(ctx, editedObjects, applyOpts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ingress := ingressObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(ingress), ingress)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectedManagers := []string{manager.owner.Field}
+		for _, entry := range ingress.GetManagedFields() {
+			if !containsItemString(expectedManagers, entry.Manager) {
+				t.Log(entry)
+				t.Errorf("Mismatch from expected values, want %v got %s", expectedManagers, entry.Manager)
+			}
+		}
+
+		tlsMap, exists, err := unstructured.NestedSlice(ingress.Object, "spec", "tls")
+		if err != nil {
+			t.Fatalf("unexpected error while getting field from object: %s", err)
+		}
+
+		if exists {
+			t.Errorf("spec.tls shouldn't be present, got %s", tlsMap)
+		}
+	})
+}
