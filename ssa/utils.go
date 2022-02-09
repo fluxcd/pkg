@@ -276,6 +276,7 @@ func AnyInMetadata(object *unstructured.Unstructured, metadata map[string]string
 // ContainerPort missing default TCP proto: https://github.com/kubernetes-sigs/structured-merge-diff/issues/130
 // ServicePort missing default TCP proto: https://github.com/kubernetes/kubernetes/pull/98576
 // PodSpec resources missing int to string conversion for e.g. 'cpu: 2'
+// secret.stringData key replacement add an extra key in the resulting data map: https://github.com/kubernetes/kubernetes/issues/108008
 func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 
 	var setProtoDefault = func(spec *corev1.PodSpec) {
@@ -322,6 +323,18 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 				setProtoDefault(&d.Spec)
 
 				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
+			case "Secret":
+				var s corev1.Secret
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &s)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				convertStringDataToData(&s)
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&s)
 				if err != nil {
 					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
 				}
@@ -474,4 +487,18 @@ func containsItemString(s []string, e string) bool {
 		}
 	}
 	return false
+}
+
+func convertStringDataToData(secret *corev1.Secret) {
+	// StringData overwrites Data
+	if len(secret.StringData) > 0 {
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
+		for k, v := range secret.StringData {
+			secret.Data[k] = []byte(v)
+		}
+
+		secret.StringData = nil
+	}
 }

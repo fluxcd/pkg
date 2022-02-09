@@ -86,6 +86,49 @@ func TestDiff(t *testing.T) {
 		}
 	})
 
+	t.Run("generates diff for replaced key in stringData secret", func(t *testing.T) {
+		// create a new stringData secret
+		sec := secret.DeepCopy()
+		if err := unstructured.SetNestedField(sec.Object, generateName("diff"), "metadata", "name"); err != nil {
+			t.Fatal(err)
+		}
+
+		// copy the secret to simulate a replace of key
+		diffSecret := sec.DeepCopy()
+
+		// apply stringData conversion
+		SetNativeKindsDefaults([]*unstructured.Unstructured{sec})
+
+		if _, err = manager.Apply(ctx, sec, DefaultApplyOptions()); err != nil {
+			t.Fatal(err)
+		}
+
+		newVal := "diff-test"
+		unstructured.RemoveNestedField(diffSecret.Object, "stringData", "key")
+
+		newKey := "key.new"
+		err = unstructured.SetNestedField(diffSecret.Object, newVal, "stringData", newKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// apply stringData conversion
+		SetNativeKindsDefaults([]*unstructured.Unstructured{diffSecret})
+
+		_, liveObj, mergedObj, err := manager.Diff(ctx, diffSecret, DefaultDiffOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		liveKeys := getKeys(liveObj.Object["data"].(map[string]interface{}))
+		mergedKeys := getKeys(mergedObj.Object["data"].(map[string]interface{}))
+
+		if diff := cmp.Diff(liveKeys, mergedKeys); diff != "" && len(liveKeys) != len(mergedKeys) {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+
+	})
+
 	t.Run("masks secret values", func(t *testing.T) {
 		newVal := "diff-test"
 		err = unstructured.SetNestedField(secret.Object, newVal, "stringData", "key")
@@ -339,4 +382,13 @@ func TestHasDrifted_Metadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+func getKeys(m map[string]interface{}) []string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	return keys
 }
