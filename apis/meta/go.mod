@@ -2,7 +2,7 @@ module github.com/fluxcd/pkg/apis/meta
 
 go 1.17
 
-require k8s.io/apimachinery v0.23.0
+require k8s.io/apimachinery v0.23.2
 
 require (
 	github.com/go-logr/logr v1.2.2 // indirect
@@ -19,5 +19,5 @@ require (
 	k8s.io/klog/v2 v2.30.0 // indirect
 	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.2.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 )
