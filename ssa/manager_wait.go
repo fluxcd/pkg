@@ -71,9 +71,8 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
-	pollingOpts := polling.Options{
+	pollingOpts := polling.PollOptions{
 		PollInterval: opts.Interval,
-		UseCache:     true,
 	}
 	eventsChan := m.poller.Poll(ctx, set, pollingOpts)
 
