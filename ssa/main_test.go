@@ -54,7 +54,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	poller := polling.NewStatusPoller(kubeClient, restMapper, nil)
+	poller := polling.NewStatusPoller(kubeClient, restMapper, polling.Options{})
 
 	manager = &ResourceManager{
 		client: kubeClient,
