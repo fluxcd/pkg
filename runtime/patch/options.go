@@ -41,6 +41,9 @@ type HelperOptions struct {
 	// In case of conflicts for the owned conditions, the patch helper will always use the value provided by the
 	// controller.
 	OwnedConditions []string
+
+	// FieldOwner defines the field owner configuration for Kubernetes patch operations.
+	FieldOwner string
 }
 
 // WithForceOverwriteConditions allows the patch helper to overwrite conditions in case of conflicts.
@@ -70,4 +73,12 @@ type WithOwnedConditions struct {
 // ApplyToHelper applies this configuration to the given HelperOptions.
 func (w WithOwnedConditions) ApplyToHelper(in *HelperOptions) {
 	in.OwnedConditions = w.Conditions
+}
+
+// WithFieldOwner set the field manager name for the patch operations.
+type WithFieldOwner string
+
+// ApplyToHelper applies this configuration to the given HelperOptions.
+func (w WithFieldOwner) ApplyToHelper(in *HelperOptions) {
+	in.FieldOwner = string(w)
 }

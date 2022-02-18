@@ -207,6 +207,12 @@ func (h *Helper) Patch(ctx context.Context, obj client.Object, opts ...Option) e
 		return err
 	}
 
+	// Define K8s client options
+	var clientOpts []client.PatchOption
+	if options.FieldOwner != "" {
+		clientOpts = append(clientOpts, client.FieldOwner(options.FieldOwner))
+	}
+
 	// Issue patches and return errors in an aggregate.
 	return kerrors.NewAggregate([]error{
 		// Patch the conditions first.
@@ -214,16 +220,16 @@ func (h *Helper) Patch(ctx context.Context, obj client.Object, opts ...Option) e
 		// Given that we pass in metadata.resourceVersion to perform a 3-way-merge conflict resolution,
 		// patching conditions first avoids an extra loop if spec or status patch succeeds first
 		// given that causes the resourceVersion to mutate.
-		h.patchStatusConditions(ctx, obj, options.ForceOverwriteConditions, options.OwnedConditions),
+		h.patchStatusConditions(ctx, obj, options.ForceOverwriteConditions, options.OwnedConditions, clientOpts...),
 
 		// Then proceed to patch the rest of the object.
-		h.patch(ctx, obj),
-		h.patchStatus(ctx, obj),
+		h.patch(ctx, obj, clientOpts...),
+		h.patchStatus(ctx, obj, clientOpts...),
 	})
 }
 
 // patch issues a patch for metadata and spec.
-func (h *Helper) patch(ctx context.Context, obj client.Object) error {
+func (h *Helper) patch(ctx context.Context, obj client.Object, opts ...client.PatchOption) error {
 	if !h.shouldPatch("metadata") && !h.shouldPatch("spec") {
 		return nil
 	}
@@ -231,11 +237,11 @@ func (h *Helper) patch(ctx context.Context, obj client.Object) error {
 	if err != nil {
 		return err
 	}
-	return h.client.Patch(ctx, afterObject, client.MergeFrom(beforeObject))
+	return h.client.Patch(ctx, afterObject, client.MergeFromWithOptions(beforeObject), opts...)
 }
 
 // patchStatus issues a patch if the status has changed.
-func (h *Helper) patchStatus(ctx context.Context, obj client.Object) error {
+func (h *Helper) patchStatus(ctx context.Context, obj client.Object, opts ...client.PatchOption) error {
 	if !h.shouldPatch("status") {
 		return nil
 	}
@@ -243,19 +249,19 @@ func (h *Helper) patchStatus(ctx context.Context, obj client.Object) error {
 	if err != nil {
 		return err
 	}
-	return h.client.Status().Patch(ctx, afterObject, client.MergeFrom(beforeObject))
+	return h.client.Status().Patch(ctx, afterObject, client.MergeFrom(beforeObject), opts...)
 }
 
 // patchStatusConditions issues a patch if there are any changes to the conditions slice under the status subresource.
 // This is a special case and it's handled separately given that we allow different controllers to act on conditions of
 // the same object.
 //
-// This method has an internal backoff loop. When a conflict is detected, the method asks the Client for the a new
+// This method has an internal backoff loop. When a conflict is detected, the method asks the Client for the new
 // version of the object we're trying to patch.
 //
 // Condition changes are then applied to the latest version of the object, and if there are no unresolvable conflicts,
 // the patch is sent again.
-func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, forceOverwrite bool, ownedConditions []string) error {
+func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, forceOverwrite bool, ownedConditions []string, opts ...client.PatchOption) error {
 	// Nothing to do if the object isn't a condition patcher.
 	if !h.isConditionsSetter {
 		return nil
@@ -317,7 +323,7 @@ func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, f
 		}
 
 		// Issue the patch.
-		err := h.client.Status().Patch(ctx, latest, conditionsPatch)
+		err := h.client.Status().Patch(ctx, latest, conditionsPatch, opts...)
 		switch {
 		case apierrors.IsConflict(err):
 			// Requeue.
