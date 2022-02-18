@@ -151,7 +151,7 @@ func (p Patch) Apply(latest Setter, options ...ApplyOption) error {
 				// NOTE: We are preserving LastTransitionTime from the latest in order to avoid altering the existing value.
 				continue
 			}
-			// If the condition does not exists on the latest, add the new after condition.
+			// If the condition does not exist on the latest, add the new after condition.
 			Set(latest, conditionPatch.After)
 
 		case ChangeConditionPatch:

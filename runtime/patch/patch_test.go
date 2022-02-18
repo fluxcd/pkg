@@ -181,6 +181,53 @@ func TestPatchHelper(t *testing.T) {
 				},
 			}
 
+			t.Run("should set field owner", func(t *testing.T) {
+				g := NewWithT(t)
+
+				obj := obj.DeepCopy()
+				g.Expect(env.Create(ctx, obj)).To(Succeed())
+				defer func() {
+					g.Expect(env.Delete(ctx, obj)).To(Succeed())
+				}()
+				key := client.ObjectKey{Name: obj.Name, Namespace: obj.Namespace}
+
+				t.Log("Checking that the object has been created")
+				g.Eventually(func() error {
+					obj := obj.DeepCopy()
+					if err := env.Get(ctx, key, obj); err != nil {
+						return err
+					}
+					return nil
+				}).Should(Succeed())
+
+				t.Log("Creating a new patch helper")
+				patcher, err := NewHelper(obj, env)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				t.Log("Marking Ready=True")
+				obj.Spec.Value = "foo"
+				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "")
+
+				t.Log("Patching the object with field owner")
+				fieldOwner := "test-owner"
+				g.Expect(patcher.Patch(ctx, obj, WithFieldOwner(fieldOwner))).To(Succeed())
+
+				t.Log("Validating the status subresource is managed")
+				g.Eventually(func() bool {
+					objAfter := obj.DeepCopy()
+					if err := env.Get(ctx, key, objAfter); err != nil {
+						return false
+					}
+					for _, v := range objAfter.ManagedFields {
+						if v.Subresource == "status" {
+							return v.Manager == fieldOwner
+						}
+					}
+					return false
+				}, timeout).Should(BeTrue())
+
+			})
+
 			t.Run("should mark it ready", func(t *testing.T) {
 				g := NewWithT(t)
 
