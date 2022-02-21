@@ -46,18 +46,18 @@ const (
 //		restConfig := client.GetConfigOrDie(clientOptions)
 //	}
 type Options struct {
-	// QPS indicates the maximum queries-per-second of requests sent to to the Kubernetes API, defaults to 20.
+	// QPS indicates the maximum queries-per-second of requests sent to the Kubernetes API, defaults to 50.
 	QPS float32
 
-	// Burst indicates the maximum burst queries-per-second of requests sent to the Kubernetes API, defaults to 50.
+	// Burst indicates the maximum burst queries-per-second of requests sent to the Kubernetes API, defaults to 100.
 	Burst int
 }
 
 // BindFlags will parse the given pflag.FlagSet for Kubernetes client option flags and set the Options accordingly.
 func (o *Options) BindFlags(fs *pflag.FlagSet) {
-	fs.Float32Var(&o.QPS, flagQPS, 20.0,
+	fs.Float32Var(&o.QPS, flagQPS, 50.0,
 		"The maximum queries-per-second of requests sent to the Kubernetes API.")
-	fs.IntVar(&o.Burst, flagBurst, 50,
+	fs.IntVar(&o.Burst, flagBurst, 100,
 		"The maximum burst queries-per-second of requests sent to the Kubernetes API.")
 }
 
