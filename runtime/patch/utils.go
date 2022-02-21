@@ -52,7 +52,8 @@ func unstructuredHasStatus(u *unstructured.Unstructured) bool {
 	return ok
 }
 
-func toUnstructured(obj runtime.Object) (*unstructured.Unstructured, error) {
+// ToUnstructured converts a runtime.Object into an Unstructured object.
+func ToUnstructured(obj runtime.Object) (*unstructured.Unstructured, error) {
 	// If the incoming object is already unstructured, perform a deep copy first
 	// otherwise DefaultUnstructuredConverter ends up returning the inner map without
 	// making a copy.

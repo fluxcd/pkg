@@ -43,7 +43,7 @@ func TestToUnstructured(t *testing.T) {
 				"configmap": "true",
 			},
 		}
-		newObj, err := toUnstructured(obj)
+		newObj, err := ToUnstructured(obj)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(newObj.GetName()).To(Equal(obj.Name))
 		g.Expect(newObj.GetNamespace()).To(Equal(obj.Namespace))
@@ -69,7 +69,7 @@ func TestToUnstructured(t *testing.T) {
 			},
 		}
 
-		newObj, err := toUnstructured(obj)
+		newObj, err := ToUnstructured(obj)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(newObj.GetName()).To(Equal(obj.GetName()))
 		g.Expect(newObj.GetNamespace()).To(Equal(obj.GetNamespace()))
