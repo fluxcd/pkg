@@ -38,7 +38,7 @@ require (
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
-	github.com/go-logr/logr v1.2.0 // indirect
+	github.com/go-logr/logr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
@@ -47,7 +47,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
-	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
@@ -140,15 +140,17 @@ require (
 // Due to https://github.com/oras-project/oras-go/ pulled in by Helm.
 replace github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 
+// Fix CVE-2022-23648
 // Fix CVE-2021-43816
 // Due to https://github.com/oras-project/oras-go/ pulled in by Helm.
-replace github.com/containerd/containerd => github.com/containerd/containerd v1.5.9
+replace github.com/containerd/containerd => github.com/containerd/containerd v1.6.1
 
 // Fix CVE-2021-30465
 // Fix CVE-2021-43784
+// Fix CVE-2019-16884
 // Fix GO-2021-0085
 // Fix GO-2021-0087
-replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.0.3
+replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.0
 
 // Fix CVE-2021-41190
 // Due to https://github.com/oras-project/oras-go/ pulled in by Helm.
