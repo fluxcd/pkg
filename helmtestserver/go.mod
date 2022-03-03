@@ -146,9 +146,10 @@ replace github.com/containerd/containerd => github.com/containerd/containerd v1.
 
 // Fix CVE-2021-30465
 // Fix CVE-2021-43784
+// Fix CVE-2019-16884
 // Fix GO-2021-0085
 // Fix GO-2021-0087
-replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.0.3
+replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.0
 
 // Fix CVE-2021-41190
 // Due to https://github.com/oras-project/oras-go/ pulled in by Helm.
