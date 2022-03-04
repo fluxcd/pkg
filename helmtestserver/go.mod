@@ -6,6 +6,7 @@ replace github.com/fluxcd/pkg/testserver => ../testserver
 
 require (
 	github.com/fluxcd/pkg/testserver v0.2.0
+	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
 	helm.sh/helm/v3 v3.8.0
 	sigs.k8s.io/yaml v1.3.0
 )
@@ -102,7 +103,6 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
-	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
 	golang.org/x/net v0.0.0-20220107192237-5cfca573fb4d // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
