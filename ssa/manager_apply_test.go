@@ -668,3 +668,87 @@ func TestApply_CleanupRemovals(t *testing.T) {
 		}
 	})
 }
+
+func TestApply_Cleanup_Exclusions(t *testing.T) {
+	kubectlManager := "kubectl-client-side-apply"
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	applyOpts := DefaultApplyOptions()
+	applyOpts.Cleanup = ApplyCleanupOptions{
+		Annotations: []string{corev1.LastAppliedConfigAnnotation},
+		FieldManagers: []FieldManager{
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationApply,
+			},
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+			{
+				Name:          "before-first-apply",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+		},
+		Exclusions: map[string]string{"cleanup/exclusion": "true"},
+	}
+
+	id := generateName("cleanup")
+	objects, err := readManifest("testdata/test2.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	_, deployObject := getFirstObject(objects, "Deployment", id)
+
+	if err := SetNativeKindsDefaults(objects); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("creates objects as kubectl", func(t *testing.T) {
+		for _, object := range objects {
+			obj := object.DeepCopy()
+			if err := manager.client.Create(ctx, obj, client.FieldOwner(kubectlManager)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
+	t.Run("does not not remove kubectl manager", func(t *testing.T) {
+		for _, object := range objects {
+			object.SetAnnotations(map[string]string{"cleanup/exclusion": "true"})
+		}
+
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, applyOpts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		}
+
+		deploy := deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), deploy)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		found := false
+		for _, entry := range deploy.GetManagedFields() {
+			if entry.Manager == kubectlManager {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Errorf("Mismatch from expected values, want %v manager", kubectlManager)
+		}
+	})
+}

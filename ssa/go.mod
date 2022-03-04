@@ -6,7 +6,7 @@ require (
 	github.com/google/go-cmp v0.5.6
 	k8s.io/api v0.23.2
 	k8s.io/apimachinery v0.23.2
-	sigs.k8s.io/cli-utils v0.28.0
+	sigs.k8s.io/cli-utils v0.29.2
 	sigs.k8s.io/controller-runtime v0.11.1
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1
 	sigs.k8s.io/yaml v1.3.0

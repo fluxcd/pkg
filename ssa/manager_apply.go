@@ -58,6 +58,10 @@ type ApplyCleanupOptions struct {
 
 	// FieldManagers defines which `metadata.managedFields` managers should be removed from in-cluster objects.
 	FieldManagers []FieldManager `json:"fieldManagers,omitempty"`
+
+	// Exclusions determines which in-cluster objects are skipped from cleanup
+	// based on the specified key-value pairs.
+	Exclusions map[string]string `json:"exclusions"`
 }
 
 // DefaultApplyOptions returns the default apply options where force apply is disabled.
@@ -93,7 +97,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return nil, m.validationError(dryRunObject, err)
 	}
 
-	patched, err := m.cleanupMetadata(ctx, existingObject, opts.Cleanup)
+	patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
 	if err != nil {
 		return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
 			FmtUnstructured(existingObject), err)
@@ -144,7 +148,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 			return nil, m.validationError(dryRunObject, err)
 		}
 
-		patched, err := m.cleanupMetadata(ctx, existingObject, opts.Cleanup)
+		patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
 		if err != nil {
 			return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
 				FmtUnstructured(existingObject), err)
@@ -232,7 +236,14 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 }
 
 // cleanupMetadata performs an HTTP PATCH request to remove entries from metadata annotations, labels and managedFields.
-func (m *ResourceManager) cleanupMetadata(ctx context.Context, object *unstructured.Unstructured, opts ApplyCleanupOptions) (bool, error) {
+func (m *ResourceManager) cleanupMetadata(ctx context.Context,
+	desiredObject *unstructured.Unstructured,
+	object *unstructured.Unstructured,
+	opts ApplyCleanupOptions) (bool, error) {
+	if AnyInMetadata(desiredObject, opts.Exclusions) || AnyInMetadata(object, opts.Exclusions) {
+		return false, nil
+	}
+
 	if object == nil {
 		return false, nil
 	}
