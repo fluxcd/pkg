@@ -11,18 +11,18 @@ require (
 	github.com/fluxcd/pkg/apis/acl v0.0.3
 	github.com/fluxcd/pkg/apis/meta v0.12.0
 	github.com/go-logr/logr v1.2.2
-	github.com/google/go-cmp v0.5.6
-	github.com/hashicorp/go-retryablehttp v0.6.8
-	github.com/onsi/gomega v1.17.0
+	github.com/google/go-cmp v0.5.7
+	github.com/hashicorp/go-retryablehttp v0.7.0
+	github.com/onsi/gomega v1.18.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.0
-	go.uber.org/zap v1.19.1
-	k8s.io/api v0.23.2
-	k8s.io/apimachinery v0.23.2
-	k8s.io/client-go v0.23.2
-	k8s.io/klog/v2 v2.30.0
+	github.com/stretchr/testify v1.7.1
+	go.uber.org/zap v1.21.0
+	k8s.io/api v0.23.4
+	k8s.io/apimachinery v0.23.4
+	k8s.io/client-go v0.23.4
+	k8s.io/klog/v2 v2.50.0
 	sigs.k8s.io/controller-runtime v0.11.1
 )
 
@@ -67,7 +67,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.23.0 // indirect
 	k8s.io/component-base v0.23.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
-	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b // indirect
+	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
