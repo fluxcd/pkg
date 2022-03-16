@@ -3,10 +3,10 @@ module github.com/fluxcd/pkg/ssa
 go 1.17
 
 require (
-	github.com/google/go-cmp v0.5.6
-	k8s.io/api v0.23.2
-	k8s.io/apimachinery v0.23.2
-	sigs.k8s.io/cli-utils v0.29.2
+	github.com/google/go-cmp v0.5.7
+	k8s.io/api v0.23.4
+	k8s.io/apimachinery v0.23.4
+	sigs.k8s.io/cli-utils v0.29.3
 	sigs.k8s.io/controller-runtime v0.11.1
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1
 	sigs.k8s.io/yaml v1.3.0
