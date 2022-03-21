@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-billy/v5/memfs"
@@ -35,6 +36,8 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/sosedoff/gitkit"
 )
+
+var m sync.RWMutex
 
 // NewTempGitServer returns a GitServer with a newly created temp
 // dir as repository docroot.
@@ -188,12 +191,20 @@ func (s *GitServer) StopHTTP() {
 // unlike StartSSH(), and the server URL is available with
 // SSHAddress() after calling this.
 func (s *GitServer) ListenSSH() error {
-	if s.sshServer == nil {
+	m.RLock()
+	sshServer := s.sshServer
+	m.RUnlock()
+
+	if sshServer == nil {
+		m.Lock()
+		defer m.Unlock()
 		s.sshServer = gitkit.NewSSH(s.config)
+
 		// This is where authentication would happen, when needed.
 		s.sshServer.PublicKeyLookupFunc = func(content string) (*gitkit.PublicKey, error) {
 			return &gitkit.PublicKey{Id: "test-user"}, nil
 		}
+
 		// :0 should result in an OS assigned free port; 127.0.0.1
 		// forces the lowest common denominator of TCPv4 on localhost.
 		return s.sshServer.Listen("127.0.0.1:0")
@@ -216,8 +227,12 @@ func (s *GitServer) StartSSH() error {
 
 // StopSSH stops the SSH git server.
 func (s *GitServer) StopSSH() error {
-	if s.sshServer != nil {
-		return s.sshServer.Stop()
+	m.RLock()
+	sshServer := s.sshServer
+	m.RUnlock()
+
+	if sshServer != nil {
+		return sshServer.Stop()
 	}
 	return nil
 }
