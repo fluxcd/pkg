@@ -22,7 +22,7 @@ PROJECT_PATH="github.com/fluxcd/pkg"
 
 cd "${GO_SRC}"
 
-# Move fuzzer to their respective directories. 
+# Move fuzzer to their respective directories.
 # This removes dependency noises from the modules' go.mod and go.sum files.
 cp "${PROJECT_PATH}/tests/fuzz/conditions_fuzzer.go" "${PROJECT_PATH}/runtime/conditions"
 cp "${PROJECT_PATH}/tests/fuzz/events_fuzzer.go" "${PROJECT_PATH}/runtime/events"
@@ -34,7 +34,7 @@ cp "${PROJECT_PATH}/tests/fuzz/gitutil_fuzzer.go" "${PROJECT_PATH}/gitutil"
 # compile fuzz tests for the runtime module
 pushd "${PROJECT_PATH}/runtime"
 
-go mod tidy
+go get -d github.com/AdaLogics/go-fuzz-headers
 compile_go_fuzzer "${PROJECT_PATH}/runtime/conditions" FuzzGetterConditions fuzz_getter_conditions
 compile_go_fuzzer "${PROJECT_PATH}/runtime/conditions" FuzzConditionsMatch fuzz_conditions_match
 compile_go_fuzzer "${PROJECT_PATH}/runtime/conditions" FuzzPatchApply fuzz_patch_apply
@@ -48,7 +48,7 @@ popd
 # compile fuzz tests for the untar module
 pushd "${PROJECT_PATH}/untar"
 
-go mod tidy
+go get -d github.com/AdaLogics/go-fuzz-headers
 compile_go_fuzzer "${PROJECT_PATH}/untar" FuzzUntar fuzz_untar
 
 popd
@@ -57,7 +57,7 @@ popd
 # compile fuzz tests for the gitutil module
 pushd "${PROJECT_PATH}/gitutil"
 
-go mod tidy
+go get -d github.com/AdaLogics/go-fuzz-headers
 compile_go_fuzzer "${PROJECT_PATH}/gitutil" FuzzLibGit2Error fuzz_libgit2_error
 
 popd
