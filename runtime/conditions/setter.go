@@ -196,7 +196,7 @@ var conditionWeights = map[string]int{
 	meta.ReadyCondition:       2,
 }
 
-// lexicographicLess returns true if a condition is less than another in regard to the to order of conditions
+// lexicographicLess returns true if a condition is less than another in regard to the order of conditions
 // designed for convenience of the consumer, i.e. kubectl. The condition types in conditionWeights always go first,
 // sorted by their defined weight, followed by all the other conditions sorted by highest observedGeneration and
 // lexicographically by Type.
@@ -208,8 +208,10 @@ func lexicographicLess(i, j *metav1.Condition) bool {
 		return w1 < w2
 	case ok1, ok2:
 		return !ok2
+	case i.ObservedGeneration == j.ObservedGeneration:
+		return i.Type < j.Type
 	default:
-		return i.ObservedGeneration >= j.ObservedGeneration && i.Type < j.Type
+		return i.ObservedGeneration > j.ObservedGeneration
 	}
 }
 
