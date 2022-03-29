@@ -82,7 +82,7 @@ func Set(to Setter, condition *metav1.Condition) {
 		conditions = append(conditions, *condition)
 	}
 
-	// Sorts conditions for convenience of the consumer, i.e. kubectl.
+	// Sort conditions for convenience of the consumer, i.e. kubectl.
 	sort.Slice(conditions, func(i, j int) bool {
 		return lexicographicLess(&conditions[i], &conditions[j])
 	})
@@ -196,9 +196,10 @@ var conditionWeights = map[string]int{
 	meta.ReadyCondition:       2,
 }
 
-// lexicographicLess returns true if a condition is less than another with regards to the to order of conditions
+// lexicographicLess returns true if a condition is less than another in regard to the to order of conditions
 // designed for convenience of the consumer, i.e. kubectl. The condition types in conditionWeights always go first,
-// sorted by their defined weight, followed by all the other conditions sorted lexicographically by Type.
+// sorted by their defined weight, followed by all the other conditions sorted by highest observedGeneration and
+// lexicographically by Type.
 func lexicographicLess(i, j *metav1.Condition) bool {
 	w1, ok1 := conditionWeights[i.Type]
 	w2, ok2 := conditionWeights[j.Type]
@@ -208,7 +209,7 @@ func lexicographicLess(i, j *metav1.Condition) bool {
 	case ok1, ok2:
 		return !ok2
 	default:
-		return i.Type < j.Type
+		return i.ObservedGeneration >= j.ObservedGeneration && i.Type < j.Type
 	}
 }
 

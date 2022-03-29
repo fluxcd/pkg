@@ -81,6 +81,25 @@ func TestLexicographicLess(t *testing.T) {
 	b = TrueCondition("A", "", "")
 	g.Expect(lexicographicLess(a, b)).To(BeFalse())
 
+	// observed generation is respected
+	a = TrueCondition("A", "", "")
+	a.ObservedGeneration = 2
+	b = TrueCondition("B", "", "")
+	b.ObservedGeneration = 2
+	g.Expect(lexicographicLess(a, b)).To(BeTrue())
+
+	a = TrueCondition("A", "", "")
+	a.ObservedGeneration = 1
+	b = TrueCondition("B", "", "")
+	b.ObservedGeneration = 2
+	g.Expect(lexicographicLess(a, b)).To(BeFalse())
+
+	a = TrueCondition("A", "", "")
+	a.ObservedGeneration = 1
+	b = TrueCondition("B", "", "")
+	b.ObservedGeneration = 0
+	g.Expect(lexicographicLess(a, b)).To(BeTrue())
+
 	// Stalled, Ready, and Reconciling conditions are threaded as an
 	// exception and always go first.
 	stalled := TrueCondition(meta.StalledCondition, "", "")
@@ -98,6 +117,10 @@ func TestLexicographicLess(t *testing.T) {
 
 	g.Expect(lexicographicLess(ready, b)).To(BeTrue())
 	g.Expect(lexicographicLess(b, ready)).To(BeFalse())
+
+	ready.ObservedGeneration = 1
+	b.ObservedGeneration = 2
+	g.Expect(lexicographicLess(ready, b)).To(BeTrue())
 }
 
 func TestSet(t *testing.T) {
