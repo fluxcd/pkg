@@ -207,6 +207,41 @@ func TestSetLastTransitionTime(t *testing.T) {
 	}
 }
 
+func TestSetObservedGeneration(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := &testdata.Fake{}
+	x := metav1.Date(2012, time.January, 1, 12, 15, 30, 5e8, time.UTC)
+
+	// Conditions with stale observed generation.
+	foo1 := FalseCondition("foo1", "reasonFoo1", "messageFoo1")
+	foo1.ObservedGeneration = 2
+	foo1.LastTransitionTime = x
+	foo2 := TrueCondition("foo2", "reasonFoo2", "messageFoo2")
+	foo2.ObservedGeneration = 3
+	foo2.LastTransitionTime = x
+
+	// Object with higher generation and stale conditions.
+	obj.Generation = 4
+	obj.SetConditions([]metav1.Condition{*foo1, *foo2})
+
+	// Ensure the conditions haven't updated.
+	g.Expect(Get(obj, "foo1").ObservedGeneration).To(BeEquivalentTo(2))
+	g.Expect(Get(obj, "foo2").ObservedGeneration).To(BeEquivalentTo(3))
+
+	// Update the object's generation and Set the conditions without any state
+	// change.
+	obj.Generation = 5
+	Set(obj, foo1)
+	Set(obj, foo2)
+
+	// ObservedGeneration is updated but not the LastTransitionTime.
+	g.Expect(Get(obj, "foo1").ObservedGeneration).To(BeEquivalentTo(5))
+	g.Expect(Get(obj, "foo1").LastTransitionTime).To(Equal(x))
+	g.Expect(Get(obj, "foo2").ObservedGeneration).To(BeEquivalentTo(5))
+	g.Expect(Get(obj, "foo2").LastTransitionTime).To(Equal(x))
+}
+
 func TestMarkMethods(t *testing.T) {
 	g := NewWithT(t)
 

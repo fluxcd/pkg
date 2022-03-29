@@ -65,6 +65,11 @@ func Set(to Setter, condition *metav1.Condition) {
 				break
 			}
 			condition.LastTransitionTime = existingCondition.LastTransitionTime
+			// For new observed generations, update the condition to have the
+			// new generation, preserving the last transition time.
+			if existingCondition.ObservedGeneration != condition.ObservedGeneration {
+				conditions[i] = *condition
+			}
 			break
 		}
 	}
