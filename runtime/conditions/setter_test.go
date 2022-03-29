@@ -81,6 +81,25 @@ func TestLexicographicLess(t *testing.T) {
 	b = TrueCondition("A", "", "")
 	g.Expect(lexicographicLess(a, b)).To(BeFalse())
 
+	// observed generation is respected
+	a = TrueCondition("A", "", "")
+	a.ObservedGeneration = 2
+	b = TrueCondition("B", "", "")
+	b.ObservedGeneration = 2
+	g.Expect(lexicographicLess(a, b)).To(BeTrue())
+
+	a = TrueCondition("A", "", "")
+	a.ObservedGeneration = 1
+	b = TrueCondition("B", "", "")
+	b.ObservedGeneration = 2
+	g.Expect(lexicographicLess(a, b)).To(BeFalse())
+
+	a = TrueCondition("A", "", "")
+	a.ObservedGeneration = 1
+	b = TrueCondition("B", "", "")
+	b.ObservedGeneration = 0
+	g.Expect(lexicographicLess(a, b)).To(BeTrue())
+
 	// Stalled, Ready, and Reconciling conditions are threaded as an
 	// exception and always go first.
 	stalled := TrueCondition(meta.StalledCondition, "", "")
@@ -98,6 +117,10 @@ func TestLexicographicLess(t *testing.T) {
 
 	g.Expect(lexicographicLess(ready, b)).To(BeTrue())
 	g.Expect(lexicographicLess(b, ready)).To(BeFalse())
+
+	ready.ObservedGeneration = 1
+	b.ObservedGeneration = 2
+	g.Expect(lexicographicLess(ready, b)).To(BeTrue())
 }
 
 func TestSet(t *testing.T) {
@@ -205,6 +228,41 @@ func TestSetLastTransitionTime(t *testing.T) {
 			tt.LastTransitionTimeCheck(g, Get(tt.to, "foo").LastTransitionTime)
 		})
 	}
+}
+
+func TestSetObservedGeneration(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := &testdata.Fake{}
+	x := metav1.Date(2012, time.January, 1, 12, 15, 30, 5e8, time.UTC)
+
+	// Conditions with stale observed generation.
+	foo1 := FalseCondition("foo1", "reasonFoo1", "messageFoo1")
+	foo1.ObservedGeneration = 2
+	foo1.LastTransitionTime = x
+	foo2 := TrueCondition("foo2", "reasonFoo2", "messageFoo2")
+	foo2.ObservedGeneration = 3
+	foo2.LastTransitionTime = x
+
+	// Object with higher generation and stale conditions.
+	obj.Generation = 4
+	obj.SetConditions([]metav1.Condition{*foo1, *foo2})
+
+	// Ensure the conditions haven't updated.
+	g.Expect(Get(obj, "foo1").ObservedGeneration).To(BeEquivalentTo(2))
+	g.Expect(Get(obj, "foo2").ObservedGeneration).To(BeEquivalentTo(3))
+
+	// Update the object's generation and Set the conditions without any state
+	// change.
+	obj.Generation = 5
+	Set(obj, foo1)
+	Set(obj, foo2)
+
+	// ObservedGeneration is updated but not the LastTransitionTime.
+	g.Expect(Get(obj, "foo1").ObservedGeneration).To(BeEquivalentTo(5))
+	g.Expect(Get(obj, "foo1").LastTransitionTime).To(Equal(x))
+	g.Expect(Get(obj, "foo2").ObservedGeneration).To(BeEquivalentTo(5))
+	g.Expect(Get(obj, "foo2").LastTransitionTime).To(Equal(x))
 }
 
 func TestMarkMethods(t *testing.T) {
