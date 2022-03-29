@@ -100,6 +100,13 @@ func TestLexicographicLess(t *testing.T) {
 	b.ObservedGeneration = 0
 	g.Expect(lexicographicLess(a, b)).To(BeTrue())
 
+	// Disregard Type when observed generations aren't equal.
+	c := TrueCondition("C", "", "")
+	c.ObservedGeneration = 1
+	b = TrueCondition("B", "", "")
+	b.ObservedGeneration = 0
+	g.Expect(lexicographicLess(c, b)).To(BeTrue())
+
 	// Stalled, Ready, and Reconciling conditions are threaded as an
 	// exception and always go first.
 	stalled := TrueCondition(meta.StalledCondition, "", "")
