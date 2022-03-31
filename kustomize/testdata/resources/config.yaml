@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+    environment: ${cluster_env:=dev}
+    region: ${cluster_region}
+  name: app-vars
+  namespace: apps
+data:
+  prometheus_scrape: ${prometheus_scrape:=false}
+  prometheus_port: ${prometheus_port}
+  image: ${image}

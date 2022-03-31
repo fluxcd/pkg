@@ -29,3 +29,17 @@ spec:
           requests:
             cpu: 100m
             memory: 64Mi
+---
+apiVersion: v1
+data:
+  image: ${image}
+  prometheus_port: ${prometheus_port}
+  prometheus_scrape: ${prometheus_scrape:=false}
+kind: ConfigMap
+metadata:
+  labels:
+    environment: ${cluster_env:=dev}
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+    region: ${cluster_region}
+  name: app-vars
+  namespace: apps
