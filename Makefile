@@ -17,7 +17,7 @@ all:
 	$(MAKE) $(targets)
 
 tidy-%:
-	cd $(subst :,/,$*); go mod tidy
+	cd $(subst :,/,$*); go mod tidy -compat=1.17
 
 fmt-%:
 	cd $(subst :,/,$*); go fmt ./...
