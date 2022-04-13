@@ -17,7 +17,6 @@ limitations under the License.
 package controller
 
 import (
-	"flag"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -47,9 +46,9 @@ type RateLimiterOptions struct {
 // BindFlags will parse the given pflag.FlagSet for the controller and
 // set the RateLimiterOptions accordingly.
 func (o *RateLimiterOptions) BindFlags(fs *pflag.FlagSet) {
-	flag.DurationVar(&o.MinRetryDelay, flagMinRetryDelay, defaultMinRetryDelay,
+	fs.DurationVar(&o.MinRetryDelay, flagMinRetryDelay, defaultMinRetryDelay,
 		"The minimum amount of time for which an object being reconciled will have to wait before a retry.")
-	flag.DurationVar(&o.MaxRetryDelay, flagMaxRetryDelay, defaultMaxRetryDelay,
+	fs.DurationVar(&o.MaxRetryDelay, flagMaxRetryDelay, defaultMaxRetryDelay,
 		"The maximum amount of time for which an object being reconciled will have to wait before a retry.")
 }
 
