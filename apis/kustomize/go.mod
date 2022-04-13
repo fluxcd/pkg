@@ -2,7 +2,7 @@ module github.com/fluxcd/pkg/apis/kustomize
 
 go 1.17
 
-require k8s.io/apiextensions-apiserver v0.23.4
+require k8s.io/apiextensions-apiserver v0.23.5
 
 require (
 	github.com/go-logr/logr v1.2.2 // indirect
@@ -16,7 +16,7 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/apimachinery v0.23.4 // indirect
+	k8s.io/apimachinery v0.23.5 // indirect
 	k8s.io/klog/v2 v2.30.0 // indirect
 	k8s.io/utils v0.0.0-20211208161948-7d6a63dca704 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
