@@ -7,7 +7,7 @@ replace github.com/fluxcd/pkg/testserver => ../testserver
 require (
 	github.com/fluxcd/pkg/testserver v0.2.0
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
-	helm.sh/helm/v3 v3.8.1
+	helm.sh/helm/v3 v3.8.2
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -25,7 +25,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
-	github.com/containerd/containerd v1.5.9 // indirect
+	github.com/containerd/containerd v1.6.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/cli v20.10.11+incompatible // indirect
@@ -118,18 +118,18 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/api v0.23.4 // indirect
-	k8s.io/apiextensions-apiserver v0.23.4 // indirect
-	k8s.io/apimachinery v0.23.4 // indirect
-	k8s.io/apiserver v0.23.4 // indirect
-	k8s.io/cli-runtime v0.23.4 // indirect
-	k8s.io/client-go v0.23.4 // indirect
-	k8s.io/component-base v0.23.4 // indirect
+	k8s.io/api v0.23.5 // indirect
+	k8s.io/apiextensions-apiserver v0.23.5 // indirect
+	k8s.io/apimachinery v0.23.5 // indirect
+	k8s.io/apiserver v0.23.5 // indirect
+	k8s.io/cli-runtime v0.23.5 // indirect
+	k8s.io/client-go v0.23.5 // indirect
+	k8s.io/component-base v0.23.5 // indirect
 	k8s.io/klog/v2 v2.30.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
-	k8s.io/kubectl v0.23.4 // indirect
+	k8s.io/kubectl v0.23.5 // indirect
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed // indirect
-	oras.land/oras-go v1.1.0 // indirect
+	oras.land/oras-go v1.1.1 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/kustomize/api v0.10.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.0 // indirect
