@@ -54,3 +54,17 @@ type NamespacedObjectKindReference struct {
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 }
+
+// SecretKeyReference contains enough information to locate the referenced Kubernetes Secret object in the same
+// namespace. Optionally a key can be specified.
+// Use this type instead of core/v1 SecretKeySelector when the Key is optional and the Optional field is not
+// applicable.
+type SecretKeyReference struct {
+	// Name of the Secret.
+	// +required
+	Name string `json:"name"`
+
+	// Key in the Secret, when not specified an implementation-specific default key is used.
+	// +optional
+	Key string `json:"key,omitempty"`
+}
