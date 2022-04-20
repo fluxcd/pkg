@@ -30,6 +30,21 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
+func TestMakeFsOnDiskSecure(t *testing.T) {
+	t.Run("error on root prefixed with allowed prefix", func(t *testing.T) {
+		g := NewWithT(t)
+
+		tmpDir := t.TempDir()
+		matchingDir := filepath.Join(tmpDir, "subdir")
+		g.Expect(os.Mkdir(matchingDir, 0o644)).To(Succeed())
+
+		got, err := MakeFsOnDiskSecure(filepath.Join(tmpDir, "subdir"), tmpDir)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("cannot be prefixed with"))
+		g.Expect(got).To(BeNil())
+	})
+}
+
 func Test_fsSecure_Create(t *testing.T) {
 	g := NewWithT(t)
 
@@ -264,6 +279,25 @@ func Test_fsSecure_CleanedAbs(t *testing.T) {
 		g.Expect(d).To(BeEmpty())
 		g.Expect(f).To(BeEmpty())
 	})
+
+	t.Run("prefix allowed cleaned abs", func(t *testing.T) {
+		g := NewWithT(t)
+
+		allowedPrefix, err := TmpConfirmedDirPrefix()
+		g.Expect(err).ToNot(HaveOccurred())
+
+		fs, err := MakeFsOnDiskSecureBuild(root, allowedPrefix)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		prefixedDir, err := os.MkdirTemp("", tmpConfirmedDirPrefix)
+		g.Expect(err).ToNot(HaveOccurred())
+		t.Cleanup(func() { _ = os.RemoveAll(prefixedDir) })
+
+		d, f, err := fs.CleanedAbs(prefixedDir)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(d).To(Equal(filesys.ConfirmedDir(prefixedDir)))
+		g.Expect(f).To(BeEmpty())
+	})
 }
 
 func Test_fsSecure_Exists(t *testing.T) {
@@ -415,17 +449,27 @@ func Test_fsSecure_Walk(t *testing.T) {
 }
 
 func Test_isSecurePath(t *testing.T) {
+	g := NewWithT(t)
+
+	prefixedDir, err := os.MkdirTemp("", tmpConfirmedDirPrefix)
+	g.Expect(err).ToNot(HaveOccurred())
+	t.Cleanup(func() { _ = os.RemoveAll(prefixedDir) })
+
+	allowPrefix, err := TmpConfirmedDirPrefix()
+	g.Expect(err).ToNot(HaveOccurred())
+
 	type file struct {
 		name    string
 		symlink string
 	}
 	tests := []struct {
-		name       string
-		fs         filesys.FileSystem
-		rootSuffix string
-		files      []file
-		path       string
-		wantErr    types.GomegaMatcher
+		name            string
+		fs              filesys.FileSystem
+		rootSuffix      string
+		files           []file
+		path            string
+		allowedPrefixes []string
+		wantErr         types.GomegaMatcher
 	}{
 		{
 			name:    "secure non existing path",
@@ -491,6 +535,20 @@ func Test_isSecurePath(t *testing.T) {
 			path:    "<root>/subdir/symlink",
 			wantErr: HaveOccurred(),
 		},
+		{
+			name:            "allowed prefix",
+			fs:              filesys.MakeFsOnDisk(),
+			path:            prefixedDir,
+			allowedPrefixes: []string{allowPrefix},
+			wantErr:         Succeed(),
+		},
+		{
+			name:            "illegal prefix",
+			fs:              filesys.MakeFsOnDisk(),
+			path:            filepath.Join(os.TempDir(), "illegal-path"),
+			allowedPrefixes: []string{allowPrefix},
+			wantErr:         HaveOccurred(),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -530,8 +588,31 @@ func Test_isSecurePath(t *testing.T) {
 				path = strings.Replace(path, "<root>", root, 1)
 			}
 
-			err := isSecurePath(tt.fs, realRoot, path)
+			err := isSecurePath(tt.fs, realRoot, path, tt.allowedPrefixes...)
 			g.Expect(err).To(tt.wantErr)
+		})
+	}
+}
+
+func Test_hasOneOfPrefixes(t *testing.T) {
+	tests := []struct {
+		name       string
+		s          string
+		prefixes   []string
+		want       bool
+		wantPrefix string
+	}{
+		{name: "match", s: "/tmp/kustomize-3828348", prefixes: []string{"/tmp/kustomize-"}, want: true, wantPrefix: "/tmp/kustomize-"},
+		{name: "not a match", s: "/tmp/workdir-6845913", prefixes: []string{"/tmp/kustomize-"}, want: false},
+		{name: "match list", s: "/tmp/workdir-6845913", prefixes: []string{"/tmp/kustomize-", "/tmp/workdir-"}, want: true, wantPrefix: "/tmp/workdir-"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			has, prefix := hasOneOfPrefixes(tt.s, tt.prefixes)
+			g.Expect(has).To(Equal(tt.want))
+			g.Expect(prefix).To(Equal(tt.wantPrefix))
 		})
 	}
 }

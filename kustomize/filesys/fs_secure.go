@@ -20,26 +20,65 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
+var (
+	// tmpConfirmedDirPrefix is the prefix used by filesys.NewTmpConfirmedDir(),
+	// the absolute prefix is the value prefixed with os.TempDir().
+	tmpConfirmedDirPrefix = "kustomize-"
+)
+
 // MakeFsOnDiskSecure returns a secure file system which asserts any paths it
-// handles to be inside root.
-func MakeFsOnDiskSecure(root string) (filesys.FileSystem, error) {
+// handles to be inside root. When allowed prefixes are provided, followed
+// absolute links are allowed to traverse into these directories.
+// The root is not allowed to match an allowed prefix, this to ensure an FS
+// instance can not reach into another FS when the allowed prefix configuration
+// is static.
+func MakeFsOnDiskSecure(root string, allowPrefixes ...string) (filesys.FileSystem, error) {
 	unsafeFS := filesys.MakeFsOnDisk()
 	cleanedAbs, _, err := unsafeFS.CleanedAbs(root)
 	if err != nil {
 		return nil, err
 	}
-	return fsSecure{root: cleanedAbs, unsafeFS: unsafeFS}, nil
+	if ok, prefix := hasOneOfPrefixes(cleanedAbs.String(), allowPrefixes); ok {
+		return nil, fmt.Errorf("root '%s' cannot be prefixed with '%s'", root, prefix)
+	}
+	return fsSecure{root: cleanedAbs, unsafeFS: unsafeFS, allowPrefixes: allowPrefixes}, nil
+}
+
+// TmpConfirmedDirPrefix returns the absolute prefix path as constructed by
+// filesys.NewTmpConfirmedDir().
+func TmpConfirmedDirPrefix() (string, error) {
+	// Some OS-es seem to symlink TempDir.
+	evaluated, err := filepath.EvalSymlinks(os.TempDir())
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(evaluated, tmpConfirmedDirPrefix), nil
+}
+
+// MakeFsOnDiskSecureBuild calls MakeFsOnDiskSecure, but configures the
+// TmpConfirmedDirPrefix as an allowed prefix.
+// NOTE: When e.g. being able to load remote bases is not a concern, opt to use
+// MakeFsOnDiskSecure instead, unless running into specific traversal issues.
+func MakeFsOnDiskSecureBuild(root string, allowPrefixes ...string) (filesys.FileSystem, error) {
+	dirPrefix, err := TmpConfirmedDirPrefix()
+	if err != nil {
+		return nil, err
+	}
+	allowPrefixes = append([]string{dirPrefix}, allowPrefixes...)
+	return MakeFsOnDiskSecure(root, allowPrefixes...)
 }
 
 // fsSecure wraps an unsafe FileSystem implementation, and secures it
 // by confirming paths are inside root.
 type fsSecure struct {
-	root     filesys.ConfirmedDir
-	unsafeFS filesys.FileSystem
+	root          filesys.ConfirmedDir
+	unsafeFS      filesys.FileSystem
+	allowPrefixes []string
 }
 
 // ConstraintError records an error and the operation and file that
@@ -60,7 +99,7 @@ func (e *ConstraintError) Unwrap() error { return e.Err }
 // to be inside root. If the provided path violates this constraint, an error
 // of type ConstraintError is returned.
 func (fs fsSecure) Create(path string) (filesys.File, error) {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return nil, &ConstraintError{Op: "create", Path: path, Err: err}
 	}
 	return fs.unsafeFS.Create(path)
@@ -70,7 +109,7 @@ func (fs fsSecure) Create(path string) (filesys.File, error) {
 // to be inside root. If the provided path violates this constraint, an error
 // of type ConstraintError is returned.
 func (fs fsSecure) Mkdir(path string) error {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return &ConstraintError{Op: "mkdir", Path: path, Err: err}
 	}
 	return fs.unsafeFS.Mkdir(path)
@@ -80,7 +119,7 @@ func (fs fsSecure) Mkdir(path string) error {
 // to be inside root. If the provided path violates this constraint, an error
 // type ConstraintError is returned.
 func (fs fsSecure) MkdirAll(path string) error {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return &ConstraintError{Op: "mkdir", Path: path, Err: err}
 	}
 	return fs.unsafeFS.MkdirAll(path)
@@ -90,7 +129,7 @@ func (fs fsSecure) MkdirAll(path string) error {
 // path to be inside root. If the provided path violates this constraint, an
 // error of type ConstraintError is returned.
 func (fs fsSecure) RemoveAll(path string) error {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return &ConstraintError{Op: "remove", Path: path, Err: err}
 	}
 	return fs.unsafeFS.RemoveAll(path)
@@ -100,7 +139,7 @@ func (fs fsSecure) RemoveAll(path string) error {
 // to be inside root. If the provided path violates this constraint, an error
 // of type ConstraintError is returned.
 func (fs fsSecure) Open(path string) (filesys.File, error) {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return nil, &ConstraintError{Op: "open", Path: path, Err: err}
 	}
 	return fs.unsafeFS.Open(path)
@@ -110,7 +149,7 @@ func (fs fsSecure) Open(path string) (filesys.File, error) {
 // to be inside root. If the provided path violates this constraint, it returns
 // false.
 func (fs fsSecure) IsDir(path string) bool {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return false
 	}
 	return fs.unsafeFS.IsDir(path)
@@ -120,7 +159,7 @@ func (fs fsSecure) IsDir(path string) bool {
 // to be inside root. If the provided path violates this constraint, an error
 // of type ConstraintError is returned.
 func (fs fsSecure) ReadDir(path string) ([]string, error) {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return nil, &ConstraintError{Op: "open", Path: path, Err: err}
 	}
 	return fs.unsafeFS.ReadDir(path)
@@ -136,6 +175,9 @@ func (fs fsSecure) CleanedAbs(path string) (filesys.ConfirmedDir, string, error)
 	if err != nil {
 		return d, f, err
 	}
+	if ok, _ := hasOneOfPrefixes(d.String(), fs.allowPrefixes); ok {
+		return d, f, err
+	}
 	if !d.HasPrefix(fs.root) {
 		return "", "", &ConstraintError{Op: "abs", Path: path, Err: rootConstraintErr(path, fs.root.String())}
 	}
@@ -146,7 +188,7 @@ func (fs fsSecure) CleanedAbs(path string) (filesys.ConfirmedDir, string, error)
 // to be inside root. If the provided path violates this constraint, it returns
 // false.
 func (fs fsSecure) Exists(path string) bool {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return false
 	}
 	return fs.unsafeFS.Exists(path)
@@ -161,7 +203,7 @@ func (fs fsSecure) Glob(pattern string) ([]string, error) {
 	}
 	var securePaths []string
 	for _, p := range paths {
-		if err := isSecurePath(fs.unsafeFS, fs.root, p); err == nil {
+		if err := isSecurePath(fs.unsafeFS, fs.root, p, fs.allowPrefixes...); err == nil {
 			securePaths = append(securePaths, p)
 		}
 	}
@@ -172,7 +214,7 @@ func (fs fsSecure) Glob(pattern string) ([]string, error) {
 // to be inside root. If the provided path violates this constraint, an error
 // of type ConstraintError is returned.
 func (fs fsSecure) ReadFile(path string) ([]byte, error) {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return nil, &ConstraintError{Op: "read", Path: path, Err: err}
 	}
 	return fs.unsafeFS.ReadFile(path)
@@ -182,7 +224,7 @@ func (fs fsSecure) ReadFile(path string) ([]byte, error) {
 // path to be inside root. If the provided path violates this constraint, an
 // error of type ConstraintError is returned.
 func (fs fsSecure) WriteFile(path string, data []byte) error {
-	if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+	if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 		return &ConstraintError{Op: "write", Path: path, Err: err}
 	}
 	return fs.unsafeFS.WriteFile(path, data)
@@ -193,7 +235,7 @@ func (fs fsSecure) WriteFile(path string, data []byte) error {
 // an error of type ConstraintError is returned and walkFn is not called.
 func (fs fsSecure) Walk(path string, walkFn filepath.WalkFunc) error {
 	wrapWalkFn := func(path string, info os.FileInfo, err error) error {
-		if err := isSecurePath(fs.unsafeFS, fs.root, path); err != nil {
+		if err := isSecurePath(fs.unsafeFS, fs.root, path, fs.allowPrefixes...); err != nil {
 			return &ConstraintError{Op: "walk", Path: path, Err: err}
 		}
 		return walkFn(path, info, err)
@@ -204,12 +246,12 @@ func (fs fsSecure) Walk(path string, walkFn filepath.WalkFunc) error {
 // isSecurePath confirms the given path is inside root using the provided file
 // system. At present, it assumes the file system implementation to be on disk
 // and makes use of filepath.EvalSymlinks.
-func isSecurePath(fs filesys.FileSystem, root filesys.ConfirmedDir, path string) error {
+func isSecurePath(fs filesys.FileSystem, root filesys.ConfirmedDir, path string, allowedPrefixes ...string) error {
 	absRoot, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("abs path error on '%s': %v", path, err)
 	}
-	d := filesys.ConfirmedDir(filepath.Dir(absRoot))
+	d := filesys.ConfirmedDir(absRoot)
 	if fs.Exists(absRoot) {
 		evaluated, err := filepath.EvalSymlinks(absRoot)
 		if err != nil {
@@ -221,6 +263,9 @@ func isSecurePath(fs filesys.FileSystem, root filesys.ConfirmedDir, path string)
 		}
 		d = filesys.ConfirmedDir(evaluatedDir)
 	}
+	if ok, _ := hasOneOfPrefixes(d.String(), allowedPrefixes); ok {
+		return nil
+	}
 	if !d.HasPrefix(root) {
 		return rootConstraintErr(path, root.String())
 	}
@@ -229,4 +274,13 @@ func isSecurePath(fs filesys.FileSystem, root filesys.ConfirmedDir, path string)
 
 func rootConstraintErr(path, root string) error {
 	return fmt.Errorf("path '%s' is not in or below '%s'", path, root)
+}
+
+func hasOneOfPrefixes(s string, prefixes []string) (bool, string) {
+	for _, p := range prefixes {
+		if strings.HasPrefix(s, p) {
+			return true, p
+		}
+	}
+	return false, ""
 }
