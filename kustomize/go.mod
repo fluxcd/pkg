@@ -2,9 +2,10 @@ module github.com/fluxcd/pkg/kustomize
 
 go 1.17
 
+replace github.com/fluxcd/pkg/apis/kustomize => ../apis/kustomize
+
 require (
 	github.com/drone/envsubst/v2 v2.0.0-20210730161058-179042472c46
-	github.com/fluxcd/kustomize-controller/api v0.22.3
 	github.com/fluxcd/pkg/apis/kustomize v0.3.2
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/gomega v1.18.1
@@ -22,7 +23,6 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
-	github.com/fluxcd/pkg/apis/meta v0.12.1 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-logr/logr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect

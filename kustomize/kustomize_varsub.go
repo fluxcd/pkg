@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/drone/envsubst/v2"
-	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,9 +41,10 @@ const (
 )
 
 const (
-	postBuildField      = "postBuild"
-	substituteFromField = "substituteFrom"
-	substituteField     = "substitute"
+	postBuildField          = "postBuild"
+	substituteFromField     = "substituteFrom"
+	substituteField         = "substitute"
+	substituteAnnotationKey = "kustomize.toolkit.fluxcd.io/substitute"
 )
 
 // SubstituteVariables replaces the vars with their values in the specified resource.
@@ -60,9 +60,7 @@ func SubstituteVariables(
 		return nil, err
 	}
 
-	key := fmt.Sprintf("%s/substitute", kustomizev1.GroupVersion.Group)
-
-	if res.GetLabels()[key] == DisabledValue || res.GetAnnotations()[key] == DisabledValue {
+	if res.GetLabels()[substituteAnnotationKey] == DisabledValue || res.GetAnnotations()[substituteAnnotationKey] == DisabledValue {
 		return nil, nil
 	}
 
