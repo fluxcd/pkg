@@ -27,13 +27,18 @@ import (
 )
 
 // ScanHostKey collects the given host's preferred public key for the
-// Any errors (e.g. authentication  failures) are ignored, except if
-// no key could be collected from the host.
-func ScanHostKey(host string, timeout time.Duration) ([]byte, error) {
+// host. Any errors (e.g. authentication  failures) are ignored, except
+// if no key could be collected from the host.
+//
+// clientHostKeyAlgos defines what HostKey algorithms to be
+// used by the ssh client when using `ssh.Dial`. The default is
+// empty, which defaults to Golang's preferred HostKey algorithms.
+func ScanHostKey(host string, timeout time.Duration, clientHostKeyAlgos []string) ([]byte, error) {
 	col := &HostKeyCollector{}
 	config := &ssh.ClientConfig{
-		HostKeyCallback: col.StoreKey(),
-		Timeout:         timeout,
+		HostKeyCallback:   col.StoreKey(),
+		Timeout:           timeout,
+		HostKeyAlgorithms: clientHostKeyAlgos,
 	}
 	client, err := ssh.Dial("tcp", host, config)
 	if err == nil {
