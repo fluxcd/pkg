@@ -28,16 +28,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fluxcd/gitkit"
 	"github.com/go-git/go-billy/v5/memfs"
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/storage/memory"
-	"github.com/sosedoff/gitkit"
+
+	"golang.org/x/crypto/ssh"
 )
 
-var m sync.RWMutex
+var (
+	m sync.RWMutex
+
+	// publicKeyLookupFunc defines the function responsible for
+	// authenticating SSH requests. By default accept all public
+	// keys.
+	publicKeyLookupFunc = acceptAllPublicKeys
+)
 
 // NewTempGitServer returns a GitServer with a newly created temp
 // dir as repository docroot.
@@ -64,15 +73,22 @@ func NewGitServer(docroot string) *GitServer {
 	}
 }
 
+// WithSSHConfig sets the ssh.ServerConfig for the SSH Server.
+func (g *GitServer) WithSSHConfig(cfg *ssh.ServerConfig) *GitServer {
+	g.sshServerConfig = cfg
+	return g
+}
+
 // HTTPMiddleware is a git http server middleware.
 type HTTPMiddleware func(http.Handler) http.Handler
 
 // GitServer is a git server for testing purposes.
 // It can serve git repositories over HTTP and SSH.
 type GitServer struct {
-	config     gitkit.Config
-	httpServer *httptest.Server
-	sshServer  *gitkit.SSH
+	config          gitkit.Config
+	sshServerConfig *ssh.ServerConfig
+	httpServer      *httptest.Server
+	sshServer       *gitkit.SSH
 	// Set these to configure HTTP auth
 	username, password string
 	httpMiddlewares    []HTTPMiddleware
@@ -186,6 +202,17 @@ func (s *GitServer) StopHTTP() {
 	return
 }
 
+// PublicKeyLookupFunc sets the function to be used for SSH authentication.
+func (s *GitServer) PublicKeyLookupFunc(f func(content string) (*gitkit.PublicKey, error)) {
+	publicKeyLookupFunc = f
+}
+
+// acceptAllPublicKeys represents the default function for authenticating SSH
+// requests. It accept all public keys and sets PublicKey Id to 'test-user'.
+func acceptAllPublicKeys(content string) (*gitkit.PublicKey, error) {
+	return &gitkit.PublicKey{Id: "test-user"}, nil
+}
+
 // ListenSSH creates an SSH server and a listener if not already
 // created, but does not handle connections. This returns immediately,
 // unlike StartSSH(), and the server URL is available with
@@ -200,10 +227,12 @@ func (s *GitServer) ListenSSH() error {
 		defer m.Unlock()
 		s.sshServer = gitkit.NewSSH(s.config)
 
-		// This is where authentication would happen, when needed.
-		s.sshServer.PublicKeyLookupFunc = func(content string) (*gitkit.PublicKey, error) {
-			return &gitkit.PublicKey{Id: "test-user"}, nil
+		if s.sshServerConfig != nil {
+			s.sshServer.SetSSHConfig(s.sshServerConfig)
 		}
+
+		// This is where authentication would happen, when needed.
+		s.sshServer.PublicKeyLookupFunc = publicKeyLookupFunc
 
 		// :0 should result in an OS assigned free port; 127.0.0.1
 		// forces the lowest common denominator of TCPv4 on localhost.
