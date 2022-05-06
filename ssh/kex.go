@@ -21,7 +21,6 @@ import "golang.org/x/crypto/ssh"
 // These string constants are copied from golang/crypto
 // https://github.com/golang/crypto/blob/0c34fe9e7dc2486962ef9867e3edb3503537209f/ssh/kex.go#L23-L34
 const (
-	kexAlgoDH1SHA1          = "diffie-hellman-group1-sha1"
 	kexAlgoDH14SHA1         = "diffie-hellman-group14-sha1"
 	kexAlgoECDH256          = "ecdh-sha2-nistp256"
 	kexAlgoECDH384          = "ecdh-sha2-nistp384"
