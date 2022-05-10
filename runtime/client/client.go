@@ -17,8 +17,12 @@ limitations under the License.
 package client
 
 import (
+	"context"
+	"log"
+
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/cli-utils/pkg/flowcontrol"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -61,9 +65,23 @@ func (o *Options) BindFlags(fs *pflag.FlagSet) {
 		"The maximum burst queries-per-second of requests sent to the Kubernetes API.")
 }
 
-// GetConfigOrDie wraps ctrl.GetConfigOrDie and sets the configured Options, returning the modified rest.Config.
+// GetConfigOrDie wraps ctrl.GetConfigOrDie and checks if the Kubernetes apiserver
+// has PriorityAndFairness flow control filter enabled. If true, it returns a rest.Config
+// with client side throttling disabled. Otherwise, it returns a modified rest.Config
+// configured with the provided Options.
 func GetConfigOrDie(opts Options) *rest.Config {
 	config := ctrl.GetConfigOrDie()
+	enabled, err := flowcontrol.IsEnabled(context.Background(), config)
+	if err != nil {
+		log.Fatalf("could not check if the server has PriorityAndFairness flow control filter enabled: %s", err)
+	}
+	// A negative QPS and Burst indicates that the client should not have a rate limiter.
+	// Ref: https://github.com/kubernetes/kubernetes/blob/v1.24.0/staging/src/k8s.io/client-go/rest/config.go#L354-L364
+	if enabled {
+		config.QPS = -1
+		config.Burst = -1
+		return config
+	}
 	config.QPS = opts.QPS
 	config.Burst = opts.Burst
 	return config
