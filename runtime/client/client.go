@@ -18,7 +18,6 @@ package client
 
 import (
 	"context"
-	"log"
 
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/rest"
@@ -72,12 +71,9 @@ func (o *Options) BindFlags(fs *pflag.FlagSet) {
 func GetConfigOrDie(opts Options) *rest.Config {
 	config := ctrl.GetConfigOrDie()
 	enabled, err := flowcontrol.IsEnabled(context.Background(), config)
-	if err != nil {
-		log.Fatalf("could not check if the server has PriorityAndFairness flow control filter enabled: %s", err)
-	}
-	// A negative QPS and Burst indicates that the client should not have a rate limiter.
-	// Ref: https://github.com/kubernetes/kubernetes/blob/v1.24.0/staging/src/k8s.io/client-go/rest/config.go#L354-L364
-	if enabled {
+	if err == nil && enabled {
+		// A negative QPS and Burst indicates that the client should not have a rate limiter.
+		// Ref: https://github.com/kubernetes/kubernetes/blob/v1.24.0/staging/src/k8s.io/client-go/rest/config.go#L354-L364
 		config.QPS = -1
 		config.Burst = -1
 		return config
