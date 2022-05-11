@@ -24,6 +24,7 @@ require (
 	k8s.io/client-go v0.23.5
 	k8s.io/component-base v0.23.5
 	k8s.io/klog/v2 v2.50.0
+	sigs.k8s.io/cli-utils v0.30.0
 	sigs.k8s.io/controller-runtime v0.11.2
 )
 
@@ -38,7 +39,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/google/uuid v1.2.0 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
