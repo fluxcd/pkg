@@ -85,7 +85,7 @@ func TestScanHost(t *testing.T) {
 
 			go startSSH(listener, sshConfig)
 
-			kh, err := ScanHostKey(serverAddr, 5*time.Second, []string{tt.sshKeyTypeName})
+			kh, err := ScanHostKey(serverAddr, 5*time.Second, []string{tt.sshKeyTypeName}, false)
 			if tt.wantErr == "" {
 				g.Expect(err).NotTo(HaveOccurred())
 				// Confirm the returned key is of expected type.
