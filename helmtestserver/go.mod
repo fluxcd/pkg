@@ -11,6 +11,9 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
+// Fix CVE-2022-28948
+replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.0
+
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.0.0 // indirect
