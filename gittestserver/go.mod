@@ -9,6 +9,9 @@ require (
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 )
 
+// Fix CVE-2022-28948
+replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.0
+
 require (
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20210428141323-04723f9f07d7 // indirect
