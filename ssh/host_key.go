@@ -36,10 +36,15 @@ import (
 func ScanHostKey(host string, timeout time.Duration, clientHostKeyAlgos []string, hashKeys bool) ([]byte, error) {
 	col := &HostKeyCollector{hashKeys: hashKeys}
 	config := &ssh.ClientConfig{
-		HostKeyCallback:   col.StoreKey(),
-		Timeout:           timeout,
-		HostKeyAlgorithms: clientHostKeyAlgos,
+		HostKeyCallback: col.StoreKey(),
+		Timeout:         timeout,
 	}
+	config.SetDefaults()
+
+	if len(clientHostKeyAlgos) > 0 {
+		config.HostKeyAlgorithms = clientHostKeyAlgos
+	}
+
 	client, err := ssh.Dial("tcp", host, config)
 	if err == nil {
 		defer client.Close()
