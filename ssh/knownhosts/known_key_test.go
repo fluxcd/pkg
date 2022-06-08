@@ -17,7 +17,6 @@ limitations under the License.
 package knownhosts
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
 	"testing"
 
@@ -91,7 +90,6 @@ func Test_matchHashedHost(t *testing.T) {
 }
 
 func Test_parseKnownHosts_matches(t *testing.T) {
-	hasher := sha256.New()
 	tests := []struct {
 		name        string
 		fingerprint []byte
@@ -117,7 +115,7 @@ func Test_parseKnownHosts_matches(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			matches := knownKeys[0].Matches("github.com", tt.fingerprint, hasher)
+			matches := knownKeys[0].Matches("github.com", tt.fingerprint)
 			g.Expect(matches).To(Equal(tt.wantMatches))
 		})
 	}

@@ -21,9 +21,9 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"hash"
 	"io"
 	"strings"
 
@@ -67,10 +67,11 @@ func ParseKnownHosts(s string) ([]KnownKey, error) {
 
 // Matches checks if the specified host is present and if the fingerprint matches
 // the present public key key.
-func (k KnownKey) Matches(host string, fingerprint []byte, hasher hash.Hash) bool {
+func (k KnownKey) Matches(host string, fingerprint []byte) bool {
 	if !containsHost(k.hosts, host) {
 		return false
 	}
+	hasher := sha256.New()
 	hasher.Write(k.key.Marshal())
 	return bytes.Equal(hasher.Sum(nil), fingerprint)
 }
