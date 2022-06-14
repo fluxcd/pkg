@@ -52,7 +52,7 @@ func Test_MaskTokenFromError(t *testing.T) {
 			name:           "return error on invalid UTF-8 string",
 			token:          "\x18\xd0\xfa\xab\xb2\x93\xbb;\xc0l\xf4\xdc",
 			originalErrStr: `Cannot post to github with token \x18\xd0\xfa\xab\xb2\x93\xbb;\xc0l\xf4\xdc\\n`,
-			expectedErrStr: `error redacting token from error message`,
+			expectedErrStr: `error redacting token from string`,
 		},
 		{
 			name:           "unescaped token",
@@ -71,8 +71,8 @@ func Test_MaskTokenFromError(t *testing.T) {
 	for _, tt := range tests {
 		returnedStr := MaskTokenFromString(tt.originalErrStr, tt.token)
 		if !strings.Contains(returnedStr, tt.expectedErrStr) {
-			t.Errorf("expected error string '%s' but got '%s'",
-				tt.expectedErrStr, returnedStr)
+			t.Errorf("expected returned string '%s' to contain '%s'",
+				returnedStr, tt.expectedErrStr)
 		}
 	}
 
