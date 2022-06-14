@@ -25,6 +25,7 @@ func Test_MaskTokenFromError(t *testing.T) {
 	tests := []struct {
 		name           string
 		token          string
+		expectErr      bool
 		originalErrStr string
 		expectedErrStr string
 	}{
@@ -68,7 +69,8 @@ func Test_MaskTokenFromError(t *testing.T) {
 			name:           "return error on invalid UTF-8 string",
 			token:          "\x18\xd0\xfa\xab\xb2\x93\xbb;\xc0l\xf4\xdc",
 			originalErrStr: `Cannot post to github with token \x18\xd0\xfa\xab\xb2\x93\xbb;\xc0l\xf4\xdc\\n`,
-			expectedErrStr: `error redacting token from string`,
+			expectedErrStr: ``,
+			expectErr:      true,
 		},
 		{
 			name:           "unescaped token",
@@ -85,7 +87,15 @@ func Test_MaskTokenFromError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		returnedStr := MaskTokenFromString(tt.originalErrStr, tt.token)
+		returnedStr, err := MaskTokenFromString(tt.originalErrStr, tt.token)
+		if tt.expectErr && err == nil {
+			t.Fatalf("expected error for token: %s", tt.token)
+		}
+
+		if !tt.expectErr && err != nil {
+			t.Fatalf("returned unexpected error: %s", err)
+		}
+
 		if !strings.Contains(returnedStr, tt.expectedErrStr) {
 			t.Errorf("expected returned string '%s' to contain '%s'",
 				returnedStr, tt.expectedErrStr)
