@@ -21,18 +21,21 @@ import (
 	"regexp"
 )
 
-func MaskTokenFromString(log string, token string) string {
+// MaskTokenFromString redacts all matches for the given token from the provided string,
+// replacing them with "*****".
+// The token is expected to be a valid UTF-8 string.
+// This can for example be used to remove sensitive information from error messages.
+func MaskTokenFromString(log string, token string) (string, error) {
 	if token == "" {
-		return log
+		return log, nil
 	}
 
-	re, compileErr := regexp.Compile(fmt.Sprintf("%s*", regexp.QuoteMeta(token)))
-	if compileErr != nil {
-		newErrStr := fmt.Sprintf("error redacting token from string: %s", compileErr)
-		return newErrStr
+	re, err := regexp.Compile(fmt.Sprintf("%s*", regexp.QuoteMeta(token)))
+	if err != nil {
+		return "", err
 	}
 
 	redacted := re.ReplaceAllString(log, "*****")
 
-	return redacted
+	return redacted, nil
 }
