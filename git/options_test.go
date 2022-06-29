@@ -172,7 +172,7 @@ func TestAuthOptions_Validate(t *testing.T) {
 	}
 }
 
-func TestAuthOptionsFromSecret(t *testing.T) {
+func TestAuthOptionsFromData(t *testing.T) {
 	tests := []struct {
 		name     string
 		URL      string
@@ -236,15 +236,13 @@ func TestAuthOptionsFromSecret(t *testing.T) {
 			wantErr: "invalid 'ssh' auth option: 'known_hosts' is required",
 		},
 		{
-			name:    "Errors without secret",
-			data:    nil,
-			wantErr: "no secret provided to construct auth strategy from",
-		},
-		{
-			name:    "Errors on malformed URL",
-			URL:     ":example",
-			data:    nil,
-			wantErr: "failed to parse URL to determine auth strategy",
+			name: "Returns a minimal auth options without any data",
+			URL:  "http://example.com",
+			data: nil,
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Host).To(Equal("example.com"))
+				g.Expect(opts.Transport).To(Equal(HTTP))
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -252,9 +250,9 @@ func TestAuthOptionsFromSecret(t *testing.T) {
 			g := NewWithT(t)
 
 			url, err := url.Parse(tt.URL)
-			g.Expect(err).To(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 
-			got, err := AuthOptionsFromMap(*url, tt.data)
+			got, err := NewAuthOptions(*url, tt.data)
 			if tt.wantErr != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))

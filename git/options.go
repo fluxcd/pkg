@@ -110,13 +110,13 @@ func (o AuthOptions) Validate() error {
 	return nil
 }
 
-// AuthOptionsFromMap constructs an AuthOptions object from the given map.
+// NewAuthOptions constructs an AuthOptions object from the given map.
 // If the map is empty, it returns a minimal AuthOptions object after
 // validating the result.
-func AuthOptionsFromMap(u url.URL, data map[string][]byte) (*AuthOptions, error) {
-	opts := &AuthOptions{
-		Transport: TransportType(u.Scheme),
-		Host:      u.Host,
+func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
+	opts, err := newAuthOptions(u)
+	if err != nil {
+		return nil, err
 	}
 	if len(data) > 0 {
 		opts.Username = string(data["username"])
@@ -124,12 +124,16 @@ func AuthOptionsFromMap(u url.URL, data map[string][]byte) (*AuthOptions, error)
 		opts.CAFile = data["caFile"]
 		opts.Identity = data["identity"]
 		opts.KnownHosts = data["known_hosts"]
-		if opts.Username == "" {
-			opts.Username = u.User.Username()
-		}
-		if opts.Username == "" {
-			opts.Username = DefaultPublicKeyAuthUser
-		}
+	}
+
+	if opts.Username == "" {
+		opts.Username = u.User.Username()
+	}
+	if opts.Username == "" {
+		opts.Username = DefaultPublicKeyAuthUser
+	}
+	if opts.Password == "" {
+		opts.Password, _ = u.User.Password()
 	}
 
 	if err := opts.Validate(); err != nil {
@@ -139,22 +143,13 @@ func AuthOptionsFromMap(u url.URL, data map[string][]byte) (*AuthOptions, error)
 	return opts, nil
 }
 
-// NewAuthOptions constructs a minimal AuthOptions object from the
+// newAuthOptions constructs a minimal AuthOptions object from the
 // given URL and then validates the result. It returns the AuthOptions, or an
 // error.
-func NewAuthOptions(URL string) (*AuthOptions, error) {
-	u, err := url.Parse(URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL to determine auth strategy: %w", err)
-	}
-
+func newAuthOptions(u url.URL) (*AuthOptions, error) {
 	opts := &AuthOptions{
 		Transport: TransportType(u.Scheme),
 		Host:      u.Host,
-	}
-
-	if err = opts.Validate(); err != nil {
-		return nil, err
 	}
 
 	return opts, nil

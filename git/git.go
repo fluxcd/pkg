@@ -89,7 +89,7 @@ func (c *Commit) Verify(keyRing ...string) (string, error) {
 			return "", fmt.Errorf("unable to read armored key ring: %w", err)
 		}
 		signer, err := openpgp.CheckArmoredDetachedSignature(keyring, bytes.NewBuffer(c.Encoded), bytes.NewBufferString(c.Signature), nil)
-		if err == nil && len(signer.PrimaryKey.Fingerprint) > 20 {
+		if err == nil && len(signer.PrimaryKey.Fingerprint) >= 20 {
 			return fmt.Sprintf("%X", signer.PrimaryKey.Fingerprint[12:20]), nil
 		}
 	}
@@ -134,6 +134,11 @@ type GitClient interface {
 	// the client's lifecycle.
 	Free()
 }
+
+const (
+	// GoGitClient for performing Git operations using go-git.
+	GoGitClient = "go-git"
+)
 
 // ErrRepositoryNotFound indicates that the repository (or the ref in
 // question) does not exist at the given URL.
