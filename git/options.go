@@ -19,8 +19,6 @@ package git
 import (
 	"fmt"
 	"net/url"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -112,35 +110,29 @@ func (o AuthOptions) Validate() error {
 	return nil
 }
 
-// AuthOptionsFromSecret constructs an AuthOptions object from the given Secret,
-// and then validates the result. It returns the AuthOptions, or an error.
-func AuthOptionsFromMap(URL string, data map[string][]byte) (*AuthOptions, error) {
-	if len(data) == 0 {
-		return nil, fmt.Errorf("no secret provided to construct auth strategy from")
-	}
-
-	u, err := url.Parse(URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL to determine auth strategy: %w", err)
-	}
-
+// AuthOptionsFromMap constructs an AuthOptions object from the given map.
+// If the map is empty, it returns a minimal AuthOptions object after
+// validating the result.
+func AuthOptionsFromMap(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 	opts := &AuthOptions{
-		Transport:  TransportType(u.Scheme),
-		Host:       u.Host,
-		Username:   string(data["username"]),
-		Password:   string(data["password"]),
-		CAFile:     data["caFile"],
-		Identity:   data["identity"],
-		KnownHosts: data["known_hosts"],
+		Transport: TransportType(u.Scheme),
+		Host:      u.Host,
 	}
-	if opts.Username == "" {
-		opts.Username = u.User.Username()
-	}
-	if opts.Username == "" {
-		opts.Username = DefaultPublicKeyAuthUser
+	if len(data) > 0 {
+		opts.Username = string(data["username"])
+		opts.Password = string(data["password"])
+		opts.CAFile = data["caFile"]
+		opts.Identity = data["identity"]
+		opts.KnownHosts = data["known_hosts"]
+		if opts.Username == "" {
+			opts.Username = u.User.Username()
+		}
+		if opts.Username == "" {
+			opts.Username = DefaultPublicKeyAuthUser
+		}
 	}
 
-	if err = opts.Validate(); err != nil {
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -151,62 +143,6 @@ func AuthOptionsFromMap(URL string, data map[string][]byte) (*AuthOptions, error
 // given URL and then validates the result. It returns the AuthOptions, or an
 // error.
 func NewAuthOptions(URL string) (*AuthOptions, error) {
-	u, err := url.Parse(URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL to determine auth strategy: %w", err)
-	}
-
-	opts := &AuthOptions{
-		Transport: TransportType(u.Scheme),
-		Host:      u.Host,
-	}
-
-	if err = opts.Validate(); err != nil {
-		return nil, err
-	}
-
-	return opts, nil
-}
-
-// AuthOptionsFromSecret constructs an AuthOptions object from the given Secret,
-// and then validates the result. It returns the AuthOptions, or an error.
-func AuthOptionsFromSecret(URL string, secret *v1.Secret) (*AuthOptions, error) {
-	if secret == nil {
-		return nil, fmt.Errorf("no secret provided to construct auth strategy from")
-	}
-
-	u, err := url.Parse(URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL to determine auth strategy: %w", err)
-	}
-
-	opts := &AuthOptions{
-		Transport:  TransportType(u.Scheme),
-		Host:       u.Host,
-		Username:   string(secret.Data["username"]),
-		Password:   string(secret.Data["password"]),
-		CAFile:     secret.Data["caFile"],
-		Identity:   secret.Data["identity"],
-		KnownHosts: secret.Data["known_hosts"],
-	}
-	if opts.Username == "" {
-		opts.Username = u.User.Username()
-	}
-	if opts.Username == "" {
-		opts.Username = DefaultPublicKeyAuthUser
-	}
-
-	if err = opts.Validate(); err != nil {
-		return nil, err
-	}
-
-	return opts, nil
-}
-
-// AuthOptionsWithoutSecret constructs a minimal AuthOptions object from the
-// given URL and then validates the result. It returns the AuthOptions, or an
-// error.
-func AuthOptionsWithoutSecret(URL string) (*AuthOptions, error) {
 	u, err := url.Parse(URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL to determine auth strategy: %w", err)

@@ -17,10 +17,10 @@ limitations under the License.
 package git
 
 import (
+	"net/url"
 	"testing"
 
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -176,23 +176,22 @@ func TestAuthOptionsFromSecret(t *testing.T) {
 	tests := []struct {
 		name     string
 		URL      string
-		secret   *v1.Secret
-		wantFunc func(g *WithT, opts *AuthOptions, secret *v1.Secret)
+		data     map[string][]byte
+		wantFunc func(g *WithT, opts *AuthOptions)
 		wantErr  string
 	}{
 		{
 			name: "Sets values from Secret",
 			URL:  "https://git@example.com",
-			secret: &v1.Secret{
-				Data: map[string][]byte{
-					"username":    []byte("example"), // This takes precedence over the one from the URL
-					"password":    []byte("secret"),
-					"identity":    []byte(privateKeyFixture),
-					"known_hosts": []byte(knownHostsFixture),
-					"caFile":      []byte("mock"),
-				},
+			data: map[string][]byte{
+				"username":    []byte("example"), // This takes precedence over the one from the URL
+				"password":    []byte("secret"),
+				"identity":    []byte(privateKeyFixture),
+				"known_hosts": []byte(knownHostsFixture),
+				"caFile":      []byte("mock"),
 			},
-			wantFunc: func(g *WithT, opts *AuthOptions, secret *v1.Secret) {
+
+			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal("example"))
 				g.Expect(opts.Password).To(Equal("secret"))
 				g.Expect(opts.Identity).To(BeEquivalentTo(privateKeyFixture))
@@ -201,30 +200,29 @@ func TestAuthOptionsFromSecret(t *testing.T) {
 			},
 		},
 		{
-			name:   "Sets default user",
-			URL:    "http://example.com",
-			secret: &v1.Secret{},
-			wantFunc: func(g *WithT, opts *AuthOptions, secret *v1.Secret) {
+			name: "Sets default user",
+			URL:  "http://example.com",
+			data: nil,
+			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal(DefaultPublicKeyAuthUser))
 			},
 		},
 		{
-			name:   "Sets transport from URL",
-			URL:    "http://git@example.com",
-			secret: &v1.Secret{},
-			wantFunc: func(g *WithT, opts *AuthOptions, secret *v1.Secret) {
+			name: "Sets transport from URL",
+			URL:  "http://git@example.com",
+			data: nil,
+			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Transport).To(Equal(HTTP))
 			},
 		},
 		{
 			name: "Sets user from URL",
 			URL:  "http://example@example.com",
-			secret: &v1.Secret{
-				Data: map[string][]byte{
-					"password": []byte("secret"),
-				},
+			data: map[string][]byte{
+				"password": []byte("secret"),
 			},
-			wantFunc: func(g *WithT, opts *AuthOptions, secret *v1.Secret) {
+
+			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal("example"))
 				g.Expect(opts.Password).To(Equal("secret"))
 			},
@@ -232,22 +230,20 @@ func TestAuthOptionsFromSecret(t *testing.T) {
 		{
 			name: "Validates options",
 			URL:  "ssh://example.com",
-			secret: &v1.Secret{
-				Data: map[string][]byte{
-					"identity": []byte(privateKeyFixture),
-				},
+			data: map[string][]byte{
+				"identity": []byte(privateKeyFixture),
 			},
 			wantErr: "invalid 'ssh' auth option: 'known_hosts' is required",
 		},
 		{
 			name:    "Errors without secret",
-			secret:  nil,
+			data:    nil,
 			wantErr: "no secret provided to construct auth strategy from",
 		},
 		{
 			name:    "Errors on malformed URL",
 			URL:     ":example",
-			secret:  &v1.Secret{},
+			data:    nil,
 			wantErr: "failed to parse URL to determine auth strategy",
 		},
 	}
@@ -255,7 +251,10 @@ func TestAuthOptionsFromSecret(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			got, err := AuthOptionsFromSecret(tt.URL, tt.secret)
+			url, err := url.Parse(tt.URL)
+			g.Expect(err).To(HaveOccurred())
+
+			got, err := AuthOptionsFromMap(*url, tt.data)
 			if tt.wantErr != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
@@ -265,7 +264,7 @@ func TestAuthOptionsFromSecret(t *testing.T) {
 
 			g.Expect(err).To(BeNil())
 			if tt.wantFunc != nil {
-				tt.wantFunc(g, got, tt.secret)
+				tt.wantFunc(g, got)
 			}
 		})
 	}
