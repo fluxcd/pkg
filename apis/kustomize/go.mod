@@ -5,7 +5,7 @@ go 1.17
 require k8s.io/apiextensions-apiserver v0.24.1
 
 // Fix CVE-2022-28948
-replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.0
+replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
 
 require (
 	github.com/go-logr/logr v1.2.2 // indirect
