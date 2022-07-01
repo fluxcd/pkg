@@ -2,6 +2,13 @@ module github.com/fluxcd/pkg/git
 
 go 1.17
 
+replace (
+	github.com/fluxcd/pkg/gittestserver => ../gittestserver
+	github.com/fluxcd/pkg/gitutil => ../gitutil
+	github.com/fluxcd/pkg/ssh => ../ssh
+	github.com/fluxcd/pkg/version => ../version
+)
+
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/ProtonMail/go-crypto v0.0.0-20220517143526-88bb52951d5b

@@ -54,7 +54,7 @@ func TestWrite(t *testing.T) {
 	ggc := NewGoGitClient(tmp, nil)
 	ggc.repository = repo
 
-	err = ggc.Write("test", strings.NewReader("testing gogit write"))
+	err = ggc.WriteFile("test", strings.NewReader("testing gogit write"))
 	g.Expect(err).ToNot(HaveOccurred())
 	cont, err := os.ReadFile(filepath.Join(tmp, "test"))
 	g.Expect(err).ToNot(HaveOccurred())
@@ -93,7 +93,7 @@ func TestCommit(t *testing.T) {
 	g.Expect(hash).To(Equal(cc))
 
 	// Make changes to the repo.
-	err = ggc.Write("test", strings.NewReader("testing gogit commit"))
+	err = ggc.WriteFile("test", strings.NewReader("testing gogit commit"))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	cc, err = ggc.Commit(git.Commit{

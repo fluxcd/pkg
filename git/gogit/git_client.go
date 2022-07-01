@@ -104,7 +104,7 @@ func (g *GoGitClient) Clone(ctx context.Context, url string, checkoutOpts git.Ch
 	}
 }
 
-func (g *GoGitClient) Write(path string, reader io.Reader) error {
+func (g *GoGitClient) WriteFile(path string, reader io.Reader) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
 	}
@@ -293,4 +293,4 @@ func (g *GoGitClient) Path() string {
 	return g.path
 }
 
-func (g *GoGitClient) Free() {}
+func (g *GoGitClient) Cleanup() {}

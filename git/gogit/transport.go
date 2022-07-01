@@ -46,29 +46,24 @@ func transportAuth(opts *git.AuthOptions) (transport.AuthMethod, error) {
 		}
 		return nil, nil
 	case git.SSH:
-		if len(opts.Identity) > 0 {
-			pk, err := ssh.NewPublicKeys(opts.Username, opts.Identity, opts.Password)
-			if err != nil {
-				return nil, err
-			}
-			if len(opts.KnownHosts) > 0 {
-				callback, err := knownhosts.New(opts.KnownHosts)
-				if err != nil {
-					return nil, err
-				}
-				pk.HostKeyCallback = callback
-			}
-			customPK := &CustomPublicKeys{
-				pk: pk,
-			}
-			return customPK, nil
+		pk, err := ssh.NewPublicKeys(opts.Username, opts.Identity, opts.Password)
+		if err != nil {
+			return nil, err
 		}
+		callback, err := knownhosts.New(opts.KnownHosts)
+		if err != nil {
+			return nil, err
+		}
+		pk.HostKeyCallback = callback
+		customPK := &CustomPublicKeys{
+			pk: pk,
+		}
+		return customPK, nil
 	case "":
 		return nil, fmt.Errorf("no transport type set")
 	default:
 		return nil, fmt.Errorf("unknown transport '%s'", opts.Transport)
 	}
-	return nil, nil
 }
 
 // caBundle returns the CA bundle from the given git.AuthOptions.

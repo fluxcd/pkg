@@ -65,8 +65,8 @@ func TestGitKitE2E(t *testing.T) {
 	clients := []string{git.GoGitClient}
 
 	testFunc := func(t *testing.T, proto git.TransportType, c string) {
-		g := NewWithT(t)
 		t.Run("repo created using Clone", func(t *testing.T) {
+			g := NewWithT(t)
 			var client git.GitClient
 			tmp := t.TempDir()
 			var repoURL *url.URL
@@ -101,7 +101,7 @@ func TestGitKitE2E(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// commit and push to origin
-			err = client.Write("test", strings.NewReader(randStringRunes(10)))
+			err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
 			g.Expect(err).ToNot(HaveOccurred())
 			cc, err := client.Commit(mockCommitInfo(), nil)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -118,7 +118,7 @@ func TestGitKitE2E(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// commit to and push new branch
-			err = client.Write("test", strings.NewReader(randStringRunes(10)))
+			err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
 			g.Expect(err).ToNot(HaveOccurred())
 			cc, err = client.Commit(mockCommitInfo(), nil)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -133,7 +133,7 @@ func TestGitKitE2E(t *testing.T) {
 			// switch to a branch behind the current branch, commit and push
 			err = client.SwitchBranch(context.TODO(), "main")
 			g.Expect(err).ToNot(HaveOccurred())
-			err = client.Write("test", strings.NewReader(randStringRunes(10)))
+			err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
 			g.Expect(err).ToNot(HaveOccurred())
 			_, err = client.Commit(mockCommitInfo(), nil)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -141,6 +141,7 @@ func TestGitKitE2E(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 		})
 		t.Run("repo created using Init", func(t *testing.T) {
+			g := NewWithT(t)
 			var client git.GitClient
 			tmp := t.TempDir()
 			var repoURL *url.URL
@@ -169,7 +170,7 @@ func TestGitKitE2E(t *testing.T) {
 			err = client.Init(context.TODO(), repoURL.String(), "main")
 			g.Expect(err).ToNot(HaveOccurred())
 
-			err = client.Write("test", strings.NewReader(randStringRunes(10)))
+			err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
 			g.Expect(err).ToNot(HaveOccurred())
 			cc, err := client.Commit(mockCommitInfo(), nil)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -184,7 +185,7 @@ func TestGitKitE2E(t *testing.T) {
 			err = client.SwitchBranch(context.TODO(), "new")
 			g.Expect(err).ToNot(HaveOccurred())
 
-			err = client.Write("test", strings.NewReader(randStringRunes(10)))
+			err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			cc, err = client.Commit(mockCommitInfo(), nil)
@@ -199,7 +200,7 @@ func TestGitKitE2E(t *testing.T) {
 
 			err = client.SwitchBranch(context.TODO(), "main")
 			g.Expect(err).ToNot(HaveOccurred())
-			err = client.Write("test", strings.NewReader(randStringRunes(10)))
+			err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
 			g.Expect(err).ToNot(HaveOccurred())
 			_, err = client.Commit(mockCommitInfo(), nil)
 			g.Expect(err).ToNot(HaveOccurred())
