@@ -33,11 +33,17 @@ import (
 )
 
 func TestInit(t *testing.T) {
-	tmp := t.TempDir()
-	ggc := NewGoGitClient(tmp, nil)
 	g := NewWithT(t)
-	err := ggc.Init(context.TODO(), "https://github.com/fluxcd/flux2", "main")
+
+	tmp := t.TempDir()
+
+	ggc, err := NewGoGitClient(tmp, nil)
 	g.Expect(err).ToNot(HaveOccurred())
+
+	err = ggc.Init(context.TODO(), "https://github.com/fluxcd/flux2", "main")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(ggc.repository).ToNot(BeNil())
+
 	remotes, err := ggc.repository.Remotes()
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(len(remotes)).To(Equal(1))
@@ -45,13 +51,15 @@ func TestInit(t *testing.T) {
 	g.Expect(remotes[0].Config().URLs[0]).To(Equal("https://github.com/fluxcd/flux2"))
 }
 
-func TestWrite(t *testing.T) {
+func TestWriteFile(t *testing.T) {
 	g := NewWithT(t)
 
 	tmp := t.TempDir()
 	repo, err := extgogit.PlainInit(tmp, false)
 	g.Expect(err).ToNot(HaveOccurred())
-	ggc := NewGoGitClient(tmp, nil)
+
+	ggc, err := NewGoGitClient(tmp, nil)
+	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
 	err = ggc.WriteFile("test", strings.NewReader("testing gogit write"))
@@ -76,7 +84,8 @@ func TestCommit(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc := NewGoGitClient(tmp, nil)
+	ggc, err := NewGoGitClient(tmp, nil)
+	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
 	// No new commit made when there are no changes in the repo.
@@ -106,20 +115,6 @@ func TestCommit(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	// New commit should not match the old one.
 	g.Expect(cc).ToNot(Equal(hash))
-
-	// Create a broken symlink
-	err = os.Symlink("non-existent", filepath.Join(tmp, "broken"))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	symlinkCC, err := ggc.Commit(git.Commit{
-		Author: git.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-		},
-	}, nil)
-	// There should be no new commit, since the new file is a broken symlink.
-	g.Expect(err).To(Equal(git.ErrNoStagedFiles))
-	g.Expect(symlinkCC).To(Equal(cc))
 }
 
 func TestPush(t *testing.T) {
@@ -154,7 +149,8 @@ func TestPush(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc := NewGoGitClient(tmp, nil)
+	ggc, err := NewGoGitClient(tmp, nil)
+	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
 	cc, err := commitFile(repo, "test", "testing gogit push", time.Now())
@@ -278,8 +274,10 @@ func TestSwitchBranch(t *testing.T) {
 				expectedHash = head.Hash().String()
 			}
 
-			ggc := NewGoGitClient(tmp, nil)
+			ggc, err := NewGoGitClient(tmp, nil)
+			g.Expect(err).ToNot(HaveOccurred())
 			ggc.repository = repo
+
 			err = ggc.SwitchBranch(context.TODO(), tt.branch)
 			g.Expect(err).ToNot(HaveOccurred())
 
@@ -300,7 +298,9 @@ func TestIsClean(t *testing.T) {
 
 	_, err = commitFile(repo, "clean", "testing gogit is clean", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
-	ggc := NewGoGitClient(path, nil)
+
+	ggc, err := NewGoGitClient(path, nil)
+	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
 	clean, err := ggc.IsClean()
@@ -326,7 +326,10 @@ func TestHead(t *testing.T) {
 
 	hash, err := commitFile(repo, "clean", "testing gogit head", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
-	ggc := NewGoGitClient(path, nil)
+
+	ggc, err := NewGoGitClient(path, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
 	ggc.repository = repo
 
 	cc, err := ggc.Head()

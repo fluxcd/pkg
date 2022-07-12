@@ -28,8 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-git/go-billy/v5/osfs"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
+	"github.com/go-git/go-git/v5/storage"
+	"github.com/go-git/go-git/v5/storage/filesystem"
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/git"
@@ -88,7 +92,9 @@ func TestGitKitE2E(t *testing.T) {
 			upstreamRepoPath := filepath.Join(gitServer.Root(), repoName)
 
 			if c == git.GoGitClient {
-				client = gogit.NewGoGitClient(tmp, authOptions)
+				g.Expect(err).ToNot(HaveOccurred())
+				client, err = gogit.NewGoGitClient(tmp, authOptions)
+				g.Expect(err).ToNot(HaveOccurred())
 			}
 			// init repo on server
 			err = gitServer.InitRepo("../testdata/git/repo", "main", repoName)
@@ -163,7 +169,9 @@ func TestGitKitE2E(t *testing.T) {
 			upstreamRepoPath := filepath.Join(gitServer.Root(), repoName)
 
 			if c == git.GoGitClient {
-				client = gogit.NewGoGitClient(tmp, authOptions)
+				g.Expect(err).ToNot(HaveOccurred())
+				client, err = gogit.NewGoGitClient(tmp, authOptions)
+				g.Expect(err).ToNot(HaveOccurred())
 			}
 
 			// Create a new repository
@@ -271,4 +279,12 @@ func randStringRunes(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+func fileStorer(path string) (storage.Storer, error) {
+	dot, err := osfs.New(path).Chroot(extgogit.GitDirName)
+	if err != nil {
+		return nil, err
+	}
+	return filesystem.NewStorage(dot, cache.NewObjectLRUDefault()), nil
 }

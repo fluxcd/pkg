@@ -20,15 +20,20 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/go-git/go-billy/v5/osfs"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/storage"
+	"github.com/go-git/go-git/v5/storage/filesystem"
+	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/git"
 )
@@ -38,16 +43,49 @@ type GoGitClient struct {
 	path       string
 	repository *extgogit.Repository
 	authOpts   *git.AuthOptions
+	storer     storage.Storer
+	worktreeFS billy.Filesystem
 }
 
 var _ git.GitClient = &GoGitClient{}
 
-// NewGoGitClient returns a new GoGitClient
-func NewGoGitClient(path string, authOpts *git.AuthOptions) *GoGitClient {
-	return &GoGitClient{
+type ClientOption func(*GoGitClient) error
+
+// NewGoGitClient returns a new GoGitClient.
+func NewGoGitClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOption) (*GoGitClient, error) {
+	g := &GoGitClient{
 		path:     path,
 		authOpts: authOpts,
 	}
+
+	if len(clientOpts) == 0 {
+		clientOpts = append(clientOpts, UseDiskStorage)
+	}
+
+	for _, clientOpt := range clientOpts {
+		if err := clientOpt(g); err != nil {
+			return nil, err
+		}
+	}
+
+	return g, nil
+}
+
+func UseDiskStorage(g *GoGitClient) error {
+	wt := osfs.New(g.path)
+	dot, err := wt.Chroot(extgogit.GitDirName)
+	if err != nil {
+		return err
+	}
+
+	g.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
+	g.worktreeFS = wt
+	return nil
+}
+
+func (g *GoGitClient) UseMemoryStorage() {
+	g.storer = memory.NewStorage()
+	g.worktreeFS = memfs.New()
 }
 
 func (g *GoGitClient) Init(ctx context.Context, url, branch string) error {
@@ -55,7 +93,7 @@ func (g *GoGitClient) Init(ctx context.Context, url, branch string) error {
 		return nil
 	}
 
-	r, err := extgogit.PlainInit(g.path, false)
+	r, err := extgogit.Init(g.storer, g.worktreeFS)
 	if err != nil {
 		return err
 	}
@@ -139,25 +177,8 @@ func (g *GoGitClient) Commit(info git.Commit, signer *openpgp.Entity) (string, e
 		return "", err
 	}
 
-	// go-git has [a bug](https://github.com/go-git/go-git/issues/253)
-	// whereby it thinks broken symlinks to absolute paths are
-	// modified. There's no circumstance in which we want to commit a
-	// change to a broken symlink: so, detect and skip those.
 	var changed bool
 	for file := range status {
-		abspath := filepath.Join(g.path, file)
-		info, err := os.Lstat(abspath)
-		if err != nil {
-			return "", fmt.Errorf("checking if %s is a symlink: %w", file, err)
-		}
-		if info.Mode()&os.ModeSymlink > 0 {
-			// symlinks are OK; broken symlinks are probably a result
-			// of the bug mentioned above, but not of interest in any
-			// case.
-			if _, err := os.Stat(abspath); os.IsNotExist(err) {
-				continue
-			}
-		}
 		_, _ = wt.Add(file)
 		changed = true
 	}

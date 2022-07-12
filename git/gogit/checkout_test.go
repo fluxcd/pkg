@@ -109,7 +109,8 @@ func TestCheckoutBranch_Checkout(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			ggc := NewGoGitClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			ggc, err := NewGoGitClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			g.Expect(err).ToNot(HaveOccurred())
 
 			cc, err := ggc.Clone(context.TODO(), path, git.CheckoutOptions{
 				Branch:       tt.branch,
@@ -211,7 +212,9 @@ func TestCheckoutTag_Checkout(t *testing.T) {
 			}
 
 			tmpDir := t.TempDir()
-			ggc := NewGoGitClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			ggc, err := NewGoGitClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			g.Expect(err).ToNot(HaveOccurred())
+
 			opts := git.CheckoutOptions{
 				Tag:          tt.checkoutTag,
 				ShallowClone: true,
@@ -308,7 +311,8 @@ func TestCheckoutCommit_Checkout(t *testing.T) {
 				Commit:       tt.commit,
 				ShallowClone: true,
 			}
-			ggc := NewGoGitClient(tmpDir, nil)
+			ggc, err := NewGoGitClient(tmpDir, nil)
+			g.Expect(err).ToNot(HaveOccurred())
 
 			cc, err := ggc.Clone(context.TODO(), path, opts)
 			if tt.expectError != "" {
@@ -411,7 +415,9 @@ func TestCheckoutTagSemVer_Checkout(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			ggc := NewGoGitClient(tmpDir, nil)
+			ggc, err := NewGoGitClient(tmpDir, nil)
+			g.Expect(err).ToNot(HaveOccurred())
+
 			opts := git.CheckoutOptions{
 				SemVer:       tt.constraint,
 				ShallowClone: true,
@@ -514,7 +520,8 @@ func Test_KeyTypes(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			ggc := NewGoGitClient(tmpDir, &authOpts)
+			ggc, err := NewGoGitClient(tmpDir, &authOpts)
+			g.Expect(err).ToNot(HaveOccurred())
 
 			cc, err := ggc.Clone(ctx, repoURL, git.CheckoutOptions{
 				Branch:       git.DefaultBranch,
@@ -642,7 +649,9 @@ func Test_KeyExchangeAlgos(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			ggc := NewGoGitClient(tmpDir, &authOpts)
+			ggc, err := NewGoGitClient(tmpDir, &authOpts)
+			g.Expect(err).ToNot(HaveOccurred())
+
 			_, err = ggc.Clone(ctx, repoURL, git.CheckoutOptions{
 				Branch:       git.DefaultBranch,
 				ShallowClone: true,
@@ -810,7 +819,8 @@ func TestHostKeyAlgos(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			ggc := NewGoGitClient(tmpDir, &authOpts)
+			ggc, err := NewGoGitClient(tmpDir, &authOpts)
+			g.Expect(err).ToNot(HaveOccurred())
 
 			_, err = ggc.Clone(ctx, repoURL, git.CheckoutOptions{
 				Branch:       git.DefaultBranch,

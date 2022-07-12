@@ -77,7 +77,7 @@ func (g *GoGitClient) cloneBranch(ctx context.Context, url, branch string, opts 
 	if opts.ShallowClone {
 		depth = 1
 	}
-	repo, err := extgogit.PlainCloneContext(ctx, g.path, false, &extgogit.CloneOptions{
+	cloneOpts := &extgogit.CloneOptions{
 		URL:               url,
 		Auth:              authMethod,
 		RemoteName:        git.DefaultRemote,
@@ -89,7 +89,9 @@ func (g *GoGitClient) cloneBranch(ctx context.Context, url, branch string, opts 
 		Progress:          nil,
 		Tags:              extgogit.NoTags,
 		CABundle:          caBundle(g.authOpts),
-	})
+	}
+
+	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
 	if err != nil {
 		if err == transport.ErrEmptyRemoteRepository || err == transport.ErrRepositoryNotFound || isRemoteBranchNotFoundErr(err, ref.String()) {
 			return nil, git.ErrRepositoryNotFound{
@@ -153,7 +155,7 @@ func (g *GoGitClient) cloneTag(ctx context.Context, url, tag string, opts git.Ch
 	if opts.ShallowClone {
 		depth = 1
 	}
-	repo, err := extgogit.PlainCloneContext(ctx, g.path, false, &extgogit.CloneOptions{
+	cloneOpts := &extgogit.CloneOptions{
 		URL:               url,
 		Auth:              authMethod,
 		RemoteName:        git.DefaultRemote,
@@ -165,7 +167,9 @@ func (g *GoGitClient) cloneTag(ctx context.Context, url, tag string, opts git.Ch
 		Progress:          nil,
 		Tags:              extgogit.NoTags,
 		CABundle:          caBundle(g.authOpts),
-	})
+	}
+
+	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
 	if err != nil {
 		if err == transport.ErrEmptyRemoteRepository || err == transport.ErrRepositoryNotFound || isRemoteBranchNotFoundErr(err, ref.String()) {
 			return nil, git.ErrRepositoryNotFound{
@@ -209,7 +213,7 @@ func (g *GoGitClient) cloneCommit(ctx context.Context, url, commit string, opts 
 		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(opts.Branch)
 	}
 
-	repo, err := extgogit.PlainCloneContext(ctx, g.path, false, cloneOpts)
+	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
 	if err != nil {
 		if err == transport.ErrEmptyRemoteRepository || err == transport.ErrRepositoryNotFound ||
 			isRemoteBranchNotFoundErr(err, cloneOpts.ReferenceName.String()) {
@@ -254,8 +258,7 @@ func (g *GoGitClient) cloneSemVer(ctx context.Context, url, semverTag string, op
 	if opts.ShallowClone {
 		depth = 1
 	}
-
-	repo, err := extgogit.PlainCloneContext(ctx, g.path, false, &extgogit.CloneOptions{
+	cloneOpts := &extgogit.CloneOptions{
 		URL:               url,
 		Auth:              authMethod,
 		RemoteName:        git.DefaultRemote,
@@ -265,7 +268,9 @@ func (g *GoGitClient) cloneSemVer(ctx context.Context, url, semverTag string, op
 		Progress:          nil,
 		Tags:              extgogit.AllTags,
 		CABundle:          caBundle(g.authOpts),
-	})
+	}
+
+	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
 	if err != nil {
 		if err == transport.ErrEmptyRemoteRepository || err == transport.ErrRepositoryNotFound {
 			return nil, git.ErrRepositoryNotFound{
