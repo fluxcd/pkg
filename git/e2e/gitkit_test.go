@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/url"
 	"os"
@@ -28,12 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-git/go-billy/v5/osfs"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/cache"
-	"github.com/go-git/go-git/v5/storage"
-	"github.com/go-git/go-git/v5/storage/filesystem"
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/git"
@@ -45,33 +40,35 @@ import (
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
 func TestGitKitE2E(t *testing.T) {
+	g := NewWithT(t)
+
 	gitServer, err := gittestserver.NewTempGitServer()
-	if err != nil {
-		log.Fatal(err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
+
 	username := "test-user"
 	password := "test-pswd"
 	gitServer.Auth(username, password)
 	gitServer.AutoCreate()
-	if err := gitServer.StartHTTP(); err != nil {
-		log.Fatal(err)
-	}
+
+	err = gitServer.StartHTTP()
+	g.Expect(err).ToNot(HaveOccurred())
+
 	gitServer.KeyDir(filepath.Join(gitServer.Root(), "keys"))
-	if err := gitServer.ListenSSH(); err != nil {
-		log.Fatal(err)
-	}
+	err = gitServer.ListenSSH()
+	g.Expect(err).ToNot(HaveOccurred())
+
 	go func() {
 		gitServer.StartSSH()
 	}()
 	defer gitServer.StopSSH()
 
 	protocols := []git.TransportType{git.SSH, git.HTTP}
-	clients := []string{git.GoGitClient}
+	clients := []string{gogit.ClientName}
 
 	testFunc := func(t *testing.T, proto git.TransportType, c string) {
 		t.Run("repo created using Clone", func(t *testing.T) {
 			g := NewWithT(t)
-			var client git.GitClient
+			var client git.RepositoryClient
 			tmp := t.TempDir()
 			var repoURL *url.URL
 			var authOptions *git.AuthOptions
@@ -79,7 +76,7 @@ func TestGitKitE2E(t *testing.T) {
 			if proto == git.SSH {
 				repoURL, err = url.Parse(gitServer.SSHAddress() + "/" + repoName)
 				g.Expect(err).ToNot(HaveOccurred())
-				sshAuth, err := createSSHIdentitySecret(*repoURL)
+				sshAuth, err := createSSHIdentityData(*repoURL)
 				g.Expect(err).ToNot(HaveOccurred())
 				authOptions, err = git.NewAuthOptions(*repoURL, sshAuth)
 				g.Expect(err).ToNot(HaveOccurred())
@@ -91,9 +88,9 @@ func TestGitKitE2E(t *testing.T) {
 			}
 			upstreamRepoPath := filepath.Join(gitServer.Root(), repoName)
 
-			if c == git.GoGitClient {
+			if c == gogit.ClientName {
 				g.Expect(err).ToNot(HaveOccurred())
-				client, err = gogit.NewGoGitClient(tmp, authOptions)
+				client, err = gogit.NewClient(tmp, authOptions)
 				g.Expect(err).ToNot(HaveOccurred())
 			}
 			// init repo on server
@@ -145,10 +142,11 @@ func TestGitKitE2E(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			err = client.Push(context.TODO())
 			g.Expect(err).ToNot(HaveOccurred())
+			client.Close()
 		})
 		t.Run("repo created using Init", func(t *testing.T) {
 			g := NewWithT(t)
-			var client git.GitClient
+			var client git.RepositoryClient
 			tmp := t.TempDir()
 			var repoURL *url.URL
 			var authOptions *git.AuthOptions
@@ -156,7 +154,7 @@ func TestGitKitE2E(t *testing.T) {
 			if proto == git.SSH {
 				repoURL, err = url.Parse(gitServer.SSHAddress() + "/" + repoName)
 				g.Expect(err).ToNot(HaveOccurred())
-				sshAuth, err := createSSHIdentitySecret(*repoURL)
+				sshAuth, err := createSSHIdentityData(*repoURL)
 				g.Expect(err).ToNot(HaveOccurred())
 				authOptions, err = git.NewAuthOptions(*repoURL, sshAuth)
 				g.Expect(err).ToNot(HaveOccurred())
@@ -168,9 +166,9 @@ func TestGitKitE2E(t *testing.T) {
 			}
 			upstreamRepoPath := filepath.Join(gitServer.Root(), repoName)
 
-			if c == git.GoGitClient {
+			if c == gogit.ClientName {
 				g.Expect(err).ToNot(HaveOccurred())
-				client, err = gogit.NewGoGitClient(tmp, authOptions)
+				client, err = gogit.NewClient(tmp, authOptions)
 				g.Expect(err).ToNot(HaveOccurred())
 			}
 
@@ -214,6 +212,7 @@ func TestGitKitE2E(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			err = client.Push(context.TODO())
 			g.Expect(err).ToNot(HaveOccurred())
+			client.Close()
 		})
 	}
 	for _, client := range clients {
@@ -228,7 +227,7 @@ func headCommitWithBranch(url, branch, client string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	if client == git.GoGitClient {
+	if client == gogit.ClientName {
 		repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
 			URL:           url,
 			ReferenceName: plumbing.NewBranchReferenceName(branch),
@@ -255,7 +254,7 @@ func mockCommitInfo() git.Commit {
 	}
 }
 
-func createSSHIdentitySecret(repoURL url.URL) (map[string][]byte, error) {
+func createSSHIdentityData(repoURL url.URL) (map[string][]byte, error) {
 	knownhosts, err := ssh.ScanHostKey(repoURL.Host, 5*time.Second, []string{}, false)
 	if err != nil {
 		return nil, err
@@ -279,12 +278,4 @@ func randStringRunes(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
-}
-
-func fileStorer(path string) (storage.Storer, error) {
-	dot, err := osfs.New(path).Chroot(extgogit.GitDirName)
-	if err != nil {
-		return nil, err
-	}
-	return filesystem.NewStorage(dot, cache.NewObjectLRUDefault()), nil
 }

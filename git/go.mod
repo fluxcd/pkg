@@ -11,6 +11,10 @@ replace (
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
+	// github.com/ProtonMail/go-crypto is a fork of golang.org/x/crypto
+	// maintained by the ProtonMail team to continue to support the openpgp
+	// module, after the Go team decided to no longer maintain it.
+	// When in doubt (and not using openpgp), use /x/crypto.
 	github.com/ProtonMail/go-crypto v0.0.0-20220517143526-88bb52951d5b
 	github.com/fluxcd/gitkit v0.5.1
 	github.com/fluxcd/pkg/gittestserver v0.5.4

@@ -37,7 +37,7 @@ import (
 	"github.com/fluxcd/pkg/version"
 )
 
-func (g *GoGitClient) cloneBranch(ctx context.Context, url, branch string, opts git.CheckoutOptions) (*git.Commit, error) {
+func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts git.CheckoutOptions) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
@@ -114,7 +114,7 @@ func (g *GoGitClient) cloneBranch(ctx context.Context, url, branch string, opts 
 	return buildCommitWithRef(cc, ref)
 }
 
-func (g *GoGitClient) cloneTag(ctx context.Context, url, tag string, opts git.CheckoutOptions) (*git.Commit, error) {
+func (g *Client) cloneTag(ctx context.Context, url, tag string, opts git.CheckoutOptions) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
@@ -192,7 +192,7 @@ func (g *GoGitClient) cloneTag(ctx context.Context, url, tag string, opts git.Ch
 	return buildCommitWithRef(cc, ref)
 }
 
-func (g *GoGitClient) cloneCommit(ctx context.Context, url, commit string, opts git.CheckoutOptions) (*git.Commit, error) {
+func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts git.CheckoutOptions) (*git.Commit, error) {
 	authMethod, err := transportAuth(g.authOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
@@ -244,7 +244,7 @@ func (g *GoGitClient) cloneCommit(ctx context.Context, url, commit string, opts 
 	return buildCommitWithRef(cc, cloneOpts.ReferenceName)
 }
 
-func (g *GoGitClient) cloneSemVer(ctx context.Context, url, semverTag string, opts git.CheckoutOptions) (*git.Commit, error) {
+func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts git.CheckoutOptions) (*git.Commit, error) {
 	verConstraint, err := semver.NewConstraint(semverTag)
 	if err != nil {
 		return nil, fmt.Errorf("semver parse error: %w", err)

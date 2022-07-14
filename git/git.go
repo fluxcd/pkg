@@ -18,10 +18,8 @@ package git
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -89,8 +87,8 @@ func (c *Commit) Verify(keyRing ...string) (string, error) {
 			return "", fmt.Errorf("unable to read armored key ring: %w", err)
 		}
 		signer, err := openpgp.CheckArmoredDetachedSignature(keyring, bytes.NewBuffer(c.Encoded), bytes.NewBufferString(c.Signature), nil)
-		if err == nil && len(signer.PrimaryKey.Fingerprint) >= 20 {
-			return fmt.Sprintf("%X", signer.PrimaryKey.Fingerprint[12:20]), nil
+		if err == nil {
+			return signer.PrimaryKey.KeyIdString(), nil
 		}
 	}
 	return "", fmt.Errorf("unable to verify commit with any of the given key rings")
@@ -105,54 +103,6 @@ func (c *Commit) ShortMessage() string {
 	}
 	return subject
 }
-
-// GitReader knows how to perform read operations for a repository.
-type GitReader interface {
-	// Clone clones a repository from the provided url using the options provided.
-	Clone(ctx context.Context, url string, checkoutOpts CheckoutOptions) (*Commit, error)
-	// IsClean returns whether the working tree is clean.
-	IsClean() (bool, error)
-	// Head returns the hash of the current HEAD of the repo.
-	Head() (string, error)
-	// Path returns the path of the repository.
-	Path() string
-	// Cleanup frees any resources that need to be freed at the end of
-	// the client's lifecycle.
-	Cleanup()
-}
-
-// GitWriter knows how to perform write operations to a repository.
-type GitWriter interface {
-	// Init initializes a repository at the configured path with the origin
-	// remote set to url on the provided branch.
-	Init(ctx context.Context, url, branch string) error
-	// Push pushes the current branch of the repository to origin.
-	Push(ctx context.Context) error
-	// SwitchBranch switches the active branch of the repository to the
-	// provided branch. If the branch doesn't exist, it is created.
-	SwitchBranch(ctx context.Context, branch string) error
-	// WriteFile creates a new file at the given path, reads from the reader and
-	// writes the content to the file. If the file already exists, it's contents
-	// are overwritten.
-	WriteFile(path string, reader io.Reader) error
-	// Commit commits any changes made to the repository.
-	Commit(info Commit, signer *openpgp.Entity) (string, error)
-	// Cleanup frees any resources that need to be freed at the end of
-	// the client's lifecycle.
-	Cleanup()
-}
-
-// GitClient defines all the methods that a git client must cover.
-// An instance of GitClient should have a 1:1 mapping with a Git repository.
-type GitClient interface {
-	GitReader
-	GitWriter
-}
-
-const (
-	// GoGitClient for performing Git operations using go-git.
-	GoGitClient = "go-git"
-)
 
 // ErrRepositoryNotFound indicates that the repository (or the ref in
 // question) does not exist at the given URL.

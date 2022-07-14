@@ -45,7 +45,7 @@ import (
 
 const testRepositoryPath = "../testdata/git/repo"
 
-func TestCheckoutBranch_Checkout(t *testing.T) {
+func TestClone_cloneBranch(t *testing.T) {
 	repo, path, err := initRepo(t)
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestCheckoutBranch_Checkout(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			ggc, err := NewGoGitClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
 			cc, err := ggc.Clone(context.TODO(), path, git.CheckoutOptions{
@@ -137,7 +137,7 @@ func TestCheckoutBranch_Checkout(t *testing.T) {
 	}
 }
 
-func TestCheckoutTag_Checkout(t *testing.T) {
+func TestClone_cloneTag(t *testing.T) {
 	type testTag struct {
 		name      string
 		annotated bool
@@ -212,7 +212,7 @@ func TestCheckoutTag_Checkout(t *testing.T) {
 			}
 
 			tmpDir := t.TempDir()
-			ggc, err := NewGoGitClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
 			opts := git.CheckoutOptions{
@@ -250,7 +250,7 @@ func TestCheckoutTag_Checkout(t *testing.T) {
 	}
 }
 
-func TestCheckoutCommit_Checkout(t *testing.T) {
+func TestClone_cloneCommit(t *testing.T) {
 	repo, path, err := initRepo(t)
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +311,7 @@ func TestCheckoutCommit_Checkout(t *testing.T) {
 				Commit:       tt.commit,
 				ShallowClone: true,
 			}
-			ggc, err := NewGoGitClient(tmpDir, nil)
+			ggc, err := NewClient(tmpDir, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			cc, err := ggc.Clone(context.TODO(), path, opts)
@@ -331,7 +331,7 @@ func TestCheckoutCommit_Checkout(t *testing.T) {
 	}
 }
 
-func TestCheckoutTagSemVer_Checkout(t *testing.T) {
+func TestClone_cloneSemVer(t *testing.T) {
 	now := time.Now()
 
 	tags := []struct {
@@ -415,7 +415,7 @@ func TestCheckoutTagSemVer_Checkout(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			ggc, err := NewGoGitClient(tmpDir, nil)
+			ggc, err := NewClient(tmpDir, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			opts := git.CheckoutOptions{
@@ -438,9 +438,9 @@ func TestCheckoutTagSemVer_Checkout(t *testing.T) {
 	}
 }
 
-// Test_KeyTypes assures support for the different types of keys
+// Test_ssh_KeyTypes assures support for the different types of keys
 // for SSH Authentication supported by Flux.
-func Test_KeyTypes(t *testing.T) {
+func Test_ssh_KeyTypes(t *testing.T) {
 	tests := []struct {
 		name       string
 		keyType    ssh.KeyPairType
@@ -520,7 +520,7 @@ func Test_KeyTypes(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			ggc, err := NewGoGitClient(tmpDir, &authOpts)
+			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			cc, err := ggc.Clone(ctx, repoURL, git.CheckoutOptions{
@@ -544,9 +544,9 @@ func Test_KeyTypes(t *testing.T) {
 	}
 }
 
-// Test_KeyExchangeAlgos assures support for the different
+// Test_ssh_KeyExchangeAlgos assures support for the different
 // types of SSH key exchange algorithms supported by Flux.
-func Test_KeyExchangeAlgos(t *testing.T) {
+func Test_ssh_KeyExchangeAlgos(t *testing.T) {
 	tests := []struct {
 		name      string
 		ClientKex []string
@@ -649,7 +649,7 @@ func Test_KeyExchangeAlgos(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			ggc, err := NewGoGitClient(tmpDir, &authOpts)
+			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			_, err = ggc.Clone(ctx, repoURL, git.CheckoutOptions{
@@ -667,9 +667,9 @@ func Test_KeyExchangeAlgos(t *testing.T) {
 	}
 }
 
-// TestHostKeyAlgos assures support for the different
+// Test_ssh_HostKeyAlgos assures support for the different
 // types of SSH Host Key algorithms supported by Flux.
-func TestHostKeyAlgos(t *testing.T) {
+func Test_ssh_HostKeyAlgos(t *testing.T) {
 	tests := []struct {
 		name               string
 		keyType            ssh.KeyPairType
@@ -819,7 +819,7 @@ func TestHostKeyAlgos(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			ggc, err := NewGoGitClient(tmpDir, &authOpts)
+			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			_, err = ggc.Clone(ctx, repoURL, git.CheckoutOptions{

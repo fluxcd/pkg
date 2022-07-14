@@ -18,6 +18,7 @@ package gogit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -38,8 +39,12 @@ import (
 	"github.com/fluxcd/pkg/git"
 )
 
-// GoGitClient implements git.GitClient
-type GoGitClient struct {
+// ClientName is the string representation of Client.
+const ClientName = "go-git"
+
+// Client implements git.RepositoryClient.
+type Client struct {
+	*git.DiscardRepositoryCloser
 	path       string
 	repository *extgogit.Repository
 	authOpts   *git.AuthOptions
@@ -47,19 +52,19 @@ type GoGitClient struct {
 	worktreeFS billy.Filesystem
 }
 
-var _ git.GitClient = &GoGitClient{}
+var _ git.RepositoryClient = &Client{}
 
-type ClientOption func(*GoGitClient) error
+type ClientOption func(*Client) error
 
-// NewGoGitClient returns a new GoGitClient.
-func NewGoGitClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOption) (*GoGitClient, error) {
-	g := &GoGitClient{
+// NewClient returns a new GoGitClient.
+func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOption) (*Client, error) {
+	g := &Client{
 		path:     path,
 		authOpts: authOpts,
 	}
 
 	if len(clientOpts) == 0 {
-		clientOpts = append(clientOpts, UseDiskStorage)
+		clientOpts = append(clientOpts, WithDiskStorage)
 	}
 
 	for _, clientOpt := range clientOpts {
@@ -68,10 +73,30 @@ func NewGoGitClient(path string, authOpts *git.AuthOptions, clientOpts ...Client
 		}
 	}
 
+	if g.storer == nil {
+		return nil, errors.New("unable to create client with a nil storer")
+	}
+	if g.worktreeFS == nil {
+		return nil, errors.New("unable to create client with a nil worktree filesystem")
+	}
+
 	return g, nil
 }
 
-func UseDiskStorage(g *GoGitClient) error {
+func WithStorer(s storage.Storer) ClientOption {
+	return func(c *Client) error {
+		c.storer = s
+		return nil
+	}
+}
+func WithWorkTreeFS(wt billy.Filesystem) ClientOption {
+	return func(c *Client) error {
+		c.worktreeFS = wt
+		return nil
+	}
+}
+
+func WithDiskStorage(g *Client) error {
 	wt := osfs.New(g.path)
 	dot, err := wt.Chroot(extgogit.GitDirName)
 	if err != nil {
@@ -83,12 +108,13 @@ func UseDiskStorage(g *GoGitClient) error {
 	return nil
 }
 
-func (g *GoGitClient) UseMemoryStorage() {
+func WithMemoryStorage(g *Client) error {
 	g.storer = memory.NewStorage()
 	g.worktreeFS = memfs.New()
+	return nil
 }
 
-func (g *GoGitClient) Init(ctx context.Context, url, branch string) error {
+func (g *Client) Init(ctx context.Context, url, branch string) error {
 	if g.repository != nil {
 		return nil
 	}
@@ -125,7 +151,7 @@ func (g *GoGitClient) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *GoGitClient) Clone(ctx context.Context, url string, checkoutOpts git.CheckoutOptions) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, checkoutOpts git.CheckoutOptions) (*git.Commit, error) {
 	switch {
 	case checkoutOpts.Commit != "":
 		return g.cloneCommit(ctx, url, checkoutOpts.Commit, checkoutOpts)
@@ -142,7 +168,7 @@ func (g *GoGitClient) Clone(ctx context.Context, url string, checkoutOpts git.Ch
 	}
 }
 
-func (g *GoGitClient) WriteFile(path string, reader io.Reader) error {
+func (g *Client) WriteFile(path string, reader io.Reader) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
 	}
@@ -162,7 +188,7 @@ func (g *GoGitClient) WriteFile(path string, reader io.Reader) error {
 	return err
 }
 
-func (g *GoGitClient) Commit(info git.Commit, signer *openpgp.Entity) (string, error) {
+func (g *Client) Commit(info git.Commit, signer *openpgp.Entity) (string, error) {
 	if g.repository == nil {
 		return "", git.ErrNoGitRepository
 	}
@@ -210,7 +236,7 @@ func (g *GoGitClient) Commit(info git.Commit, signer *openpgp.Entity) (string, e
 	return commit.String(), nil
 }
 
-func (g *GoGitClient) Push(ctx context.Context) error {
+func (g *Client) Push(ctx context.Context) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
 	}
@@ -228,7 +254,7 @@ func (g *GoGitClient) Push(ctx context.Context) error {
 	})
 }
 
-func (g *GoGitClient) SwitchBranch(ctx context.Context, branchName string) error {
+func (g *Client) SwitchBranch(ctx context.Context, branchName string) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
 	}
@@ -284,7 +310,7 @@ func (g *GoGitClient) SwitchBranch(ctx context.Context, branchName string) error
 	return nil
 }
 
-func (g *GoGitClient) IsClean() (bool, error) {
+func (g *Client) IsClean() (bool, error) {
 	if g.repository == nil {
 		return false, git.ErrNoGitRepository
 	}
@@ -299,7 +325,7 @@ func (g *GoGitClient) IsClean() (bool, error) {
 	return status.IsClean(), nil
 }
 
-func (g *GoGitClient) Head() (string, error) {
+func (g *Client) Head() (string, error) {
 	if g.repository == nil {
 		return "", git.ErrNoGitRepository
 	}
@@ -310,8 +336,6 @@ func (g *GoGitClient) Head() (string, error) {
 	return head.Hash().String(), nil
 }
 
-func (g *GoGitClient) Path() string {
+func (g *Client) Path() string {
 	return g.path
 }
-
-func (g *GoGitClient) Cleanup() {}

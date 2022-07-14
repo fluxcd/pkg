@@ -37,7 +37,7 @@ func TestInit(t *testing.T) {
 
 	tmp := t.TempDir()
 
-	ggc, err := NewGoGitClient(tmp, nil)
+	ggc, err := NewClient(tmp, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	err = ggc.Init(context.TODO(), "https://github.com/fluxcd/flux2", "main")
@@ -58,7 +58,7 @@ func TestWriteFile(t *testing.T) {
 	repo, err := extgogit.PlainInit(tmp, false)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc, err := NewGoGitClient(tmp, nil)
+	ggc, err := NewClient(tmp, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
@@ -84,7 +84,7 @@ func TestCommit(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc, err := NewGoGitClient(tmp, nil)
+	ggc, err := NewClient(tmp, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
@@ -149,7 +149,7 @@ func TestPush(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc, err := NewGoGitClient(tmp, nil)
+	ggc, err := NewClient(tmp, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
@@ -274,7 +274,7 @@ func TestSwitchBranch(t *testing.T) {
 				expectedHash = head.Hash().String()
 			}
 
-			ggc, err := NewGoGitClient(tmp, nil)
+			ggc, err := NewClient(tmp, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 			ggc.repository = repo
 
@@ -299,7 +299,7 @@ func TestIsClean(t *testing.T) {
 	_, err = commitFile(repo, "clean", "testing gogit is clean", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc, err := NewGoGitClient(path, nil)
+	ggc, err := NewClient(path, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
@@ -327,7 +327,7 @@ func TestHead(t *testing.T) {
 	hash, err := commitFile(repo, "clean", "testing gogit head", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc, err := NewGoGitClient(path, nil)
+	ggc, err := NewClient(path, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	ggc.repository = repo
