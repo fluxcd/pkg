@@ -5,12 +5,16 @@ on:
   push:
     branches:
       - main
+      - darwin-workflow
 
 permissions: read-all
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-12]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -22,9 +26,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Run tests
-        uses: ./.github/actions/run-tests
-        env:
-          GOPATH: /github/home/go
+        run: make all
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then

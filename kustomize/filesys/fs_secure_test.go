@@ -18,6 +18,7 @@ package filesys
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"math/rand"
 	"os"
@@ -34,7 +35,9 @@ func TestMakeFsOnDiskSecure(t *testing.T) {
 	t.Run("error on root prefixed with allowed prefix", func(t *testing.T) {
 		g := NewWithT(t)
 
-		tmpDir := t.TempDir()
+		tmpDir, err := testTempDir(t)
+		g.Expect(err).ToNot(HaveOccurred())
+
 		matchingDir := filepath.Join(tmpDir, "subdir")
 		g.Expect(os.Mkdir(matchingDir, 0o644)).To(Succeed())
 
@@ -48,7 +51,8 @@ func TestMakeFsOnDiskSecure(t *testing.T) {
 func Test_fsSecure_Create(t *testing.T) {
 	g := NewWithT(t)
 
-	root := t.TempDir()
+	root, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -77,7 +81,8 @@ func Test_fsSecure_Create(t *testing.T) {
 func Test_fsSecure_Mkdir(t *testing.T) {
 	g := NewWithT(t)
 
-	root := t.TempDir()
+	root, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -102,7 +107,8 @@ func Test_fsSecure_Mkdir(t *testing.T) {
 func Test_fsSecure_MkdirAll(t *testing.T) {
 	g := NewWithT(t)
 
-	root := t.TempDir()
+	root, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -127,7 +133,8 @@ func Test_fsSecure_MkdirAll(t *testing.T) {
 func Test_fsSecure_RemoveAll(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 	root := filepath.Join(tmpDir, "workdir")
 
 	g.Expect(os.MkdirAll(filepath.Join(root, "subdir"), 0o700)).To(Succeed())
@@ -157,7 +164,8 @@ func Test_fsSecure_RemoveAll(t *testing.T) {
 func Test_fsSecure_Open(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
@@ -193,7 +201,8 @@ func Test_fsSecure_Open(t *testing.T) {
 func Test_fsSecure_IsDir(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
@@ -220,7 +229,8 @@ func Test_fsSecure_IsDir(t *testing.T) {
 func Test_fsSecure_ReadDir(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
@@ -254,7 +264,8 @@ func Test_fsSecure_ReadDir(t *testing.T) {
 func Test_fsSecure_CleanedAbs(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
@@ -291,6 +302,8 @@ func Test_fsSecure_CleanedAbs(t *testing.T) {
 
 		prefixedDir, err := os.MkdirTemp("", tmpConfirmedDirPrefix)
 		g.Expect(err).ToNot(HaveOccurred())
+		prefixedDir, err = filepath.EvalSymlinks(prefixedDir)
+		g.Expect(err).ToNot(HaveOccurred())
 		t.Cleanup(func() { _ = os.RemoveAll(prefixedDir) })
 
 		d, f, err := fs.CleanedAbs(prefixedDir)
@@ -303,7 +316,8 @@ func Test_fsSecure_CleanedAbs(t *testing.T) {
 func Test_fsSecure_Exists(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
@@ -327,7 +341,8 @@ func Test_fsSecure_Exists(t *testing.T) {
 func Test_fsSecure_Glob(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
@@ -347,7 +362,8 @@ func Test_fsSecure_Glob(t *testing.T) {
 func Test_fsSecure_ReadFile(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
@@ -379,7 +395,8 @@ func Test_fsSecure_ReadFile(t *testing.T) {
 func Test_fsSecure_WriteFile(t *testing.T) {
 	g := NewWithT(t)
 
-	tmpDir := t.TempDir()
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
@@ -452,6 +469,8 @@ func Test_isSecurePath(t *testing.T) {
 	g := NewWithT(t)
 
 	prefixedDir, err := os.MkdirTemp("", tmpConfirmedDirPrefix)
+	g.Expect(err).ToNot(HaveOccurred())
+	prefixedDir, err = filepath.EvalSymlinks(prefixedDir)
 	g.Expect(err).ToNot(HaveOccurred())
 	t.Cleanup(func() { _ = os.RemoveAll(prefixedDir) })
 
@@ -554,7 +573,8 @@ func Test_isSecurePath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			root := newTemp()
+			root, err := newTemp()
+			g.Expect(err).ToNot(HaveOccurred())
 			realRoot := filesys.ConfirmedDir(filepath.Join(root, tt.rootSuffix))
 			g.Expect(tt.fs.MkdirAll(realRoot.String())).To(Succeed())
 			t.Cleanup(func() {
@@ -588,7 +608,7 @@ func Test_isSecurePath(t *testing.T) {
 				path = strings.Replace(path, "<root>", root, 1)
 			}
 
-			err := isSecurePath(tt.fs, realRoot, path, tt.allowedPrefixes...)
+			err = isSecurePath(tt.fs, realRoot, path, tt.allowedPrefixes...)
 			g.Expect(err).To(tt.wantErr)
 		})
 	}
@@ -617,8 +637,12 @@ func Test_hasOneOfPrefixes(t *testing.T) {
 	}
 }
 
-func newTemp() string {
-	return filepath.Join(os.TempDir(), "securefs-"+randStringBytes(5))
+func newTemp() (string, error) {
+	tmpDir, err := filepath.EvalSymlinks(os.TempDir())
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(tmpDir, "securefs-"+randStringBytes(5)), nil
 }
 
 func randStringBytes(n int) string {
@@ -629,4 +653,15 @@ func randStringBytes(n int) string {
 		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
 	}
 	return string(b)
+}
+
+func testTempDir(t *testing.T) (string, error) {
+	tmpDir := t.TempDir()
+
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	if err != nil {
+		return "", fmt.Errorf("error evaluating symlink: '%w'", err)
+	}
+
+	return tmpDir, err
 }
