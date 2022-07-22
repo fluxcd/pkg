@@ -266,6 +266,16 @@ func (s *GitServer) StopSSH() error {
 	return nil
 }
 
+// ReadOnly sets the current connection to read-only.
+// This simulates when users don't have write access,
+// and the server ungracefully short-circuit the
+// connection which may lead to EOF/early EOF at the
+// client side.
+func (s *GitServer) ReadOnly(readOnly bool) *GitServer {
+	s.config.ReadOnly = readOnly
+	return s
+}
+
 // Root returns the repositories root directory.
 func (s *GitServer) Root() string {
 	return s.config.Dir

@@ -16,7 +16,7 @@ require (
 	// module, after the Go team decided to no longer maintain it.
 	// When in doubt (and not using openpgp), use /x/crypto.
 	github.com/ProtonMail/go-crypto v0.0.0-20220517143526-88bb52951d5b
-	github.com/fluxcd/gitkit v0.5.1
+	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/gittestserver v0.5.4
 	github.com/fluxcd/pkg/gitutil v0.1.0
 	github.com/fluxcd/pkg/ssh v0.5.0
