@@ -3,7 +3,7 @@ module github.com/fluxcd/pkg/gittestserver
 go 1.17
 
 require (
-	github.com/fluxcd/gitkit v0.5.0
+	github.com/fluxcd/gitkit v0.6.0
 	github.com/go-git/go-billy/v5 v5.3.1
 	github.com/go-git/go-git/v5 v5.4.2
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
