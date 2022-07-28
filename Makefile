@@ -3,37 +3,81 @@ MODULES=$(shell find . -mindepth 2 -maxdepth 4 -type f -name 'go.mod' | cut -c 3
 targets=$(addprefix test-, $(MODULES))
 root_dir=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+# Use $GOBIN from the enviornment if set, otherwise use ./bin
 ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
+GOBIN=$(root_dir)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
 
 # Architecture to use envtest with
 ENVTEST_ARCH ?= amd64
+GO_TEST_ARGS ?= -race
+
+# Repository root based on Git metadata
+REPOSITORY_ROOT := $(shell git rev-parse --show-toplevel)
+
+# Other dependency versions
+ENVTEST_BIN_VERSION ?= 1.19.2
 
 all:
 	$(MAKE) $(targets)
 
 tidy-%:
-	cd $(subst :,/,$*); go mod tidy -compat=1.17
+	@if [ "$(DIR)" = "git" ]; then \
+		cd git && make tidy ;\
+	else \
+		cd $(subst :,/,$*) && go mod tidy -compat=1.17 ;\
+	fi
 
 fmt-%:
-	cd $(subst :,/,$*); go fmt ./...
+	@if [ "$(DIR)" = "git" ]; then \
+		cd git && make fmt ;\
+	else \
+		cd $(subst :,/,$*) && go fmt ./... ;\
+	fi
 
 vet-%:
-	cd $(subst :,/,$*); go vet ./...
+	@if [ "$(DIR)" = "git" ]; then \
+		cd git && make vet ;\
+	else \
+		cd $(subst :,/,$*) && go vet ./... ;\
+	fi
 
 generate-%: controller-gen
-	# Run schemapatch to validate all the kubebuilder markers before generation.
-	cd $(subst :,/,$*); $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..."
-	cd $(subst :,/,$*); $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..."
+# Run schemapatch to validate all the kubebuilder markers before generation
+# Skip git/libgit2 as this isn't required for that package and increases
+# the complexity unnecessarily
+	@if [ "$(DIR)" = "git" ]; then \
+		echo "skipping target 'generate' for git " ;\
+	else \
+		cd $(subst :,/,$*) ;\
+		$(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..." ;\
+		$(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..." ;\
+	fi
 
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
+DIR?=$*
 test-%: tidy-% generate-% fmt-% vet-% install-envtest
-	cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... -race -coverprofile cover.out
+	@if [ "$(DIR)" = "git" ]; then \
+		cd git && make test ;\
+	else \
+		cd $(subst :,/,$*) && KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(GO_STATIC_FLAGS) ./... $(GO_TEST_ARGS) -coverprofile cover.out ;\
+	fi
+
+libgit2: $(LIBGIT2)  ## Detect or download libgit2 library
+
+COSIGN = $(GOBIN)/cosign
+$(LIBGIT2): $(MUSL-CC)
+	$(call go-install-tool,$(COSIGN),github.com/sigstore/cosign/cmd/cosign@latest)
+
+	cd git/libgit2 && IMG=$(LIBGIT2_IMG) TAG=$(LIBGIT2_TAG) PATH=$(PATH):$(GOBIN) ./hack/install-libraries.sh
+
+$(MUSL-CC):
+ifneq ($(shell uname -s),Darwin)
+	cd git/libgit2 && ./hack/download-musl.sh
+endif
 
 release-%:
 	$(eval REL_PATH=$(subst :,/,$*))
@@ -44,7 +88,7 @@ release-%:
 	git push origin "$(REL_PATH)/v$(VER)"
 
 # Find or download controller-gen
-CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+CONTROLLER_GEN = $(GOBIN)/controller-gen
 .PHONY: controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
 	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.9.2)
@@ -55,7 +99,7 @@ install-envtest: setup-envtest
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	$(ENVTEST) use $(ENVTEST_KUBERNETES_VERSION) --arch=$(ENVTEST_ARCH) --bin-dir=$(ENVTEST_ASSETS_DIR)
 
-ENVTEST = $(shell pwd)/bin/setup-envtest
+ENVTEST = $(GOBIN)/setup-envtest
 .PHONY: envtest
 setup-envtest: ## Download envtest-setup locally if necessary.
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
