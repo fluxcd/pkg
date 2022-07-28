@@ -137,7 +137,7 @@ func (t *sshSmartSubtransport) Action(transportOptionsURL string, action git2go.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	opts, found := getTransportOptions(transportOptionsURL)
+	opts, found := GetTransportOptions(transportOptionsURL)
 	if !found {
 		return nil, fmt.Errorf("could not find transport options for object: %s", transportOptionsURL)
 	}

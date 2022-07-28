@@ -408,30 +408,3 @@ func recoverPanic(err *error) {
 		*err = fmt.Errorf("recovered from git2go panic: %v", r)
 	}
 }
-
-// Our smart transports don't require any callbacks but, passing nil to
-// high level git2go functions like Push, Clone can result in panic, thus
-// it's safer to use no-op functions.
-func RemoteCallbacks() git2go.RemoteCallbacks {
-	return git2go.RemoteCallbacks{
-		CredentialsCallback:      credentialsCallback(),
-		CertificateCheckCallback: certificateCallback(),
-	}
-}
-
-// credentialsCallback constructs a dummy CredentialsCallback.
-func credentialsCallback() git2go.CredentialsCallback {
-	return func(url string, username string, allowedTypes git2go.CredentialType) (*git2go.Credential, error) {
-		// If Credential is nil, panic will ensue. We fake it as managed transport does not
-		// require it.
-		return git2go.NewCredentialUserpassPlaintext("", "")
-	}
-}
-
-// certificateCallback constructs a dummy CertificateCallback.
-func certificateCallback() git2go.CertificateCheckCallback {
-	// returning a nil func can cause git2go to panic.
-	return func(cert *git2go.Certificate, valid bool, hostname string) error {
-		return nil
-	}
-}

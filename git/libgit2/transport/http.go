@@ -139,7 +139,7 @@ func httpSmartSubtransportFactory(_ *git2go.Remote, _ *git2go.Transport) (git2go
 }
 
 func (t *httpSmartSubtransport) Action(transportOptionsURL string, action git2go.SmartServiceAction) (git2go.SmartSubtransportStream, error) {
-	opts, found := getTransportOptions(transportOptionsURL)
+	opts, found := GetTransportOptions(transportOptionsURL)
 
 	if !found {
 		return nil, fmt.Errorf("failed to create client: could not find transport options for the object: %s", transportOptionsURL)
@@ -213,7 +213,7 @@ func (t *httpSmartSubtransport) Action(transportOptionsURL string, action git2go
 		if req.Response != nil {
 			if newURL, err := req.Response.Location(); err == nil && newURL != nil {
 				if strings.EqualFold(newURL.Host, req.URL.Host) && strings.EqualFold(newURL.Port(), req.URL.Port()) {
-					opts, _ := getTransportOptions(transportOptionsURL)
+					opts, _ := GetTransportOptions(transportOptionsURL)
 					if opts == nil {
 						opts = &TransportOptions{}
 					}

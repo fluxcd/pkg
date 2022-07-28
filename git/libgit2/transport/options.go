@@ -58,7 +58,9 @@ func RemoveTransportOptions(transportOptsURL string) {
 	m.Unlock()
 }
 
-func getTransportOptions(transportOptsURL string) (*TransportOptions, bool) {
+// GetTransportOptions returns a TransportOptions that matches the transportOptsURL.
+// No matches returns nil with false.
+func GetTransportOptions(transportOptsURL string) (*TransportOptions, bool) {
 	m.RLock()
 	opts, found := transportOpts[transportOptsURL]
 	m.RUnlock()

@@ -17,13 +17,19 @@ limitations under the License.
 package transport
 
 import (
+	"math/rand"
 	"sync"
+	"time"
 )
 
 var (
 	once    sync.Once
 	enabled bool
 )
+
+func init() {
+	rand.Seed(time.Now().Unix())
+}
 
 // Enabled defines whether the use of Managed Transport is enabled which
 // is only true if InitManagedTransport was called successfully at least
