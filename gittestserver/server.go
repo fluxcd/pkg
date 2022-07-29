@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	securefilepath "github.com/cyphar/filepath-securejoin"
 	"github.com/fluxcd/gitkit"
 	"github.com/go-git/go-billy/v5/memfs"
 	gogit "github.com/go-git/go-git/v5"
@@ -324,8 +325,12 @@ func (s *GitServer) SSHAddress() string {
 // fixture at the repoPath.
 func (s *GitServer) InitRepo(fixture, branch, repoPath string) error {
 	// Create a bare repo to initialize.
-	localRepo := filepath.Join(s.Root(), repoPath)
-	_, err := gogit.PlainInit(localRepo, true)
+	localRepo, err := securefilepath.SecureJoin(s.Root(), repoPath)
+	if err != nil {
+		return err
+	}
+
+	_, err = gogit.PlainInit(localRepo, true)
 	if err != nil {
 		return err
 	}
