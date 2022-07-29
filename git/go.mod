@@ -30,6 +30,7 @@ require (
 require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/acomagu/bufpipe v1.0.3 // indirect
+	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/gofrs/uuid v4.2.0+incompatible // indirect
