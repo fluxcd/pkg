@@ -55,6 +55,7 @@ end-user operator experience.
 | `client` | Kubernetes runtime client configurations like QPS and burst | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/client?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/client) |
 | `leaderelection` | Kubernetes leader election configurations like the lease duration | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/leaderelection?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/leaderelection) |
 | `logger` | Runtime logger configurations like the encoding and log level | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/logger?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/logger) |
+| `autologin` | Cloud provider auto-login configuration like the registry auto-login | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/autologin?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/autologin) |
 
 ### Working with Conditions
 
