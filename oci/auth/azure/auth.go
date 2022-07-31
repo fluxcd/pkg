@@ -29,7 +29,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/fluxcd/pkg/registry"
+	"github.com/fluxcd/pkg/oci"
 )
 
 // Client is an Azure ACR client which can log into the registry and return
@@ -123,5 +123,5 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 		return auth, nil
 	}
 	ctrl.LoggerFrom(ctx).Info("ACR authentication is not enabled. To enable, set the controller flag --azure-autologin-for-acr")
-	return nil, fmt.Errorf("ACR authentication failed: %w", registry.ErrUnconfiguredProvider)
+	return nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }

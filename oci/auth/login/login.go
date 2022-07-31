@@ -22,26 +22,26 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 
-	"github.com/fluxcd/pkg/registry"
-	"github.com/fluxcd/pkg/registry/aws"
-	"github.com/fluxcd/pkg/registry/azure"
-	"github.com/fluxcd/pkg/registry/gcp"
+	"github.com/fluxcd/pkg/oci"
+	"github.com/fluxcd/pkg/oci/auth/aws"
+	"github.com/fluxcd/pkg/oci/auth/azure"
+	"github.com/fluxcd/pkg/oci/auth/gcp"
 )
 
 // ImageRegistryProvider analyzes the provided image and returns the identified
 // container image registry provider.
-func ImageRegistryProvider(image string, ref name.Reference) registry.Provider {
+func ImageRegistryProvider(image string, ref name.Reference) oci.Provider {
 	_, _, ok := aws.ParseImage(image)
 	if ok {
-		return registry.ProviderAWS
+		return oci.ProviderAWS
 	}
 	if gcp.ValidHost(ref.Context().RegistryStr()) {
-		return registry.ProviderGCR
+		return oci.ProviderGCP
 	}
 	if azure.ValidHost(ref.Context().RegistryStr()) {
-		return registry.ProviderAzure
+		return oci.ProviderAzure
 	}
-	return registry.ProviderGeneric
+	return oci.ProviderGeneric
 }
 
 // ProviderOptions contains options for registry provider login.
@@ -96,11 +96,11 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 // authentication material. For generic registry provider, it is no-op.
 func (m *Manager) Login(ctx context.Context, image string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
 	switch ImageRegistryProvider(image, ref) {
-	case registry.ProviderAWS:
+	case oci.ProviderAWS:
 		return m.ecr.Login(ctx, opts.AwsAutoLogin, image)
-	case registry.ProviderGCR:
+	case oci.ProviderGCP:
 		return m.gcr.Login(ctx, opts.GcpAutoLogin, image, ref)
-	case registry.ProviderAzure:
+	case oci.ProviderAzure:
 		return m.acr.Login(ctx, opts.AzureAutoLogin, image, ref)
 	}
 	return nil, nil

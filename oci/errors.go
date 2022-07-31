@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package registry
+package oci
 
 import "errors"
 
 var (
-	// ErrUnconfiguredProvider is returned when the image registry provider is
-	// not configured for login.
-	ErrUnconfiguredProvider = errors.New("registry provider not configured for login")
+	// ErrUnconfiguredProvider is returned when the OCI registry provider is
+	// not configured.
+	ErrUnconfiguredProvider = errors.New("registry provider not configured")
 )

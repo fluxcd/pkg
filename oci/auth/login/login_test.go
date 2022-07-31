@@ -26,22 +26,22 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	. "github.com/onsi/gomega"
 
-	"github.com/fluxcd/pkg/registry"
-	"github.com/fluxcd/pkg/registry/aws"
-	"github.com/fluxcd/pkg/registry/azure"
-	"github.com/fluxcd/pkg/registry/gcp"
+	"github.com/fluxcd/pkg/oci"
+	"github.com/fluxcd/pkg/oci/auth/aws"
+	"github.com/fluxcd/pkg/oci/auth/azure"
+	"github.com/fluxcd/pkg/oci/auth/gcp"
 )
 
 func TestImageRegistryProvider(t *testing.T) {
 	tests := []struct {
 		name  string
 		image string
-		want  registry.Provider
+		want  oci.Provider
 	}{
-		{"ecr", "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1", registry.ProviderAWS},
-		{"gcr", "gcr.io/foo/bar:v1", registry.ProviderGCR},
-		{"acr", "foo.azurecr.io/bar:v1", registry.ProviderAzure},
-		{"docker.io", "foo/bar:v1", registry.ProviderGeneric},
+		{"ecr", "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1", oci.ProviderAWS},
+		{"gcr", "gcr.io/foo/bar:v1", oci.ProviderGCP},
+		{"acr", "foo.azurecr.io/bar:v1", oci.ProviderAzure},
+		{"docker.io", "foo/bar:v1", oci.ProviderGeneric},
 	}
 
 	for _, tt := range tests {

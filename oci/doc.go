@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package registry contains registry login helpers for container image
-// registries offered by the various cloud providers. It can be used to log into
-// the container image registries using the native authentication mechanism of
-// the platform.
-package registry
+// Package oci contains OCI registry related helpers for the registries offered
+// by the various cloud providers. It can be used to perform various operations
+// like auto-login using the native authentication mechanism of the platform,
+// etc.
+package oci

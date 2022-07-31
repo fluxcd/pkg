@@ -28,7 +28,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/fluxcd/pkg/registry"
+	"github.com/fluxcd/pkg/oci"
 )
 
 type gceToken struct {
@@ -116,5 +116,5 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 		return auth, nil
 	}
 	ctrl.LoggerFrom(ctx).Info("GCR authentication is not enabled. To enable, set the controller flag --gcp-autologin-for-gcr")
-	return nil, fmt.Errorf("GCR authentication failed: %w", registry.ErrUnconfiguredProvider)
+	return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }

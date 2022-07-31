@@ -14,17 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package registry
+package oci
 
-// Provider is used to categorize the registry providers.
+// Provider is used to categorize the OCI registry providers.
 type Provider int
 
 // Registry providers.
 const (
-	// ProviderGeneric is used to categorize registry provider for which we
-	// don't support autologin.
+	// ProviderGeneric is used to categorize registry provider that we don't
+	// support.
 	ProviderGeneric Provider = iota
 	ProviderAWS
-	ProviderGCR
+	ProviderGCP
 	ProviderAzure
 )

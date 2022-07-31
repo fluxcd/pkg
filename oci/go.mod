@@ -1,6 +1,6 @@
-module github.com/fluxcd/pkg/registry
+module github.com/fluxcd/pkg/oci
 
-go 1.18
+go 1.17
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.22.0

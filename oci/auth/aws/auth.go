@@ -30,7 +30,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/fluxcd/pkg/registry"
+	"github.com/fluxcd/pkg/oci"
 )
 
 var registryPartRe = regexp.MustCompile(`([0-9+]*).dkr.ecr.([^/.]*)\.(amazonaws\.com[.cn]*)/([^:]+):?(.*)`)
@@ -97,8 +97,7 @@ func (c *Client) getLoginAuth(accountId, awsEcrRegion string) (authn.AuthConfig,
 	tokenSplit := strings.Split(string(token), ":")
 	// Validate the tokens.
 	if len(tokenSplit) != 2 {
-		// NOTE: Maybe think of some better error message?
-		return authConfig, fmt.Errorf("invalid authorization token, expected to be of length 2, have %d", len(tokenSplit))
+		return authConfig, fmt.Errorf("invalid authorization token, expected the token to have two parts separated by ':', got %d parts", len(tokenSplit))
 	}
 	authConfig = authn.AuthConfig{
 		Username: tokenSplit[0],
@@ -127,5 +126,5 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn
 		return auth, nil
 	}
 	ctrl.LoggerFrom(ctx).Info("ECR authentication is not enabled. To enable, set the controller flag --aws-autologin-for-ecr")
-	return nil, fmt.Errorf("ECR authentication failed: %w", registry.ErrUnconfiguredProvider)
+	return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }
