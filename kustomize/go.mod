@@ -13,8 +13,8 @@ require (
 	k8s.io/apiextensions-apiserver v0.24.1
 	k8s.io/apimachinery v0.24.1
 	sigs.k8s.io/controller-runtime v0.11.2
-	sigs.k8s.io/kustomize/api v0.11.5
-	sigs.k8s.io/kustomize/kyaml v0.13.7
+	sigs.k8s.io/kustomize/api v0.12.0
+	sigs.k8s.io/kustomize/kyaml v0.13.8
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -48,9 +48,10 @@ require (
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect
-	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
+	github.com/xlab/treeprint v1.1.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
