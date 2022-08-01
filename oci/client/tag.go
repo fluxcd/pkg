@@ -14,8 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package oci contains OCI registry related helpers for the registries offered
-// by the various cloud providers. It can be used to perform various operations
-// like pushing, pulling and tagging artifacts, auto-login using the native
-// authentication mechanism of the platform, etc.
-package oci
+package client
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
+)
+
+// Tag creates a new tag for the given artifact using the same OCI repository as the origin.
+func Tag(ctx context.Context, url, tag string) (string, error) {
+	ref, err := name.ParseReference(url)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %w", err)
+	}
+
+	if err := crane.Tag(url, tag, craneOptions(ctx)...); err != nil {
+		return "", err
+	}
+
+	dst := ref.Context().Tag(tag)
+
+	return dst.Name(), nil
+}

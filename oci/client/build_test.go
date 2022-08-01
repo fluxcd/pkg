@@ -14,8 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package oci contains OCI registry related helpers for the registries offered
-// by the various cloud providers. It can be used to perform various operations
-// like pushing, pulling and tagging artifacts, auto-login using the native
-// authentication mechanism of the platform, etc.
-package oci
+package client
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	. "github.com/onsi/gomega"
+)
+
+func TestBuild(t *testing.T) {
+	g := NewWithT(t)
+	testDir := "./testdata/artifact"
+
+	tmpDir := t.TempDir()
+	artifactPath := filepath.Join(tmpDir, "files.tar.gz")
+
+	// test with non-existent path
+	err := Build(artifactPath, "testdata/non-existent")
+	g.Expect(err).To(HaveOccurred())
+
+	err = Build(artifactPath, testDir)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	if _, err := os.Stat(artifactPath); err != nil {
+		g.Expect(err).ToNot(HaveOccurred())
+	}
+}
