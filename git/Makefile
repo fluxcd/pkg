@@ -12,7 +12,7 @@ LIBGIT2 := $(LIBGIT2_LIB_PATH)/libgit2.a
 GO_TAGS ?=
 GO_TEST_ARGS ?= -race
 
-# Use $GOBIN from the enviornment if set, otherwise use ./bin
+# Use $GOBIN from the environment if set, otherwise use ./bin
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(PROJECT_DIR)/bin
 else
@@ -45,7 +45,7 @@ COSIGN = $(GOBIN)/cosign
 $(LIBGIT2):
 	$(call go-install-tool,$(COSIGN),github.com/sigstore/cosign/cmd/cosign@latest)
 
-	cd git/libgit2 && IMG=$(LIBGIT2_IMG) TAG=$(LIBGIT2_TAG) PATH=$(PATH):$(GOBIN) ./hack/install-libraries.sh
+	cd libgit2 && IMG=$(LIBGIT2_IMG) TAG=$(LIBGIT2_TAG) PATH=$(PATH):$(GOBIN) ./hack/install-libraries.sh
 
 define go-install-tool
 @[ -f $(1) ] || { \
