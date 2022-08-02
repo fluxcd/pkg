@@ -28,3 +28,26 @@ const (
 	ProviderGCP
 	ProviderAzure
 )
+
+// Registry TLS transport config.
+const (
+	ClientCert = "certFile"
+	ClientKey  = "keyFile"
+	CACert     = "caFile"
+)
+
+const (
+	// SourceAnnotation is the OpenContainers annotation for specifying
+	// the upstream source of an OCI artifact.
+	SourceAnnotation = "org.opencontainers.image.source"
+
+	// RevisionAnnotation is the OpenContainers annotation for specifying
+	// the upstream source revision of an OCI artifact.
+	RevisionAnnotation = "org.opencontainers.image.revision"
+
+	// OCIRepositoryPrefix is the prefix used for OCIRepository URLs.
+	OCIRepositoryPrefix = "oci://"
+
+	// UserAgent string used for OCI calls.
+	UserAgent = "flux/v2"
+)
