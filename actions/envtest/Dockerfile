@@ -1,4 +1,4 @@
-FROM golang:1.17-bullseye
+FROM golang:1.18-bullseye
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

@@ -30,9 +30,9 @@ type FakeTokenCredential struct {
 	Err       error
 }
 
-func (tc *FakeTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (*azcore.AccessToken, error) {
+func (tc *FakeTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	if tc.Err != nil {
-		return nil, tc.Err
+		return azcore.AccessToken{}, tc.Err
 	}
-	return &azcore.AccessToken{Token: tc.Token, ExpiresOn: tc.ExpiresOn}, nil
+	return azcore.AccessToken{Token: tc.Token, ExpiresOn: tc.ExpiresOn}, nil
 }
