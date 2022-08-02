@@ -22,7 +22,8 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	_ "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -75,7 +76,7 @@ func (c *Client) getLoginAuth(ctx context.Context, ref name.Reference) (authn.Au
 	// Obtain access token using the token credential.
 	// TODO: Add support for other azure endpoints as well.
 	armToken, err := c.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{string(arm.AzurePublicCloud) + ".default"},
+		Scopes: []string{cloud.AzurePublic.Services[cloud.ResourceManager].Endpoint + "/" + ".default"},
 	})
 	if err != nil {
 		return authConfig, err
