@@ -32,6 +32,7 @@ import (
 func Test_List(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
+	c := NewLocalClient()
 	repo := "test-list" + randStringRunes(5)
 	tags := []string{"v0.0.1", "v0.0.2", "v0.0.3"}
 	source := "github.com/fluxcd/fluxv2"
@@ -46,11 +47,11 @@ func Test_List(t *testing.T) {
 		img, err := random.Image(1024, 1)
 		g.Expect(err).ToNot(HaveOccurred())
 		img = mutate.Annotations(img, m.ToAnnotations()).(gcrv1.Image)
-		err = crane.Push(img, dst, craneOptions(ctx)...)
+		err = crane.Push(img, dst, c.options...)
 		g.Expect(err).ToNot(HaveOccurred())
 	}
 
-	metadata, err := List(ctx, fmt.Sprintf("%s/%s", dockerReg, repo))
+	metadata, err := c.List(ctx, fmt.Sprintf("%s/%s", dockerReg, repo))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	g.Expect(len(metadata)).To(Equal(len(tags)))
@@ -61,7 +62,7 @@ func Test_List(t *testing.T) {
 
 		g.Expect(meta.ToAnnotations()).To(Equal(m.ToAnnotations()))
 
-		digest, err := crane.Digest(meta.URL, craneOptions(ctx)...)
+		digest, err := crane.Digest(meta.URL, c.options...)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(meta.Digest).To(Equal(digest))
 	}

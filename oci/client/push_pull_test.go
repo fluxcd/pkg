@@ -31,6 +31,7 @@ import (
 func Test_Push_Pull(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
+	c := NewLocalClient()
 	tag := "v0.0.1"
 	repo := "test-push" + randStringRunes(5)
 
@@ -42,7 +43,7 @@ func Test_Push_Pull(t *testing.T) {
 	annotations := metadata.ToAnnotations()
 
 	testDir := "testdata/artifact"
-	_, err := Push(ctx, url, testDir, metadata)
+	_, err := c.Push(ctx, url, testDir, metadata)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	tags, err := crane.ListTags(fmt.Sprintf("%s/%s", dockerReg, repo))
@@ -57,7 +58,7 @@ func Test_Push_Pull(t *testing.T) {
 	g.Expect(manifest.Annotations).To(BeEquivalentTo(annotations))
 
 	tmpDir := t.TempDir()
-	_, err = Pull(ctx, url, tmpDir)
+	_, err = c.Pull(ctx, url, tmpDir)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Walk directory the test directory and check that all paths exists in the extracted archive

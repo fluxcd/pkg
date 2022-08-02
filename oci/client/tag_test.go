@@ -29,14 +29,15 @@ import (
 func Test_Tag(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
+	c := NewLocalClient()
 	testRepo := "test-tag"
 	url := fmt.Sprintf("%s/%s:v0.0.1", dockerReg, testRepo)
 	img, err := random.Image(1024, 1)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = crane.Push(img, url, craneOptions(ctx)...)
+	err = crane.Push(img, url, c.options...)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	_, err = Tag(ctx, url, "v0.0.2")
+	_, err = c.Tag(ctx, url, "v0.0.2")
 	g.Expect(err).ToNot(HaveOccurred())
 
 	tags, err := crane.ListTags(fmt.Sprintf("%s/%s", dockerReg, testRepo))

@@ -31,7 +31,7 @@ import (
 
 // Push creates an artifact from the given directory, uploads the artifact
 // to the given OCI repository and returns the digest.
-func Push(ctx context.Context, url, sourceDir string, meta Metadata) (string, error) {
+func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata) (string, error) {
 	ref, err := name.ParseReference(url)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
@@ -45,7 +45,7 @@ func Push(ctx context.Context, url, sourceDir string, meta Metadata) (string, er
 
 	tmpFile := filepath.Join(tmpDir, "artifact.tgz")
 
-	if err := Build(tmpFile, sourceDir); err != nil {
+	if err := c.Build(tmpFile, sourceDir); err != nil {
 		return "", err
 	}
 
@@ -56,7 +56,7 @@ func Push(ctx context.Context, url, sourceDir string, meta Metadata) (string, er
 
 	img = mutate.Annotations(img, meta.ToAnnotations()).(gcrv1.Image)
 
-	if err := crane.Push(img, url, craneOptions(ctx)...); err != nil {
+	if err := crane.Push(img, url, c.optionsWithContext(ctx)...); err != nil {
 		return "", fmt.Errorf("pushing artifact failed: %w", err)
 	}
 
@@ -66,16 +66,4 @@ func Push(ctx context.Context, url, sourceDir string, meta Metadata) (string, er
 	}
 
 	return ref.Context().Digest(digest.String()).String(), err
-}
-
-func craneOptions(ctx context.Context) []crane.Option {
-	return []crane.Option{
-		crane.WithContext(ctx),
-		crane.WithUserAgent("flux/v2"),
-		crane.WithPlatform(&gcrv1.Platform{
-			Architecture: "flux",
-			OS:           "flux",
-			OSVersion:    "v2",
-		}),
-	}
 }

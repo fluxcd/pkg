@@ -27,15 +27,16 @@ import (
 func TestBuild(t *testing.T) {
 	g := NewWithT(t)
 	testDir := "./testdata/artifact"
+	c := NewLocalClient()
 
 	tmpDir := t.TempDir()
 	artifactPath := filepath.Join(tmpDir, "files.tar.gz")
 
 	// test with non-existent path
-	err := Build(artifactPath, "testdata/non-existent")
+	err := c.Build(artifactPath, "testdata/non-existent")
 	g.Expect(err).To(HaveOccurred())
 
-	err = Build(artifactPath, testDir)
+	err = c.Build(artifactPath, testDir)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	if _, err := os.Stat(artifactPath); err != nil {

@@ -25,13 +25,13 @@ import (
 )
 
 // Tag creates a new tag for the given artifact using the same OCI repository as the origin.
-func Tag(ctx context.Context, url, tag string) (string, error) {
+func (c *Client) Tag(ctx context.Context, url, tag string) (string, error) {
 	ref, err := name.ParseReference(url)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
 	}
 
-	if err := crane.Tag(url, tag, craneOptions(ctx)...); err != nil {
+	if err := crane.Tag(url, tag, c.optionsWithContext(ctx)...); err != nil {
 		return "", err
 	}
 

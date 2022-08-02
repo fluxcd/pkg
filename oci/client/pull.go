@@ -26,13 +26,13 @@ import (
 )
 
 // Pull downloads an artifact from an OCI repository and extracts the content to the given directory.
-func Pull(ctx context.Context, url, outDir string) (*Metadata, error) {
+func (c *Client) Pull(ctx context.Context, url, outDir string) (*Metadata, error) {
 	ref, err := name.ParseReference(url)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
-	img, err := crane.Pull(url, craneOptions(ctx)...)
+	img, err := crane.Pull(url, c.optionsWithContext(ctx)...)
 	if err != nil {
 		return nil, err
 	}

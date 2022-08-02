@@ -28,9 +28,9 @@ import (
 )
 
 // List fetches the tags and their manifests for a given OCI repository.
-func List(ctx context.Context, url string) ([]Metadata, error) {
+func (c *Client) List(ctx context.Context, url string) ([]Metadata, error) {
 	metas := make([]Metadata, 0)
-	tags, err := crane.ListTags(url, craneOptions(ctx)...)
+	tags, err := crane.ListTags(url, c.options...)
 	if err != nil {
 		return nil, fmt.Errorf("listing tags failed: %w", err)
 	}
@@ -47,7 +47,7 @@ func List(ctx context.Context, url string) ([]Metadata, error) {
 			URL: fmt.Sprintf("%s:%s", url, tag),
 		}
 
-		manifestJSON, err := crane.Manifest(meta.URL, craneOptions(ctx)...)
+		manifestJSON, err := crane.Manifest(meta.URL, c.optionsWithContext(ctx)...)
 		if err != nil {
 			return nil, fmt.Errorf("fetching manifest failed: %w", err)
 		}
@@ -62,7 +62,7 @@ func List(ctx context.Context, url string) ([]Metadata, error) {
 			meta.Source = m.Source
 		}
 
-		digest, err := crane.Digest(meta.URL, craneOptions(ctx)...)
+		digest, err := crane.Digest(meta.URL, c.optionsWithContext(ctx)...)
 		if err != nil {
 			return nil, fmt.Errorf("fetching digest failed: %w", err)
 		}
