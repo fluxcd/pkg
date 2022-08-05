@@ -7,7 +7,6 @@ package fs
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -579,11 +578,6 @@ func TestIsSymlink(t *testing.T) {
 }
 
 func cleanUpDir(dir string) {
-	if runtime.GOOS == "windows" {
-		mu.Lock()
-		exec.Command(`taskkill`, `/F`, `/IM`, `git.exe`).Run()
-		mu.Unlock()
-	}
 	if dir != "" {
 		os.RemoveAll(dir)
 	}
