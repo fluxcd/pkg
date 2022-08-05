@@ -140,7 +140,9 @@ func Test_ssh_keyTypes(t *testing.T) {
 			}
 
 			tmpDir := t.TempDir()
-			lgc := NewClient(tmpDir, authOpts)
+			lgc, err := NewClient(tmpDir, authOpts)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer lgc.Close()
 
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
@@ -269,7 +271,9 @@ func Test_ssh_keyExchangeAlgos(t *testing.T) {
 			}
 
 			tmpDir := t.TempDir()
-			lgc := NewClient(tmpDir, authOpts)
+			lgc, err := NewClient(tmpDir, authOpts)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer lgc.Close()
 
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
@@ -438,7 +442,9 @@ func Test_ssh_hostKeyAlgos(t *testing.T) {
 			}
 
 			tmpDir := t.TempDir()
-			lgc := NewClient(tmpDir, authOpts)
+			lgc, err := NewClient(tmpDir, authOpts)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer lgc.Close()
 
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()

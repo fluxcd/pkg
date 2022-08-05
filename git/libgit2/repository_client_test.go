@@ -47,10 +47,12 @@ func TestInit(t *testing.T) {
 	g := NewWithT(t)
 
 	tmp := t.TempDir()
-	lgc := NewClient(tmp, &git.AuthOptions{
+	lgc, err := NewClient(tmp, &git.AuthOptions{
 		Transport: git.HTTPS,
 	})
-	err := lgc.Init(context.TODO(), "https://github.com/fluxcd/flux2", "main")
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = lgc.Init(context.TODO(), "https://github.com/fluxcd/flux2", "main")
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(lgc.repository).ToNot(BeNil())
 	g.Expect(lgc.remote).ToNot(BeNil())
@@ -66,13 +68,24 @@ func TestWriteFile(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer repo.Free()
 
-	lgc := NewClient(tmp, nil)
+	lgc, err := NewClient(tmp, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
 	lgc.repository = repo
 	err = lgc.WriteFile("test", strings.NewReader("testing libgit2 write"))
 	g.Expect(err).ToNot(HaveOccurred())
 	cont, err := os.ReadFile(filepath.Join(tmp, "test"))
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal("testing libgit2 write"))
+
+	err = lgc.WriteFile("/outside/test2", strings.NewReader("absolute path is resolved as relative"))
+	g.Expect(err).ToNot(HaveOccurred())
+	cont, err = os.ReadFile(filepath.Join(tmp, "outside", "test2"))
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(string(cont)).To(Equal("absolute path is resolved as relative"))
+
+	err = lgc.WriteFile("../tmp/test3", strings.NewReader("path outside repo"))
+	g.Expect(err).To(HaveOccurred())
 }
 
 func TestCommit(t *testing.T) {
@@ -93,9 +106,11 @@ func TestCommit(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer repo.Free()
 
-	lgc := NewClient(tmp, nil)
-	lgc.repository = repo
+	lgc, err := NewClient(tmp, nil)
+	g.Expect(err).ToNot(HaveOccurred())
 	defer lgc.Close()
+
+	lgc.repository = repo
 
 	// No new commit made when there are no changes in the repo.
 	head, err := lgc.repository.Head()
@@ -164,8 +179,10 @@ func TestPush(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer repo.Free()
 
-	lgc := NewClient(tmp, auth)
+	lgc, err := NewClient(tmp, auth)
+	g.Expect(err).ToNot(HaveOccurred())
 	defer lgc.Close()
+
 	lgc.repository = repo
 	lgc.remote, err = repo.Remotes.Lookup(git.DefaultRemote)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -321,8 +338,10 @@ func TestSwitchBranch(t *testing.T) {
 				expectedHash = head.Target().String()
 			}
 
-			lgc := NewClient(tmp, auth)
+			lgc, err := NewClient(tmp, auth)
+			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
+
 			lgc.repository = repo
 			origin, err := repo.Remotes.Lookup(git.DefaultRemote)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -352,7 +371,9 @@ func TestIsClean(t *testing.T) {
 
 	_, err = test.CommitFile(repo, "clean", "testing libgit2 is clean", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
-	lgc := NewClient(repo.Workdir(), nil)
+	lgc, err := NewClient(repo.Workdir(), nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
 	defer lgc.Close()
 	lgc.repository = repo
 
@@ -377,8 +398,10 @@ func TestHead(t *testing.T) {
 
 	hash, err := test.CommitFile(repo, "clean", "testing libgit2 head", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
-	lgc := NewClient(repo.Workdir(), nil)
+	lgc, err := NewClient(repo.Workdir(), nil)
+	g.Expect(err).ToNot(HaveOccurred())
 	defer lgc.Close()
+
 	lgc.repository = repo
 
 	cc, err := lgc.Head()

@@ -28,9 +28,12 @@ import (
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/go-git/go-billy/v5/osfs"
 	git2go "github.com/libgit2/git2go/v33"
 
-	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/libgit2/transport"
 	"github.com/fluxcd/pkg/gitutil"
@@ -44,6 +47,7 @@ type Client struct {
 	repository *git2go.Repository
 	remote     *git2go.Remote
 	authOpts   *git.AuthOptions
+	repoFS     billy.Filesystem
 	// transportOptsURL is the backbone of how we use our own smart transports
 	// without having to rely on libgit2 callbacks (since they are inflexible
 	// and unstable).
@@ -56,14 +60,42 @@ type Client struct {
 	transportOptsURL string
 }
 
-func NewClient(path string, authOpts *git.AuthOptions) *Client {
-	return &Client{
+var _ git.RepositoryClient = &Client{}
+
+type ClientOption func(*Client) error
+
+func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOption) (*Client, error) {
+	l := &Client{
 		path:     path,
 		authOpts: authOpts,
 	}
+
+	if len(clientOpts) == 0 {
+		clientOpts = append(clientOpts, WithDiskStorage)
+	}
+
+	for _, clientOpt := range clientOpts {
+		if err := clientOpt(l); err != nil {
+			return nil, err
+		}
+	}
+
+	if l.repoFS == nil {
+		return nil, errors.New("unable to create client with a nil repo filesystem")
+	}
+
+	return l, nil
 }
 
-var _ git.RepositoryClient = &Client{}
+func WithDiskStorage(l *Client) error {
+	l.repoFS = osfs.New(l.path)
+	return nil
+}
+
+func WithMemoryStorage(l *Client) error {
+	l.repoFS = memfs.New()
+	return nil
+}
 
 func (l *Client) Init(ctx context.Context, url, branch string) error {
 	if l.repository != nil {
@@ -141,7 +173,7 @@ func (l *Client) WriteFile(path string, reader io.Reader) error {
 		return git.ErrNoGitRepository
 	}
 
-	f, err := os.Create(filepath.Join(l.path, path))
+	f, err := l.repoFS.Create(path)
 	if err != nil {
 		return err
 	}

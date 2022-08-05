@@ -67,6 +67,15 @@ func TestWriteFile(t *testing.T) {
 	cont, err := os.ReadFile(filepath.Join(tmp, "test"))
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal("testing gogit write"))
+
+	err = ggc.WriteFile("/outside/test2", strings.NewReader("absolute path is resolved as relative"))
+	g.Expect(err).ToNot(HaveOccurred())
+	cont, err = os.ReadFile(filepath.Join(tmp, "outside", "test2"))
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(string(cont)).To(Equal("absolute path is resolved as relative"))
+
+	err = ggc.WriteFile("../tmp/test3", strings.NewReader("path outside repo"))
+	g.Expect(err).To(HaveOccurred())
 }
 
 func TestCommit(t *testing.T) {

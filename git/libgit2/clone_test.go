@@ -129,9 +129,10 @@ func TestClone_cloneBranch(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			lgc := NewClient(tmpDir, &git.AuthOptions{
+			lgc, err := NewClient(tmpDir, &git.AuthOptions{
 				Transport: git.HTTP,
 			})
+			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
 			cc, err := lgc.Clone(context.TODO(), repoURL, git.CheckoutOptions{
@@ -251,9 +252,10 @@ func TestClone_cloneTag(t *testing.T) {
 			}
 
 			tmpDir := t.TempDir()
-			lgc := NewClient(tmpDir, &git.AuthOptions{
+			lgc, err := NewClient(tmpDir, &git.AuthOptions{
 				Transport: git.HTTP,
 			})
+			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
 			checkoutOpts := git.CheckoutOptions{
@@ -325,9 +327,10 @@ func TestClone_cloneCommit(t *testing.T) {
 
 	repoURL := server.HTTPAddress() + "/" + repoPath
 	tmpDir := t.TempDir()
-	lgc := NewClient(tmpDir, &git.AuthOptions{
+	lgc, err := NewClient(tmpDir, &git.AuthOptions{
 		Transport: git.HTTP,
 	})
+	g.Expect(err).ToNot(HaveOccurred())
 	defer lgc.Close()
 
 	cc, err := lgc.Clone(context.TODO(), repoURL, git.CheckoutOptions{
@@ -340,9 +343,10 @@ func TestClone_cloneCommit(t *testing.T) {
 	g.Expect(os.ReadFile(filepath.Join(tmpDir, "commit"))).To(BeEquivalentTo("init"))
 
 	tmpDir2 := t.TempDir()
-	lgc = NewClient(tmpDir2, &git.AuthOptions{
+	lgc, err = NewClient(tmpDir2, &git.AuthOptions{
 		Transport: git.HTTP,
 	})
+	g.Expect(err).ToNot(HaveOccurred())
 
 	cc, err = lgc.Clone(context.TODO(), repoURL, git.CheckoutOptions{
 		Commit: "4dc3185c5fc94eb75048376edeb44571cece25f4",
@@ -466,9 +470,10 @@ func TestClone_cloneSemVer(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			lgc := NewClient(tmpDir, &git.AuthOptions{
+			lgc, err := NewClient(tmpDir, &git.AuthOptions{
 				Transport: git.HTTP,
 			})
+			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
 			cc, err := lgc.Clone(context.TODO(), repoURL, git.CheckoutOptions{
