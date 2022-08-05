@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -54,6 +55,8 @@ func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata)
 		return "", fmt.Errorf("appeding content to artifact failed: %w", err)
 	}
 
+	ct := time.Now()
+	meta.Created = ct.Format(time.RFC3339)
 	img = mutate.Annotations(img, meta.ToAnnotations()).(gcrv1.Image)
 
 	if err := crane.Push(img, url, c.optionsWithContext(ctx)...); err != nil {

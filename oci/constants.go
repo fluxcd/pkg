@@ -45,6 +45,10 @@ const (
 	// the upstream source revision of an OCI artifact.
 	RevisionAnnotation = "org.opencontainers.image.revision"
 
+	// CreatedAnnotation is the OpenContainers annotation for specifying
+	// the date and time on which the OCI artifact was built (RFC 3339).
+	CreatedAnnotation = "org.opencontainers.image.created"
+
 	// OCIRepositoryPrefix is the prefix used for OCIRepository URLs.
 	OCIRepositoryPrefix = "oci://"
 
