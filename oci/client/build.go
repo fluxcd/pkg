@@ -24,6 +24,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/fluxcd/pkg/oci/client/internal/fs"
 )
 
 // Build archives the given directory as a tarball to the given local path.
@@ -125,7 +127,7 @@ func (c *Client) Build(artifactPath, sourceDir string) (err error) {
 		return err
 	}
 
-	return os.Rename(tmpName, artifactPath)
+	return fs.RenameWithFallback(tmpName, artifactPath)
 }
 
 type writeCounter struct {
