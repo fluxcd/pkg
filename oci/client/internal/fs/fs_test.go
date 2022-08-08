@@ -27,27 +27,30 @@ func TestMain(m *testing.M) {
 			newPath: "testdata/symlinks/windows-file-symlink",
 		},
 		{
-			"/non/existing/file",
-			"testdata/symlinks/invalid-symlink",
+			oldPath: "/non/existing/file",
+			newPath: "testdata/symlinks/invalid-symlink",
+		},
+		{
+			oldPath: "../test.file",
+			newPath: "testdata/symlinks/file-symlink",
+		},
+		{
+			oldPath: "../../testdata",
+			newPath: "testdata/symlinks/dir-symlink",
 		},
 	}
+
+	os.MkdirAll("testdata/symlinks", 0o755)
+	defer os.RemoveAll("testdata/symlinks")
+
 	for _, sl := range symlinks {
 		err := os.Symlink(sl.oldPath, sl.newPath)
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("failed to create symlink: %v", err))
 		}
 	}
 
-	c := m.Run()
-
-	for _, sl := range symlinks {
-		err := os.Remove(sl.newPath)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	os.Exit(c)
+	os.Exit(m.Run())
 }
 
 func TestRenameWithFallback(t *testing.T) {
