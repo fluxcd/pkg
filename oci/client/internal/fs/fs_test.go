@@ -17,6 +17,39 @@ var (
 	mu sync.Mutex
 )
 
+func TestMain(m *testing.M) {
+	symlinks := []struct {
+		oldPath string
+		newPath string
+	}{
+		{
+			oldPath: "C:/Users/fluxcd/go/src/github.com/golang/dep/internal/fs/testdata/test.file",
+			newPath: "testdata/symlinks/windows-file-symlink",
+		},
+		{
+			"/non/existing/file",
+			"testdata/symlinks/invalid-symlink",
+		},
+	}
+	for _, sl := range symlinks {
+		err := os.Symlink(sl.oldPath, sl.newPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	c := m.Run()
+
+	for _, sl := range symlinks {
+		err := os.Remove(sl.newPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	os.Exit(c)
+}
+
 func TestRenameWithFallback(t *testing.T) {
 	dir := t.TempDir()
 
