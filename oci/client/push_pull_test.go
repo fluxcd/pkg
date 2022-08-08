@@ -26,6 +26,8 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	. "github.com/onsi/gomega"
+
+	"github.com/fluxcd/pkg/oci"
 )
 
 func Test_Push_Pull(t *testing.T) {
@@ -40,7 +42,6 @@ func Test_Push_Pull(t *testing.T) {
 		Source:   "github.com/fluxcd/flux2",
 		Revision: "rev",
 	}
-	annotations := metadata.ToAnnotations()
 
 	testDir := "testdata/artifact"
 	_, err := c.Push(ctx, url, testDir, metadata)
@@ -55,7 +56,10 @@ func Test_Push_Pull(t *testing.T) {
 
 	manifest, err := image.Manifest()
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(manifest.Annotations).To(BeEquivalentTo(annotations))
+
+	g.Expect(manifest.Annotations[oci.CreatedAnnotation]).ToNot(BeEmpty())
+	g.Expect(manifest.Annotations[oci.SourceAnnotation]).ToNot(BeEmpty())
+	g.Expect(manifest.Annotations[oci.RevisionAnnotation]).ToNot(BeEmpty())
 
 	tmpDir := t.TempDir()
 	_, err = c.Pull(ctx, url, tmpDir)

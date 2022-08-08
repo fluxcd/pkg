@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -37,9 +38,11 @@ func Test_List(t *testing.T) {
 	tags := []string{"v0.0.1", "v0.0.2", "v0.0.3"}
 	source := "github.com/fluxcd/fluxv2"
 	rev := "rev"
+	ct := time.Now()
 	m := Metadata{
 		Source:   source,
 		Revision: rev,
+		Created:  ct.Format(time.RFC3339),
 	}
 
 	for _, tag := range tags {

@@ -60,6 +60,7 @@ func (c *Client) List(ctx context.Context, url string) ([]Metadata, error) {
 		if m, err := MetadataFromAnnotations(manifest.Annotations); err == nil {
 			meta.Revision = m.Revision
 			meta.Source = m.Source
+			meta.Created = m.Created
 		}
 
 		digest, err := crane.Digest(meta.URL, c.optionsWithContext(ctx)...)
