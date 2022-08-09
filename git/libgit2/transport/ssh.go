@@ -88,7 +88,7 @@ func registerManagedSSH() error {
 	for _, protocol := range []string{"ssh", "ssh+git", "git+ssh"} {
 		_, err := git2go.NewRegisteredSmartTransport(protocol, false, sshSmartSubtransportFactory)
 		if err != nil {
-			return fmt.Errorf("failed to register transport for %q: %v", protocol, err)
+			return fmt.Errorf("failed to register transport for '%s': %v", protocol, err)
 		}
 	}
 	return nil
@@ -262,7 +262,11 @@ func (t *sshSmartSubtransport) Action(transportOptionsURL string, action git2go.
 		for {
 			select {
 			case <-ctx.Done():
-				t.Close()
+				t.logger.V(logger.TraceLevel).Error(ctx.Err(), "context channel Done closed")
+				if atomic.LoadInt32(t.closedSessions) < closedAlready {
+					t.logger.V(logger.TraceLevel).Info("closing transport", "command", cmd)
+					t.Close()
+				}
 				return nil
 
 			default:
