@@ -43,6 +43,18 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func TestNewClient(t *testing.T) {
+	g := NewWithT(t)
+
+	outside := "../outside"
+	lgc, err := NewClient(outside, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	wd, err := os.Getwd()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(lgc.path).To(Equal(filepath.Join(wd, "outside")))
+}
+
 func TestInit(t *testing.T) {
 	g := NewWithT(t)
 
@@ -58,6 +70,24 @@ func TestInit(t *testing.T) {
 	g.Expect(lgc.remote).ToNot(BeNil())
 	g.Expect(lgc.remote.Url()).To(Equal(lgc.transportOptsURL))
 	g.Expect(lgc.remote.Name()).To(Equal(git.DefaultRemote))
+
+	outside := "../outside"
+	lgc, err = NewClient(outside, &git.AuthOptions{
+		Transport: git.HTTPS,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = lgc.Init(context.TODO(), "https://github.com/fluxcd/flux2", "main")
+	g.Expect(err).ToNot(HaveOccurred())
+
+	wd, err := os.Getwd()
+	g.Expect(err).ToNot(HaveOccurred())
+	// path outside the working dir is resolved as a child of the working dir
+	expectedPath := filepath.Join(wd, "outside")
+	defer os.RemoveAll(expectedPath)
+
+	_, err = os.Stat(expectedPath)
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestWriteFile(t *testing.T) {
@@ -78,11 +108,16 @@ func TestWriteFile(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal("testing libgit2 write"))
 
-	err = lgc.WriteFile("/outside/test2", strings.NewReader("absolute path is resolved as relative"))
+	fileStr := "absolute path is resolved as relative"
+	err = lgc.WriteFile("/outside/test2", strings.NewReader(fileStr))
 	g.Expect(err).ToNot(HaveOccurred())
-	cont, err = os.ReadFile(filepath.Join(tmp, "outside", "test2"))
+
+	expectedPath := filepath.Join(tmp, "outside", "test2")
+	defer os.RemoveAll(expectedPath)
+
+	cont, err = os.ReadFile(expectedPath)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(string(cont)).To(Equal("absolute path is resolved as relative"))
+	g.Expect(string(cont)).To(Equal(fileStr))
 
 	err = lgc.WriteFile("../tmp/test3", strings.NewReader("path outside repo"))
 	g.Expect(err).To(HaveOccurred())
