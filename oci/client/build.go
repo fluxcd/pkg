@@ -26,8 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
-
 	"github.com/fluxcd/pkg/oci/client/internal/fs"
 	"github.com/fluxcd/pkg/oci/sourceignore"
 )
@@ -154,22 +152,4 @@ func (wc *writeCounter) Write(p []byte) (int, error) {
 	n := len(p)
 	wc.written += int64(n)
 	return n, nil
-}
-
-// ArchiveFileFilter must return true if a file should not be included in the archive after inspecting the given path
-// and/or os.FileInfo.
-type ArchiveFileFilter func(p string, fi os.FileInfo) bool
-
-// SourceIgnoreFilter returns an ArchiveFileFilter that filters out files matching sourceignore.VCSPatterns and any of
-// the provided patterns.
-// If an empty gitignore.Pattern slice is given, the matcher is set to sourceignore.NewDefaultMatcher.
-func SourceIgnoreFilter(ps []gitignore.Pattern, domain []string) ArchiveFileFilter {
-	matcher := sourceignore.NewDefaultMatcher(ps, domain)
-	if len(ps) > 0 {
-		ps = append(sourceignore.VCSPatterns(domain), ps...)
-		matcher = sourceignore.NewMatcher(ps)
-	}
-	return func(p string, fi os.FileInfo) bool {
-		return matcher.Match(strings.Split(p, string(filepath.Separator)), fi.IsDir())
-	}
 }

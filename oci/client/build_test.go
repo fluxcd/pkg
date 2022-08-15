@@ -18,7 +18,6 @@ package client
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/fluxcd/pkg/untar"
 	. "github.com/onsi/gomega"
 	"os"
@@ -61,7 +60,6 @@ func TestBuild(t *testing.T) {
 		}
 
 		fullPath := filepath.Join(untarDir, testDir, path)
-		fmt.Println(fullPath)
 		_, err := os.Stat(fullPath)
 		if shouldExist {
 			g.Expect(err).To(BeNil())
