@@ -2,19 +2,21 @@ module github.com/fluxcd/pkg/oci
 
 go 1.18
 
-replace github.com/fluxcd/pkg/untar => ../untar
+replace (
+	github.com/fluxcd/pkg/untar => ../untar
+	github.com/fluxcd/pkg/sourceignore => ../sourceignore
+)
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/aws/aws-sdk-go v1.44.53
 	github.com/distribution/distribution/v3 v3.0.0-20220729163034-26163d82560f
+	github.com/fluxcd/pkg/sourceignore v0.0.0-00010101000000-000000000000
 	github.com/fluxcd/pkg/untar v0.1.0
-	github.com/go-git/go-git/v5 v5.4.2
 	github.com/google/go-containerregistry v0.10.0
 	github.com/onsi/gomega v1.19.0
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
-	gotest.tools v2.2.0+incompatible
 	sigs.k8s.io/controller-runtime v0.11.2
 )
 
@@ -44,6 +46,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
+	github.com/go-git/go-git/v5 v5.4.2 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect

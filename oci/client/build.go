@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/fluxcd/pkg/oci/client/internal/fs"
-	"github.com/fluxcd/pkg/oci/sourceignore"
+	"github.com/fluxcd/pkg/sourceignore"
 )
 
 // Build archives the given directory as a tarball to the given local path.
