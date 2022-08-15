@@ -18,12 +18,14 @@ package client
 
 import (
 	"bytes"
-	"github.com/fluxcd/pkg/untar"
-	. "github.com/onsi/gomega"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	. "github.com/onsi/gomega"
+
+	"github.com/fluxcd/pkg/untar"
 )
 
 func TestBuild(t *testing.T) {
