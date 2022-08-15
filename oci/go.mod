@@ -3,8 +3,8 @@ module github.com/fluxcd/pkg/oci
 go 1.18
 
 replace (
-	github.com/fluxcd/pkg/untar => ../untar
 	github.com/fluxcd/pkg/sourceignore => ../sourceignore
+	github.com/fluxcd/pkg/untar => ../untar
 )
 
 require (
