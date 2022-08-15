@@ -23,14 +23,18 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
+
 	"github.com/fluxcd/pkg/oci/client/internal/fs"
+	"github.com/fluxcd/pkg/oci/sourceignore"
 )
 
 // Build archives the given directory as a tarball to the given local path.
 // While archiving, any environment specific data (for example, the user and group name) is stripped from file headers.
-func (c *Client) Build(artifactPath, sourceDir string) (err error) {
+func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (err error) {
 	if f, err := os.Stat(sourceDir); os.IsNotExist(err) || !f.IsDir() {
 		return fmt.Errorf("invalid source dir path: %s", sourceDir)
 	}
@@ -46,6 +50,14 @@ func (c *Client) Build(artifactPath, sourceDir string) (err error) {
 		}
 	}()
 
+	ignore := strings.Join(ignorePaths, "\n")
+	domain := strings.Split(filepath.Clean(sourceDir), string(filepath.Separator))
+	ps := sourceignore.ReadPatterns(strings.NewReader(ignore), domain)
+	matcher := sourceignore.NewMatcher(ps)
+	filter := func(p string, fi os.FileInfo) bool {
+		return matcher.Match(strings.Split(p, string(filepath.Separator)), fi.IsDir())
+	}
+
 	sz := &writeCounter{}
 	mw := io.MultiWriter(tf, sz)
 
@@ -58,6 +70,10 @@ func (c *Client) Build(artifactPath, sourceDir string) (err error) {
 
 		// Ignore anything that is not a file or directories e.g. symlinks
 		if m := fi.Mode(); !(m.IsRegular() || m.IsDir()) {
+			return nil
+		}
+
+		if len(ignorePaths) > 0 && filter(p, fi) {
 			return nil
 		}
 
@@ -138,4 +154,22 @@ func (wc *writeCounter) Write(p []byte) (int, error) {
 	n := len(p)
 	wc.written += int64(n)
 	return n, nil
+}
+
+// ArchiveFileFilter must return true if a file should not be included in the archive after inspecting the given path
+// and/or os.FileInfo.
+type ArchiveFileFilter func(p string, fi os.FileInfo) bool
+
+// SourceIgnoreFilter returns an ArchiveFileFilter that filters out files matching sourceignore.VCSPatterns and any of
+// the provided patterns.
+// If an empty gitignore.Pattern slice is given, the matcher is set to sourceignore.NewDefaultMatcher.
+func SourceIgnoreFilter(ps []gitignore.Pattern, domain []string) ArchiveFileFilter {
+	matcher := sourceignore.NewDefaultMatcher(ps, domain)
+	if len(ps) > 0 {
+		ps = append(sourceignore.VCSPatterns(domain), ps...)
+		matcher = sourceignore.NewMatcher(ps)
+	}
+	return func(p string, fi os.FileInfo) bool {
+		return matcher.Match(strings.Split(p, string(filepath.Separator)), fi.IsDir())
+	}
 }

@@ -32,7 +32,7 @@ import (
 
 // Push creates an artifact from the given directory, uploads the artifact
 // to the given OCI repository and returns the digest.
-func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata) (string, error) {
+func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata, ignorePaths []string) (string, error) {
 	ref, err := name.ParseReference(url)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
@@ -46,7 +46,7 @@ func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata)
 
 	tmpFile := filepath.Join(tmpDir, "artifact.tgz")
 
-	if err := c.Build(tmpFile, sourceDir); err != nil {
+	if err := c.Build(tmpFile, sourceDir, ignorePaths); err != nil {
 		return "", err
 	}
 

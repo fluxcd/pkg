@@ -17,11 +17,14 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
+	"fmt"
+	"github.com/fluxcd/pkg/untar"
+	. "github.com/onsi/gomega"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-
-	. "github.com/onsi/gomega"
 )
 
 func TestBuild(t *testing.T) {
@@ -33,13 +36,38 @@ func TestBuild(t *testing.T) {
 	artifactPath := filepath.Join(tmpDir, "files.tar.gz")
 
 	// test with non-existent path
-	err := c.Build(artifactPath, "testdata/non-existent")
+	err := c.Build(artifactPath, "testdata/non-existent", nil)
 	g.Expect(err).To(HaveOccurred())
 
-	err = c.Build(artifactPath, testDir)
+	ignorePaths := []string{"ignore.txt", "ignore-dir/", "!/deploy"}
+	err = c.Build(artifactPath, testDir, ignorePaths)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	if _, err := os.Stat(artifactPath); err != nil {
-		g.Expect(err).ToNot(HaveOccurred())
+	_, err = os.Stat(artifactPath)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	b, err := os.ReadFile(artifactPath)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	untarDir := t.TempDir()
+	_, err = untar.Untar(bytes.NewReader(b), untarDir)
+	g.Expect(err).To(BeNil())
+
+	for _, path := range ignorePaths {
+		var shouldExist bool
+		if strings.HasPrefix(path, "!") {
+			shouldExist = true
+			path = path[1:]
+		}
+
+		fullPath := filepath.Join(untarDir, testDir, path)
+		fmt.Println(fullPath)
+		_, err := os.Stat(fullPath)
+		if shouldExist {
+			g.Expect(err).To(BeNil())
+			return
+		}
+		g.Expect(err).ToNot(BeNil())
+		g.Expect(os.IsNotExist(err)).To(BeTrue())
 	}
 }
