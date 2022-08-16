@@ -44,7 +44,7 @@ func Test_Push_Pull(t *testing.T) {
 	}
 
 	testDir := "testdata/artifact"
-	_, err := c.Push(ctx, url, testDir, metadata)
+	_, err := c.Push(ctx, url, testDir, metadata, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	tags, err := crane.ListTags(fmt.Sprintf("%s/%s", dockerReg, repo))

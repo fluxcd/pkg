@@ -489,9 +489,8 @@ func TestPatchHelper(t *testing.T) {
 
 					readyBefore := conditions.Get(obj, meta.ReadyCondition)
 					readyAfter := conditions.Get(objAfter, meta.ReadyCondition)
-
 					return cmp.Equal(readyBefore, readyAfter)
-				}, timeout).Should(BeTrue())
+				}, extendedTimeout).Should(BeTrue())
 			})
 
 			t.Run("should not return an error if there is an unresolvable conflict when force overwrite is enabled", func(t *testing.T) {
