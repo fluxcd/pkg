@@ -12,7 +12,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/aws/aws-sdk-go v1.44.53
 	github.com/distribution/distribution/v3 v3.0.0-20220729163034-26163d82560f
-	github.com/fluxcd/pkg/sourceignore v0.0.0-00010101000000-000000000000
+	github.com/fluxcd/pkg/sourceignore v0.1.0
 	github.com/fluxcd/pkg/untar v0.1.0
 	github.com/google/go-containerregistry v0.10.0
 	github.com/onsi/gomega v1.19.0
