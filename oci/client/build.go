@@ -49,7 +49,10 @@ func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (er
 	}()
 
 	ignore := strings.Join(ignorePaths, "\n")
-	domain := strings.Split(filepath.Clean(sourceDir), string(filepath.Separator))
+	var domain []string
+	if sourceDir != "." {
+		domain = strings.Split(filepath.Clean(sourceDir), string(filepath.Separator))
+	}
 	ps := sourceignore.ReadPatterns(strings.NewReader(ignore), domain)
 	matcher := sourceignore.NewMatcher(ps)
 	filter := func(p string, fi os.FileInfo) bool {
