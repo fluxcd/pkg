@@ -29,43 +29,84 @@ import (
 )
 
 func TestBuild(t *testing.T) {
-	g := NewWithT(t)
-	testDir := "./testdata/artifact"
 	c := NewLocalClient()
 
-	tmpDir := t.TempDir()
-	artifactPath := filepath.Join(tmpDir, "files.tar.gz")
+	tests := []struct {
+		name       string
+		path       string
+		ignorePath []string
+		expectErr  bool
+		checkPaths []string
+	}{
+		{
+			name:      "non-existent path",
+			path:      "testdata/non-existent",
+			expectErr: true,
+		},
+		{
+			name:       "existing path",
+			path:       "testdata/artifact",
+			ignorePath: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
+			checkPaths: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
+		},
+		{
+			name:       "existing path with leading slash",
+			path:       "./testdata/artifact",
+			ignorePath: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
+			checkPaths: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
+		},
+		{
+			name:       "current directory",
+			path:       ".",
+			ignorePath: []string{"/*", "!/internal"},
+			checkPaths: []string{"/testdata", "!internal/", "build.go", "meta.go"},
+		},
+	}
 
-	// test with non-existent path
-	err := c.Build(artifactPath, "testdata/non-existent", nil)
-	g.Expect(err).To(HaveOccurred())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			tmpDir := t.TempDir()
+			artifactPath := filepath.Join(tmpDir, "files.tar.gz")
 
-	ignorePaths := []string{"ignore.txt", "ignore-dir/", "!/deploy"}
-	err = c.Build(artifactPath, testDir, ignorePaths)
-	g.Expect(err).ToNot(HaveOccurred())
+			err := c.Build(artifactPath, tt.path, tt.ignorePath)
+			if tt.expectErr {
+				g.Expect(err).To(HaveOccurred())
+				return
+			}
 
-	_, err = os.Stat(artifactPath)
-	g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).To(Not(HaveOccurred()))
 
-	b, err := os.ReadFile(artifactPath)
-	g.Expect(err).ToNot(HaveOccurred())
+			_, err = os.Stat(artifactPath)
+			g.Expect(err).ToNot(HaveOccurred())
 
-	untarDir := t.TempDir()
-	_, err = untar.Untar(bytes.NewReader(b), untarDir)
-	g.Expect(err).To(BeNil())
+			b, err := os.ReadFile(artifactPath)
+			g.Expect(err).ToNot(HaveOccurred())
 
-	for _, path := range ignorePaths {
+			untarDir := t.TempDir()
+			_, err = untar.Untar(bytes.NewReader(b), untarDir)
+			g.Expect(err).To(BeNil())
+
+			checkPathExists(t, untarDir, tt.path, tt.checkPaths)
+		})
+	}
+}
+
+func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
+	g := NewWithT(t)
+
+	for _, path := range paths {
 		var shouldExist bool
 		if strings.HasPrefix(path, "!") {
 			shouldExist = true
 			path = path[1:]
 		}
 
-		fullPath := filepath.Join(untarDir, testDir, path)
+		fullPath := filepath.Join(dir, testDir, path)
 		_, err := os.Stat(fullPath)
 		if shouldExist {
 			g.Expect(err).To(BeNil())
-			return
+			continue
 		}
 		g.Expect(err).ToNot(BeNil())
 		g.Expect(os.IsNotExist(err)).To(BeTrue())
