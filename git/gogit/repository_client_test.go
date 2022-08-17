@@ -32,6 +32,18 @@ import (
 	"github.com/fluxcd/pkg/gittestserver"
 )
 
+func TestNewClient(t *testing.T) {
+	g := NewWithT(t)
+
+	outside := "../outside"
+	ggc, err := NewClient(outside, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	wd, err := os.Getwd()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(ggc.path).To(Equal(filepath.Join(wd, "outside")))
+}
+
 func TestInit(t *testing.T) {
 	g := NewWithT(t)
 
@@ -44,11 +56,30 @@ func TestInit(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(ggc.repository).ToNot(BeNil())
 
+	_, err = os.Stat(tmp)
+	g.Expect(err).ToNot(HaveOccurred())
+
 	remotes, err := ggc.repository.Remotes()
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(len(remotes)).To(Equal(1))
 	g.Expect(remotes[0].Config().Name).To(Equal(git.DefaultRemote))
 	g.Expect(remotes[0].Config().URLs[0]).To(Equal("https://github.com/fluxcd/flux2"))
+
+	outside := "../outside"
+	ggc, err = NewClient(outside, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = ggc.Init(context.TODO(), "https://github.com/fluxcd/flux2", "main")
+	g.Expect(err).ToNot(HaveOccurred())
+
+	wd, err := os.Getwd()
+	g.Expect(err).ToNot(HaveOccurred())
+	// path outside the working dir is resolved as a child of the working dir
+	expectedPath := filepath.Join(wd, "outside")
+	defer os.RemoveAll(expectedPath)
+
+	_, err = os.Stat(expectedPath)
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestWriteFile(t *testing.T) {
@@ -67,6 +98,20 @@ func TestWriteFile(t *testing.T) {
 	cont, err := os.ReadFile(filepath.Join(tmp, "test"))
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal("testing gogit write"))
+
+	fileStr := "absolute path is resolved as relative"
+	err = ggc.WriteFile("/outside/test2", strings.NewReader(fileStr))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	expectedPath := filepath.Join(tmp, "outside", "test2")
+	defer os.RemoveAll(expectedPath)
+
+	cont, err = os.ReadFile(expectedPath)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(string(cont)).To(Equal(fileStr))
+
+	err = ggc.WriteFile("../tmp/test3", strings.NewReader("path outside repo"))
+	g.Expect(err).To(HaveOccurred())
 }
 
 func TestCommit(t *testing.T) {

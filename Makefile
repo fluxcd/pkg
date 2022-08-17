@@ -1,14 +1,17 @@
 VER?=0.0.1
 MODULES=$(shell find . -mindepth 2 -maxdepth 4 -type f -name 'go.mod' | cut -c 3- | sed 's|/[^/]*$$||' | sort -u | tr / :)
 targets=$(addprefix test-, $(MODULES))
-root_dir=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+root_dir=$(shell git rev-parse --show-toplevel)
 
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+# Use $GOBIN from the environment if set, otherwise use ./bin
 ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
+GOBIN=$(root_dir)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
+
+PKG?=$*
+GO_TEST_ARGS ?= -race
 
 # Architecture to use envtest with
 ENVTEST_ARCH ?= amd64
@@ -23,17 +26,25 @@ fmt-%:
 	cd $(subst :,/,$*); go fmt ./...
 
 vet-%:
-	cd $(subst :,/,$*); go vet ./...
+	@if [ "$(PKG)" = "git" ]; then \
+		cd $(PKG); make vet ;\
+	else \
+		cd $(subst :,/,$*); go vet ./... ;\
+	fi
 
 generate-%: controller-gen
-	# Run schemapatch to validate all the kubebuilder markers before generation.
-	cd $(subst :,/,$*); $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..."
-	cd $(subst :,/,$*); $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..."
+	# Run schemapatch to validate all the kubebuilder markers before generation
+	cd $(subst :,/,$*); CGO_ENABLED=0 $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..."
+	cd $(subst :,/,$*); CGO_ENABLED=0 $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..."
 
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
 test-%: tidy-% generate-% fmt-% vet-% install-envtest
-	cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... -race -coverprofile cover.out
+	@if [ "$(PKG)" = "git" ]; then \
+		cd $(PKG); make test ;\
+	else \
+		cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... $(GO_TEST_ARGS) -coverprofile cover.out ;\
+	fi
 
 release-%:
 	$(eval REL_PATH=$(subst :,/,$*))
@@ -44,7 +55,7 @@ release-%:
 	git push origin "$(REL_PATH)/v$(VER)"
 
 # Find or download controller-gen
-CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+CONTROLLER_GEN = $(GOBIN)/controller-gen
 .PHONY: controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
 	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.9.2)
@@ -55,7 +66,7 @@ install-envtest: setup-envtest
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	$(ENVTEST) use $(ENVTEST_KUBERNETES_VERSION) --arch=$(ENVTEST_ARCH) --bin-dir=$(ENVTEST_ASSETS_DIR)
 
-ENVTEST = $(shell pwd)/bin/setup-envtest
+ENVTEST = $(GOBIN)/setup-envtest
 .PHONY: envtest
 setup-envtest: ## Download envtest-setup locally if necessary.
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)

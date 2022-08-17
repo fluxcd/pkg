@@ -58,8 +58,13 @@ type ClientOption func(*Client) error
 
 // NewClient returns a new GoGitClient.
 func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOption) (*Client, error) {
+	securePath, err := git.SecurePath(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid path %s: %w", path, err)
+	}
+
 	g := &Client{
-		path:     path,
+		path:     securePath,
 		authOpts: authOpts,
 	}
 

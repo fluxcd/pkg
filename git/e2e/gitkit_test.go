@@ -22,6 +22,7 @@ package e2e
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -29,8 +30,19 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
+	"github.com/fluxcd/pkg/git/libgit2"
+	"github.com/fluxcd/pkg/git/libgit2/transport"
 	"github.com/fluxcd/pkg/gittestserver"
 )
+
+func TestMain(m *testing.M) {
+	err := transport.InitManagedTransport()
+	if err != nil {
+		panic("could not init managed transport")
+	}
+	code := m.Run()
+	os.Exit(code)
+}
 
 func TestGitKitE2E(t *testing.T) {
 	g := NewWithT(t)
@@ -88,21 +100,29 @@ func TestGitKitE2E(t *testing.T) {
 	}
 
 	protocols := []git.TransportType{git.SSH, git.HTTP}
-	clients := []string{gogit.ClientName}
+	gitClients := []string{gogit.ClientName, libgit2.ClientName}
 
-	testFunc := func(t *testing.T, proto git.TransportType, c string) {
-		t.Run(fmt.Sprintf("repo created using Clone/%s", proto), func(t *testing.T) {
+	testFunc := func(t *testing.T, proto git.TransportType, gitClient string) {
+		t.Run(fmt.Sprintf("repo created using Clone/%s/%s", gitClient, proto), func(t *testing.T) {
 			g := NewWithT(t)
 			var client git.RepositoryClient
 			tmp := t.TempDir()
-			repoName := fmt.Sprintf("gitkit-e2e-checkout-%s", string(proto))
+			repoName := fmt.Sprintf("gitkit-e2e-checkout-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
 
 			repoURL, authOptions, err := repoInfo(repoName, proto, gitServer)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			if c == gogit.ClientName {
+			switch gitClient {
+			case gogit.ClientName:
 				client, err = gogit.NewClient(tmp, authOptions)
 				g.Expect(err).ToNot(HaveOccurred())
+				defer client.Close()
+			case libgit2.ClientName:
+				client, err = libgit2.NewClient(tmp, authOptions)
+				g.Expect(err).ToNot(HaveOccurred())
+				defer client.Close()
+			default:
+				t.Fatalf("invalid git client name: %s", gitClient)
 			}
 
 			// init repo on server
@@ -115,19 +135,25 @@ func TestGitKitE2E(t *testing.T) {
 			})
 		})
 
-		t.Run(fmt.Sprintf("repo created using Init/%s", proto), func(t *testing.T) {
+		t.Run(fmt.Sprintf("repo created using Init/%s/%s", gitClient, proto), func(t *testing.T) {
 			g := NewWithT(t)
 			var client git.RepositoryClient
 			tmp := t.TempDir()
-			repoName := fmt.Sprintf("gitkit-e2e-init-%s", string(proto))
+			repoName := fmt.Sprintf("gitkit-e2e-init-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
 			upstreamRepoPath := filepath.Join(gitServer.Root(), repoName)
 
 			repoURL, authOptions, err := repoInfo(repoName, proto, gitServer)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			if c == gogit.ClientName {
+			switch gitClient {
+			case gogit.ClientName:
 				client, err = gogit.NewClient(tmp, authOptions)
 				g.Expect(err).ToNot(HaveOccurred())
+			case libgit2.ClientName:
+				client, err = libgit2.NewClient(tmp, authOptions)
+				g.Expect(err).ToNot(HaveOccurred())
+			default:
+				t.Fatalf("invalid git client name: %s", gitClient)
 			}
 
 			testUsingInit(g, client, repoURL, upstreamRepoInfo{
@@ -135,7 +161,7 @@ func TestGitKitE2E(t *testing.T) {
 			})
 		})
 	}
-	for _, client := range clients {
+	for _, client := range gitClients {
 		for _, protocol := range protocols {
 			testFunc(t, protocol, client)
 		}
