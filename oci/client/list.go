@@ -20,15 +20,25 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-containerregistry/pkg/crane"
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
+
+	"github.com/fluxcd/pkg/version"
 )
 
+// ListOptions contains options for listing tags from an OCI repository
+type ListOptions struct {
+	semverFilter string
+	regexFilter  string
+}
+
 // List fetches the tags and their manifests for a given OCI repository.
-func (c *Client) List(ctx context.Context, url string) ([]Metadata, error) {
+func (c *Client) List(ctx context.Context, url string, opts ListOptions) ([]Metadata, error) {
 	metas := make([]Metadata, 0)
 	tags, err := crane.ListTags(url, c.options...)
 	if err != nil {
@@ -37,9 +47,41 @@ func (c *Client) List(ctx context.Context, url string) ([]Metadata, error) {
 
 	sort.Slice(tags, func(i, j int) bool { return tags[i] > tags[j] })
 
+	var constraint *semver.Constraints
+	if opts.semverFilter != "" {
+		constraint, err = semver.NewConstraint(opts.semverFilter)
+		if err != nil {
+			return nil, fmt.Errorf("semver '%s' parse error: %w", opts.semverFilter, err)
+		}
+	}
+
+	var re *regexp.Regexp
+	if opts.regexFilter != "" {
+		re, err = regexp.Compile(opts.regexFilter)
+		if err != nil {
+			return nil, fmt.Errorf("regex '%s' parse error: %w", opts.regexFilter, err)
+		}
+	}
+
 	for _, tag := range tags {
 		// exclude cosign signatures
 		if strings.HasSuffix(tag, ".sig") {
+			continue
+		}
+
+		if constraint != nil {
+			v, err := version.ParseVersion(tag)
+			// version isn't a valid semver so we can skip
+			if err != nil {
+				continue
+			}
+
+			if !constraint.Check(v) {
+				continue
+			}
+		}
+
+		if re != nil && !re.Match([]byte(tag)) {
 			continue
 		}
 
