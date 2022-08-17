@@ -35,7 +35,7 @@ func Test_List(t *testing.T) {
 	ctx := context.Background()
 	c := NewLocalClient()
 	repo := "test-list" + randStringRunes(5)
-	tags := []string{"v0.0.1", "v0.0.2", "v0.0.3"}
+	tags := []string{"v0.0.1", "v0.0.2", "v0.0.3", "v6.0.0", "v6.0.1", "v6.0.2", "v6.0.2-rc.1", "v6.0.2-alpha", "staging-fb3355b"}
 	source := "github.com/fluxcd/fluxv2"
 	rev := "rev"
 	ct := time.Now()
@@ -54,19 +54,55 @@ func Test_List(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 	}
 
-	metadata, err := c.List(ctx, fmt.Sprintf("%s/%s", dockerReg, repo))
-	g.Expect(err).ToNot(HaveOccurred())
+	tests := []struct {
+		name         string
+		regexFilter  string
+		semverFilter string
+		expectedTags []string
+	}{
+		{
+			name:         "list all tags",
+			expectedTags: tags,
+		},
+		{
+			name:         "list 6.0.x tags",
+			semverFilter: "6.0.x",
+			expectedTags: []string{"v6.0.0", "v6.0.1", "v6.0.2"},
+		},
+		{
+			name:         "list tags starting with staging",
+			regexFilter:  "^staging.*$",
+			expectedTags: []string{"staging-fb3355b"},
+		},
+		{
+			name:         "filter for alpha 6.0.x",
+			semverFilter: ">=6.0.0-rc",
+			regexFilter:  "alpha",
+			expectedTags: []string{"v6.0.2-alpha"},
+		},
+	}
 
-	g.Expect(len(metadata)).To(Equal(len(tags)))
-	for _, meta := range metadata {
-		tag, err := name.NewTag(meta.URL)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(tag.TagStr()).Should(BeElementOf(tags))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			metadata, err := c.List(ctx, fmt.Sprintf("%s/%s", dockerReg, repo), ListOptions{
+				semverFilter: tt.semverFilter,
+				regexFilter:  tt.regexFilter,
+			})
+			g.Expect(err).ToNot(HaveOccurred())
 
-		g.Expect(meta.ToAnnotations()).To(Equal(m.ToAnnotations()))
+			g.Expect(len(metadata)).To(Equal(len(tt.expectedTags)))
+			for _, meta := range metadata {
+				tag, err := name.NewTag(meta.URL)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(tag.TagStr()).Should(BeElementOf(tt.expectedTags))
 
-		digest, err := crane.Digest(meta.URL, c.options...)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(meta.Digest).To(Equal(digest))
+				g.Expect(meta.ToAnnotations()).To(Equal(m.ToAnnotations()))
+
+				digest, err := crane.Digest(meta.URL, c.options...)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(meta.Digest).To(Equal(digest))
+			}
+		})
 	}
 }
