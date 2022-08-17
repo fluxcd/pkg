@@ -86,8 +86,8 @@ func Test_List(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			metadata, err := c.List(ctx, fmt.Sprintf("%s/%s", dockerReg, repo), ListOptions{
-				semverFilter: tt.semverFilter,
-				regexFilter:  tt.regexFilter,
+				SemverFilter: tt.semverFilter,
+				RegexFilter:  tt.regexFilter,
 			})
 			g.Expect(err).ToNot(HaveOccurred())
 

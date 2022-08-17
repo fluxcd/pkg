@@ -31,10 +31,12 @@ import (
 	"github.com/fluxcd/pkg/version"
 )
 
-// ListOptions contains options for listing tags from an OCI repository
+// ListOptions contains options for listing tags from an OCI repository.
 type ListOptions struct {
-	semverFilter string
-	regexFilter  string
+	// SemverFilter contains semver for filtering tags.
+	SemverFilter string
+	// RegexFilter contains a regex that tags will be filtered by.
+	RegexFilter string
 }
 
 // List fetches the tags and their manifests for a given OCI repository.
@@ -48,18 +50,18 @@ func (c *Client) List(ctx context.Context, url string, opts ListOptions) ([]Meta
 	sort.Slice(tags, func(i, j int) bool { return tags[i] > tags[j] })
 
 	var constraint *semver.Constraints
-	if opts.semverFilter != "" {
-		constraint, err = semver.NewConstraint(opts.semverFilter)
+	if opts.SemverFilter != "" {
+		constraint, err = semver.NewConstraint(opts.SemverFilter)
 		if err != nil {
-			return nil, fmt.Errorf("semver '%s' parse error: %w", opts.semverFilter, err)
+			return nil, fmt.Errorf("semver '%s' parse error: %w", opts.SemverFilter, err)
 		}
 	}
 
 	var re *regexp.Regexp
-	if opts.regexFilter != "" {
-		re, err = regexp.Compile(opts.regexFilter)
+	if opts.RegexFilter != "" {
+		re, err = regexp.Compile(opts.RegexFilter)
 		if err != nil {
-			return nil, fmt.Errorf("regex '%s' parse error: %w", opts.regexFilter, err)
+			return nil, fmt.Errorf("regex '%s' parse error: %w", opts.RegexFilter, err)
 		}
 	}
 
