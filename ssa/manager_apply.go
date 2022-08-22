@@ -204,7 +204,7 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 		}
 		changeSet.Append(cs.Entries)
 
-		if err := m.Wait(stageOne, WaitOptions{2 * time.Second, opts.WaitTimeout}); err != nil {
+		if _, err := m.Wait(stageOne, WaitOptions{2 * time.Second, opts.WaitTimeout}); err != nil {
 			return nil, err
 		}
 	}

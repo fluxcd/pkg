@@ -19,6 +19,7 @@ package ssa
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,7 +51,7 @@ func TestWaitForSet(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := manager.WaitForSet([]object.ObjMetadata{cs.ObjMetadata}, DefaultWaitOptions()); err != nil {
+		if _, err := manager.WaitForSet([]object.ObjMetadata{cs.ObjMetadata}, DefaultWaitOptions()); err != nil {
 			t.Errorf("wait failed for CRD: %v", err)
 		}
 
@@ -59,8 +60,13 @@ func TestWaitForSet(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := manager.WaitForSet(changeSet.ToObjMetadataSet(), WaitOptions{time.Second, 3 * time.Second}); err == nil {
+		msg, err := manager.WaitForSet(changeSet.ToObjMetadataSet(), WaitOptions{time.Second, 3 * time.Second})
+		if err == nil {
 			t.Error("wanted wait error due to observedGeneration < generation")
+		}
+		expectedStr := "generation is 1, but latest observed generation is -1"
+		if !strings.Contains(msg, expectedStr) {
+			t.Errorf("expected msg to contain %s but got %s", expectedStr, msg)
 		}
 
 		clusterCR := &unstructured.Unstructured{}
@@ -88,7 +94,7 @@ func TestWaitForSet(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := manager.WaitForSet(changeSet.ToObjMetadataSet(), DefaultWaitOptions()); err != nil {
+		if _, err := manager.WaitForSet(changeSet.ToObjMetadataSet(), DefaultWaitOptions()); err != nil {
 			t.Errorf("wait error: %v", err)
 		}
 	})
