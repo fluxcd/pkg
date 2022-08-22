@@ -438,5 +438,5 @@ func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Comm
 }
 
 func isRemoteBranchNotFoundErr(err error, ref string) bool {
-	return strings.Contains(err.Error(), fmt.Sprintf("couldn't find remote ref %q", ref))
+	return strings.Contains(err.Error(), fmt.Sprintf("couldn't find remote ref '%s'", ref))
 }
