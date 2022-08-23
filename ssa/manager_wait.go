@@ -55,17 +55,17 @@ func DefaultWaitOptions() WaitOptions {
 }
 
 // Wait checks if the given set of objects has been fully reconciled.
-func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, opts WaitOptions) error {
+func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, opts WaitOptions) (string, error) {
 	objectsMeta := object.UnstructuredSetToObjMetadataSet(objects)
 	if len(objectsMeta) == 0 {
-		return nil
+		return "", nil
 	}
 
 	return m.WaitForSet(objectsMeta, opts)
 }
 
 // WaitForSet checks if the given set of ObjMetadata has been fully reconciled.
-func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions) error {
+func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions) (string, error) {
 	statusCollector := collector.NewResourceStatusCollector(set)
 
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
@@ -106,11 +106,12 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 	<-done
 
 	if statusCollector.Error != nil {
-		return statusCollector.Error
+		return "", statusCollector.Error
 	}
 
 	if ctx.Err() == context.DeadlineExceeded {
 		var errors = []string{}
+		var msg = []string{}
 		for id, rs := range statusCollector.ResourceStatuses {
 			if rs == nil {
 				errors = append(errors, fmt.Sprintf("can't determine status for %s", FmtObjMetadata(id)))
@@ -127,12 +128,16 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 					builder.WriteString(fmt.Sprintf(": %s", rs.Error))
 				}
 				errors = append(errors, builder.String())
+				if rs.Message != "" {
+					builder.WriteString(fmt.Sprintf(" message: '%s'", rs.Message))
+				}
+				msg = append(msg, builder.String())
 			}
 		}
-		return fmt.Errorf("timeout waiting for: [%s]", strings.Join(errors, ", "))
+		return strings.Join(msg, ", "), fmt.Errorf("timeout waiting for: [%s]", strings.Join(errors, ", "))
 	}
 
-	return nil
+	return "", nil
 }
 
 // WaitForTermination waits for the given objects to be deleted from the cluster.
