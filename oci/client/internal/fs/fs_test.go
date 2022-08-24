@@ -41,7 +41,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.MkdirAll("testdata/symlinks", 0o755)
-	defer os.RemoveAll("testdata/symlinks")
 
 	for _, sl := range symlinks {
 		err := os.Symlink(sl.oldPath, sl.newPath)
@@ -50,7 +49,13 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	os.Exit(m.Run())
+	code := m.Run()
+
+	if err := os.RemoveAll("testdata/symlinks"); err != nil {
+		panic(fmt.Errorf("failed to remove symlink directory: %v", err))
+	}
+
+	os.Exit(code)
 }
 
 func TestRenameWithFallback(t *testing.T) {
