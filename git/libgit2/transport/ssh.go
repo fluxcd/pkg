@@ -65,7 +65,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/runtime/logger"
 	"github.com/go-logr/logr"
 	git2go "github.com/libgit2/git2go/v33"
 )
@@ -219,7 +218,7 @@ func (t *sshSmartSubtransport) Action(transportOptionsURL string, action git2go.
 		return nil, err
 	}
 
-	t.logger.V(logger.TraceLevel).Info("creating new ssh session")
+	t.logger.V(traceLevel).Info("creating new ssh session")
 	if t.session, err = t.client.NewSession(); err != nil {
 		return nil, err
 	}
@@ -245,7 +244,7 @@ func (t *sshSmartSubtransport) Action(transportOptionsURL string, action git2go.
 
 			// In case this goroutine panics, handle recovery.
 			if r := recover(); r != nil {
-				t.logger.V(logger.TraceLevel).Error(errors.New(r.(string)),
+				t.logger.V(traceLevel).Error(errors.New(r.(string)),
 					"recovered from libgit2 ssh smart subtransport panic")
 			}
 		}()
@@ -262,9 +261,9 @@ func (t *sshSmartSubtransport) Action(transportOptionsURL string, action git2go.
 		for {
 			select {
 			case <-ctx.Done():
-				t.logger.V(logger.TraceLevel).Error(ctx.Err(), "context channel Done closed")
+				t.logger.V(traceLevel).Error(ctx.Err(), "context channel Done closed")
 				if atomic.LoadInt32(t.closedSessions) < closedAlready {
-					t.logger.V(logger.TraceLevel).Info("closing transport", "command", cmd)
+					t.logger.V(traceLevel).Info("closing transport", "command", cmd)
 					t.Close()
 				}
 				return nil
@@ -283,7 +282,7 @@ func (t *sshSmartSubtransport) Action(transportOptionsURL string, action git2go.
 		}
 	}()
 
-	t.logger.V(logger.TraceLevel).Info("run on remote", "cmd", cmd)
+	t.logger.V(traceLevel).Info("run on remote", "cmd", cmd)
 	if err := t.session.Start(cmd); err != nil {
 		return nil, err
 	}
@@ -300,7 +299,7 @@ func (t *sshSmartSubtransport) createConn(addr string, sshConfig *ssh.ClientConf
 	ctx, cancel := context.WithTimeout(context.TODO(), sshConnectionTimeOut)
 	defer cancel()
 
-	t.logger.V(logger.TraceLevel).Info("dial connection")
+	t.logger.V(traceLevel).Info("dial connection")
 	conn, err := proxy.Dial(ctx, "tcp", addr)
 	if err != nil {
 		return err
@@ -326,7 +325,7 @@ func (t *sshSmartSubtransport) createConn(addr string, sshConfig *ssh.ClientConf
 // may impair the transport to have successful actions on a new
 // SmartSubTransport (i.e. unreleased resources, staled connections).
 func (t *sshSmartSubtransport) Close() error {
-	t.logger.V(logger.TraceLevel).Info("sshSmartSubtransport.Close()")
+	t.logger.V(traceLevel).Info("sshSmartSubtransport.Close()")
 
 	t.currentStream = nil
 	if t.client != nil && t.stdin != nil {
@@ -335,14 +334,14 @@ func (t *sshSmartSubtransport) Close() error {
 	t.stdin = nil
 
 	if t.session != nil {
-		t.logger.V(logger.TraceLevel).Info("session.Close()")
+		t.logger.V(traceLevel).Info("session.Close()")
 		_ = t.session.Close()
 	}
 	t.session = nil
 
 	if t.client != nil {
 		_ = t.client.Close()
-		t.logger.V(logger.TraceLevel).Info("close client")
+		t.logger.V(traceLevel).Info("close client")
 	}
 	t.client = nil
 

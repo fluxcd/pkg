@@ -9,7 +9,6 @@ replace (
 	github.com/fluxcd/pkg/gittestserver => ../../../gittestserver
 	github.com/fluxcd/pkg/gitutil => ../../../gitutil
 	github.com/fluxcd/pkg/http/transport => ../../../http/transport
-	github.com/fluxcd/pkg/runtime => ../../../runtime
 	github.com/fluxcd/pkg/ssh => ../../../ssh
 	github.com/fluxcd/pkg/version => ../../../version
 )
@@ -55,13 +54,11 @@ require (
 	github.com/fluxcd/gitkit v0.6.0 // indirect
 	github.com/fluxcd/pkg/gitutil v0.2.0 // indirect
 	github.com/fluxcd/pkg/http/transport v0.0.1 // indirect
-	github.com/fluxcd/pkg/runtime v0.16.2 // indirect
 	github.com/fluxcd/pkg/version v0.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
-	github.com/go-logr/zapr v1.2.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
@@ -93,9 +90,6 @@ require (
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xanzy/ssh-agent v0.3.1 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
-	go.uber.org/zap v1.23.0 // indirect
 	golang.org/x/crypto v0.0.0-20220824171710-5757bc0c5503 // indirect
 	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c // indirect
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
