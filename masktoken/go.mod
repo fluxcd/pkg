@@ -1,3 +1,3 @@
 module github.com/fluxcd/pkg/masktoken
 
-go 1.17
+go 1.18

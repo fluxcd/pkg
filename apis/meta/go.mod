@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/apis/meta
 
-go 1.17
+go 1.18
 
 require k8s.io/apimachinery v0.25.0
 

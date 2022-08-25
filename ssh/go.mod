@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/ssh
 
-go 1.17
+go 1.18
 
 // Fix for CVE-2020-29652: https://github.com/golang/crypto/commit/8b5274cf687fd9316b4108863654cc57385531e8
 // Fix for CVE-2021-43565: https://github.com/golang/crypto/commit/5770296d904e90f15f38f77dfc2e43fdf5efc083
