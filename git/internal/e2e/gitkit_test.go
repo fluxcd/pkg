@@ -126,7 +126,7 @@ func TestGitKitE2E(t *testing.T) {
 			}
 
 			// init repo on server
-			err = gitServer.InitRepo("../testdata/git/repo", "main", repoName)
+			err = gitServer.InitRepo("../../testdata/git/repo", "main", repoName)
 			g.Expect(err).ToNot(HaveOccurred())
 			upstreamRepoPath := filepath.Join(gitServer.Root(), repoName)
 

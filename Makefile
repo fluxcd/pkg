@@ -26,8 +26,10 @@ fmt-%:
 	cd $(subst :,/,$*); go fmt ./...
 
 vet-%:
-	@if [ "$(PKG)" = "git" ]; then \
-		cd $(PKG); make vet ;\
+# "git:libgit2" is the wildcard that comes after "vet-"
+# running make vet-git:libgit2 will cd into git/libgit2 and run make vet
+	@if [ "$(PKG)" = "git:libgit2" ]; then \
+		cd $(subst :,/,$*); make vet ;\
 	else \
 		cd $(subst :,/,$*); go vet ./... ;\
 	fi
@@ -40,8 +42,8 @@ generate-%: controller-gen
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
 test-%: tidy-% generate-% fmt-% vet-% install-envtest
-	@if [ "$(PKG)" = "git" ]; then \
-		cd $(PKG); make test ;\
+	@if [ "$(PKG)" = "git:libgit2" ]; then \
+		cd $(subst :,/,$*); make test ;\
 	else \
 		cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... $(GO_TEST_ARGS) -coverprofile cover.out ;\
 	fi

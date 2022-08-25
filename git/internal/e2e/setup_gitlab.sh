@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -o errexit
-DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR=$(git rev-parse --show-toplevel)
 
 # Launch a container running GitLab CE.
 docker run --detach \
@@ -34,7 +34,7 @@ password=$(docker exec gitlab grep 'Password:' /etc/gitlab/initial_root_password
 
 # Register a PAT for the root user.
 TOKEN="flux-gitlab-testing123"
-docker cp "$DIR"/setup_gitlab_pat.rb gitlab:/
+docker cp $PROJECT_DIR/git/internal/e2e/setup_gitlab_pat.rb gitlab:/
 docker exec gitlab gitlab-rails runner /setup_gitlab_pat.rb "${TOKEN}"
 exitCode=$?
 if [[ ${exitCode} -ne 0 ]]; then
