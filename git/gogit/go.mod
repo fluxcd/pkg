@@ -16,13 +16,13 @@ require (
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/git v0.5.0
 	github.com/fluxcd/pkg/gittestserver v0.6.0
-	github.com/fluxcd/pkg/gitutil v0.1.0
-	github.com/fluxcd/pkg/ssh v0.5.0
-	github.com/fluxcd/pkg/version v0.1.0
+	github.com/fluxcd/pkg/gitutil v0.2.0
+	github.com/fluxcd/pkg/ssh v0.6.0
+	github.com/fluxcd/pkg/version v0.2.0
 	github.com/go-git/go-billy/v5 v5.3.1
 	github.com/go-git/go-git/v5 v5.4.2
 	github.com/onsi/gomega v1.20.0
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
+	golang.org/x/crypto v0.0.0-20220824171710-5757bc0c5503
 )
 
 require (

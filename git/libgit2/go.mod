@@ -31,17 +31,17 @@ require (
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/git v0.5.0
 	github.com/fluxcd/pkg/gittestserver v0.6.0
-	github.com/fluxcd/pkg/gitutil v0.1.0
+	github.com/fluxcd/pkg/gitutil v0.2.0
 	github.com/fluxcd/pkg/http/transport v0.0.1
 	github.com/fluxcd/pkg/runtime v0.16.2
-	github.com/fluxcd/pkg/ssh v0.5.0
-	github.com/fluxcd/pkg/version v0.1.0
+	github.com/fluxcd/pkg/ssh v0.6.0
+	github.com/fluxcd/pkg/version v0.2.0
 	github.com/go-git/go-billy/v5 v5.3.1
 	github.com/go-logr/logr v1.2.3
 	github.com/libgit2/git2go/v33 v33.0.9
 	github.com/onsi/gomega v1.20.0
-	golang.org/x/crypto v0.0.0-20220817201139-bc19a97f63c8
-	golang.org/x/net v0.0.0-20220812174116-3211cb980234
+	golang.org/x/crypto v0.0.0-20220824171710-5757bc0c5503
+	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c
 	sigs.k8s.io/controller-runtime v0.11.2
 )
 
