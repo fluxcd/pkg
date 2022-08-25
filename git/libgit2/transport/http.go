@@ -55,7 +55,6 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/http/transport"
-	"github.com/fluxcd/pkg/runtime/logger"
 	"github.com/go-logr/logr"
 	git2go "github.com/libgit2/git2go/v33"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -85,6 +84,12 @@ const (
 	uploadPackLSAction  = "/info/refs?service=git-upload-pack"
 	receivePackAction   = "/git-receive-pack"
 	receivePackLSAction = "/info/refs?service=git-receive-pack"
+)
+
+const (
+	traceLevel = 2
+	debugLevel = 1
+	infoLevel  = 0
 )
 
 var actionSuffixes = []string{
@@ -323,15 +328,15 @@ func createClientRequest(targetURL string, action git2go.SmartServiceAction,
 }
 
 func (t *httpSmartSubtransport) Close() error {
-	t.logger.V(logger.TraceLevel).Info("httpSmartSubtransport.Close()")
+	t.logger.V(traceLevel).Info("httpSmartSubtransport.Close()")
 	return nil
 }
 
 func (t *httpSmartSubtransport) Free() {
-	t.logger.V(logger.TraceLevel).Info("httpSmartSubtransport.Free()")
+	t.logger.V(traceLevel).Info("httpSmartSubtransport.Free()")
 
 	if t.httpTransport != nil {
-		t.logger.V(logger.TraceLevel).Info("release http transport back to pool")
+		t.logger.V(traceLevel).Info("release http transport back to pool")
 
 		transport.Release(t.httpTransport)
 		t.httpTransport = nil
@@ -401,18 +406,18 @@ func (self *httpSmartSubtransportStream) Write(buf []byte) (int, error) {
 
 func (self *httpSmartSubtransportStream) Free() {
 	if self.resp != nil {
-		self.owner.logger.V(logger.TraceLevel).Info("httpSmartSubtransportStream.Free()")
+		self.owner.logger.V(traceLevel).Info("httpSmartSubtransportStream.Free()")
 
 		if self.resp.Body != nil {
 			// ensure body is fully processed and closed
 			// for increased likelihood of transport reuse in HTTP/1.x.
 			// it should not be a problem to do this more than once.
 			if _, err := io.Copy(io.Discard, self.resp.Body); err != nil {
-				self.owner.logger.V(logger.TraceLevel).Error(err, "cannot discard response body")
+				self.owner.logger.V(traceLevel).Error(err, "cannot discard response body")
 			}
 
 			if err := self.resp.Body.Close(); err != nil {
-				self.owner.logger.V(logger.TraceLevel).Error(err, "cannot close response body")
+				self.owner.logger.V(traceLevel).Error(err, "cannot close response body")
 			}
 		}
 	}
@@ -457,7 +462,7 @@ func (self *httpSmartSubtransportStream) sendRequest() error {
 			req.ContentLength = -1
 		}
 
-		self.owner.logger.V(logger.TraceLevel).Info("new request", "method", req.Method, "postUrl", req.URL)
+		self.owner.logger.V(traceLevel).Info("new request", "method", req.Method, "postUrl", req.URL)
 		resp, err = self.client.Do(req)
 		if err != nil {
 			return err
