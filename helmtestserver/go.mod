@@ -5,8 +5,8 @@ go 1.18
 replace github.com/fluxcd/pkg/testserver => ../testserver
 
 require (
-	github.com/fluxcd/pkg/testserver v0.2.0
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
+	github.com/fluxcd/pkg/testserver v0.3.0
+	golang.org/x/crypto v0.0.0-20220824171710-5757bc0c5503
 	helm.sh/helm/v3 v3.9.4
 	sigs.k8s.io/yaml v1.3.0
 )

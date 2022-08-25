@@ -14,9 +14,9 @@ require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/aws/aws-sdk-go v1.44.84
 	github.com/distribution/distribution/v3 v3.0.0-20220822034424-3413bf8e14fd
-	github.com/fluxcd/pkg/sourceignore v0.1.0
-	github.com/fluxcd/pkg/untar v0.1.0
-	github.com/fluxcd/pkg/version v0.1.0
+	github.com/fluxcd/pkg/sourceignore v0.2.0
+	github.com/fluxcd/pkg/untar v0.2.0
+	github.com/fluxcd/pkg/version v0.2.0
 	github.com/google/go-containerregistry v0.11.0
 	github.com/onsi/gomega v1.20.0
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
