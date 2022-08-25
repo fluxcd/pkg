@@ -54,6 +54,7 @@ func TestDelete(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		tag         string
 		url         string
 		expectedErr bool
 		checkTags   []string
@@ -65,7 +66,8 @@ func TestDelete(t *testing.T) {
 		},
 		{
 			name:      "delete tag",
-			url:       fmt.Sprintf("%s/%s:v0.0.1", dockerReg, repo),
+			url:       fmt.Sprintf("%s/%s", dockerReg, repo),
+			tag:       "v0.0.1",
 			checkTags: []string{"v0.0.1"},
 		},
 	}
@@ -73,7 +75,7 @@ func TestDelete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			err := c.Delete(ctx, tt.url)
+			err := c.Delete(ctx, tt.url, tt.tag)
 			if tt.expectedErr {
 				g.Expect(err).ToNot(BeNil())
 				return
