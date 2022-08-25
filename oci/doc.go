@@ -18,4 +18,5 @@ limitations under the License.
 // by the various cloud providers. It can be used to perform various operations
 // like pushing, pulling and tagging artifacts, auto-login using the native
 // authentication mechanism of the platform, etc.
+// +kubebuilder:object:generate=false
 package oci
