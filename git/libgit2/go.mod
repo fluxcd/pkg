@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/git/libgit2
 
-go 1.17
+go 1.18
 
 replace (
 	github.com/fluxcd/pkg/git => ../../git
