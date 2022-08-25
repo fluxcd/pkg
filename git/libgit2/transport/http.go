@@ -238,10 +238,8 @@ func (t *httpSmartSubtransport) Action(transportOptionsURL string, action git2go
 	}
 
 	stream := newManagedHttpStream(t, req, client)
-	if req.Method == http.MethodPost {
-		stream.recvReply.Add(1)
-		stream.sendRequestBackground()
-	}
+	stream.recvReply.Add(1)
+	stream.sendRequestBackground()
 
 	return stream, nil
 }
@@ -344,16 +342,15 @@ func (t *httpSmartSubtransport) Free() {
 }
 
 type httpSmartSubtransportStream struct {
-	owner       *httpSmartSubtransport
-	client      *http.Client
-	req         *http.Request
-	resp        *http.Response
-	reader      *io.PipeReader
-	writer      *io.PipeWriter
-	sentRequest bool
-	recvReply   sync.WaitGroup
-	httpError   error
-	m           sync.RWMutex
+	owner     *httpSmartSubtransport
+	client    *http.Client
+	req       *http.Request
+	resp      *http.Response
+	reader    *io.PipeReader
+	writer    *io.PipeWriter
+	recvReply sync.WaitGroup
+	httpError error
+	m         sync.RWMutex
 }
 
 var _ git2go.SmartSubtransportStream = &httpSmartSubtransportStream{}
@@ -370,13 +367,6 @@ func newManagedHttpStream(owner *httpSmartSubtransport, req *http.Request, clien
 }
 
 func (self *httpSmartSubtransportStream) Read(buf []byte) (int, error) {
-	if !self.sentRequest {
-		self.recvReply.Add(1)
-		if err := self.sendRequest(); err != nil {
-			return 0, err
-		}
-	}
-
 	if err := self.writer.Close(); err != nil {
 		return 0, err
 	}
@@ -384,11 +374,11 @@ func (self *httpSmartSubtransportStream) Read(buf []byte) (int, error) {
 	self.recvReply.Wait()
 
 	self.m.RLock()
-	err := self.httpError
+	err = self.httpError
 	self.m.RUnlock()
 
 	if err != nil {
-		return 0, self.httpError
+		return 0, err
 	}
 	return self.resp.Body.Read(buf)
 }
@@ -399,7 +389,7 @@ func (self *httpSmartSubtransportStream) Write(buf []byte) (int, error) {
 	self.m.RUnlock()
 
 	if err != nil {
-		return 0, self.httpError
+		return 0, err
 	}
 	return self.writer.Write(buf)
 }
@@ -431,7 +421,6 @@ func (self *httpSmartSubtransportStream) sendRequestBackground() {
 		self.httpError = err
 		self.m.Unlock()
 	}()
-	self.sentRequest = true
 }
 
 func (self *httpSmartSubtransportStream) sendRequest() error {
@@ -459,7 +448,7 @@ func (self *httpSmartSubtransportStream) sendRequest() error {
 				}
 			}
 			req.Body = io.NopCloser(bytes.NewReader(content))
-			req.ContentLength = -1
+			req.ContentLength = int64(len(content))
 		}
 
 		self.owner.logger.V(traceLevel).Info("new request", "method", req.Method, "postUrl", req.URL)
@@ -503,6 +492,5 @@ func (self *httpSmartSubtransportStream) sendRequest() error {
 	}
 
 	self.resp = resp
-	self.sentRequest = true
 	return nil
 }
