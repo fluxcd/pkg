@@ -213,7 +213,7 @@ func (t *sshSmartSubtransport) Action(transportOptionsURL string, action git2go.
 		_ = t.Close()
 	}
 
-	err = t.createConn(addr, sshConfig)
+	err = t.createConn(addr, opts.ProxyOptions, sshConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -295,15 +295,53 @@ func (t *sshSmartSubtransport) Action(transportOptionsURL string, action git2go.
 	return t.currentStream, nil
 }
 
-func (t *sshSmartSubtransport) createConn(addr string, sshConfig *ssh.ClientConfig) error {
+func (t *sshSmartSubtransport) createConn(addr string, proxyOpts *git2go.ProxyOptions, sshConfig *ssh.ClientConfig) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), sshConnectionTimeOut)
 	defer cancel()
 
 	t.logger.V(traceLevel).Info("dial connection")
-	conn, err := proxy.Dial(ctx, "tcp", addr)
+
+	var conn net.Conn
+	var err error
+
+	if proxyOpts != nil {
+		switch proxyOpts.Type {
+		case git2go.ProxyTypeSpecified:
+			proxyUrl, err := url.Parse(proxyOpts.Url)
+			if err != nil {
+				return err
+			}
+			dialer, err := proxy.FromURL(proxyUrl, proxy.Direct)
+			if err != nil {
+				return err
+			}
+
+			// Try to use a ContextDialer, but fall back to a Dialer if that goes south.
+			ctxDialer, ok := dialer.(proxy.ContextDialer)
+			if ok {
+				conn, err = ctxDialer.DialContext(ctx, "tcp", addr)
+			} else {
+				conn, err = dialer.Dial("tcp", addr)
+			}
+		case git2go.ProxyTypeAuto:
+			dialer := proxy.FromEnvironment()
+			ctxDialer, ok := dialer.(proxy.ContextDialer)
+
+			if ok {
+				conn, err = ctxDialer.DialContext(ctx, "tcp", addr)
+			} else {
+				conn, err = dialer.Dial("tcp", addr)
+			}
+		default:
+			conn, err = net.Dial("tcp", addr)
+		}
+	} else {
+		conn, err = net.DialTimeout("tcp", addr, sshConnectionTimeOut)
+	}
 	if err != nil {
 		return err
 	}
+
 	c, chans, reqs, err := ssh.NewClientConn(conn, addr, sshConfig)
 	if err != nil {
 		return err
