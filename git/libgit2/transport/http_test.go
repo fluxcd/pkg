@@ -32,6 +32,15 @@ import (
 	"github.com/fluxcd/pkg/gittestserver"
 )
 
+func TestMain(m *testing.M) {
+	err := InitManagedTransport()
+	if err != nil {
+		panic("could not init managed transport")
+	}
+	code := m.Run()
+	os.Exit(code)
+}
+
 func TestHttpAction_CreateClientRequest(t *testing.T) {
 	authOpts := git.AuthOptions{
 		Username: "user",
@@ -170,9 +179,6 @@ func TestHTTPManagedTransport_E2E(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer server.StopHTTP()
 
-	// Force managed transport to be enabled
-	InitManagedTransport()
-
 	repoPath := "test.git"
 	err = server.InitRepo("../../testdata/git/repo", git.DefaultBranch, repoPath)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -258,9 +264,6 @@ func TestHTTPManagedTransport_HandleRedirect(t *testing.T) {
 		{name: "http to https", repoURL: "http://github.com/fluxcd/flux2-multi-tenancy"},
 		{name: "handle gitlab redirect", repoURL: "https://gitlab.com/stefanprodan/podinfo"},
 	}
-
-	// Force managed transport to be enabled
-	InitManagedTransport()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
