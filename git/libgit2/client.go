@@ -49,6 +49,7 @@ type Client struct {
 	remote     *git2go.Remote
 	authOpts   *git.AuthOptions
 	repoFS     billy.Filesystem
+	proxyAddr  string
 	// transportOptsURL is the backbone of how we use our own smart transports
 	// without having to rely on libgit2 callbacks (since they are inflexible
 	// and unstable).
@@ -113,6 +114,13 @@ func WithMemoryStorage() ClientOption {
 func WithInsecureCredentialsOverHTTP() ClientOption {
 	return func(c *Client) error {
 		c.credentialsOverHTTP = true
+		return nil
+	}
+}
+
+func WithProxy(proxyAddr string) ClientOption {
+	return func(c *Client) error {
+		c.proxyAddr = proxyAddr
 		return nil
 	}
 }
@@ -579,10 +587,19 @@ func (l *Client) Close() {
 // at the transport level.
 func (l *Client) registerTransportOptions(ctx context.Context, url string) {
 	l.transportOptsURL = getTransportOptsURL(l.authOpts.Transport)
-	transport.AddTransportOptions(l.transportOptsURL, transport.TransportOptions{
+
+	transportOpts := transport.TransportOptions{
 		TargetURL:    url,
 		AuthOpts:     l.authOpts,
 		ProxyOptions: &git2go.ProxyOptions{Type: git2go.ProxyTypeAuto},
 		Context:      ctx,
-	})
+	}
+	if l.proxyAddr != "" {
+		transportOpts.ProxyOptions = &git2go.ProxyOptions{
+			Type: git2go.ProxyTypeSpecified,
+			Url:  l.proxyAddr,
+		}
+	}
+
+	transport.AddTransportOptions(l.transportOptsURL, transportOpts)
 }
