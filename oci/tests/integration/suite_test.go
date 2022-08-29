@@ -82,8 +82,11 @@ var (
 	// kubernetes client of the created cluster.
 	testEnv *tftestenv.Environment
 
+	// deleteTag is the tag that will be deleted when testing the delete func
+	deleteTag = "test-delete"
+
 	// testImageTags are the tags used in the test for the generated images.
-	testImageTags = []string{"v0.1.0", "v0.1.2", "v0.1.3", "v0.1.4"}
+	testImageTags = []string{"v0.1.0", "v0.1.2", "v0.1.3", "v0.1.4", deleteTag}
 
 	testAppImage string
 )

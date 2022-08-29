@@ -28,6 +28,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	oci "github.com/fluxcd/pkg/oci/client"
 )
 
 func TestImageRepositoryListTags(t *testing.T) {
@@ -67,4 +69,32 @@ func testImageRepositoryListTags(t *testing.T, repoURL string) {
 		}
 		return job.Status.Succeeded == 1 && job.Status.Active == 0
 	}, resultWaitTimeout).Should(BeTrue())
+}
+
+func TestDelete(t *testing.T) {
+	// delete doesn't work with AWS
+	if *targetProvider == "aws" {
+		return
+	}
+	g := NewWithT(t)
+	c := oci.NewLocalClient()
+
+	for _, repo := range testRepos {
+		tags, err := c.List(context.Background(), repo, oci.ListOptions{
+			RegexFilter: deleteTag,
+		})
+		g.Expect(err).To(BeNil())
+		g.Expect(len(tags)).To(Equal(1))
+
+		err = c.Delete(context.Background(), repo, deleteTag)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+
+		tags, err = c.List(context.Background(), repo, oci.ListOptions{
+			RegexFilter: deleteTag,
+		})
+		g.Expect(err).To(BeNil())
+		g.Expect(len(tags)).To(BeZero())
+	}
 }
