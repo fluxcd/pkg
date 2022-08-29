@@ -27,6 +27,8 @@ import (
 // Delete deletes a particular image from an OCI repository
 // For GCR, GAR, the tag is deleted first, then the image
 // as it doesn't let you delete an image if a tag still references it.
+// This doesn't work with ECR/GHCR since they don't support DELETE according
+// to the docker API spec.
 func (c *Client) Delete(ctx context.Context, url string, tag string) error {
 	ref, err := name.ParseReference(url)
 	if err != nil {
@@ -45,7 +47,7 @@ func (c *Client) Delete(ctx context.Context, url string, tag string) error {
 		}
 
 		// GCP registry doesn't permit deletion of image if it is still
-		// referenced by a tag.
+		// referenced by a tag, so we will delete the tag first.
 		if gcp.ValidHost(ref.Context().RegistryStr()) {
 			err = crane.Delete(fmt.Sprintf("%s:%s", ref.Context(), tag))
 			if err != nil {
