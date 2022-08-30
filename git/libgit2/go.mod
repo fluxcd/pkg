@@ -28,7 +28,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/ProtonMail/go-crypto v0.0.0-20220824120805-4b6e5c587895
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/git v0.5.0
+	github.com/fluxcd/pkg/git v0.6.0
 	github.com/fluxcd/pkg/gittestserver v0.6.0
 	github.com/fluxcd/pkg/gitutil v0.2.0
 	github.com/fluxcd/pkg/http/transport v0.0.1

@@ -27,7 +27,7 @@ replace github.com/emicklei/go-restful => github.com/emicklei/go-restful v2.16.0
 replace github.com/libgit2/git2go/v33 => github.com/pjbgf/git2go/v33 v33.0.9-nothread-check
 
 require (
-	github.com/fluxcd/pkg/git v0.5.0
+	github.com/fluxcd/pkg/git v0.6.0
 	github.com/fluxcd/pkg/git/gogit v0.0.0-00010101000000-000000000000
 	github.com/fluxcd/pkg/git/libgit2 v0.1.0
 	github.com/fluxcd/pkg/gittestserver v0.6.0
