@@ -105,7 +105,7 @@ For all available functions and examples, see the [package reference](https://pk
 
 The [`events`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/events) package contains an `events.Recorder` which can
 be used to forward events to an external endpoint that understands the `events.Event` payload. For [GitOps
-Toolkit](https://fluxcd.io/docs/components/) controllers, this is the notification-controller endpoint.
+Toolkit](https://fluxcd.io/flux/components/) controllers, this is the notification-controller endpoint.
 
 The package is best used in combination with the [`controller.Metrics` helper](#Controller-helpers), as this allows you
 to record _and_ forward Kubernetes Events using the same API.
@@ -113,7 +113,7 @@ to record _and_ forward Kubernetes Events using the same API.
 ### Recording Metrics
 
 The [`metrics`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/metrics) package offers a `metrics.Recorder` with a
-set of Prometheus collectors for common [GitOps Toolkit](https://fluxcd.io/docs/components/) Kubernetes
+set of Prometheus collectors for common [GitOps Toolkit](https://fluxcd.io/flux/components/) Kubernetes
 resource objects metric points (`gotk_*`).
 
 The package is best used in combination with the [`controller.Events` helper](#Controller-helpers), as this allows you to record metrics using controller-runtime types.
@@ -132,7 +132,7 @@ record metrics.
 ### Predicates
 
 The [`predicates`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/predicates) package offers a set of [GitOps
-Toolkit](https://fluxcd.io/docs/components/) common controller-runtime predicates, for example to notice annotation
+Toolkit](https://fluxcd.io/flux/components/) common controller-runtime predicates, for example to notice annotation
 changes.
 
 | Predicate | Description | Reference |
