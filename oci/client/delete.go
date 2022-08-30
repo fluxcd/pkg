@@ -19,9 +19,11 @@ package client
 import (
 	"context"
 	"fmt"
-	"github.com/fluxcd/pkg/oci/auth/gcp"
+
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
+
+	"github.com/fluxcd/pkg/oci/auth/gcp"
 )
 
 // Delete deletes a particular image from an OCI repository
@@ -29,14 +31,14 @@ import (
 // as it doesn't let you delete an image if a tag still references it.
 // This doesn't work with ECR/GHCR since they don't support DELETE according
 // to the docker API spec.
-func (c *Client) Delete(ctx context.Context, url string, tag string) error {
+func (c *Client) Delete(ctx context.Context, url string) error {
 	ref, err := name.ParseReference(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	if tag != "" {
-		img, err := crane.Pull(fmt.Sprintf("%s:%s", url, tag))
+	if tag, ok := ref.(name.Tag); ok && tag.TagStr() != "" {
+		img, err := crane.Pull(fmt.Sprintf("%s:%s", ref.Context(), tag.TagStr()))
 		if err != nil {
 			return fmt.Errorf("error getting digest: %s", err)
 		}
@@ -49,7 +51,7 @@ func (c *Client) Delete(ctx context.Context, url string, tag string) error {
 		// GCP registry doesn't permit deletion of image if it is still
 		// referenced by a tag, so we will delete the tag first.
 		if gcp.ValidHost(ref.Context().RegistryStr()) {
-			err = crane.Delete(fmt.Sprintf("%s:%s", ref.Context(), tag))
+			err = crane.Delete(fmt.Sprintf("%s:%s", ref.Context(), tag.TagStr()))
 			if err != nil {
 				return err
 			}
