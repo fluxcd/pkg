@@ -148,8 +148,10 @@ func Test_ssh_keyTypes(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			commit, err := lgc.Clone(ctx, repoURL, git.CheckoutOptions{
-				Branch: git.DefaultBranch,
+			commit, err := lgc.Clone(ctx, repoURL, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: git.DefaultBranch,
+				},
 			})
 
 			if tt.wantErr == "" {
@@ -279,8 +281,10 @@ func Test_ssh_keyExchangeAlgos(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			_, err = lgc.Clone(ctx, repoURL, git.CheckoutOptions{
-				Branch: git.DefaultBranch,
+			_, err = lgc.Clone(ctx, repoURL, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: git.DefaultBranch,
+				},
 			})
 
 			if tt.wantErr != "" {
@@ -450,8 +454,10 @@ func Test_ssh_hostKeyAlgos(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			_, err = lgc.Clone(ctx, repoURL, git.CheckoutOptions{
-				Branch: git.DefaultBranch,
+			_, err = lgc.Clone(ctx, repoURL, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: git.DefaultBranch,
+				},
 			})
 
 			g.Expect(err).Error().ShouldNot(HaveOccurred())

@@ -27,7 +27,7 @@ import (
 // on a Git repository.
 type RepositoryReader interface {
 	// Clone clones a repository from the provided url using the options provided.
-	Clone(ctx context.Context, url string, checkoutOpts CheckoutOptions) (*Commit, error)
+	Clone(ctx context.Context, url string, cloneOpts CloneOptions) (*Commit, error)
 	// IsClean returns whether the working tree is clean.
 	IsClean() (bool, error)
 	// Head returns the hash of the current HEAD of the repo.

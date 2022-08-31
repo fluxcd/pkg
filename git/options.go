@@ -27,10 +27,35 @@ const (
 	DefaultPublicKeyAuthUser = "git"
 )
 
-// CheckoutOptions are the options used for a Git checkout.
-type CheckoutOptions struct {
-	// Branch to checkout, can be combined with Branch with some
-	// Implementations.
+// CloneOptions are the options used for a Git clone.
+type CloneOptions struct {
+	// CheckoutStrategy defines a strategy to use while checking out
+	// the cloned repository to a specific target.
+	CheckoutStrategy
+
+	// RecurseSubmodules defines if submodules should be checked out,
+	// not supported by all Implementations.
+	RecurseSubmodules bool
+
+	// LastObservedCommit holds the last observed commit hash of a
+	// Git repository.
+	// If provided, the clone operation will compare it with the HEAD commit
+	// of the branch or tag (as configured via CheckoutStrategy) in the remote
+	// repository. If they match, cloning will be skipped and a "non-concrete"
+	// commit will be returned, which can be verified using `IsConcreteCommit()`.
+	// This functionality is not supported when using a semver range or a commit
+	// to checkout.
+	LastObservedCommit string
+
+	// ShallowClone defines if the repository should be shallow cloned,
+	// not supported by all implementations
+	ShallowClone bool
+}
+
+// CheckoutStrategy provides options to checkout a repository to a target.
+type CheckoutStrategy struct {
+	// Branch to checkout. If supported by the client, it can be combined
+	// with Commit.
 	Branch string
 
 	// Tag to checkout, takes precedence over Branch.
@@ -39,22 +64,9 @@ type CheckoutOptions struct {
 	// SemVer tag expression to checkout, takes precedence over Tag.
 	SemVer string `json:"semver,omitempty"`
 
-	// Commit SHA1 to checkout, takes precedence over Tag and SemVer,
-	// can be combined with Branch with some Implementations.
+	// Commit SHA1 to checkout, takes precedence over Tag and SemVer.
+	// If supported by the client, it can be combined with Branch.
 	Commit string
-
-	// RecurseSubmodules defines if submodules should be checked out,
-	// not supported by all Implementations.
-	RecurseSubmodules bool
-
-	// LastRevision holds the revision observed on the last successful
-	// reconciliation.
-	// It is used to skip clone operations when no changes were detected.
-	LastRevision string
-
-	// ShallowClone defines if the repository should be shallow cloned,
-	// not supported by all implementations
-	ShallowClone bool
 }
 
 type TransportType string

@@ -135,9 +135,11 @@ func TestClone_cloneBranch(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
-			cc, err := lgc.Clone(context.TODO(), repoURL, git.CheckoutOptions{
-				Branch:       tt.branch,
-				LastRevision: tt.lastRevision,
+			cc, err := lgc.Clone(context.TODO(), repoURL, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: tt.branch,
+				},
+				LastObservedCommit: tt.lastRevision,
 			})
 			if tt.expectedErr != "" {
 				g.Expect(err).To(HaveOccurred())
@@ -258,16 +260,18 @@ func TestClone_cloneTag(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
-			checkoutOpts := git.CheckoutOptions{
-				Tag: tt.checkoutTag,
+			cloneOpts := git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Tag: tt.checkoutTag,
+				},
 			}
 			// If last revision is provided, configure it.
 			if tt.lastRevTag != "" {
 				lc := tagCommits[tt.lastRevTag]
-				checkoutOpts.LastRevision = fmt.Sprintf("%s/%s", tt.lastRevTag, lc.Id().String())
+				cloneOpts.LastObservedCommit = fmt.Sprintf("%s/%s", tt.lastRevTag, lc.Id().String())
 			}
 
-			cc, err := lgc.Clone(context.TODO(), repoURL, checkoutOpts)
+			cc, err := lgc.Clone(context.TODO(), repoURL, cloneOpts)
 			if tt.expectErr != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.expectErr))
@@ -333,8 +337,10 @@ func TestClone_cloneCommit(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer lgc.Close()
 
-	cc, err := lgc.Clone(context.TODO(), repoURL, git.CheckoutOptions{
-		Commit: c.String(),
+	cc, err := lgc.Clone(context.TODO(), repoURL, git.CloneOptions{
+		CheckoutStrategy: git.CheckoutStrategy{
+			Commit: c.String(),
+		},
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(cc).ToNot(BeNil())
@@ -348,8 +354,10 @@ func TestClone_cloneCommit(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	cc, err = lgc.Clone(context.TODO(), repoURL, git.CheckoutOptions{
-		Commit: "4dc3185c5fc94eb75048376edeb44571cece25f4",
+	cc, err = lgc.Clone(context.TODO(), repoURL, git.CloneOptions{
+		CheckoutStrategy: git.CheckoutStrategy{
+			Commit: "4dc3185c5fc94eb75048376edeb44571cece25f4",
+		},
 	})
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(HavePrefix("git checkout error: git commit '4dc3185c5fc94eb75048376edeb44571cece25f4' not found:"))
@@ -476,8 +484,10 @@ func TestClone_cloneSemVer(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
-			cc, err := lgc.Clone(context.TODO(), repoURL, git.CheckoutOptions{
-				SemVer: tt.constraint,
+			cc, err := lgc.Clone(context.TODO(), repoURL, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					SemVer: tt.constraint,
+				},
 			})
 			if tt.expectErr != nil {
 				g.Expect(err).To(Equal(tt.expectErr))

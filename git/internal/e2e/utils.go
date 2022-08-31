@@ -43,8 +43,10 @@ var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
 func testUsingClone(g *WithT, client git.RepositoryClient, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
 	// clone repo
-	_, err := client.Clone(context.TODO(), repoURL.String(), git.CheckoutOptions{
-		Branch: "main",
+	_, err := client.Clone(context.TODO(), repoURL.String(), git.CloneOptions{
+		CheckoutStrategy: git.CheckoutStrategy{
+			Branch: "main",
+		},
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 

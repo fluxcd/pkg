@@ -156,20 +156,21 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *Client) Clone(ctx context.Context, url string, checkoutOpts git.CheckoutOptions) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+	checkoutStrat := cloneOpts.CheckoutStrategy
 	switch {
-	case checkoutOpts.Commit != "":
-		return g.cloneCommit(ctx, url, checkoutOpts.Commit, checkoutOpts)
-	case checkoutOpts.Tag != "":
-		return g.cloneTag(ctx, url, checkoutOpts.Tag, checkoutOpts)
-	case checkoutOpts.SemVer != "":
-		return g.cloneSemVer(ctx, url, checkoutOpts.SemVer, checkoutOpts)
+	case checkoutStrat.Commit != "":
+		return g.cloneCommit(ctx, url, checkoutStrat.Commit, cloneOpts)
+	case checkoutStrat.Tag != "":
+		return g.cloneTag(ctx, url, checkoutStrat.Tag, cloneOpts)
+	case checkoutStrat.SemVer != "":
+		return g.cloneSemVer(ctx, url, checkoutStrat.SemVer, cloneOpts)
 	default:
-		branch := checkoutOpts.Branch
+		branch := checkoutStrat.Branch
 		if branch == "" {
 			branch = git.DefaultBranch
 		}
-		return g.cloneBranch(ctx, url, branch, checkoutOpts)
+		return g.cloneBranch(ctx, url, branch, cloneOpts)
 	}
 }
 
