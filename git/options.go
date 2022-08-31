@@ -110,14 +110,11 @@ func (o AuthOptions) Validate() error {
 	return nil
 }
 
-// NewAuthOptions constructs an AuthOptions object from the given map.
+// NewAuthOptions constructs an AuthOptions object from the given map and URL.
 // If the map is empty, it returns a minimal AuthOptions object after
 // validating the result.
 func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
-	opts, err := newAuthOptions(u)
-	if err != nil {
-		return nil, err
-	}
+	opts := newAuthOptions(u)
 	if len(data) > 0 {
 		opts.Username = string(data["username"])
 		opts.Password = string(data["password"])
@@ -129,7 +126,11 @@ func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 	if opts.Username == "" {
 		opts.Username = u.User.Username()
 	}
-	if opts.Username == "" {
+
+	// We fallback to using "git" as the username when cloning Git
+	// repositories through SSH since that's the conventional username used
+	// by Git providers.
+	if opts.Username == "" && opts.Transport == SSH {
 		opts.Username = DefaultPublicKeyAuthUser
 	}
 	if opts.Password == "" {
@@ -143,14 +144,13 @@ func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 	return opts, nil
 }
 
-// newAuthOptions constructs a minimal AuthOptions object from the
-// given URL and then validates the result. It returns the AuthOptions, or an
-// error.
-func newAuthOptions(u url.URL) (*AuthOptions, error) {
+// newAuthOptions returns a minimal AuthOptions object constructed from
+// the given URL.
+func newAuthOptions(u url.URL) *AuthOptions {
 	opts := &AuthOptions{
 		Transport: TransportType(u.Scheme),
 		Host:      u.Host,
 	}
 
-	return opts, nil
+	return opts
 }

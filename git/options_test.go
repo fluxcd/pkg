@@ -200,9 +200,12 @@ func TestAuthOptionsFromData(t *testing.T) {
 			},
 		},
 		{
-			name: "Sets default user",
-			URL:  "http://example.com",
-			data: nil,
+			name: "Sets default user for SSH",
+			URL:  "ssh://example.com",
+			data: map[string][]byte{
+				"identity":    []byte(privateKeyFixture),
+				"known_hosts": []byte(knownHostsFixture),
+			},
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal(DefaultPublicKeyAuthUser))
 			},
