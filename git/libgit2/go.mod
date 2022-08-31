@@ -40,7 +40,7 @@ require (
 	github.com/onsi/gomega v1.20.0
 	golang.org/x/crypto v0.0.0-20220824171710-5757bc0c5503
 	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c
-	sigs.k8s.io/controller-runtime v0.11.2
+	sigs.k8s.io/controller-runtime v0.12.3
 )
 
 require (
