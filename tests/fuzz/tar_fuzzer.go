@@ -16,7 +16,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package untar
+package tar
 
 import (
 	"bytes"
@@ -32,6 +32,7 @@ func FuzzUntar(data []byte) int {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	_, _ = Untar(r, tmpDir)
+	_ = Untar(r, tmpDir)
+
 	return 1
 }
