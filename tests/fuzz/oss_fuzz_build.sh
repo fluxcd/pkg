@@ -27,7 +27,7 @@ cd "${GO_SRC}"
 cp "${PROJECT_PATH}/tests/fuzz/conditions_fuzzer.go" "${PROJECT_PATH}/runtime/conditions"
 cp "${PROJECT_PATH}/tests/fuzz/events_fuzzer.go" "${PROJECT_PATH}/runtime/events"
 cp "${PROJECT_PATH}/tests/fuzz/tls_fuzzer.go" "${PROJECT_PATH}/runtime/tls"
-cp "${PROJECT_PATH}/tests/fuzz/untar_fuzzer.go" "${PROJECT_PATH}/untar"
+cp "${PROJECT_PATH}/tests/fuzz/tar_fuzzer.go" "${PROJECT_PATH}/tar"
 cp "${PROJECT_PATH}/tests/fuzz/gitutil_fuzzer.go" "${PROJECT_PATH}/gitutil"
 
 
@@ -45,11 +45,11 @@ compile_go_fuzzer "${PROJECT_PATH}/runtime/tls" FuzzTlsConfig fuzz_tls_config
 popd
 
 
-# compile fuzz tests for the untar module
-pushd "${PROJECT_PATH}/untar"
+# compile fuzz tests for the tar module
+pushd "${PROJECT_PATH}/tar"
 
 go get -d github.com/AdaLogics/go-fuzz-headers
-compile_go_fuzzer "${PROJECT_PATH}/untar" FuzzUntar fuzz_untar
+compile_go_fuzzer "${PROJECT_PATH}/tar" FuzzUntar fuzz_untar
 
 popd
 
