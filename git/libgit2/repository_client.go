@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-billy/v5/osfs"
+	"github.com/go-git/go-billy/v5/util"
 	git2go "github.com/libgit2/git2go/v33"
 
 	"github.com/fluxcd/pkg/git"
@@ -248,22 +248,17 @@ func (l *Client) Commit(info git.Commit, signer *openpgp.Entity) (string, error)
 	}
 	defer index.Free()
 
-	// add to index any files that are not within .git/
-	if err = filepath.Walk(l.repository.Workdir(),
+	if err = util.Walk(l.repoFS, "",
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-
-			rel, err := filepath.Rel(l.repository.Workdir(), path)
-			if err != nil {
-				return err
-			}
-			if info.IsDir() || strings.HasPrefix(rel, ".git") || rel == "." {
+			// skip symlinks and any files that are within ".git/"
+			if !info.Mode().IsRegular() || strings.HasPrefix(path, ".git") || path == "" {
 				return nil
 			}
 
-			if err := index.AddByPath(rel); err != nil {
+			if err := index.AddByPath(path); err != nil {
 				return err
 			}
 			return nil
