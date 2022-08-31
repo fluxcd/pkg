@@ -174,7 +174,7 @@ func (l *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptio
 	}
 }
 
-func (l *Client) WriteFile(path string, reader io.Reader) error {
+func (l *Client) writeFile(path string, reader io.Reader) error {
 	if l.repository == nil {
 		return git.ErrNoGitRepository
 	}
@@ -193,9 +193,20 @@ func (l *Client) WriteFile(path string, reader io.Reader) error {
 	return nil
 }
 
-func (l *Client) Commit(info git.Commit, signer *openpgp.Entity) (string, error) {
+func (l *Client) Commit(info git.Commit, commitOpts ...git.CommitOption) (string, error) {
 	if l.repository == nil {
 		return "", git.ErrNoGitRepository
+	}
+
+	options := &git.CommitOptions{}
+	for _, o := range commitOpts {
+		o(options)
+	}
+
+	for path, content := range options.Files {
+		if err := l.writeFile(path, content); err != nil {
+			return "", err
+		}
 	}
 
 	sl, err := l.repository.StatusList(&git2go.StatusOptions{
@@ -293,7 +304,7 @@ func (l *Client) Commit(info git.Commit, signer *openpgp.Entity) (string, error)
 	}
 
 	// return unsigned commit if pgp entity is not provided
-	if signer == nil {
+	if options.Signer == nil {
 		return commitID.String(), nil
 	}
 
@@ -305,7 +316,7 @@ func (l *Client) Commit(info git.Commit, signer *openpgp.Entity) (string, error)
 
 	signedCommitID, err := commit.WithSignatureUsing(func(commitContent string) (string, string, error) {
 		cipherText := new(bytes.Buffer)
-		err := openpgp.ArmoredDetachSignText(cipherText, signer, strings.NewReader(commitContent), &packet.Config{})
+		err := openpgp.ArmoredDetachSignText(cipherText, options.Signer, strings.NewReader(commitContent), &packet.Config{})
 		if err != nil {
 			return "", "", errors.New("error signing payload")
 		}

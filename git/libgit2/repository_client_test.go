@@ -19,6 +19,7 @@ package libgit2
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,7 +91,7 @@ func TestInit(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestWriteFile(t *testing.T) {
+func Test_writeFile(t *testing.T) {
 	g := NewWithT(t)
 
 	tmp := t.TempDir()
@@ -102,14 +103,14 @@ func TestWriteFile(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	lgc.repository = repo
-	err = lgc.WriteFile("test", strings.NewReader("testing libgit2 write"))
+	err = lgc.writeFile("test", strings.NewReader("testing libgit2 write"))
 	g.Expect(err).ToNot(HaveOccurred())
 	cont, err := os.ReadFile(filepath.Join(tmp, "test"))
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal("testing libgit2 write"))
 
 	fileStr := "absolute path is resolved as relative"
-	err = lgc.WriteFile("/outside/test2", strings.NewReader(fileStr))
+	err = lgc.writeFile("/outside/test2", strings.NewReader(fileStr))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	expectedPath := filepath.Join(tmp, "outside", "test2")
@@ -119,7 +120,7 @@ func TestWriteFile(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal(fileStr))
 
-	err = lgc.WriteFile("../tmp/test3", strings.NewReader("path outside repo"))
+	err = lgc.writeFile("../tmp/test3", strings.NewReader("path outside repo"))
 	g.Expect(err).To(HaveOccurred())
 }
 
@@ -157,21 +158,22 @@ func TestCommit(t *testing.T) {
 			Name:  "Test User",
 			Email: "test@example.com",
 		},
-	}, nil)
+	})
 	g.Expect(err).To(Equal(git.ErrNoStagedFiles))
 	g.Expect(hash).To(Equal(cc))
 
-	// Make changes to the repo.
-	err = lgc.WriteFile("test", strings.NewReader("testing libgit2 commit"))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	cc, err = lgc.Commit(git.Commit{
-		Author: git.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
+	cc, err = lgc.Commit(
+		git.Commit{
+			Author: git.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+			},
+			Message: "testing",
 		},
-		Message: "testing",
-	}, nil)
+		git.WithFiles(map[string]io.Reader{
+			"test": strings.NewReader("testing libgit2 commit"),
+		}),
+	)
 	g.Expect(err).ToNot(HaveOccurred())
 	// New commit should not match the old one.
 	g.Expect(cc).ToNot(Equal(hash))

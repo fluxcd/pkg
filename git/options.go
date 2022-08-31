@@ -18,7 +18,10 @@ package git
 
 import (
 	"fmt"
+	"io"
 	"net/url"
+
+	"github.com/ProtonMail/go-crypto/openpgp"
 )
 
 const (
@@ -67,6 +70,36 @@ type CheckoutStrategy struct {
 	// Commit SHA1 to checkout, takes precedence over Tag and SemVer.
 	// If supported by the client, it can be combined with Branch.
 	Commit string
+}
+
+// CommitOptions provides options to configure a Git commit operation.
+type CommitOptions struct {
+	// Signer can be used to sign a commit using OpenPGP.
+	Signer *openpgp.Entity
+	// Files contains file names mapped to the file's content.
+	// Its used to write files which are then included in the commit.
+	Files map[string]io.Reader
+}
+
+// CommitOption defines an option for a commit operation.
+type CommitOption func(*CommitOptions)
+
+// WithSigner allows for the commit to be signed using the provided
+// OpenPGP signer.
+func WithSigner(signer *openpgp.Entity) CommitOption {
+	return func(co *CommitOptions) {
+		co.Signer = signer
+	}
+}
+
+// WithFiles instructs the Git client to write the provided files and include
+// them in the commit.
+// files contains file names as its key and the content of the file as the
+// value. If the file already exists, its overwritten.
+func WithFiles(files map[string]io.Reader) CommitOption {
+	return func(co *CommitOptions) {
+		co.Files = files
+	}
 }
 
 type TransportType string
