@@ -20,7 +20,7 @@ require (
 	github.com/google/go-containerregistry v0.11.0
 	github.com/onsi/gomega v1.20.0
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
-	sigs.k8s.io/controller-runtime v0.11.2
+	sigs.k8s.io/controller-runtime v0.12.3
 )
 
 require (
