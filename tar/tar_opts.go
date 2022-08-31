@@ -1,8 +1,5 @@
-//go:build gofuzz
-// +build gofuzz
-
 /*
-Copyright 2021 The Flux authors
+Copyright 2022 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,22 +13,22 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package untar
 
-import (
-	"bytes"
-	"os"
-)
+package tar
 
-// FuzzUntar implements a fuzzer that targets untar.Untar().
-func FuzzUntar(data []byte) int {
-	r := bytes.NewReader(data)
-	tmpDir, err := os.MkdirTemp("", "dir-")
-	if err != nil {
-		return 0
+// TarOption represents options to be applied to Tar.
+type TarOption func(*tarOpts)
+
+// WithMaxUntarSize sets the limit size for archives being decompressed by Untar.
+// When max is equal or less than 0 disables size checks.
+func WithMaxUntarSize(max int) TarOption {
+	return func(t *tarOpts) {
+		t.maxUntarSize = max
 	}
-	defer os.RemoveAll(tmpDir)
+}
 
-	_, _ = Untar(r, tmpDir)
-	return 1
+func (t *tarOpts) applyOpts(tarOpts ...TarOption) {
+	for _, clientOpt := range tarOpts {
+		clientOpt(t)
+	}
 }
