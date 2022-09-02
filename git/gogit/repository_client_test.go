@@ -18,6 +18,7 @@ package gogit
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,7 +83,7 @@ func TestInit(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestWriteFile(t *testing.T) {
+func Test_writeFile(t *testing.T) {
 	g := NewWithT(t)
 
 	tmp := t.TempDir()
@@ -93,14 +94,14 @@ func TestWriteFile(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
-	err = ggc.WriteFile("test", strings.NewReader("testing gogit write"))
+	err = ggc.writeFile("test", strings.NewReader("testing gogit write"))
 	g.Expect(err).ToNot(HaveOccurred())
 	cont, err := os.ReadFile(filepath.Join(tmp, "test"))
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal("testing gogit write"))
 
 	fileStr := "absolute path is resolved as relative"
-	err = ggc.WriteFile("/outside/test2", strings.NewReader(fileStr))
+	err = ggc.writeFile("/outside/test2", strings.NewReader(fileStr))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	expectedPath := filepath.Join(tmp, "outside", "test2")
@@ -110,7 +111,7 @@ func TestWriteFile(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal(fileStr))
 
-	err = ggc.WriteFile("../tmp/test3", strings.NewReader("path outside repo"))
+	err = ggc.writeFile("../tmp/test3", strings.NewReader("path outside repo"))
 	g.Expect(err).To(HaveOccurred())
 }
 
@@ -142,21 +143,22 @@ func TestCommit(t *testing.T) {
 			Name:  "Test User",
 			Email: "test@example.com",
 		},
-	}, nil)
+	})
 	g.Expect(err).To(Equal(git.ErrNoStagedFiles))
 	g.Expect(hash).To(Equal(cc))
 
-	// Make changes to the repo.
-	err = ggc.WriteFile("test", strings.NewReader("testing gogit commit"))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	cc, err = ggc.Commit(git.Commit{
-		Author: git.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
+	cc, err = ggc.Commit(
+		git.Commit{
+			Author: git.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+			},
+			Message: "testing",
 		},
-		Message: "testing",
-	}, nil)
+		git.WithFiles(map[string]io.Reader{
+			"test": strings.NewReader("testing gogit commit"),
+		}),
+	)
 	g.Expect(err).ToNot(HaveOccurred())
 	// New commit should not match the old one.
 	g.Expect(cc).ToNot(Equal(hash))

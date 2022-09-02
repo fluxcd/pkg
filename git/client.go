@@ -18,16 +18,13 @@ package git
 
 import (
 	"context"
-	"io"
-
-	"github.com/ProtonMail/go-crypto/openpgp"
 )
 
 // RepositoryReader knows how to perform local and remote read operations
 // on a Git repository.
 type RepositoryReader interface {
 	// Clone clones a repository from the provided url using the options provided.
-	Clone(ctx context.Context, url string, checkoutOpts CheckoutOptions) (*Commit, error)
+	Clone(ctx context.Context, url string, cloneOpts CloneOptions) (*Commit, error)
 	// IsClean returns whether the working tree is clean.
 	IsClean() (bool, error)
 	// Head returns the hash of the current HEAD of the repo.
@@ -48,13 +45,9 @@ type RepositoryWriter interface {
 	// SwitchBranch switches from the current branch of the repository to the
 	// provided branch. If the branch doesn't exist, it is created.
 	SwitchBranch(ctx context.Context, branch string) error
-	// WriteFile creates a new file at the given path, reads from the reader and
-	// writes the content to the file. If the file already exists, its overwritten.
-	WriteFile(path string, reader io.Reader) error
-	// Commit commits any changes made to the repository.
-	// signer is an optional argument which can be provided to sign the commit using
-	// OpenPGP.
-	Commit(info Commit, signer *openpgp.Entity) (string, error)
+	// Commit commits any changes made to the repository. commitOpts is an
+	// optional argument which can be provided to configure the commit.
+	Commit(info Commit, commitOpts ...CommitOption) (string, error)
 	RepositoryCloser
 }
 

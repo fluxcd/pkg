@@ -23,7 +23,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-billy/v5/osfs"
@@ -156,24 +155,25 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *Client) Clone(ctx context.Context, url string, checkoutOpts git.CheckoutOptions) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+	checkoutStrat := cloneOpts.CheckoutStrategy
 	switch {
-	case checkoutOpts.Commit != "":
-		return g.cloneCommit(ctx, url, checkoutOpts.Commit, checkoutOpts)
-	case checkoutOpts.Tag != "":
-		return g.cloneTag(ctx, url, checkoutOpts.Tag, checkoutOpts)
-	case checkoutOpts.SemVer != "":
-		return g.cloneSemVer(ctx, url, checkoutOpts.SemVer, checkoutOpts)
+	case checkoutStrat.Commit != "":
+		return g.cloneCommit(ctx, url, checkoutStrat.Commit, cloneOpts)
+	case checkoutStrat.Tag != "":
+		return g.cloneTag(ctx, url, checkoutStrat.Tag, cloneOpts)
+	case checkoutStrat.SemVer != "":
+		return g.cloneSemVer(ctx, url, checkoutStrat.SemVer, cloneOpts)
 	default:
-		branch := checkoutOpts.Branch
+		branch := checkoutStrat.Branch
 		if branch == "" {
 			branch = git.DefaultBranch
 		}
-		return g.cloneBranch(ctx, url, branch, checkoutOpts)
+		return g.cloneBranch(ctx, url, branch, cloneOpts)
 	}
 }
 
-func (g *Client) WriteFile(path string, reader io.Reader) error {
+func (g *Client) writeFile(path string, reader io.Reader) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
 	}
@@ -193,9 +193,20 @@ func (g *Client) WriteFile(path string, reader io.Reader) error {
 	return err
 }
 
-func (g *Client) Commit(info git.Commit, signer *openpgp.Entity) (string, error) {
+func (g *Client) Commit(info git.Commit, commitOpts ...git.CommitOption) (string, error) {
 	if g.repository == nil {
 		return "", git.ErrNoGitRepository
+	}
+
+	options := &git.CommitOptions{}
+	for _, o := range commitOpts {
+		o(options)
+	}
+
+	for path, content := range options.Files {
+		if err := g.writeFile(path, content); err != nil {
+			return "", err
+		}
 	}
 
 	wt, err := g.repository.Worktree()
@@ -222,7 +233,7 @@ func (g *Client) Commit(info git.Commit, signer *openpgp.Entity) (string, error)
 		return head.Hash().String(), git.ErrNoStagedFiles
 	}
 
-	commitOpts := &extgogit.CommitOptions{
+	opts := &extgogit.CommitOptions{
 		Author: &object.Signature{
 			Name:  info.Author.Name,
 			Email: info.Author.Email,
@@ -230,11 +241,11 @@ func (g *Client) Commit(info git.Commit, signer *openpgp.Entity) (string, error)
 		},
 	}
 
-	if signer != nil {
-		commitOpts.SignKey = signer
+	if options.Signer != nil {
+		opts.SignKey = options.Signer
 	}
 
-	commit, err := wt.Commit(info.Message, commitOpts)
+	commit, err := wt.Commit(info.Message, opts)
 	if err != nil {
 		return "", err
 	}

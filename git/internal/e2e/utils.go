@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"io/ioutil"
 	"math/rand"
@@ -43,15 +44,20 @@ var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
 func testUsingClone(g *WithT, client git.RepositoryClient, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
 	// clone repo
-	_, err := client.Clone(context.TODO(), repoURL.String(), git.CheckoutOptions{
-		Branch: "main",
+	_, err := client.Clone(context.TODO(), repoURL.String(), git.CloneOptions{
+		CheckoutStrategy: git.CheckoutStrategy{
+			Branch: "main",
+		},
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// commit and push to origin
-	err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
-	g.Expect(err).ToNot(HaveOccurred())
-	cc, err := client.Commit(mockCommitInfo(), nil)
+	cc, err := client.Commit(
+		mockCommitInfo(),
+		git.WithFiles(map[string]io.Reader{
+			"test": strings.NewReader(randStringRunes(10)),
+		}),
+	)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	err = client.Push(context.TODO())
@@ -66,9 +72,12 @@ func testUsingClone(g *WithT, client git.RepositoryClient, repoURL *url.URL, ups
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// commit to and push new branch
-	err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
-	g.Expect(err).ToNot(HaveOccurred())
-	cc, err = client.Commit(mockCommitInfo(), nil)
+	cc, err = client.Commit(
+		mockCommitInfo(),
+		git.WithFiles(map[string]io.Reader{
+			"test": strings.NewReader(randStringRunes(10)),
+		}),
+	)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	err = client.Push(context.TODO())
@@ -81,9 +90,13 @@ func testUsingClone(g *WithT, client git.RepositoryClient, repoURL *url.URL, ups
 	// switch to a branch behind the current branch, commit and push
 	err = client.SwitchBranch(context.TODO(), "main")
 	g.Expect(err).ToNot(HaveOccurred())
-	err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
-	g.Expect(err).ToNot(HaveOccurred())
-	_, err = client.Commit(mockCommitInfo(), nil)
+
+	_, err = client.Commit(
+		mockCommitInfo(),
+		git.WithFiles(map[string]io.Reader{
+			"test": strings.NewReader(randStringRunes(10)),
+		}),
+	)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = client.Push(context.TODO())
 	g.Expect(err).ToNot(HaveOccurred())
@@ -97,9 +110,12 @@ func testUsingInit(g *WithT, client git.RepositoryClient, repoURL *url.URL, upst
 	err := client.Init(context.TODO(), repoURL.String(), "main")
 	g.Expect(err).ToNot(HaveOccurred())
 
-	err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
-	g.Expect(err).ToNot(HaveOccurred())
-	cc, err := client.Commit(mockCommitInfo(), nil)
+	cc, err := client.Commit(
+		mockCommitInfo(),
+		git.WithFiles(map[string]io.Reader{
+			"test": strings.NewReader(randStringRunes(10)),
+		}),
+	)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	err = client.Push(context.TODO())
@@ -112,10 +128,12 @@ func testUsingInit(g *WithT, client git.RepositoryClient, repoURL *url.URL, upst
 	err = client.SwitchBranch(context.TODO(), "new")
 	g.Expect(err).ToNot(HaveOccurred())
 
-	err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	cc, err = client.Commit(mockCommitInfo(), nil)
+	cc, err = client.Commit(
+		mockCommitInfo(),
+		git.WithFiles(map[string]io.Reader{
+			"test": strings.NewReader(randStringRunes(10)),
+		}),
+	)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	err = client.Push(context.TODO())
@@ -127,9 +145,13 @@ func testUsingInit(g *WithT, client git.RepositoryClient, repoURL *url.URL, upst
 
 	err = client.SwitchBranch(context.TODO(), "main")
 	g.Expect(err).ToNot(HaveOccurred())
-	err = client.WriteFile("test", strings.NewReader(randStringRunes(10)))
-	g.Expect(err).ToNot(HaveOccurred())
-	_, err = client.Commit(mockCommitInfo(), nil)
+
+	_, err = client.Commit(
+		mockCommitInfo(),
+		git.WithFiles(map[string]io.Reader{
+			"test": strings.NewReader(randStringRunes(10)),
+		}),
+	)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = client.Push(context.TODO())
 	g.Expect(err).ToNot(HaveOccurred())

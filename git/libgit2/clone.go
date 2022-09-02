@@ -31,7 +31,7 @@ import (
 	"github.com/fluxcd/pkg/version"
 )
 
-func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.CheckoutOptions) (_ *git.Commit, err error) {
+func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.CloneOptions) (_ *git.Commit, err error) {
 	defer recoverPanic(&err)
 
 	err = l.Init(ctx, url, branch)
@@ -49,16 +49,16 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 
 	// When the last observed revision is set, check whether it is still the
 	// same at the remote branch. If so, short-circuit the clone operation here.
-	if opts.LastRevision != "" {
+	if opts.LastObservedCommit != "" {
 		heads, err := l.remote.Ls(branch)
 		if err != nil {
 			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, gitutil.LibGit2Error(err))
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
-			currentRevision := fmt.Sprintf("%s/%s", branch, hash)
-			if currentRevision == opts.LastRevision {
-				// Construct a partial commit with the existing information.
+			remoteHead := fmt.Sprintf("%s/%s", branch, hash)
+			if remoteHead == opts.LastObservedCommit {
+				// Construct a non-concrete commit with the existing information.
 				c := &git.Commit{
 					Hash:      git.Hash(hash),
 					Reference: "refs/heads/" + branch,
@@ -141,7 +141,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 	return buildCommit(cc, "refs/heads/"+branch), nil
 }
 
-func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CheckoutOptions) (_ *git.Commit, err error) {
+func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOptions) (_ *git.Commit, err error) {
 	defer recoverPanic(&err)
 
 	remoteCallBacks := RemoteCallbacks()
@@ -158,26 +158,26 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.Checkou
 
 	// When the last observed revision is set, check whether it is still the
 	// same at the remote branch. If so, short-circuit the clone operation here.
-	if opts.LastRevision != "" {
+	if opts.LastObservedCommit != "" {
 		heads, err := l.remote.Ls(tag)
 		if err != nil {
 			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, gitutil.LibGit2Error(err))
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
-			currentRevision := fmt.Sprintf("%s/%s", tag, hash)
+			remoteHEAD := fmt.Sprintf("%s/%s", tag, hash)
 			var same bool
-			if currentRevision == opts.LastRevision {
+			if remoteHEAD == opts.LastObservedCommit {
 				same = true
 			} else if len(heads) > 1 {
 				hash = heads[1].Id.String()
-				currentAnnotatedRevision := fmt.Sprintf("%s/%s", tag, hash)
-				if currentAnnotatedRevision == opts.LastRevision {
+				remoteAnnotatedHEAD := fmt.Sprintf("%s/%s", tag, hash)
+				if remoteAnnotatedHEAD == opts.LastObservedCommit {
 					same = true
 				}
 			}
 			if same {
-				// Construct a partial commit with the existing information.
+				// Construct a non-concrete commit with the existing information.
 				c := &git.Commit{
 					Hash:      git.Hash(hash),
 					Reference: "refs/tags/" + tag,
@@ -206,7 +206,7 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.Checkou
 	return buildCommit(cc, "refs/tags/"+tag), nil
 }
 
-func (l *Client) cloneCommit(ctx context.Context, url, commit string, opts git.CheckoutOptions) (_ *git.Commit, err error) {
+func (l *Client) cloneCommit(ctx context.Context, url, commit string, opts git.CloneOptions) (_ *git.Commit, err error) {
 	defer recoverPanic(&err)
 
 	l.registerTransportOptions(ctx, url)
@@ -239,7 +239,7 @@ func (l *Client) cloneCommit(ctx context.Context, url, commit string, opts git.C
 	return buildCommit(cc, ""), nil
 }
 
-func (l *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts git.CheckoutOptions) (_ *git.Commit, err error) {
+func (l *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts git.CloneOptions) (_ *git.Commit, err error) {
 	defer recoverPanic(&err)
 
 	verConstraint, err := semver.NewConstraint(semverTag)

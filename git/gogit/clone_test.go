@@ -112,10 +112,12 @@ func TestClone_cloneBranch(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			cc, err := ggc.Clone(context.TODO(), path, git.CheckoutOptions{
-				Branch:       tt.branch,
-				ShallowClone: true,
-				LastRevision: tt.lastRevision,
+			cc, err := ggc.Clone(context.TODO(), path, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: tt.branch,
+				},
+				ShallowClone:       true,
+				LastObservedCommit: tt.lastRevision,
 			})
 			if tt.expectedErr != "" {
 				g.Expect(err).To(HaveOccurred())
@@ -215,15 +217,17 @@ func TestClone_cloneTag(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			opts := git.CheckoutOptions{
-				Tag:          tt.checkoutTag,
+			opts := git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Tag: tt.checkoutTag,
+				},
 				ShallowClone: true,
 			}
 
 			// If last revision is provided, configure it.
 			if tt.lastRevTag != "" {
 				lc := tagCommits[tt.lastRevTag]
-				opts.LastRevision = fmt.Sprintf("%s/%s", tt.lastRevTag, lc)
+				opts.LastObservedCommit = fmt.Sprintf("%s/%s", tt.lastRevTag, lc)
 			}
 
 			cc, err := ggc.Clone(context.TODO(), path, opts)
@@ -306,9 +310,11 @@ func TestClone_cloneCommit(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			opts := git.CheckoutOptions{
-				Branch:       tt.branch,
-				Commit:       tt.commit,
+			opts := git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: tt.branch,
+					Commit: tt.commit,
+				},
 				ShallowClone: true,
 			}
 			ggc, err := NewClient(tmpDir, nil)
@@ -418,8 +424,10 @@ func TestClone_cloneSemVer(t *testing.T) {
 			ggc, err := NewClient(tmpDir, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			opts := git.CheckoutOptions{
-				SemVer:       tt.constraint,
+			opts := git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					SemVer: tt.constraint,
+				},
 				ShallowClone: true,
 			}
 
@@ -523,8 +531,10 @@ func Test_ssh_KeyTypes(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			cc, err := ggc.Clone(ctx, repoURL, git.CheckoutOptions{
-				Branch:       git.DefaultBranch,
+			cc, err := ggc.Clone(ctx, repoURL, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: git.DefaultBranch,
+				},
 				ShallowClone: true,
 			})
 
@@ -652,8 +662,10 @@ func Test_ssh_KeyExchangeAlgos(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(ctx, repoURL, git.CheckoutOptions{
-				Branch:       git.DefaultBranch,
+			_, err = ggc.Clone(ctx, repoURL, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: git.DefaultBranch,
+				},
 				ShallowClone: true,
 			})
 
@@ -822,8 +834,10 @@ func Test_ssh_HostKeyAlgos(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(ctx, repoURL, git.CheckoutOptions{
-				Branch:       git.DefaultBranch,
+			_, err = ggc.Clone(ctx, repoURL, git.CloneOptions{
+				CheckoutStrategy: git.CheckoutStrategy{
+					Branch: git.DefaultBranch,
+				},
 				ShallowClone: true,
 			})
 
@@ -832,28 +846,28 @@ func Test_ssh_HostKeyAlgos(t *testing.T) {
 	}
 }
 
-func Test_getLastRevision(t *testing.T) {
+func Test_getRemoteHEAD(t *testing.T) {
 	g := NewWithT(t)
 	repo, path, err := initRepo(t)
 	g.Expect(err).ToNot(HaveOccurred())
 	defer os.RemoveAll(path)
 
-	cc, err := commitFile(repo, "test", "testing last rev branch", time.Now())
+	cc, err := commitFile(repo, "test", "testing current head branch", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 	ref := plumbing.NewBranchReferenceName(git.DefaultBranch)
-	rev, err := getLastRevision(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	head, err := getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(rev).To(Equal(fmt.Sprintf("%s/%s", git.DefaultBranch, cc)))
+	g.Expect(head).To(Equal(fmt.Sprintf("%s/%s", git.DefaultBranch, cc)))
 
-	cc, err = commitFile(repo, "test", "testing last rev tag", time.Now())
+	cc, err = commitFile(repo, "test", "testing current head tag", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 	_, err = tag(repo, cc, false, "v0.1.0", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 
 	ref = plumbing.NewTagReferenceName("v0.1.0")
-	rev, err = getLastRevision(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(rev).To(Equal(fmt.Sprintf("%s/%s", "v0.1.0", cc)))
+	g.Expect(head).To(Equal(fmt.Sprintf("%s/%s", "v0.1.0", cc)))
 }
 
 func initRepo(t *testing.T) (*extgogit.Repository, string, error) {

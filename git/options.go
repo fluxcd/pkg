@@ -18,7 +18,10 @@ package git
 
 import (
 	"fmt"
+	"io"
 	"net/url"
+
+	"github.com/ProtonMail/go-crypto/openpgp"
 )
 
 const (
@@ -27,10 +30,35 @@ const (
 	DefaultPublicKeyAuthUser = "git"
 )
 
-// CheckoutOptions are the options used for a Git checkout.
-type CheckoutOptions struct {
-	// Branch to checkout, can be combined with Branch with some
-	// Implementations.
+// CloneOptions are the options used for a Git clone.
+type CloneOptions struct {
+	// CheckoutStrategy defines a strategy to use while checking out
+	// the cloned repository to a specific target.
+	CheckoutStrategy
+
+	// RecurseSubmodules defines if submodules should be checked out,
+	// not supported by all Implementations.
+	RecurseSubmodules bool
+
+	// LastObservedCommit holds the last observed commit hash of a
+	// Git repository.
+	// If provided, the clone operation will compare it with the HEAD commit
+	// of the branch or tag (as configured via CheckoutStrategy) in the remote
+	// repository. If they match, cloning will be skipped and a "non-concrete"
+	// commit will be returned, which can be verified using `IsConcreteCommit()`.
+	// This functionality is not supported when using a semver range or a commit
+	// to checkout.
+	LastObservedCommit string
+
+	// ShallowClone defines if the repository should be shallow cloned,
+	// not supported by all implementations
+	ShallowClone bool
+}
+
+// CheckoutStrategy provides options to checkout a repository to a target.
+type CheckoutStrategy struct {
+	// Branch to checkout. If supported by the client, it can be combined
+	// with Commit.
 	Branch string
 
 	// Tag to checkout, takes precedence over Branch.
@@ -39,22 +67,39 @@ type CheckoutOptions struct {
 	// SemVer tag expression to checkout, takes precedence over Tag.
 	SemVer string `json:"semver,omitempty"`
 
-	// Commit SHA1 to checkout, takes precedence over Tag and SemVer,
-	// can be combined with Branch with some Implementations.
+	// Commit SHA1 to checkout, takes precedence over Tag and SemVer.
+	// If supported by the client, it can be combined with Branch.
 	Commit string
+}
 
-	// RecurseSubmodules defines if submodules should be checked out,
-	// not supported by all Implementations.
-	RecurseSubmodules bool
+// CommitOptions provides options to configure a Git commit operation.
+type CommitOptions struct {
+	// Signer can be used to sign a commit using OpenPGP.
+	Signer *openpgp.Entity
+	// Files contains file names mapped to the file's content.
+	// Its used to write files which are then included in the commit.
+	Files map[string]io.Reader
+}
 
-	// LastRevision holds the revision observed on the last successful
-	// reconciliation.
-	// It is used to skip clone operations when no changes were detected.
-	LastRevision string
+// CommitOption defines an option for a commit operation.
+type CommitOption func(*CommitOptions)
 
-	// ShallowClone defines if the repository should be shallow cloned,
-	// not supported by all implementations
-	ShallowClone bool
+// WithSigner allows for the commit to be signed using the provided
+// OpenPGP signer.
+func WithSigner(signer *openpgp.Entity) CommitOption {
+	return func(co *CommitOptions) {
+		co.Signer = signer
+	}
+}
+
+// WithFiles instructs the Git client to write the provided files and include
+// them in the commit.
+// files contains file names as its key and the content of the file as the
+// value. If the file already exists, its overwritten.
+func WithFiles(files map[string]io.Reader) CommitOption {
+	return func(co *CommitOptions) {
+		co.Files = files
+	}
 }
 
 type TransportType string
