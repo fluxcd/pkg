@@ -22,11 +22,19 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: 1.18.x
-          # https://github.com/actions/setup-go/blob/main/docs/adrs/0000-caching-dependencies.md#example-of-real-use-cases
-          cache: true
-          cache-dependency-path: |
-            **/go.sum
-            **/go.mod
+      - id: go-env
+        run: |
+          echo "::set-output name=go-cache::$(go env GOCACHE)"
+          echo "::set-output name=go-mod-cache::$(go env GOMODCACHE)"
+      - name: Restore Go mod cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ steps.go-env.outputs.go-cache }}
+            ${{ steps.go-env.outputs.go-mod-cache }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go
       - name: Run tests
         run: make all
       - name: Check if working tree is dirty

@@ -16,17 +16,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Restore Go cache
-        uses: actions/cache@v1
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: 1.18.x
+      - id: go-env
+        run: |
+          echo "::set-output name=go-cache::$(go env GOCACHE)"
+          echo "::set-output name=go-mod-cache::$(go env GOMODCACHE)"
+      - name: Restore Go mod cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ steps.go-env.outputs.go-cache }}
+            ${{ steps.go-env.outputs.go-mod-cache }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go
       - uses: ./actions/envtest
       - uses: ./actions/kubectl
       - uses: ./actions/kustomize
