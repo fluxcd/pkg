@@ -108,3 +108,19 @@ func TestCert_Transport(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, transport.TLSClientConfig)
 }
+
+func Fuzz_TlsConfig(f *testing.F) {
+	f.Add(testdata.ExampleCert, testdata.ExampleKey, testdata.ExampleCA)
+
+	f.Fuzz(func(t *testing.T,
+		clientCertIdentifier, clientKeyIdentifier, caCertIdentifier []byte) {
+		secret := &corev1.Secret{
+			Data: map[string][]byte{
+				CACertIdentifier:     caCertIdentifier,
+				ClientCertIdentifier: clientCertIdentifier,
+				ClientKeyIdentifier:  clientKeyIdentifier,
+			},
+		}
+		_, _ = ConfigFromSecret(secret)
+	})
+}

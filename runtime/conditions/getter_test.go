@@ -26,6 +26,7 @@ package conditions
 import (
 	"testing"
 
+	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	"github.com/fluxcd/pkg/apis/meta"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -378,6 +379,42 @@ func TestAggregate(t *testing.T) {
 			g.Expect(got).To(HaveSameStateOf(tt.want))
 		})
 	}
+}
+
+func Fuzz_Getter(f *testing.F) {
+	f.Fuzz(func(t *testing.T,
+		data []byte) {
+		fc := fuzz.NewConsumer(data)
+
+		// Set a reproduceable amount of conditions.
+		noOfConditions, err := fc.GetInt()
+		if err != nil {
+			return
+		}
+		maxNoOfConditions := 30
+		conditions := make([]metav1.Condition, 0)
+
+		// Add N conditions in the slice based on a reproduceable
+		// state provided by fc.
+		for i := 0; i < noOfConditions%maxNoOfConditions; i++ {
+			c := metav1.Condition{}
+			err = fc.GenerateStruct(&c)
+			if err != nil {
+				return
+			}
+			conditions = append(conditions, c)
+		}
+		obj := &testdata.Fake{}
+		obj.SetConditions(conditions)
+
+		targetCondition, err := fc.GetString()
+		if err != nil {
+			return
+		}
+
+		SetSummary(obj, targetCondition)
+		return
+	})
 }
 
 func getterWithConditions(conditions ...*metav1.Condition) Getter {

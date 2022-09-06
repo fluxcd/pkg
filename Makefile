@@ -87,6 +87,7 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
+# Build fuzzers used by oss-fuzz.
 fuzz-build:
 	rm -rf $(shell pwd)/build/fuzz/
 	mkdir -p $(shell pwd)/build/fuzz/out/
@@ -99,6 +100,7 @@ fuzz-build:
 		-v "$(shell pwd)/build/fuzz/out":/out \
 		local-fuzzing:latest
 
+# Run each fuzzer once to ensure they will work when executed by oss-fuzz.
 fuzz-smoketest: fuzz-build
 	docker run --rm \
 		-v "$(shell pwd)/build/fuzz/out":/out \

@@ -102,3 +102,27 @@ func TestUnstructuredSetConditions(t *testing.T) {
 	s.SetConditions(conditions)
 	g.Expect(s.GetConditions()).To(Equal(conditions))
 }
+
+func Fuzz_Unstructured(f *testing.F) {
+	f.Add("type", "reason true", "condition message")
+
+	f.Fuzz(func(t *testing.T,
+		ct, reason, message string) {
+
+		cs := []metav1.Condition{{
+			Type:    ct,
+			Status:  metav1.ConditionUnknown,
+			Reason:  reason,
+			Message: message,
+		}}
+
+		u := &unstructured.Unstructured{
+			Object: map[string]interface{}{},
+		}
+		s := UnstructuredSetter(u)
+		s.SetConditions(cs)
+
+		g := UnstructuredGetter(u)
+		_ = g.GetConditions()
+	})
+}
