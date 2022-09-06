@@ -18,6 +18,7 @@ package tar
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"crypto/rand"
 	"fmt"
@@ -166,6 +167,30 @@ func TestUntar(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Fuzz_Untar(f *testing.F) {
+	tf, err := createTestTar(untarTestCase{
+		name:     "file at root",
+		fileName: "file1",
+		content:  geRandomContent(256),
+	})
+	if err != nil {
+		f.Fatalf("cannot create test tar: %v", err)
+	}
+	defer os.Remove(tf.Name())
+
+	var content []byte
+	_, err = tf.Read(content)
+	if err != nil {
+		f.Fatalf("cannot read test tar: %v", err)
+	}
+
+	f.Add(content)
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		_ = Untar(bytes.NewReader(data), t.TempDir())
+	})
 }
 
 func createTestTar(tt untarTestCase) (*os.File, error) {

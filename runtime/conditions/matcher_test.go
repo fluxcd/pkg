@@ -26,6 +26,7 @@ package conditions
 import (
 	"testing"
 
+	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -295,4 +296,25 @@ func TestMatchCondition(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Fuzz_Match(f *testing.F) {
+	f.Fuzz(func(t *testing.T,
+		data []byte) {
+
+		f := fuzz.NewConsumer(data)
+		condition := metav1.Condition{}
+		err := f.GenerateStruct(&condition)
+		if err != nil {
+			return
+		}
+		m := MatchCondition(condition)
+
+		actual := metav1.Condition{}
+		err = f.GenerateStruct(&actual)
+
+		if err == nil {
+			_, _ = m.Match(actual)
+		}
+	})
 }

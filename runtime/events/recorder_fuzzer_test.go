@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"testing"
 
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	"github.com/fluxcd/pkg/runtime/testenv"
@@ -43,7 +44,75 @@ var (
 	fuzzCtx = ctrl.SetupSignalHandler()
 )
 
-const defaultBinVersion = "1.23"
+const defaultBinVersion = "1.24"
+
+// Fuzz_Eventf is locked behind a build tag, as its test setup conflicts with the
+// suite_test.go. This test should be refactored to no longer require testenv,
+// which will resolve the problem whilst making the test more effient.
+//
+// TODO: refactor and remove build tag.
+func Fuzz_Eventf(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		doOnce.Do(func() {
+			if err := ensureDependencies(); err != nil {
+				panic(fmt.Sprintf("Failed to start the test environment manager: %v", err))
+			}
+		})
+
+		fuzzTs = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, err := io.ReadAll(r.Body)
+			if err != nil {
+				return
+			}
+
+			var payload Event
+			err = json.Unmarshal(b, &payload)
+			if err != nil {
+				return
+			}
+		}))
+		defer fuzzTs.Close()
+
+		scheme := runtime.NewScheme()
+		utilruntime.Must(corev1.AddToScheme(scheme))
+
+		fuzzEnv = testenv.New(
+			testenv.WithScheme(scheme),
+		)
+
+		go func() {
+			fmt.Println("Starting the test environment")
+			if err := fuzzEnv.Start(fuzzCtx); err != nil {
+				panic(fmt.Sprintf("Failed to start the test environment manager: %v", err))
+			}
+		}()
+		<-fuzzEnv.Manager.Elected()
+
+		eventRecorder, err := NewRecorder(fuzzEnv, ctrl.Log, fuzzTs.URL, "test-controller")
+		if err != nil {
+			return
+		}
+		eventRecorder.Client.RetryMax = 2
+
+		f := fuzz.NewConsumer(data)
+		obj := corev1.ConfigMap{}
+		err = f.GenerateStruct(&obj)
+		if err != nil {
+			return
+		}
+		eventtype, err := f.GetString()
+		if err != nil {
+			return
+		}
+		reason, err := f.GetString()
+		if err != nil {
+			return
+		}
+		eventRecorder.Eventf(&obj, eventtype, reason, obj.Name)
+
+		_ = fuzzEnv.Stop()
+	})
+}
 
 func envtestBinVersion() string {
 	if binVersion := os.Getenv("ENVTEST_BIN_VERSION"); binVersion != "" {
@@ -72,73 +141,4 @@ func ensureDependencies() error {
 	}
 
 	return nil
-}
-
-// FuzzEventInfof implements a fuzzer that targets eventRecorder.Eventf().
-func FuzzEventf(data []byte) int {
-	doOnce.Do(func() {
-		if err := ensureDependencies(); err != nil {
-			panic(fmt.Sprintf("Failed to start the test environment manager: %v", err))
-		}
-	})
-
-	fuzzTs = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b, err := io.ReadAll(r.Body)
-		if err != nil {
-			return
-		}
-
-		var payload Event
-		err = json.Unmarshal(b, &payload)
-		if err != nil {
-			return
-		}
-	}))
-	defer fuzzTs.Close()
-
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-
-	fuzzEnv = testenv.New(
-		testenv.WithScheme(scheme),
-	)
-
-	go func() {
-		fmt.Println("Starting the test environment")
-		if err := fuzzEnv.Start(fuzzCtx); err != nil {
-			panic(fmt.Sprintf("Failed to start the test environment manager: %v", err))
-		}
-	}()
-	<-fuzzEnv.Manager.Elected()
-
-	eventRecorder, err := NewRecorder(fuzzEnv, ctrl.Log, fuzzTs.URL, "test-controller")
-	if err != nil {
-		return 0
-	}
-	eventRecorder.Client.RetryMax = 2
-	//TODO: Reuse the setup above across fuzzing calls
-	// this will be easier once fuzzing is migrated to
-	// native golang fuzz.
-
-	f := fuzz.NewConsumer(data)
-	obj := corev1.ConfigMap{}
-	err = f.GenerateStruct(&obj)
-	if err != nil {
-		return 0
-	}
-	eventtype, err := f.GetString()
-	if err != nil {
-		return 0
-	}
-	reason, err := f.GetString()
-	if err != nil {
-		return 0
-	}
-	eventRecorder.Eventf(&obj, eventtype, reason, obj.Name)
-
-	if err = fuzzEnv.Stop(); err != nil {
-		return 0
-	}
-
-	return 1
 }

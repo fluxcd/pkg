@@ -100,3 +100,33 @@ func TestGoGitErrorUnchanged(t *testing.T) {
 		t.Errorf("expected %q, got %q", expectedReformat, reformattedMessage)
 	}
 }
+
+func Fuzz_LibGit2Error(f *testing.F) {
+	f.Add("")
+	f.Add("single line error")
+	f.Add("multi\nline\nerror")
+
+	f.Fuzz(func(t *testing.T, msg string) {
+		var err error
+		if msg != "" {
+			err = errors.New(msg)
+		}
+
+		_ = LibGit2Error(err)
+	})
+}
+
+func Fuzz_GoGitError(f *testing.F) {
+	f.Add("")
+	f.Add("unknown error: remote: ")
+	f.Add("some other error")
+
+	f.Fuzz(func(t *testing.T, msg string) {
+		var err error
+		if msg != "" {
+			err = errors.New(msg)
+		}
+
+		_ = GoGitError(err)
+	})
+}
