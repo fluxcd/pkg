@@ -18,10 +18,10 @@ package libgit2
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 
 	git2go "github.com/libgit2/git2go/v33"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	"github.com/fluxcd/pkg/git"
 )
@@ -31,12 +31,7 @@ const (
 )
 
 func getTransportOptsURL(transport git.TransportType) string {
-	letterRunes := []rune("abcdefghijklmnopqrstuvwxyz1234567890")
-	b := make([]rune, 12)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(transport) + "://" + string(b)
+	return string(transport) + "://" + string(uuid.NewUUID())
 }
 
 func pushError(err error, url string) error {
