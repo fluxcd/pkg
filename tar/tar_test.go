@@ -146,7 +146,17 @@ func TestUntar(t *testing.T) {
 			}
 
 			err = Untar(f, tt.targetDir, opts...)
-			equalError(t, tt.wantErr, err)
+			var got string
+			if err != nil {
+				got = err.Error()
+			}
+			if tt.wantErr != got {
+				t.Errorf("wanted error: '%s' got: '%v'", tt.wantErr, err)
+			}
+
+			if tt.wantErr == "" && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
 
 			// only assess file if no errors were expected
 			if tt.wantErr == "" {
@@ -232,18 +242,4 @@ func geRandomContent(len int) []byte {
 	content := make([]byte, len)
 	rand.Read(content)
 	return content
-}
-
-func equalError(t *testing.T, wantErr string, gotErr error) {
-	got := ""
-	if gotErr != nil {
-		got = gotErr.Error()
-	}
-	if wantErr != got {
-		t.Errorf("wanted error: '%s' got: '%v'", wantErr, gotErr)
-	}
-
-	if wantErr == "" && gotErr != nil {
-		t.Errorf("unexpected error: %v", gotErr)
-	}
 }
