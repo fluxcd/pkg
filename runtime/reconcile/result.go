@@ -43,6 +43,19 @@ type Conditions struct {
 	NegativePolarity []string
 }
 
+// SuccessType is the type of success reconciliation result for a reconciler.
+type SuccessType int
+
+const (
+	// SuccessWithRequeue is the type of success result which requeues at a
+	// constant period. Reconcilers of this success type reconcile on their own
+	// at the period to make sure the world matches with the desired state.
+	SuccessWithRequeue SuccessType = iota
+	// SuccessNoRequeue is the type of success result which does not requeue.
+	// Reconcilers of such success type reconcile only based on events.
+	SuccessNoRequeue
+)
+
 // IsResultSuccess defines if a given ctrl.Result and error result in a
 // successful reconciliation result.
 type IsResultSuccess func(ctrl.Result, error) bool
@@ -74,6 +87,9 @@ func NewResultFinalizer(isSuccess IsResultSuccess, readySuccessMsg string, condi
 // reconcile annotation in the object metadata and adds it to the status as
 // LastHandledReconcileAt.
 func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recErr error) error {
+	// Evaluate isSuccess to determine what success means for the reconciler.
+	successType := determineSuccessType(rs.isSuccess)
+
 	// Store the success result of the reconciliation taking the error value in
 	// consideration.
 	successResult := rs.isSuccess(res, recErr)
@@ -84,7 +100,11 @@ func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recEr
 		conditions.Delete(obj, meta.StalledCondition)
 	}
 
-	if !successResult {
+	// Analyze the result if it's unsuccessful or it's a SuccessNoRequeue
+	// reconciler. In case of SuccessNoRequeue, it's difficult to differentiate
+	// between Success and Stalled result. Further analyze the result to
+	// determine if it's Stalled and add the necessary changes to the status.
+	if !successResult || successType == SuccessNoRequeue {
 		// ctrl.Result is expected to be zero when stalled. If the result isn't
 		// zero and not success even without considering the error value, a
 		// requeue is requested in the ctrl.Result, it is not a stalled
@@ -129,10 +149,13 @@ func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recEr
 		)
 	}
 
-	// If the result is success, but Ready is explicitly False (not unknown,
-	// with not Ready condition message), and it's not Stalled, set error value
-	// to be the Ready failure message.
-	if successResult && !conditions.IsUnknown(obj, meta.ReadyCondition) && conditions.IsFalse(obj, meta.ReadyCondition) && !conditions.IsStalled(obj) {
+	// If the result is success for SuccessWithRequeue type reconciler, but
+	// Ready is explicitly False (not unknown, with not Ready condition
+	// message), and it's not Stalled, set error value to be the Ready failure
+	// message.
+	if successResult && successType != SuccessNoRequeue &&
+		!conditions.IsUnknown(obj, meta.ReadyCondition) &&
+		conditions.IsFalse(obj, meta.ReadyCondition) && !conditions.IsStalled(obj) {
 		recErr = errors.New(conditions.GetMessage(obj, meta.ReadyCondition))
 	}
 
@@ -175,4 +198,15 @@ func AddPatchOptions(obj conditions.Setter, opts []patch.Option, ownedConditions
 		opts = append(opts, patch.WithStatusObservedGeneration{})
 	}
 	return opts
+}
+
+// determineSuccessType analyzes the given IsResultSuccess to determine the
+// SuccessType of the reconciler.
+func determineSuccessType(isSuccess IsResultSuccess) SuccessType {
+	// If ctrl.Result is zero with no reconcile error is success, it's
+	// SuccessNoRequeue.
+	if isSuccess(ctrl.Result{}, nil) {
+		return SuccessNoRequeue
+	}
+	return SuccessWithRequeue
 }
