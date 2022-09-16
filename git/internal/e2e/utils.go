@@ -198,6 +198,9 @@ func mockCommitInfo() git.Commit {
 }
 
 func createSSHIdentitySecret(repoURL url.URL) (map[string][]byte, error) {
+	if repoURL.Port() == "" {
+		repoURL.Host = repoURL.Hostname() + ":22"
+	}
 	knownhosts, err := ssh.ScanHostKey(repoURL.Host, 5*time.Second, []string{}, false)
 	if err != nil {
 		return nil, err
