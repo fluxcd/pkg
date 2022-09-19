@@ -12,8 +12,13 @@ permissions:
 jobs:
   git-test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITPROVIDER_BOT_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        provider:
+          - gitkit
+          - gitlab-ee
+          - github
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -44,4 +49,22 @@ jobs:
           go-version: 1.18.x
       - name: Run tests
         if: steps.filter.outputs.git == 'true'
-        run: cd git/internal/e2e && ./run.sh
+        run: |
+          if [[ ${{ matrix.provider }} = "gitkit" ]]; then
+            export GO_TESTS="-run TestGitKitE2E"
+
+          elif [[ ${{ matrix.provider }} = "gitlab-ee" ]]; then
+            export GO_TESTS="-run TestGitLabE2E"
+
+          elif [[ ${{ matrix.provider }} = "github" ]]; then
+            if [[ ${{ github.event_name }} != "pull_request" ]] || \
+              [[ ${{ github.event.pull_request.head.repo.full_name }} = ${{ github.repository }} ]]; then
+              export GO_TESTS="-run TestGitHubE2E"
+              export GITHUB_TOKEN="${{ secrets.GITPROVIDER_BOT_TOKEN }}"
+            else
+              echo "Skipping GitHub E2E tests"
+              exit 0
+            fi
+          fi
+
+          cd git/internal/e2e && GO_TESTS="${GO_TESTS}" ./run.sh
