@@ -508,6 +508,10 @@ func (l *Client) Head() (string, error) {
 	return head.Target().String(), nil
 }
 
+func (l *Client) Repository() *git2go.Repository {
+	return l.repository
+}
+
 func (l *Client) Path() string {
 	return l.path
 }
