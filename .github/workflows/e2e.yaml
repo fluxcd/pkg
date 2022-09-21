@@ -1,6 +1,7 @@
 name: e2e
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -27,15 +28,17 @@ jobs:
       # meant only for the git package. This detects us whether the changed files are part of the
       # git directory. Subsequent steps check if this is true, before executing, thus helping us
       # run these tests only when there are changes to the git package.
-      - name: Check for changes to git/
+      - name: Check for changes to git/ or e2e workflow
         uses: dorny/paths-filter@v2
         id: filter
         with:
           filters: |
+            e2e:
+              - '.github/workflows/e2e.yaml'
             git:
               - 'git/**'
       - name: Restore Go cache
-        if: steps.filter.outputs.git == 'true'
+        if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
         uses: actions/cache@v1
         with:
           path: /home/runner/work/_temp/_github_home/go/pkg/mod
@@ -43,12 +46,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Setup Go
-        if: steps.filter.outputs.git == 'true'
+        if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
         uses: actions/setup-go@v2
         with:
           go-version: 1.18.x
       - name: Run tests
-        if: steps.filter.outputs.git == 'true'
+        if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
         run: |
           if [[ ${{ matrix.provider }} = "gitkit" ]]; then
             export GO_TESTS="-run TestGitKitE2E"
