@@ -20,91 +20,66 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 
-	. "github.com/onsi/gomega"
-
+	"github.com/fluxcd/go-git-providers/gitlab"
+	"github.com/fluxcd/go-git-providers/gitprovider"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
 	"github.com/fluxcd/pkg/git/libgit2"
+	. "github.com/onsi/gomega"
 )
 
 const (
-	gitlabUsername     = "root"
-	gitlabHTTPHost     = "http://127.0.0.1:8080"
-	gitlabSSHHost      = "ssh://git@127.0.0.1:2222"
-	gitlabPat          = "GITLAB_PAT"
-	gitlabRootPassword = "GITLAB_ROOT_PASSWORD"
+	gitlabUsername = "fluxcd-gitprovider-bot"
+	gitlabOrgname  = "fluxcd-testing"
+	gitlabSSHHost  = "ssh://" + git.DefaultPublicKeyAuthUser + "@" + gitlab.DefaultDomain
+	gitlabHTTPHost = "https://" + gitlab.DefaultDomain
 )
 
 var (
-	privateToken string
-	password     string
+	gitlabPrivateToken string
 )
 
 func TestGitLabE2E(t *testing.T) {
-	privateToken = os.Getenv(gitlabPat)
-	if privateToken == "" {
-		t.Fatalf("could not read gitlab private token")
+	g := NewWithT(t)
+	gitlabPrivateToken = os.Getenv(gitlabPat)
+	if gitlabPrivateToken == "" {
+		t.Fatalf("could not read gitlab PAT")
 	}
 
-	password = os.Getenv(gitlabRootPassword)
-	if password == "" {
-		t.Fatalf("could not read gitlab root password")
-	}
-	password = strings.TrimSpace(password)
+	c, err := gitlab.NewClient(gitlabPrivateToken, "", gitprovider.WithDestructiveAPICalls(true))
+	g.Expect(err).ToNot(HaveOccurred())
+	orgClient := c.OrgRepositories()
 
-	repoInfo := func(repoName string, proto git.TransportType) (*url.URL, *git.AuthOptions, error) {
+	repoInfo := func(proto git.TransportType, repo gitprovider.OrgRepository) (*url.URL, *git.AuthOptions, error) {
 		var repoURL *url.URL
 		var authOptions *git.AuthOptions
 		var err error
 
 		if proto == git.SSH {
-			repoURL, err = url.Parse(gitlabSSHHost + "/" + gitlabUsername + "/" + repoName)
+			repoURL, err = url.Parse(gitlabSSHHost + "/" + gitlabOrgname + "/" + repo.Repository().GetRepository())
 			if err != nil {
 				return nil, nil, err
 			}
+
 			sshAuth, err := createSSHIdentitySecret(*repoURL)
 			if err != nil {
 				return nil, nil, err
 			}
-
-			// ref: https://docs.gitlab.com/15.0/ee/api/users.html#add-ssh-key
-			sshKeyApiEndpoint, err := url.Parse(fmt.Sprintf("%s/api/v4/user/keys", gitlabHTTPHost))
+			dkClient := repo.DeployKeys()
+			var readOnly bool
+			_, err = dkClient.Create(context.TODO(), gitprovider.DeployKeyInfo{
+				Name:     "git-e2e-deploy-key" + randStringRunes(5),
+				Key:      sshAuth["identity.pub"],
+				ReadOnly: &readOnly,
+			})
 			if err != nil {
 				return nil, nil, err
-			}
-
-			form := url.Values{}
-			form.Add("title", randStringRunes(10))
-			form.Add("key", string(sshAuth["identity.pub"]))
-			req, err := http.NewRequest("POST", sshKeyApiEndpoint.String(), strings.NewReader(form.Encode()))
-			if err != nil {
-				return nil, nil, err
-			}
-
-			req.Header = http.Header{
-				"PRIVATE-TOKEN": []string{privateToken},
-				"Content-Type":  []string{"multipart/form-data"},
-			}
-
-			client := http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				return nil, nil, err
-			}
-			if resp.StatusCode != 201 {
-				var body []byte
-				_, err = resp.Body.Read(body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("error reading response body: %w", err)
-				}
-				return nil, nil, fmt.Errorf("could not register ssh key, resp: %s %s", resp.Status, string(body))
 			}
 
 			authOptions, err = git.NewAuthOptions(*repoURL, sshAuth)
@@ -112,13 +87,13 @@ func TestGitLabE2E(t *testing.T) {
 				return nil, nil, err
 			}
 		} else {
-			repoURL, err = url.Parse(gitlabHTTPHost + "/" + gitlabUsername + "/" + repoName)
+			repoURL, err = url.Parse(gitlabHTTPHost + "/" + gitlabOrgname + "/" + repo.Repository().GetRepository())
 			if err != nil {
 				return nil, nil, err
 			}
 			authOptions, err = git.NewAuthOptions(*repoURL, map[string][]byte{
 				"username": []byte(gitlabUsername),
-				"password": []byte(password),
+				"password": []byte(gitlabPrivateToken),
 			})
 			if err != nil {
 				return nil, nil, err
@@ -135,11 +110,18 @@ func TestGitLabE2E(t *testing.T) {
 			g := NewWithT(t)
 
 			repoName := fmt.Sprintf("gitlab-e2e-checkout-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
-			repoURL, authOptions, err := repoInfo(repoName, proto)
+			upstreamRepoURL := gitlabHTTPHost + "/" + gitlabOrgname + "/" + repoName
+
+			ref, err := gitprovider.ParseOrgRepositoryURL(upstreamRepoURL)
+			g.Expect(err).ToNot(HaveOccurred())
+			repo, err := orgClient.Create(context.TODO(), *ref, gitprovider.RepositoryInfo{})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			upstreamRepoURL := gitlabHTTPHost + "/" + gitlabUsername + "/" + repoName
-			err = initRepo(upstreamRepoURL, "main", "../../testdata/git/repo", gitlabUsername, password)
+			defer repo.Delete(context.TODO())
+
+			err = initRepo(upstreamRepoURL, "main", "../../testdata/git/repo", gitlabUsername, gitlabPrivateToken)
+			g.Expect(err).ToNot(HaveOccurred())
+			repoURL, authOptions, err := repoInfo(proto, repo)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			var client git.RepositoryClient
@@ -161,7 +143,7 @@ func TestGitLabE2E(t *testing.T) {
 			testUsingClone(g, client, repoURL, upstreamRepoInfo{
 				url:      upstreamRepoURL,
 				username: gitlabUsername,
-				password: password,
+				password: gitlabPrivateToken,
 			})
 		})
 
@@ -169,9 +151,17 @@ func TestGitLabE2E(t *testing.T) {
 			g := NewWithT(t)
 
 			repoName := fmt.Sprintf("gitlab-e2e-checkout-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
-			repoURL, authOptions, err := repoInfo(repoName, proto)
+			upstreamRepoURL := gitlabHTTPHost + "/" + gitlabOrgname + "/" + repoName
+
+			ref, err := gitprovider.ParseOrgRepositoryURL(upstreamRepoURL)
 			g.Expect(err).ToNot(HaveOccurred())
-			upstreamRepoURL := gitlabHTTPHost + "/" + gitlabUsername + "/" + repoName
+			repo, err := orgClient.Create(context.TODO(), *ref, gitprovider.RepositoryInfo{})
+			g.Expect(err).ToNot(HaveOccurred())
+
+			defer repo.Delete(context.TODO())
+
+			repoURL, authOptions, err := repoInfo(proto, repo)
+			g.Expect(err).ToNot(HaveOccurred())
 
 			var client git.RepositoryClient
 			tmp := t.TempDir()
@@ -192,7 +182,7 @@ func TestGitLabE2E(t *testing.T) {
 			testUsingInit(g, client, repoURL, upstreamRepoInfo{
 				url:      upstreamRepoURL,
 				username: gitlabUsername,
-				password: password,
+				password: gitlabPrivateToken,
 			})
 		})
 	}
