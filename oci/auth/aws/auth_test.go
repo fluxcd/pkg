@@ -31,40 +31,42 @@ const (
 	testValidECRImage = "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1"
 )
 
-func TestParseImage(t *testing.T) {
+func TestParseRegistry(t *testing.T) {
 	tests := []struct {
-		image         string
+		registry      string
 		wantAccountID string
 		wantRegion    string
 		wantOK        bool
 	}{
 		{
-			image:         "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1",
+			registry:      "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1",
 			wantAccountID: "012345678901",
 			wantRegion:    "us-east-1",
 			wantOK:        true,
 		},
 		{
-			image:         "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo",
+			registry:      "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo",
 			wantAccountID: "012345678901",
 			wantRegion:    "us-east-1",
 			wantOK:        true,
 		},
 		{
-			image:  "012345678901.dkr.ecr.us-east-1.amazonaws.com",
-			wantOK: false,
+			registry:      "012345678901.dkr.ecr.us-east-1.amazonaws.com",
+			wantAccountID: "012345678901",
+			wantRegion:    "us-east-1",
+			wantOK:        true,
 		},
 		{
-			image:  "gcr.io/foo/bar:baz",
-			wantOK: false,
+			registry: "gcr.io/foo/bar:baz",
+			wantOK:   false,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.image, func(t *testing.T) {
+		t.Run(tt.registry, func(t *testing.T) {
 			g := NewWithT(t)
 
-			accId, region, ok := ParseImage(tt.image)
+			accId, region, ok := ParseRegistry(tt.registry)
 			g.Expect(ok).To(Equal(tt.wantOK), "unexpected OK")
 			g.Expect(accId).To(Equal(tt.wantAccountID), "unexpected account IDs")
 			g.Expect(region).To(Equal(tt.wantRegion), "unexpected regions")

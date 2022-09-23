@@ -33,13 +33,13 @@ import (
 	"github.com/fluxcd/pkg/oci"
 )
 
-var registryPartRe = regexp.MustCompile(`([0-9+]*).dkr.ecr.([^/.]*)\.(amazonaws\.com[.cn]*)/([^:]+):?(.*)`)
+var registryPartRe = regexp.MustCompile(`([0-9+]*).dkr.ecr.([^/.]*)\.(amazonaws\.com[.cn]*)`)
 
-// ParseImage returns the AWS account ID and region and `true` if
-// the image repository is hosted in AWS's Elastic Container Registry,
+// ParseRegistry returns the AWS account ID and region and `true` if
+// the image registry/repository is hosted in AWS's Elastic Container Registry,
 // otherwise empty strings and `false`.
-func ParseImage(image string) (accountId, awsEcrRegion string, ok bool) {
-	registryParts := registryPartRe.FindAllStringSubmatch(image, -1)
+func ParseRegistry(registry string) (accountId, awsEcrRegion string, ok bool) {
+	registryParts := registryPartRe.FindAllStringSubmatch(registry, -1)
 	if len(registryParts) < 1 || len(registryParts[0]) < 3 {
 		return "", "", false
 	}
@@ -108,11 +108,11 @@ func (c *Client) getLoginAuth(accountId, awsEcrRegion string) (authn.AuthConfig,
 
 // Login attempts to get the authentication material for ECR. It extracts
 // the account and region information from the image URI. The caller can ensure
-// that the passed image is a valid ECR image using ParseImage().
+// that the passed image is a valid ECR image using ParseRegistry().
 func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn.Authenticator, error) {
 	if autoLogin {
 		ctrl.LoggerFrom(ctx).Info("logging in to AWS ECR for " + image)
-		accountId, awsEcrRegion, ok := ParseImage(image)
+		accountId, awsEcrRegion, ok := ParseRegistry(image)
 		if !ok {
 			return nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
 		}
