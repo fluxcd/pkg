@@ -98,9 +98,10 @@ func WithSaveOriginalKustomization() SavingOptions {
 // It is the caller responsability to clean up the directory by use the provided function CleanDirectory.
 // example:
 // err := CleanDirectory(dirPath, action)
-// if err != nil {
-// 	log.Fatal(err)
-// }
+//
+//	if err != nil {
+//		log.Fatal(err)
+//	}
 func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, error) {
 	action, err := g.generateKustomization(dirPath)
 	if err != nil {

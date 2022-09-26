@@ -53,7 +53,7 @@ var Endpoints = map[string]http.Handler{
 //			os.Exit(1)
 //		}
 //		pprof.SetupHandlers(mgr, log)
-// 	}
+//	}
 func SetupHandlers(mgr ctrl.Manager, log logr.Logger) {
 	// Only set the fraction if there is no existing setting
 	if runtime.SetMutexProfileFraction(-1) == 0 {

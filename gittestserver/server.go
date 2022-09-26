@@ -118,12 +118,12 @@ func (s *GitServer) KeyDir(dir string) *GitServer {
 // InstallUpdateHook installs a hook script that will run running
 // _before_ a push is accepted, as described at
 //
-//    https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks
+//	https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks
 //
 // The provided string is written as an executable script to the hooks
 // directory; start with a hashbang to make sure it'll run, e.g.,
 //
-//     #!/bin/bash
+//	#!/bin/bash
 func (s *GitServer) InstallUpdateHook(script string) *GitServer {
 	if s.config.Hooks == nil {
 		s.config.Hooks = &gitkit.HookScripts{}

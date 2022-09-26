@@ -47,8 +47,9 @@ func (m *ResourceManager) Client() client.Client {
 
 // SetOwnerLabels adds the ownership labels to the given objects.
 // The ownership labels are in the format:
-// 	<owner.group>/name: <name>
-// 	<owner.group>/namespace: <namespace>
+//
+//	<owner.group>/name: <name>
+//	<owner.group>/namespace: <namespace>
 func (m *ResourceManager) SetOwnerLabels(objects []*unstructured.Unstructured, name, namespace string) {
 	for _, object := range objects {
 		labels := object.GetLabels()

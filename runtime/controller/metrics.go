@@ -35,11 +35,11 @@ import (
 //
 // Use it by embedding it in your reconciler struct:
 //
-//	type MyTypeReconciler {
-//  	client.Client
-//      // ... etc.
-//      controller.Metrics
-//	}
+//		type MyTypeReconciler {
+//	 	client.Client
+//	     // ... etc.
+//	     controller.Metrics
+//		}
 //
 // Following the GitOps Toolkit conventions, API types used in GOTK SHOULD implement conditions.Getter to work with
 // status condition types, and this convention MUST be followed to be able to record metrics using this helper.

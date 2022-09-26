@@ -48,6 +48,7 @@ type localizedCondition struct {
 //   - P2 - Status=True, NegativePolarity=False
 //   - P3 - Status=False, NegativePolarity=True
 //   - P4 - Status=Unknown
+//
 // 3. The group with highest priority is used to determine status, and other info of the target condition.
 // 4. If the polarity of the highest priority and target priority differ, it is inverted.
 // 5. If the observed generation is considered, the condition groups with the latest generation get the highest
