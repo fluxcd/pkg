@@ -2,7 +2,7 @@ module github.com/fluxcd/pkg/apis/meta
 
 go 1.18
 
-require k8s.io/apimachinery v0.25.0
+require k8s.io/apimachinery v0.25.2
 
 // Fix CVE-2022-28948
 replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
