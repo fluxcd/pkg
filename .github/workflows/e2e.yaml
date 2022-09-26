@@ -18,7 +18,8 @@ jobs:
       matrix:
         provider:
           - gitkit
-          - gitlab-ee
+          - gitlab-ce
+          - gitlab
           - github
     steps:
       - name: Checkout
@@ -55,19 +56,22 @@ jobs:
         run: |
           if [[ ${{ matrix.provider }} = "gitkit" ]]; then
             export GO_TESTS="-run TestGitKitE2E"
+          elif [[ ${{ matrix.provider }} = "gitlab-ce" ]]; then
+            export GO_TESTS="-run TestGitLabCEE2E"
+          fi
 
-          elif [[ ${{ matrix.provider }} = "gitlab-ee" ]]; then
-            export GO_TESTS="-run TestGitLabE2E"
-
-          elif [[ ${{ matrix.provider }} = "github" ]]; then
-            if [[ ${{ github.event_name }} != "pull_request" ]] || \
-              [[ "${{ github.event.pull_request.head.repo.full_name }}" = ${{ github.repository }} ]]; then
+          if [[ ${{ github.event_name }} != "pull_request" ]] || \
+            [[ "${{ github.event.pull_request.head.repo.full_name }}" = ${{ github.repository }} ]]; then
+            if [[ ${{ matrix.provider }} = "github" ]]; then
               export GO_TESTS="-run TestGitHubE2E"
               export GITHUB_TOKEN="${{ secrets.GITPROVIDER_BOT_TOKEN }}"
-            else
-              echo "Skipping GitHub E2E tests"
-              exit 0
+            elif [[ ${{ matrix.provider }} = "gitlab" ]]; then
+              export GO_TESTS="-run TestGitLabE2E"
+              export GITLAB_PAT="${{ secrets.GITLAB_BOT_TOKEN }}"
             fi
+          else
+              echo "Skipping GitHub and GitLab E2E tests"
+              exit 0
           fi
 
           cd git/internal/e2e && GO_TESTS="${GO_TESTS}" ./run.sh
