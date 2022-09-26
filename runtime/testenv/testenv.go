@@ -117,22 +117,21 @@ func WithCRDPath(path ...string) Option {
 // order to override this behavior, the controller-runtime logger can be
 // initialized before creating testenv Environment.
 //
-//  import (
-//      "testing"
+//	import (
+//	    "testing"
 //
-//      "github.com/fluxcd/pkg/runtime/testenv"
-//      ctrl "sigs.k8s.io/controller-runtime"
-//      "sigs.k8s.io/controller-runtime/pkg/log/zap"
-//  }
+//	    "github.com/fluxcd/pkg/runtime/testenv"
+//	    ctrl "sigs.k8s.io/controller-runtime"
+//	    "sigs.k8s.io/controller-runtime/pkg/log/zap"
+//	}
 //
-//  func TestMain(m *testing.M) {
-//      zlog := zap.New(zap.UseDevMode(true))
-//      ctrl.SetLogger(zlog)
+//	func TestMain(m *testing.M) {
+//	    zlog := zap.New(zap.UseDevMode(true))
+//	    ctrl.SetLogger(zlog)
 //
-//      testEnv = testenv.New()
-//      ...
-//  }
-//
+//	    testEnv = testenv.New()
+//	    ...
+//	}
 func New(o ...Option) *Environment {
 	// Set a default logger if not set already.
 	log.SetLogger(klogr.New())

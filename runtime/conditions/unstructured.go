@@ -81,11 +81,11 @@ type unstructuredWrapper struct {
 //
 // NOTE: Due to the constraints of JSON-unmarshal, this operation is to be considered best effort.
 // In more details:
-// - Errors during JSON-unmarshal are ignored and a empty collection list is returned.
-// - It's not possible to detect if the object has an empty condition list or if it does not implement conditions;
-//   in both cases the operation returns an empty slice.
-// - If the object doesn't implement status conditions as defined in GitOps Toolkit API,
-//   JSON-unmarshal matches incoming object keys to the keys; this can lead to to conditions values partially set.
+//   - Errors during JSON-unmarshal are ignored and a empty collection list is returned.
+//   - It's not possible to detect if the object has an empty condition list or if it does not implement conditions;
+//     in both cases the operation returns an empty slice.
+//   - If the object doesn't implement status conditions as defined in GitOps Toolkit API,
+//     JSON-unmarshal matches incoming object keys to the keys; this can lead to to conditions values partially set.
 func (c *unstructuredWrapper) GetConditions() []metav1.Condition {
 	conditions := []metav1.Condition{}
 	if err := UnstructuredUnmarshalField(c.Unstructured, &conditions, "status", "conditions"); err != nil {
@@ -98,9 +98,9 @@ func (c *unstructuredWrapper) GetConditions() []metav1.Condition {
 //
 // NOTE: Due to the constraints of JSON-unmarshal, this operation is to be considered best effort.
 // In more details:
-// - Errors during JSON-unmarshal are ignored and a empty collection list is returned.
-// - It's not possible to detect if the object has an empty condition list or if it does not implement conditions;
-//   in both cases the operation returns an empty slice is returned.
+//   - Errors during JSON-unmarshal are ignored and a empty collection list is returned.
+//   - It's not possible to detect if the object has an empty condition list or if it does not implement conditions;
+//     in both cases the operation returns an empty slice is returned.
 func (c *unstructuredWrapper) SetConditions(conditions []metav1.Condition) {
 	v := make([]interface{}, 0, len(conditions))
 	for i := range conditions {

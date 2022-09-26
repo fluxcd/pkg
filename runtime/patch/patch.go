@@ -60,7 +60,7 @@ import (
 //			return ctrl.Result{}, client.IgnoreNotFound(err)
 //		}
 //
-// 		// Initialise the patch helper
+//		// Initialise the patch helper
 //		patchHelper, err := patch.NewHelper(obj, r.Client)
 //		if err != nil {
 //			return ctrl.Result{}, err

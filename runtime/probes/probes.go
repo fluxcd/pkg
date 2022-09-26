@@ -28,14 +28,14 @@ import (
 //
 // The func can be used in the main.go file of your controller, after initialisation of the manager:
 //
-//	func main() {
-//		mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
-//		if err != nil {
-//			log.Error(err, "unable to start manager")
-//			os.Exit(1)
-//		}
-//		probes.SetupChecks(mgr, log)
-//  }
+//		func main() {
+//			mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
+//			if err != nil {
+//				log.Error(err, "unable to start manager")
+//				os.Exit(1)
+//			}
+//			probes.SetupChecks(mgr, log)
+//	 }
 func SetupChecks(mgr ctrl.Manager, log logr.Logger) {
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
 		log.Error(err, "unable to create ready check")

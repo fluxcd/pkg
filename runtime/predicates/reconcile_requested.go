@@ -30,7 +30,7 @@ import (
 //
 //	Controller.Watch(
 //		&source.Kind{Type: v1.MyCustomKind},
-// 		&handler.EnqueueRequestForObject{},
+//		&handler.EnqueueRequestForObject{},
 //		predicate.Or(predicate.GenerationChangedPredicate{}, predicates.ReconcileRequestedPredicate{}))
 type ReconcileRequestedPredicate struct {
 	predicate.Funcs

@@ -43,17 +43,17 @@ import (
 //
 // Use it by embedding EventRecorder in reconciler struct:
 //
-//  import (
-//  	...
-//  	kuberecorder "k8s.io/client-go/tools/record"
-//  	...
-//  )
+//	import (
+//		...
+//		kuberecorder "k8s.io/client-go/tools/record"
+//		...
+//	)
 //
-//  type MyTypeReconciler {
-//   	client.Client
-//  	// ... etc.
-//  	kuberecorder.EventRecorder
-//  }
+//	type MyTypeReconciler {
+//	 	client.Client
+//		// ... etc.
+//		kuberecorder.EventRecorder
+//	}
 //
 // Use NewRecorder to create a working Recorder.
 type Recorder struct {
