@@ -14,15 +14,13 @@ replace (
 // Fix CVE-2022-1996 (for v2, Go Modules incompatible)
 replace github.com/emicklei/go-restful => github.com/emicklei/go-restful v2.16.0+incompatible
 
-// A temporary fork of git2go was created to enable use
-// of libgit2 without thread support to fix:
-// fluxcd/image-automation-controller/#339.
+// Flux has its own git2go fork to enable changes in behaviour for improved
+// reliability.
 //
-// This can be removed once libgit2/git2go#918 is merged.
-//
-// The fork automatically releases new patches based on upstream:
-// https://github.com/pjbgf/git2go/commit/d72e39cdc20f7fe014ba73072b01ba7b569e9253
-replace github.com/libgit2/git2go/v33 => github.com/pjbgf/git2go/v33 v33.0.9-nothread-check
+// For more information refer to:
+// - fluxcd/image-automation-controller/#339.
+// - libgit2/git2go#918.
+replace github.com/libgit2/git2go/v33 => github.com/fluxcd/git2go/v33 v33.0.9-flux
 
 // This lets us use `go-billy/util.Walk()`, as this function hasn't been released
 // in a tagged version yet:
