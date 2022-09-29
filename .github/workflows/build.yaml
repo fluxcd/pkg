@@ -28,6 +28,8 @@ jobs:
             **/go.sum
             **/go.mod
       - name: Run tests
+        env:
+          SKIP_COSIGN_VERIFICATION: true
         run: make all
       - name: Check if working tree is dirty
         run: |
