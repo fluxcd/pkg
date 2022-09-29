@@ -28,10 +28,10 @@ import (
 	"github.com/fluxcd/pkg/oci/auth/gcp"
 )
 
-// ImageRegistryProvider analyzes the provided image and returns the identified
+// ImageRegistryProvider analyzes the provided registry and returns the identified
 // container image registry provider.
-func ImageRegistryProvider(image string, ref name.Reference) oci.Provider {
-	_, _, ok := aws.ParseImage(image)
+func ImageRegistryProvider(ref name.Reference) oci.Provider {
+	_, _, ok := aws.ParseRegistry(ref.Context().RegistryStr())
 	if ok {
 		return oci.ProviderAWS
 	}
@@ -95,7 +95,7 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 // Login performs authentication against a registry and returns the
 // authentication material. For generic registry provider, it is no-op.
 func (m *Manager) Login(ctx context.Context, image string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
-	switch ImageRegistryProvider(image, ref) {
+	switch ImageRegistryProvider(ref) {
 	case oci.ProviderAWS:
 		return m.ecr.Login(ctx, opts.AwsAutoLogin, image)
 	case oci.ProviderGCP:

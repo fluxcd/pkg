@@ -50,7 +50,7 @@ func TestImageRegistryProvider(t *testing.T) {
 
 			ref, err := name.ParseReference(tt.image)
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(ImageRegistryProvider(tt.image, ref)).To(Equal(tt.want))
+			g.Expect(ImageRegistryProvider(ref)).To(Equal(tt.want))
 		})
 	}
 }
