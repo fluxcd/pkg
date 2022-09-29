@@ -8,6 +8,9 @@ export
 GO_TAGS ?=
 GO_TEST_ARGS ?= -race
 
+# Defines whether cosign verification should be skipped.
+SKIP_COSIGN_VERIFICATION ?= false
+
 # Use $GOBIN from the environment if set, otherwise use ./bin
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(PROJECT_DIR)/bin
