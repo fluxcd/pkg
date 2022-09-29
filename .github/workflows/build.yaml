@@ -29,6 +29,8 @@ jobs:
             **/go.mod
       - name: Run tests
         run: make all
+        env:
+          SKIP_COSIGN_VERIFICATION: true
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then

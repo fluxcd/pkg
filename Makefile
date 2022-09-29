@@ -10,6 +10,9 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+# Defines whether cosign verification should be skipped.
+SKIP_COSIGN_VERIFICATION ?= false
+
 PKG?=$*
 GO_TEST_ARGS ?= -race
 

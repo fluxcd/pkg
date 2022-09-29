@@ -1,5 +1,8 @@
 PROJECT_DIR = $(shell git rev-parse --show-toplevel)
 
+# Defines whether cosign verification should be skipped.
+SKIP_COSIGN_VERIFICATION ?= false
+
 LIBGIT2_BUILD_DIR := $(shell pwd)/build
 # Include and export all libgit2 related setup variables before proceeding.
 include ./libgit2-vars.env
