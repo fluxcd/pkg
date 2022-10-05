@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
-	git2go "github.com/libgit2/git2go/v33"
+	git2go "github.com/libgit2/git2go/v34"
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/gitutil"

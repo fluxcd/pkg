@@ -151,8 +151,8 @@ github.com/evanphx/json-patch v4.12.0+incompatible h1:4onqiflcdA9EOZ4RxV643DvftH
 github.com/evanphx/json-patch v4.12.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/felixge/httpsnoop v1.0.1/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
-github.com/fluxcd/git2go/v33 v33.0.9-flux h1:H6SCbrVx4a4KMewMSHW7lFqr5+Mm8HDhV1RD6n7J5tg=
-github.com/fluxcd/git2go/v33 v33.0.9-flux/go.mod h1:KdpqkU+6+++4oHna/MIOgx4GCQ92IPCdpVRMRI80J+4=
+github.com/fluxcd/git2go/v34 v34.0.0 h1:08PEpdbsLO4sUTvFKuxmt6xBowaqObro9veChBWFwa8=
+github.com/fluxcd/git2go/v34 v34.0.0/go.mod h1:blVco2jDAw6YTXkErMMqzHLcAjKkwF0aWIRHBqiJkZ0=
 github.com/fluxcd/gitkit v0.6.0 h1:iNg5LTx6ePo+Pl0ZwqHTAkhbUHxGVSY3YCxCdw7VIFg=
 github.com/fluxcd/gitkit v0.6.0/go.mod h1:svOHuKi0fO9HoawdK4HfHAJJseZDHHjk7I3ihnCIqNo=
 github.com/fluxcd/go-git-providers v0.9.0 h1:iiiKe3dzRCgVkjEi8rfpvaWTZwuGRfb3RJFhjSNz+Uc=

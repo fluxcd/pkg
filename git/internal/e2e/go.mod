@@ -22,7 +22,7 @@ replace github.com/emicklei/go-restful => github.com/emicklei/go-restful v2.16.0
 // For more information refer to:
 // - fluxcd/image-automation-controller/#339.
 // - libgit2/git2go#918.
-replace github.com/libgit2/git2go/v33 => github.com/fluxcd/git2go/v33 v33.0.9-flux
+replace github.com/libgit2/git2go/v34 => github.com/fluxcd/git2go/v34 v34.0.0
 
 require (
 	github.com/fluxcd/go-git-providers v0.9.0
@@ -79,7 +79,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/libgit2/git2go/v33 v33.0.9 // indirect
+	github.com/libgit2/git2go/v34 v34.0.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
