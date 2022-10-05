@@ -125,6 +125,5 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn
 		auth := authn.FromConfig(authConfig)
 		return auth, nil
 	}
-	ctrl.LoggerFrom(ctx).Info("ECR authentication is not enabled. To enable, set the controller flag --aws-autologin-for-ecr")
 	return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }

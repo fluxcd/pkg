@@ -115,6 +115,5 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 		auth := authn.FromConfig(authConfig)
 		return auth, nil
 	}
-	ctrl.LoggerFrom(ctx).Info("GCR authentication is not enabled. To enable, set the controller flag --gcp-autologin-for-gcr")
 	return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }
