@@ -20,7 +20,7 @@ replace github.com/emicklei/go-restful => github.com/emicklei/go-restful v2.16.0
 // For more information refer to:
 // - fluxcd/image-automation-controller/#339.
 // - libgit2/git2go#918.
-replace github.com/libgit2/git2go/v33 => github.com/fluxcd/git2go/v33 v33.0.9-flux
+replace github.com/libgit2/git2go/v34 => github.com/fluxcd/git2go/v34 v34.0.0
 
 // This lets us use `go-billy/util.Walk()`, as this function hasn't been released
 // in a tagged version yet:
@@ -39,7 +39,7 @@ require (
 	github.com/fluxcd/pkg/version v0.2.0
 	github.com/go-git/go-billy/v5 v5.3.1
 	github.com/go-logr/logr v1.2.3
-	github.com/libgit2/git2go/v33 v33.0.9
+	github.com/libgit2/git2go/v34 v34.0.0
 	github.com/onsi/gomega v1.20.0
 	golang.org/x/crypto v0.0.0-20220824171710-5757bc0c5503
 	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c
