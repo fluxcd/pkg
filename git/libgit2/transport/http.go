@@ -413,11 +413,11 @@ func (self *httpSmartSubtransportStream) Free() {
 			// for increased likelihood of transport reuse in HTTP/1.x.
 			// it should not be a problem to do this more than once.
 			if _, err := io.Copy(io.Discard, self.resp.Body); err != nil {
-				self.owner.logger.V(traceLevel).Error(err, "cannot discard response body")
+				self.owner.logger.V(traceLevel).Info(fmt.Sprintf("%s; %s", err.Error(), "cannot discard response body"))
 			}
 
 			if err := self.resp.Body.Close(); err != nil {
-				self.owner.logger.V(traceLevel).Error(err, "cannot close response body")
+				self.owner.logger.V(traceLevel).Info(fmt.Sprintf("%s; %s", err.Error(), "cannot close response body"))
 			}
 		}
 	}
