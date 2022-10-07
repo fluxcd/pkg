@@ -14,6 +14,7 @@ require (
 	github.com/go-logr/logr v1.2.3
 	github.com/google/go-cmp v0.5.9
 	github.com/hashicorp/go-retryablehttp v0.7.1
+	github.com/kylelemons/godebug v1.1.0
 	github.com/onsi/gomega v1.20.2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.13.0
@@ -27,6 +28,7 @@ require (
 	k8s.io/klog/v2 v2.80.1
 	sigs.k8s.io/cli-utils v0.33.0
 	sigs.k8s.io/controller-runtime v0.13.0
+	sigs.k8s.io/yaml v1.3.0
 )
 
 // Fix CVE-2022-28948
@@ -108,5 +110,4 @@ require (
 	sigs.k8s.io/kustomize/api v0.12.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.9 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
 )
