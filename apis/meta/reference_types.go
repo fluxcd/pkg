@@ -68,3 +68,18 @@ type SecretKeyReference struct {
 	// +optional
 	Key string `json:"key,omitempty"`
 }
+
+// KubeConfigReference contains enough information to locate the referenced
+// Kubernetes secret that contains a kubeconfig file.
+type KubeConfigReference struct {
+	// SecretRef holds the name of a secret that contains a key with
+	// the kubeconfig file as the value. If no key is set, the key will default
+	// to 'value'.
+	// It is recommended that the kubeconfig is self-contained, and the secret
+	// is regularly updated if credentials such as a cloud-access-token expire.
+	// Cloud specific `cmd-path` auth helpers will not function without adding
+	// binaries and credentials to the Pod that is responsible for reconciling
+	// Kubernetes resources.
+	// +required
+	SecretRef SecretKeyReference `json:"secretRef"`
+}
