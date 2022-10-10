@@ -92,6 +92,41 @@ func TestBuild(t *testing.T) {
 	}
 }
 
+// test only one file exists
+func TestBuildOneFile(t *testing.T) {
+	c := NewLocalClient()
+	g := NewWithT(t)
+
+	tmpDir := t.TempDir()
+	artifactPath := filepath.Join(tmpDir, "files.tar.gz")
+
+	sourceDir := "testdata/artifact"
+	sourceFile := filepath.Join(sourceDir, "/deployment.yaml")
+
+	err := c.Build(artifactPath, sourceFile, []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = os.Stat(artifactPath)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	b, err := os.ReadFile(artifactPath)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	untarDir := t.TempDir()
+	_, err = untar.Untar(bytes.NewReader(b), untarDir)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	_, err = os.Stat(filepath.Join(untarDir, sourceFile))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	files, err := os.ReadDir(filepath.Join(untarDir, sourceDir))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	g.Expect(len(files)).To(Equal(1))
+}
+
 func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
 	g := NewWithT(t)
 
