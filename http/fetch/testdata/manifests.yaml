@@ -1,0 +1,75 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clustertests.testing.fluxcd.io
+spec:
+  group: testing.fluxcd.io
+  names:
+    kind: ClusterTest
+    listKind: ClusterTestList
+    plural: clustertests
+    singular: clustertest
+  scope: Cluster
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.type
+          name: TYPE
+          type: string
+      name: v1
+      schema:
+        openAPIV3Schema:
+          description: Test is the Schema for the testing API
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: TestSpec defines the desired state of a test run
+              properties:
+                type:
+                  description: Type of test
+                  type: string
+                  enum:
+                    - unit
+                    - integration
+                valuesFrom:
+                  description: config reference
+                  type: string
+              type: object
+            status:
+              default:
+                observedGeneration: -1
+              properties:
+                observedGeneration:
+                  description: ObservedGeneration is the last observed generation.
+                  format: int64
+                  type: integer
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test
+---
+apiVersion: testing.fluxcd.io/v1
+kind: ClusterTest
+metadata:
+  name: test
+  namespace: test
+spec:
+  type: integration
+  valuesFrom: test-config
