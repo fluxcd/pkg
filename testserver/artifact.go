@@ -20,10 +20,13 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"crypto/sha1"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // NewTempArtifactServer returns an ArtifactServer with a newly created temp
@@ -82,6 +85,93 @@ func (s *ArtifactServer) ArtifactFromFiles(files []File) (string, error) {
 		}
 	}
 	return fileName, nil
+}
+
+// ArtifactFromDir creates a tar.gz artifact from the source directory into the destination dir
+// and returns the artifact SHA256 checksum.
+func (s *ArtifactServer) ArtifactFromDir(source, destination string) (string, error) {
+	if f, err := os.Stat(source); os.IsNotExist(err) || !f.IsDir() {
+		return "", fmt.Errorf("invalid source path: %s", source)
+	}
+	f, err := os.Create(filepath.Join(s.Root(), destination))
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(f.Name())
+		}
+	}()
+
+	h := sha256.New()
+
+	mw := io.MultiWriter(h, f)
+	gw := gzip.NewWriter(mw)
+	tw := tar.NewWriter(gw)
+
+	if err = filepath.Walk(source, func(p string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !fi.Mode().IsRegular() {
+			return nil
+		}
+
+		if strings.HasPrefix(fi.Name(), ".") {
+			return nil
+		}
+
+		header, err := tar.FileInfoHeader(fi, p)
+		if err != nil {
+			return err
+		}
+
+		relFilePath := p
+		if filepath.IsAbs(source) {
+			relFilePath, err = filepath.Rel(source, p)
+			if err != nil {
+				return err
+			}
+		}
+		header.Name = relFilePath
+
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		f, err := os.Open(p)
+		if err != nil {
+			f.Close()
+			return err
+		}
+		if _, err := io.Copy(tw, f); err != nil {
+			f.Close()
+			return err
+		}
+		return f.Close()
+	}); err != nil {
+		return "", err
+	}
+
+	if err := tw.Close(); err != nil {
+		gw.Close()
+		f.Close()
+		return "", err
+	}
+	if err := gw.Close(); err != nil {
+		f.Close()
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+
+	if err := os.Chmod(f.Name(), 0644); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 // URLForFile returns the URL the given file can be reached at or
