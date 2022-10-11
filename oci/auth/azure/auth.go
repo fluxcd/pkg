@@ -123,6 +123,5 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 		auth := authn.FromConfig(authConfig)
 		return auth, nil
 	}
-	ctrl.LoggerFrom(ctx).Info("ACR authentication is not enabled. To enable, set the controller flag --azure-autologin-for-acr")
 	return nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }
