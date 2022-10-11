@@ -17,6 +17,7 @@ limitations under the License.
 package testdata
 
 import (
+	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -44,14 +45,16 @@ var (
 )
 
 type FakeSpec struct {
-	Suspend bool   `json:"suspend,omitempty"`
-	Value   string `json:"value,omitempty"`
+	Suspend  bool            `json:"suspend,omitempty"`
+	Value    string          `json:"value,omitempty"`
+	Interval metav1.Duration `json:"interval"`
 }
 
 type FakeStatus struct {
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-	Conditions         []metav1.Condition `json:"conditions,omitempty"`
-	ObservedValue      string `json:"observedValue,omitempty"`
+	ObservedGeneration          int64              `json:"observedGeneration,omitempty"`
+	Conditions                  []metav1.Condition `json:"conditions,omitempty"`
+	ObservedValue               string             `json:"observedValue,omitempty"`
+	meta.ReconcileRequestStatus `json:",inline"`
 }
 
 func (f Fake) GetConditions() []metav1.Condition {
@@ -168,7 +171,6 @@ type FakeList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Fake `json:"items"`
 }
-
 
 func init() {
 	FakeSchemeBuilder.Register(&Fake{}, &FakeList{})
