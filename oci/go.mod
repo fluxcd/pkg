@@ -4,7 +4,7 @@ go 1.18
 
 replace (
 	github.com/fluxcd/pkg/sourceignore => ../sourceignore
-	github.com/fluxcd/pkg/untar => ../untar
+	github.com/fluxcd/pkg/tar => ../tar
 	github.com/fluxcd/pkg/version => ../version
 )
 
@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go v1.44.105
 	github.com/distribution/distribution/v3 v3.0.0-20220907155224-78b9c98c5c31
 	github.com/fluxcd/pkg/sourceignore v0.2.0
-	github.com/fluxcd/pkg/untar v0.2.0
+	github.com/fluxcd/pkg/tar v0.1.0
 	github.com/fluxcd/pkg/version v0.2.0
 	github.com/google/go-containerregistry v0.11.0
 	github.com/onsi/gomega v1.20.2
@@ -35,6 +35,7 @@ require (
 	github.com/bugsnag/panicwrap v0.0.0-20151223152923-e2c28503fcd0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.12.0 // indirect
+	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/cli v20.10.17+incompatible // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
