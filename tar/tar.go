@@ -30,6 +30,9 @@ const (
 
 	// UnlimitedUntarSize defines the value which disables untar size checks for maxUntarSize.
 	UnlimitedUntarSize = -1
+
+	// bufferSize defines the size of the buffer used when copying the tar file entries.
+	bufferSize = 32 * 1024
 )
 
 type tarOpts struct {
@@ -80,6 +83,9 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 	processedBytes := 0
 	t0 := time.Now()
 
+	// For improved concurrency, this could be optimised by sourcing
+	// the buffer from a sync.Pool.
+	buf := make([]byte, bufferSize)
 	for {
 		f, err := tr.Next()
 		if err == io.EOF {
@@ -131,7 +137,12 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 			if err != nil {
 				return err
 			}
-			n, err := io.Copy(wf, tr)
+
+			n, err := copyBuffer(wf, tr, buf)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("error copying buffer: %w", err)
+			}
+
 			if closeErr := wf.Close(); closeErr != nil && err == nil {
 				err = closeErr
 			}
@@ -162,6 +173,47 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 		}
 	}
 	return nil
+}
+
+// Uses a variant of io.CopyBuffer which ensures that a buffer is being used.
+// The upstream version prioritises the use of interfaces WriterTo and ReadFrom
+// which in this case causes the entirety of the tar file entry to be loaded
+// into memory.
+//
+// Original source:
+// https://github.com/golang/go/blob/6f445a9db55f65e55c5be29d3c506ecf3be37915/src/io/io.go#L405
+func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err error) {
+	if buf == nil {
+		return 0, fmt.Errorf("buf is nil")
+	}
+	for {
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = fmt.Errorf("errInvalidWrite")
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
 }
 
 func validRelPath(p string) bool {

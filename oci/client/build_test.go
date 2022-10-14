@@ -23,9 +23,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fluxcd/pkg/tar"
 	. "github.com/onsi/gomega"
-
-	"github.com/fluxcd/pkg/untar"
 )
 
 func TestBuild(t *testing.T) {
@@ -84,7 +83,7 @@ func TestBuild(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			untarDir := t.TempDir()
-			_, err = untar.Untar(bytes.NewReader(b), untarDir)
+			err = tar.Untar(bytes.NewReader(b), untarDir, tar.WithMaxUntarSize(-1))
 			g.Expect(err).To(BeNil())
 
 			checkPathExists(t, untarDir, tt.path, tt.checkPaths)
@@ -115,7 +114,7 @@ func TestBuildOneFile(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	untarDir := t.TempDir()
-	_, err = untar.Untar(bytes.NewReader(b), untarDir)
+	err = tar.Untar(bytes.NewReader(b), untarDir, tar.WithMaxUntarSize(-1))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	_, err = os.Stat(filepath.Join(untarDir, sourceFile))
