@@ -677,3 +677,103 @@ func TestDetermineSuccessType(t *testing.T) {
 		})
 	}
 }
+
+func TestProgressiveStatus(t *testing.T) {
+	tests := []struct {
+		name             string
+		drift            bool
+		reason           string
+		msg              string
+		msgArgs          []interface{}
+		beforeFunc       func(obj *testdata.Fake)
+		assertConditions []metav1.Condition
+	}{
+		{
+			name:   "Unset Reconciling and Ready, make Reconciling=True and Ready=Unknown",
+			reason: "SomeReasonX",
+			msg:    "some msg X",
+			assertConditions: []metav1.Condition{
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "some msg X"),
+				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonX", "some msg X"),
+			},
+		},
+		{
+			name:   "Reconciling=True and Ready=True, retain Ready value",
+			reason: "SomeReasonY",
+			msg:    "some msg Y",
+			beforeFunc: func(obj *testdata.Fake) {
+				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
+				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+			},
+			assertConditions: []metav1.Condition{
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "some msg Y"),
+				*conditions.TrueCondition(meta.ReadyCondition, "SomeReasonZ", "some msg Z"),
+			},
+		},
+		{
+			name:   "Reconciling=True and Ready=False, retain Ready value",
+			reason: "SomeReasonY",
+			msg:    "some msg Y",
+			beforeFunc: func(obj *testdata.Fake) {
+				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+			},
+			assertConditions: []metav1.Condition{
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "some msg Y"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonZ", "some msg Z"),
+			},
+		},
+		{
+			name:   "Reconciling=True and Ready=Unknown, overwrite unknown value",
+			reason: "SomeReasonY",
+			msg:    "some msg Y",
+			beforeFunc: func(obj *testdata.Fake) {
+				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
+				conditions.MarkUnknown(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+			},
+			assertConditions: []metav1.Condition{
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "some msg Y"),
+				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+			},
+		},
+		{
+			name:   "Drift=True, Reconciling=True and Ready=True, overwrite with Ready=Unknown",
+			drift:  true,
+			reason: "SomeReasonY",
+			msg:    "some msg Y",
+			beforeFunc: func(obj *testdata.Fake) {
+				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
+				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+			},
+			assertConditions: []metav1.Condition{
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "some msg Y"),
+				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+			},
+		},
+		{
+			name:    "message format and args are used to form status message",
+			reason:  "SomeReasonX",
+			msg:     "some msg %s %s",
+			msgArgs: []interface{}{"X", "Y"},
+			assertConditions: []metav1.Condition{
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "some msg X Y"),
+				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonX", "some msg X Y"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			obj := &testdata.Fake{}
+
+			if tt.beforeFunc != nil {
+				tt.beforeFunc(obj)
+			}
+
+			ProgressiveStatus(tt.drift, obj, tt.reason, tt.msg, tt.msgArgs...)
+			g.Expect(obj.Status.Conditions).To(conditions.MatchConditions(tt.assertConditions))
+		})
+	}
+}
