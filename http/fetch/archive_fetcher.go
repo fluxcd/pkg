@@ -17,13 +17,13 @@ limitations under the License.
 package fetch
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -35,6 +35,7 @@ import (
 // the file server is offline.
 type ArchiveFetcher struct {
 	httpClient        *retryablehttp.Client
+	maxDownloadSize   int
 	maxUntarSize      int
 	hostnameOverwrite string
 }
@@ -43,7 +44,7 @@ type ArchiveFetcher struct {
 var FileNotFoundError = errors.New("file not found")
 
 // NewArchiveFetcher configures the retryable http client used for fetching archives.
-func NewArchiveFetcher(retries, maxUntarSize int, hostnameOverwrite string) *ArchiveFetcher {
+func NewArchiveFetcher(retries, maxDownloadSize, maxUntarSize int, hostnameOverwrite string) *ArchiveFetcher {
 	httpClient := retryablehttp.NewClient()
 	httpClient.RetryWaitMin = 5 * time.Second
 	httpClient.RetryWaitMax = 30 * time.Second
@@ -52,6 +53,7 @@ func NewArchiveFetcher(retries, maxUntarSize int, hostnameOverwrite string) *Arc
 
 	return &ArchiveFetcher{
 		httpClient:        httpClient,
+		maxDownloadSize:   maxDownloadSize,
 		maxUntarSize:      maxUntarSize,
 		hostnameOverwrite: hostnameOverwrite,
 	}
@@ -89,16 +91,53 @@ func (r *ArchiveFetcher) Fetch(archiveURL, checksum, dir string) error {
 		return fmt.Errorf("failed to download archive from %s, status: %s", archiveURL, resp.Status)
 	}
 
-	var buf bytes.Buffer
+	f, err := os.CreateTemp("", "fetch.*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(f.Name())
 
-	// verify checksum matches origin
-	if err := r.verifyChecksum(checksum, &buf, resp.Body); err != nil {
+	// Save temporary file, but limit download to the max download size.
+	if r.maxDownloadSize > 0 {
+		// Headers can lie, so instead of trusting resp.ContentLength,
+		// limit the download to the max download size and error in case
+		// there are still bytes left.
+		// Note that discarding of remaining bytes in resp.Body is a
+		// requirement for Go to effectively reuse HTTP connections.
+		_, err = io.Copy(f, io.LimitReader(resp.Body, int64(r.maxDownloadSize)))
+		n, _ := io.Copy(io.Discard, resp.Body)
+		if n > 0 {
+			return fmt.Errorf("artifact is %d bytes greater than the max download size of %d bytes", n, r.maxDownloadSize)
+		}
+	} else {
+		_, err = io.Copy(f, resp.Body)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to copy temp contents: %w", err)
+	}
+
+	// We have just filled the file, to be able to read it from
+	// the start we must go back to its beginning.
+	_, err = f.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to seek back to beginning: %w", err)
+	}
+
+	// Ensure that the checksum of the downloaded file matches the
+	// known checksum.
+	if err := r.verifyChecksum(checksum, f); err != nil {
 		return err
 	}
 
-	// extract
-	if err = tar.Untar(&buf, dir, tar.WithMaxUntarSize(r.maxUntarSize)); err != nil {
-		return fmt.Errorf("failed to extract archive, error: %w", err)
+	// Jump back at the beginning of the file stream again.
+	_, err = f.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to seek back to beginning again: %w", err)
+	}
+
+	// Extracts the tar file.
+	if err = tar.Untar(f, dir, tar.WithMaxUntarSize(r.maxUntarSize)); err != nil {
+		return fmt.Errorf("failed to extract archive (check whether file size exceeds max download size): %w", err)
 	}
 
 	return nil
@@ -106,17 +145,16 @@ func (r *ArchiveFetcher) Fetch(archiveURL, checksum, dir string) error {
 
 // verifyChecksum computes the checksum of the tarball and returns an error if the computed value
 // does not match the artifact advertised checksum.
-func (r *ArchiveFetcher) verifyChecksum(checksum string, buf *bytes.Buffer, reader io.Reader) error {
+func (r *ArchiveFetcher) verifyChecksum(checksum string, reader io.Reader) error {
 	hasher := sha256.New()
 
-	// compute checksum
-	mw := io.MultiWriter(hasher, buf)
-	if _, err := io.Copy(mw, reader); err != nil {
+	// Computes reader's checksum.
+	if _, err := io.Copy(hasher, reader); err != nil {
 		return err
 	}
 
 	if newChecksum := fmt.Sprintf("%x", hasher.Sum(nil)); newChecksum != checksum {
-		return fmt.Errorf("failed to verify archive: computed checksum '%s' doesn't match provided '%s'",
+		return fmt.Errorf("failed to verify archive: computed checksum '%s' doesn't match provided '%s' (check whether file size exceeds max download size)",
 			newChecksum, checksum)
 	}
 

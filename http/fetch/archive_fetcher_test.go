@@ -45,30 +45,54 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	tests := []struct {
-		name        string
-		url         string
-		checksum    string
-		wantErr     bool
-		wantErrType error
+		name            string
+		url             string
+		checksum        string
+		maxDownloadSize int
+		maxUntarSize    int
+		wantErr         bool
+		wantErrType     error
 	}{
 		{
-			name:     "fetches and verifies the checksum",
-			url:      artifactURL,
-			checksum: artifactChecksum,
-			wantErr:  false,
+			name:            "fetches and verifies the checksum",
+			url:             artifactURL,
+			checksum:        artifactChecksum,
+			maxDownloadSize: -1,
+			maxUntarSize:    -1,
+			wantErr:         false,
 		},
 		{
-			name:     "fails to verify the checksum",
-			url:      artifactURL,
-			checksum: artifactChecksum + "1",
-			wantErr:  true,
+			name:            "breaches max download size",
+			url:             artifactURL,
+			checksum:        artifactChecksum,
+			maxDownloadSize: 1,
+			maxUntarSize:    -1,
+			wantErr:         true,
 		},
 		{
-			name:        "fails with not found error",
-			url:         artifactURL + "1",
-			checksum:    artifactChecksum,
-			wantErr:     true,
-			wantErrType: FileNotFoundError,
+			name:            "breaches max untar size",
+			url:             artifactURL,
+			checksum:        artifactChecksum,
+			maxDownloadSize: -1,
+			maxUntarSize:    1,
+			wantErr:         true,
+		},
+		{
+			name:            "fails to verify the checksum",
+			url:             artifactURL,
+			checksum:        artifactChecksum + "1",
+			maxDownloadSize: -1,
+			maxUntarSize:    -1,
+			wantErr:         true,
+		},
+		{
+			name:            "fails with not found error",
+			url:             artifactURL + "1",
+			checksum:        artifactChecksum,
+			maxDownloadSize: -1,
+			maxUntarSize:    -1,
+			wantErr:         true,
+			wantErrType:     FileNotFoundError,
 		},
 	}
 
@@ -76,7 +100,7 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			fetcher := NewArchiveFetcher(1, -1, "")
+			fetcher := NewArchiveFetcher(1, tt.maxDownloadSize, tt.maxUntarSize, "")
 			err = fetcher.Fetch(tt.url, tt.checksum, tmpDir)
 
 			if tt.wantErr {
