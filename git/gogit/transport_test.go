@@ -193,7 +193,7 @@ func Test_transportAuth(t *testing.T) {
 				g.Expect(ok).To(BeTrue())
 				g.Expect(tt.pk.User).To(Equal(opts.Username))
 				g.Expect(tt.pk.Signer.PublicKey().Type()).To(Equal("ssh-rsa"))
-				g.Expect(tt.pk.HostKeyCallback).ToNot(BeNil())
+				g.Expect(tt.callback).ToNot(BeNil())
 			},
 		},
 		{

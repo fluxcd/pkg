@@ -54,9 +54,9 @@ func transportAuth(opts *git.AuthOptions) (transport.AuthMethod, error) {
 		if err != nil {
 			return nil, err
 		}
-		pk.HostKeyCallback = callback
 		customPK := &CustomPublicKeys{
-			pk: pk,
+			pk:       pk,
+			callback: callback,
 		}
 		return customPK, nil
 	case "":
@@ -77,7 +77,8 @@ func caBundle(opts *git.AuthOptions) []byte {
 // CustomPublicKeys is a wrapper around ssh.PublicKeys to help us
 // customize the ssh config. It implements ssh.AuthMethod.
 type CustomPublicKeys struct {
-	pk *ssh.PublicKeys
+	pk       *ssh.PublicKeys
+	callback gossh.HostKeyCallback
 }
 
 func (a *CustomPublicKeys) Name() string {
@@ -94,6 +95,7 @@ func (a *CustomPublicKeys) ClientConfig() (*gossh.ClientConfig, error) {
 		return nil, err
 	}
 
+	config.HostKeyCallback = a.callback
 	if len(git.KexAlgos) > 0 {
 		config.Config.KeyExchanges = git.KexAlgos
 	}
