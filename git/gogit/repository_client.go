@@ -41,6 +41,15 @@ import (
 // ClientName is the string representation of Client.
 const ClientName = "go-git"
 
+var (
+	// DirtyRepositoryErr represents the case in which a repository is
+	// dirty after a clone. This is caused by go-git filesystem changing
+	// the worktree content. An example of such occurrence is when the
+	// repository contains a symlink pointing to a absolute path outside
+	// the filesystem chroot - this is only a problem with osfs.
+	DirtyRepositoryErr error = errors.New("repository is dirty (check for absolute symlinks)")
+)
+
 // Client implements git.RepositoryClient.
 type Client struct {
 	*git.DiscardRepositoryCloser
@@ -155,22 +164,42 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (commit *git.Commit, err error) {
 	checkoutStrat := cloneOpts.CheckoutStrategy
 	switch {
 	case checkoutStrat.Commit != "":
-		return g.cloneCommit(ctx, url, checkoutStrat.Commit, cloneOpts)
+		commit, err = g.cloneCommit(ctx, url, checkoutStrat.Commit, cloneOpts)
 	case checkoutStrat.Tag != "":
-		return g.cloneTag(ctx, url, checkoutStrat.Tag, cloneOpts)
+		commit, err = g.cloneTag(ctx, url, checkoutStrat.Tag, cloneOpts)
 	case checkoutStrat.SemVer != "":
-		return g.cloneSemVer(ctx, url, checkoutStrat.SemVer, cloneOpts)
+		commit, err = g.cloneSemVer(ctx, url, checkoutStrat.SemVer, cloneOpts)
 	default:
 		branch := checkoutStrat.Branch
 		if branch == "" {
 			branch = git.DefaultBranch
 		}
-		return g.cloneBranch(ctx, url, branch, cloneOpts)
+		commit, err = g.cloneBranch(ctx, url, branch, cloneOpts)
 	}
+
+	// If the clone operation errored or it was a no-op,
+	// in both cases the clean check below won't be required.
+	if err != nil ||
+		(commit != nil && !git.IsConcreteCommit(*commit)) {
+		return
+	}
+
+	clean, err := g.IsClean()
+	if err != nil {
+		return nil, err
+	}
+
+	// Refer to DirtyRepositoryErr's documentation for more info.
+	if !clean {
+		commit = nil
+		err = DirtyRepositoryErr
+	}
+
+	return
 }
 
 func (g *Client) writeFile(path string, reader io.Reader) error {
