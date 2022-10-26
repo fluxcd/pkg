@@ -185,6 +185,10 @@ func (fs *OS) Symlink(target, link string) error {
 	if err != nil {
 		return err
 	}
+	// MkdirAll for containing dir.
+	if err := fs.createDir(ln); err != nil {
+		return err
+	}
 	return os.Symlink(target, ln)
 }
 
