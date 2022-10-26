@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"syscall"
 	"testing"
 
 	"github.com/go-git/go-billy/v5"
@@ -136,10 +138,18 @@ func TestOpen(t *testing.T) {
 }
 
 func Test_Symlink(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		// The umask value set at OS level can impact this test, so
+		// it is set to 0 during the duration of this test and then
+		// reverted back to the original value.
+		defer syscall.Umask(syscall.Umask(0))
+	}
+
 	tests := []struct {
 		name        string
 		link        string
 		target      string
+		before      func(dir string) billy.Filesystem
 		wantStatErr string
 	}{
 		{
@@ -148,10 +158,9 @@ func Test_Symlink(t *testing.T) {
 			target: "/etc/passwd",
 		},
 		{
-			name:        "link to abs inexistent target",
-			link:        "symlink",
-			target:      "/some/random/path",
-			wantStatErr: "no such file or directory",
+			name:   "link to abs inexistent target",
+			link:   "symlink",
+			target: "/some/random/path",
 		},
 		{
 			name:   "link to rel valid target",
@@ -159,10 +168,23 @@ func Test_Symlink(t *testing.T) {
 			target: "../../../../../../../../../etc/passwd",
 		},
 		{
-			name:        "link to rel inexistent target",
-			link:        "symlink",
-			target:      "../../../some/random/path",
-			wantStatErr: "no such file or directory",
+			name:   "link to rel inexistent target",
+			link:   "symlink",
+			target: "../../../some/random/path",
+		},
+		{
+			name:   "auto create dir",
+			link:   "new-dir/symlink",
+			target: "../../../some/random/path",
+		},
+		{
+			name: "keep dir filemode if exists",
+			link: "new-dir/symlink",
+			before: func(dir string) billy.Filesystem {
+				os.Mkdir(filepath.Join(dir, "new-dir"), 0o701)
+				return New(dir)
+			},
+			target: "../../../some/random/path",
 		},
 	}
 	for _, tt := range tests {
@@ -171,15 +193,23 @@ func Test_Symlink(t *testing.T) {
 			dir := t.TempDir()
 			fs := New(dir)
 
+			if tt.before != nil {
+				fs = tt.before(dir)
+			}
+
 			// Even if CWD is changed outside of fs the instance,
 			// the current working dir must still be observed.
 			err := os.Chdir(os.TempDir())
 			g.Expect(err).ToNot(HaveOccurred())
 
+			link := filepath.Join(dir, tt.link)
+
+			diBefore, _ := os.Lstat(filepath.Dir(link))
+
 			err = fs.Symlink(tt.target, tt.link)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			fi, err := os.Stat(filepath.Join(dir, tt.link))
+			fi, err := os.Lstat(link)
 			if tt.wantStatErr != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.wantStatErr))
@@ -188,9 +218,16 @@ func Test_Symlink(t *testing.T) {
 				g.Expect(fi).ToNot(BeNil())
 			}
 
-			got, err := os.Readlink(filepath.Join(dir, tt.link))
+			got, err := os.Readlink(link)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(got).To(Equal(tt.target))
+
+			diAfter, err := os.Lstat(filepath.Dir(link))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			if diBefore != nil {
+				g.Expect(diAfter.Mode()).To(Equal(diBefore.Mode()))
+			}
 		})
 	}
 }
