@@ -21,11 +21,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
-	"github.com/go-git/go-billy/v5/osfs"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -36,6 +36,7 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/gogit/fs"
 )
 
 // ClientName is the string representation of Client.
@@ -93,6 +94,7 @@ func WithStorer(s storage.Storer) ClientOption {
 		return nil
 	}
 }
+
 func WithWorkTreeFS(wt billy.Filesystem) ClientOption {
 	return func(c *Client) error {
 		c.worktreeFS = wt
@@ -101,11 +103,8 @@ func WithWorkTreeFS(wt billy.Filesystem) ClientOption {
 }
 
 func WithDiskStorage(g *Client) error {
-	wt := osfs.New(g.path)
-	dot, err := wt.Chroot(extgogit.GitDirName)
-	if err != nil {
-		return err
-	}
+	wt := fs.New(g.path)
+	dot := fs.New(filepath.Join(g.path, extgogit.GitDirName))
 
 	g.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
 	g.worktreeFS = wt
