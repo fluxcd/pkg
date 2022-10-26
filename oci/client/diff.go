@@ -17,9 +17,9 @@ limitations under the License.
 package client
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -55,6 +55,11 @@ func (c *Client) Diff(ctx context.Context, url, dir string, ignorePaths []string
 	}
 	defer f.Close()
 
+	fstat, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file stats: %w", err)
+	}
+
 	h1 := sha256.New()
 	if _, err := io.Copy(h1, f); err != nil {
 		return fmt.Errorf("calculating artifact hash failed: %w", err)
@@ -74,17 +79,19 @@ func (c *Client) Diff(ctx context.Context, url, dir string, ignorePaths []string
 		return fmt.Errorf("no layers found in artifact")
 	}
 
-	blob, err := layers[0].Compressed()
+	l0 := layers[0]
+
+	h, err := l0.Digest()
 	if err != nil {
-		return fmt.Errorf("extracting first layer failed: %w", err)
+		return fmt.Errorf("failed to get layer digest: %w", err)
 	}
 
-	h2 := sha256.New()
-	if _, err := io.Copy(h2, blob); err != nil {
-		return fmt.Errorf("calculating hash failed: %w", err)
+	s, err := l0.Size()
+	if err != nil {
+		return fmt.Errorf("failed to get layer size: %w", err)
 	}
 
-	if bytes.Compare(h1.Sum(nil), h2.Sum(nil)) != 0 {
+	if hex.EncodeToString(h1.Sum(nil)) != h.Hex || fstat.Size() != s {
 		return fmt.Errorf("the remote artifact contents differs from the local one")
 	}
 

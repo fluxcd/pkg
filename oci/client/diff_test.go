@@ -51,7 +51,7 @@ func TestClient_Diff(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer os.RemoveAll(tmpBuildDir)
 
-	g.Expect(os.WriteFile(filepath.Join(tmpBuildDir, "test.txt"), []byte("test"), 0600)).ToNot(HaveOccurred())
+	g.Expect(os.WriteFile(filepath.Join(tmpBuildDir, "test.txt"), []byte("test"), 0o600)).ToNot(HaveOccurred())
 
 	newTag := "v0.0.2"
 	url = fmt.Sprintf("%s/%s:%s", dockerReg, repo, newTag)
@@ -61,4 +61,5 @@ func TestClient_Diff(t *testing.T) {
 
 	err = c.Diff(ctx, url, testDir, nil)
 	g.Expect(err).To(HaveOccurred())
+	g.Expect(err).To(MatchError("the remote artifact contents differs from the local one"))
 }
