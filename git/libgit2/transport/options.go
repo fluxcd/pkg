@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/fluxcd/pkg/git"
-	git2go "github.com/libgit2/git2go/v33"
+	git2go "github.com/libgit2/git2go/v34"
 )
 
 // TransportOptions represents options to be applied at transport-level

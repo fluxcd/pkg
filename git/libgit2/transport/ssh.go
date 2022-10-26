@@ -66,7 +66,7 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/go-logr/logr"
-	git2go "github.com/libgit2/git2go/v33"
+	git2go "github.com/libgit2/git2go/v34"
 )
 
 const (

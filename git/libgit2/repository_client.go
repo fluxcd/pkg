@@ -32,7 +32,7 @@ import (
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-billy/v5/util"
-	git2go "github.com/libgit2/git2go/v33"
+	git2go "github.com/libgit2/git2go/v34"
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/libgit2/transport"

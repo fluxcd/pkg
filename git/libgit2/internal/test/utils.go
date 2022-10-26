@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	git2go "github.com/libgit2/git2go/v33"
+	git2go "github.com/libgit2/git2go/v34"
 )
 
 func CommitFile(repo *git2go.Repository, path, content string, time time.Time) (*git2go.Oid, error) {
