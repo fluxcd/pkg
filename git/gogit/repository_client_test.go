@@ -216,6 +216,86 @@ func TestPush(t *testing.T) {
 	g.Expect(ref.Hash().String()).To(Equal(cc.String()))
 }
 
+func TestForcePush(t *testing.T) {
+	g := NewWithT(t)
+
+	server, err := gittestserver.NewTempGitServer()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(server.Root())
+	server.Auth("test-user", "test-pass")
+
+	err = server.InitRepo("../testdata/git/repo", git.DefaultBranch, "test.git")
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = server.StartHTTP()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer server.StopHTTP()
+
+	repoURL := server.HTTPAddressWithCredentials() + "/" + "test.git"
+	auth, err := transportAuth(&git.AuthOptions{
+		Transport: git.HTTP,
+		Username:  "test-user",
+		Password:  "test-pass",
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tmp1 := t.TempDir()
+	repo1, err := extgogit.PlainClone(tmp1, false, &extgogit.CloneOptions{
+		URL:        repoURL,
+		Auth:       auth,
+		RemoteName: git.DefaultRemote,
+		Tags:       extgogit.NoTags,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	_, err = commitFile(repo1, "test", "first push", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	ggc1, err := NewClient(tmp1, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+	ggc1.repository = repo1
+
+	tmp2 := t.TempDir()
+	repo2, err := extgogit.PlainClone(tmp2, false, &extgogit.CloneOptions{
+		URL:        repoURL,
+		Auth:       auth,
+		RemoteName: git.DefaultRemote,
+		Tags:       extgogit.NoTags,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	cc2, err := commitFile(repo2, "test", "first push from second clone", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	ggc2, err := NewClient(tmp2, nil, WithDiskStorage, WithForcePush())
+	g.Expect(err).ToNot(HaveOccurred())
+	ggc2.repository = repo2
+
+	// First push from ggc1 should work.
+	err = ggc1.Push(context.TODO())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Force push from ggc2 should override ggc1.
+	err = ggc2.Push(context.TODO())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Follow-up push from ggc1 errors.
+	_, err = commitFile(repo1, "test", "amend file again", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = ggc1.Push(context.TODO())
+	g.Expect(err).To(HaveOccurred())
+
+	repo, err := extgogit.PlainClone(t.TempDir(), false, &extgogit.CloneOptions{
+		URL:  repoURL,
+		Auth: auth,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	ref, err := repo.Head()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(ref.Hash().String()).To(Equal(cc2.String()))
+}
+
 func TestSwitchBranch(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -50,6 +50,7 @@ type Client struct {
 	authOpts   *git.AuthOptions
 	storer     storage.Storer
 	worktreeFS billy.Filesystem
+	forcePush  bool
 }
 
 var _ git.RepositoryClient = &Client{}
@@ -115,6 +116,16 @@ func WithMemoryStorage(g *Client) error {
 	g.storer = memory.NewStorage()
 	g.worktreeFS = memfs.New()
 	return nil
+}
+
+// WithForcePush enables the use of force push for all push operations
+// back to the Git repository.
+// By default this is disabled.
+func WithForcePush() ClientOption {
+	return func(c *Client) error {
+		c.forcePush = true
+		return nil
+	}
 }
 
 func (g *Client) Init(ctx context.Context, url, branch string) error {
@@ -262,6 +273,7 @@ func (g *Client) Push(ctx context.Context) error {
 	}
 
 	return g.repository.PushContext(ctx, &extgogit.PushOptions{
+		Force:      g.forcePush,
 		RemoteName: extgogit.DefaultRemoteName,
 		Auth:       authMethod,
 		Progress:   nil,
