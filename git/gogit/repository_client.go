@@ -311,14 +311,23 @@ func (g *Client) SwitchBranch(ctx context.Context, branchName string) error {
 		return fmt.Errorf("could not checkout to branch '%s': %w", branchName, err)
 	}
 
-	g.repository.FetchContext(ctx, &extgogit.FetchOptions{
+	// When force push is enabled, we always override the push branch.
+	// No need to fetch additional refs from that branch.
+	if g.forcePush {
+		return nil
+	}
+
+	err = g.repository.FetchContext(ctx, &extgogit.FetchOptions{
 		RemoteName: extgogit.DefaultRemoteName,
 		RefSpecs: []config.RefSpec{
 			config.RefSpec(fmt.Sprintf("+refs/heads/%s:refs/remotes/%s/%[1]s", branchName, extgogit.DefaultRemoteName)),
 		},
 		Auth: authMethod,
 	})
-	ref, err := g.repository.Reference(plumbing.ReferenceName(fmt.Sprintf("/refs/remotes/origin/%s", branchName)), true)
+	if err != nil && !errors.Is(err, extgogit.NoErrAlreadyUpToDate) && !errors.Is(err, extgogit.NoMatchingRefSpecError{}) {
+		return fmt.Errorf("could not fetch context: %w", err)
+	}
+	ref, err := g.repository.Reference(plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, branchName), true)
 
 	// If remote ref doesn't exist, no need to reset to remote target commit, exit early.
 	if err == plumbing.ErrReferenceNotFound {
