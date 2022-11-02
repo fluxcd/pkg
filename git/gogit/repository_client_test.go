@@ -301,6 +301,7 @@ func TestSwitchBranch(t *testing.T) {
 		name      string
 		setupFunc func(g *WithT, path string) string
 		branch    string
+		forcePush bool
 	}{
 		{
 			name: "switch to a branch ahead of the current branch",
@@ -366,6 +367,77 @@ func TestSwitchBranch(t *testing.T) {
 			setupFunc: nil,
 			branch:    "new",
 		},
+		{
+			name: "force push: switch to a branch ahead of the current branch",
+			setupFunc: func(g *WithT, repoURL string) string {
+				tmp := t.TempDir()
+				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+					URL:           repoURL,
+					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
+					RemoteName:    git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				ref, err := repo.Head()
+				g.Expect(err).ToNot(HaveOccurred())
+				hash := ref.Hash().String()
+
+				err = createBranch(repo, "ahead")
+				g.Expect(err).ToNot(HaveOccurred())
+
+				_, err = commitFile(repo, "test", "testing gogit switch ahead branch", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				err = repo.Push(&extgogit.PushOptions{
+					RemoteName: git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+				return hash
+			},
+			branch:    "ahead",
+			forcePush: true,
+		},
+		{
+			name: "force push: switch to a branch behind the current branch",
+			setupFunc: func(g *WithT, repoURL string) string {
+				tmp := t.TempDir()
+				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+					URL:           repoURL,
+					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
+					RemoteName:    git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				err = createBranch(repo, "behind")
+				g.Expect(err).ToNot(HaveOccurred())
+				ref, err := repo.Head()
+				g.Expect(err).ToNot(HaveOccurred())
+				hash := ref.Hash().String()
+
+				wt, err := repo.Worktree()
+				g.Expect(err).ToNot(HaveOccurred())
+				err = wt.Checkout(&extgogit.CheckoutOptions{
+					Branch: plumbing.ReferenceName("refs/heads/" + git.DefaultBranch),
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				_, err = commitFile(repo, "test", "testing gogit switch behind branch", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				err = repo.Push(&extgogit.PushOptions{
+					RemoteName: git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				return hash
+			},
+			branch:    "behind",
+			forcePush: true,
+		},
+		{
+			name:      "force push: switch to a branch that doesn't exist on remote",
+			setupFunc: nil,
+			branch:    "new",
+			forcePush: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -404,6 +476,7 @@ func TestSwitchBranch(t *testing.T) {
 			ggc, err := NewClient(tmp, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 			ggc.repository = repo
+			ggc.forcePush = tt.forcePush
 
 			err = ggc.SwitchBranch(context.TODO(), tt.branch)
 			g.Expect(err).ToNot(HaveOccurred())
