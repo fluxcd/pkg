@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	securefs "github.com/fluxcd/pkg/kustomize/filesys"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -64,6 +65,7 @@ const (
 // It is responsible for generating a kustomization.yaml file from
 // - a directory path and a kustomization object
 type Generator struct {
+	root          string
 	kustomization unstructured.Unstructured
 }
 
@@ -71,8 +73,11 @@ type Generator struct {
 type SavingOptions func(dirPath, file string, action Action) error
 
 // NewGenerator creates a new kustomize generator
-func NewGenerator(kustomization unstructured.Unstructured) *Generator {
+// It takes a root directory and a kustomization object
+// If the root is empty, no enforcement of the root directory will be done when handling paths.
+func NewGenerator(root string, kustomization unstructured.Unstructured) *Generator {
 	return &Generator{
+		root:          root,
 		kustomization: kustomization,
 	}
 }
@@ -95,7 +100,7 @@ func WithSaveOriginalKustomization() SavingOptions {
 // It apply the flux kustomize resources to the kustomization.yaml and then write the
 // updated kustomization.yaml to the directory.
 // It returns an action that indicates if the kustomization.yaml was created or not.
-// It is the caller responsability to clean up the directory by use the provided function CleanDirectory.
+// It is the caller's responsability to clean up the directory by using the provided function CleanDirectory.
 // example:
 // err := CleanDirectory(dirPath, action)
 //
@@ -365,7 +370,20 @@ func (g *Generator) getNestedSlice(fields ...string) ([]interface{}, bool, error
 }
 
 func (g *Generator) generateKustomization(dirPath string) (Action, error) {
-	fs := filesys.MakeFsOnDisk()
+	var (
+		err error
+		fs  filesys.FileSystem
+	)
+	// use securefs only if the path is specified
+	// otherwise, use the default filesystem.
+	if g.root != "" {
+		fs, err = securefs.MakeFsOnDiskSecure(g.root)
+	} else {
+		fs = filesys.MakeFsOnDisk()
+	}
+	if err != nil {
+		return UnchangedAction, err
+	}
 
 	// Determine if there already is a Kustomization file at the root,
 	// as this means we do not have to generate one.
@@ -471,7 +489,7 @@ func adaptSelector(selector *kustomize.Selector) (output *kustypes.Selector) {
 	return
 }
 
-// TODO: remove mutex when kustomize fixes the concurrent map read/write panic
+// buildMutex protects against kustomize concurrent map read/write panic
 var kustomizeBuildMutex sync.Mutex
 
 // BuildKustomization wraps krusty.MakeKustomizer with the following settings:

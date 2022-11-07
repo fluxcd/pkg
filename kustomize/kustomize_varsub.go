@@ -22,9 +22,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/drone/envsubst/v2"
+	"github.com/drone/envsubst"
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -77,7 +78,7 @@ func SubstituteVariables(
 	}
 	if ok {
 		for k, v := range substitute {
-			vars[k] = strings.Replace(v, "\n", "", -1)
+			vars[k] = strings.ReplaceAll(v, "\n", "")
 		}
 	}
 
@@ -109,18 +110,24 @@ func loadVars(ctx context.Context, kubeClient client.Client, kustomization unstr
 		case "ConfigMap":
 			resource := &corev1.ConfigMap{}
 			if err := kubeClient.Get(ctx, namespacedName, resource); err != nil {
+				if reference.Optional && apierrors.IsNotFound(err) {
+					continue
+				}
 				return nil, fmt.Errorf("substitute from 'ConfigMap/%s' error: %w", reference.Name, err)
 			}
 			for k, v := range resource.Data {
-				vars[k] = strings.Replace(v, "\n", "", -1)
+				vars[k] = strings.ReplaceAll(v, "\n", "")
 			}
 		case "Secret":
 			resource := &corev1.Secret{}
 			if err := kubeClient.Get(ctx, namespacedName, resource); err != nil {
+				if reference.Optional && apierrors.IsNotFound(err) {
+					continue
+				}
 				return nil, fmt.Errorf("substitute from 'Secret/%s' error: %w", reference.Name, err)
 			}
 			for k, v := range resource.Data {
-				vars[k] = strings.Replace(string(v), "\n", "", -1)
+				vars[k] = strings.ReplaceAll(string(v), "\n", "")
 			}
 		}
 	}

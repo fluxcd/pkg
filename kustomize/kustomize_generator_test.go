@@ -22,40 +22,81 @@ import (
 	"testing"
 
 	"github.com/fluxcd/pkg/kustomize"
+	securefs "github.com/fluxcd/pkg/kustomize/filesys"
 	. "github.com/onsi/gomega"
+	"github.com/otiai10/copy"
+	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
 const resourcePath = "./testdata/resources/"
 
 func TestKustomizationGenerator(t *testing.T) {
-	g := NewWithT(t)
+	tests := []struct {
+		name    string
+		path    string
+		secured bool
+	}{
+		{
+			name:    "secured with securefs",
+			secured: true,
+		},
+		{
+			name:    "not secured",
+			secured: false,
+		},
+	}
 
-	// Create a kustomization file with varsub
-	yamlKus, err := os.ReadFile("./testdata/kustomization.yaml")
-	g.Expect(err).NotTo(HaveOccurred())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			// Create a kustomization file with varsub
+			yamlKus, err := os.ReadFile("./testdata/kustomization.yaml")
+			g.Expect(err).NotTo(HaveOccurred())
 
-	clientObjects, err := readYamlObjects(strings.NewReader(string(yamlKus)))
-	g.Expect(err).NotTo(HaveOccurred())
+			clientObjects, err := readYamlObjects(strings.NewReader(string(yamlKus)))
+			g.Expect(err).NotTo(HaveOccurred())
 
-	//Get a generator
-	gen := kustomize.NewGenerator(clientObjects[0])
-	action, err := gen.WriteFile(resourcePath, kustomize.WithSaveOriginalKustomization())
-	g.Expect(err).NotTo(HaveOccurred())
-	defer kustomize.CleanDirectory(resourcePath, action)
+			var (
+				tmpDir string
+				resMap resmap.ResMap
+			)
+			if tt.secured {
+				tmpDir = t.TempDir()
+				g.Expect(copy.Copy(resourcePath, tmpDir)).To(Succeed())
+				//Get a generator
+				gen := kustomize.NewGenerator(tmpDir, clientObjects[0])
+				action, err := gen.WriteFile(tmpDir, kustomize.WithSaveOriginalKustomization())
+				g.Expect(err).NotTo(HaveOccurred())
+				defer kustomize.CleanDirectory(tmpDir, action)
 
-	// Get resource from directory
-	fs := filesys.MakeFsOnDisk()
-	resMap, err := kustomize.BuildKustomization(fs, resourcePath)
-	g.Expect(err).NotTo(HaveOccurred())
+				// Get resource from directory
+				fs, err := securefs.MakeFsOnDiskSecure(tmpDir)
+				g.Expect(err).NotTo(HaveOccurred())
+				resMap, err = kustomize.BuildKustomization(fs, tmpDir)
+				g.Expect(err).NotTo(HaveOccurred())
+			} else {
+				//Get a generator
+				gen := kustomize.NewGenerator(tmpDir, clientObjects[0])
+				action, err := gen.WriteFile(resourcePath, kustomize.WithSaveOriginalKustomization())
+				g.Expect(err).NotTo(HaveOccurred())
+				defer kustomize.CleanDirectory(resourcePath, action)
 
-	// Check that the resource has been substituted
-	resources, err := resMap.AsYaml()
-	g.Expect(err).NotTo(HaveOccurred())
+				// Get resource from directory
+				fs := filesys.MakeFsOnDisk()
+				resMap, err = kustomize.BuildKustomization(fs, resourcePath)
+				g.Expect(err).NotTo(HaveOccurred())
+			}
 
-	//load expected result
-	expected, err := os.ReadFile("./testdata/kustomization_expected.yaml")
-	g.Expect(err).NotTo(HaveOccurred())
+			// Check that the resource has been substituted
+			resources, err := resMap.AsYaml()
+			g.Expect(err).NotTo(HaveOccurred())
 
-	g.Expect(string(resources)).To(Equal(string(expected)))
+			//load expected result
+			expected, err := os.ReadFile("./testdata/kustomization_expected.yaml")
+			g.Expect(err).NotTo(HaveOccurred())
+
+			g.Expect(string(resources)).To(Equal(string(expected)))
+		})
+	}
 }
