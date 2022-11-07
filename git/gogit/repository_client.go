@@ -188,12 +188,7 @@ func (g *Client) writeFile(path string, reader io.Reader) error {
 		return git.ErrNoGitRepository
 	}
 
-	wt, err := g.repository.Worktree()
-	if err != nil {
-		return err
-	}
-
-	f, err := wt.Filesystem.Create(path)
+	f, err := g.worktreeFS.Create(path)
 	if err != nil {
 		return err
 	}
