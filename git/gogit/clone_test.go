@@ -27,18 +27,18 @@ import (
 	"testing"
 	"time"
 
+	extgogit "github.com/fluxcd/go-git/v5"
+	"github.com/fluxcd/go-git/v5/plumbing"
+	"github.com/fluxcd/go-git/v5/plumbing/cache"
+	"github.com/fluxcd/go-git/v5/plumbing/object"
+	"github.com/fluxcd/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-billy/v5/memfs"
-	"github.com/go-git/go-billy/v5/osfs"
-	extgogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/cache"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/storage/filesystem"
 	. "github.com/onsi/gomega"
 	cryptossh "golang.org/x/crypto/ssh"
 
 	"github.com/fluxcd/gitkit"
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/gogit/fs"
 	"github.com/fluxcd/pkg/gittestserver"
 	"github.com/fluxcd/pkg/ssh"
 )
@@ -46,7 +46,7 @@ import (
 const testRepositoryPath = "../testdata/git/repo"
 
 func TestClone_cloneBranch(t *testing.T) {
-	repo, repoPath, err := initRepo(t)
+	repo, repoPath, err := initRepo(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestClone_cloneBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, emptyRepoPath, err := initRepo(t)
+	_, emptyRepoPath, err := initRepo(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestClone_cloneTag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			repo, path, err := initRepo(t)
+			repo, path, err := initRepo(t.TempDir())
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Collect tags and their associated commit hash for later
@@ -281,7 +281,7 @@ func TestClone_cloneTag(t *testing.T) {
 }
 
 func TestClone_cloneCommit(t *testing.T) {
-	repo, path, err := initRepo(t)
+	repo, path, err := initRepo(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,7 +424,7 @@ func TestClone_cloneSemVer(t *testing.T) {
 		},
 	}
 
-	repo, path, err := initRepo(t)
+	repo, path, err := initRepo(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -874,7 +874,7 @@ func Test_ssh_HostKeyAlgos(t *testing.T) {
 
 func Test_getRemoteHEAD(t *testing.T) {
 	g := NewWithT(t)
-	repo, path, err := initRepo(t)
+	repo, path, err := initRepo(t.TempDir())
 	g.Expect(err).ToNot(HaveOccurred())
 	defer os.RemoveAll(path)
 
@@ -896,9 +896,8 @@ func Test_getRemoteHEAD(t *testing.T) {
 	g.Expect(head).To(Equal(fmt.Sprintf("%s/%s", "v0.1.0", cc)))
 }
 
-func initRepo(t *testing.T) (*extgogit.Repository, string, error) {
-	tmpDir := t.TempDir()
-	sto := filesystem.NewStorage(osfs.New(tmpDir), cache.NewObjectLRUDefault())
+func initRepo(tmpDir string) (*extgogit.Repository, string, error) {
+	sto := filesystem.NewStorage(fs.New(tmpDir), cache.NewObjectLRUDefault())
 	repo, err := extgogit.Init(sto, memfs.New())
 	if err != nil {
 		return nil, "", err

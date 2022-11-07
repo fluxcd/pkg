@@ -28,12 +28,12 @@ import (
 	"strings"
 	"time"
 
-	extgogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	extgogit "github.com/fluxcd/go-git/v5"
+	"github.com/fluxcd/go-git/v5/config"
+	"github.com/fluxcd/go-git/v5/plumbing"
+	"github.com/fluxcd/go-git/v5/plumbing/object"
+	"github.com/fluxcd/go-git/v5/plumbing/transport"
+	"github.com/fluxcd/go-git/v5/plumbing/transport/http"
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/git"

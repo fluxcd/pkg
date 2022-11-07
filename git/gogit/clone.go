@@ -26,12 +26,12 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
-	extgogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/storage/memory"
+	extgogit "github.com/fluxcd/go-git/v5"
+	"github.com/fluxcd/go-git/v5/config"
+	"github.com/fluxcd/go-git/v5/plumbing"
+	"github.com/fluxcd/go-git/v5/plumbing/object"
+	"github.com/fluxcd/go-git/v5/plumbing/transport"
+	"github.com/fluxcd/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/gitutil"

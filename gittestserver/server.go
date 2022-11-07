@@ -31,12 +31,12 @@ import (
 
 	securefilepath "github.com/cyphar/filepath-securejoin"
 	"github.com/fluxcd/gitkit"
+	gogit "github.com/fluxcd/go-git/v5"
+	"github.com/fluxcd/go-git/v5/config"
+	"github.com/fluxcd/go-git/v5/plumbing"
+	"github.com/fluxcd/go-git/v5/plumbing/object"
+	"github.com/fluxcd/go-git/v5/storage/memory"
 	"github.com/go-git/go-billy/v5/memfs"
-	gogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/storage/memory"
 
 	"golang.org/x/crypto/ssh"
 )

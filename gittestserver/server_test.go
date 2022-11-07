@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	gogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
+	gogit "github.com/fluxcd/go-git/v5"
+	"github.com/fluxcd/go-git/v5/plumbing"
 )
 
 func TestCreateSSHServer(t *testing.T) {
