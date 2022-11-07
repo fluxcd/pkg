@@ -51,11 +51,13 @@ const (
 // SubstituteVariables replaces the vars with their values in the specified resource.
 // If a resource is labeled or annotated with
 // 'kustomize.toolkit.fluxcd.io/substitute: disabled' the substitution is skipped.
+// if dryRun is true, this means we should not attempt to talk to the cluster.
 func SubstituteVariables(
 	ctx context.Context,
 	kubeClient client.Client,
 	kustomization unstructured.Unstructured,
-	res *resource.Resource) (*resource.Resource, error) {
+	res *resource.Resource,
+	dryRun bool) (*resource.Resource, error) {
 	resData, err := res.AsYAML()
 	if err != nil {
 		return nil, err
@@ -66,9 +68,14 @@ func SubstituteVariables(
 	}
 
 	// load vars from ConfigMaps and Secrets data keys
-	vars, err := loadVars(ctx, kubeClient, kustomization)
-	if err != nil {
-		return nil, err
+	// In dryRun mode this step is skipped. This might in different kind of errors.
+	// But if the user is using dryRun, he/she should know what he/she is doing, and we should comply.
+	var vars map[string]string
+	if !dryRun {
+		vars, err = loadVars(ctx, kubeClient, kustomization)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// load in-line vars (overrides the ones from resources)
@@ -77,6 +84,9 @@ func SubstituteVariables(
 		return nil, err
 	}
 	if ok {
+		if vars == nil {
+			vars = make(map[string]string)
+		}
 		for k, v := range substitute {
 			vars[k] = strings.ReplaceAll(v, "\n", "")
 		}

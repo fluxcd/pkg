@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/fluxcd/pkg/kustomize"
-	securefs "github.com/fluxcd/pkg/kustomize/filesys"
 	. "github.com/onsi/gomega"
 	"github.com/otiai10/copy"
 	"sigs.k8s.io/kustomize/api/resmap"
@@ -71,9 +70,7 @@ func TestKustomizationGenerator(t *testing.T) {
 				defer kustomize.CleanDirectory(tmpDir, action)
 
 				// Get resource from directory
-				fs, err := securefs.MakeFsOnDiskSecure(tmpDir)
-				g.Expect(err).NotTo(HaveOccurred())
-				resMap, err = kustomize.BuildKustomization(fs, tmpDir)
+				resMap, err = kustomize.SecureBuild(tmpDir, tmpDir, false)
 				g.Expect(err).NotTo(HaveOccurred())
 			} else {
 				//Get a generator
@@ -84,7 +81,7 @@ func TestKustomizationGenerator(t *testing.T) {
 
 				// Get resource from directory
 				fs := filesys.MakeFsOnDisk()
-				resMap, err = kustomize.BuildKustomization(fs, resourcePath)
+				resMap, err = kustomize.Build(fs, resourcePath)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
 
@@ -99,4 +96,24 @@ func TestKustomizationGenerator(t *testing.T) {
 			g.Expect(string(resources)).To(Equal(string(expected)))
 		})
 	}
+}
+
+func Test_SecureBuild_panic(t *testing.T) {
+	t.Run("build panic", func(t *testing.T) {
+		g := NewWithT(t)
+
+		_, err := kustomize.SecureBuild("testdata/panic", "testdata/panic", false)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("recovered from kustomize build panic"))
+		// Run again to ensure the lock is released
+		_, err = kustomize.SecureBuild("testdata/panic", "testdata/panic", false)
+		g.Expect(err).To(HaveOccurred())
+	})
+}
+
+func Test_SecureBuild_rel_basedir(t *testing.T) {
+	g := NewWithT(t)
+
+	_, err := kustomize.SecureBuild("testdata/relbase", "testdata/relbase/clusters/staging/flux-system", false)
+	g.Expect(err).ToNot(HaveOccurred())
 }

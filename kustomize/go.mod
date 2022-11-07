@@ -6,14 +6,14 @@ replace github.com/fluxcd/pkg/apis/kustomize => ../apis/kustomize
 
 require (
 	github.com/drone/envsubst v1.0.3
-	github.com/fluxcd/pkg/apis/kustomize v0.6.0
+	github.com/fluxcd/pkg/apis/kustomize v0.7.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/onsi/gomega v1.20.2
+	github.com/onsi/gomega v1.24.1
 	github.com/otiai10/copy v1.7.0
-	k8s.io/api v0.25.2
-	k8s.io/apiextensions-apiserver v0.25.2
-	k8s.io/apimachinery v0.25.2
-	sigs.k8s.io/controller-runtime v0.13.0
+	k8s.io/api v0.25.4
+	k8s.io/apiextensions-apiserver v0.25.4
+	k8s.io/apimachinery v0.25.4
+	sigs.k8s.io/controller-runtime v0.13.1
 	sigs.k8s.io/kustomize/api v0.12.1
 	sigs.k8s.io/kustomize/kyaml v0.13.9
 	sigs.k8s.io/yaml v1.3.0
