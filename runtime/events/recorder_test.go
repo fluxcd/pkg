@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	eventv1 "github.com/fluxcd/pkg/apis/event/v1beta1"
 )
 
 func TestEventRecorder_AnnotatedEventf(t *testing.T) {
@@ -35,7 +37,7 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
-		var payload Event
+		var payload eventv1.Event
 		err = json.Unmarshal(b, &payload)
 		require.NoError(t, err)
 
@@ -63,7 +65,7 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 	require.Equal(t, 2, requestCount)
 
 	// When a trace event is sent, it's dropped, no new request.
-	eventRecorder.AnnotatedEventf(obj, meta, EventTypeTrace, "sync", "sync %s", obj.Name)
+	eventRecorder.AnnotatedEventf(obj, meta, eventv1.EventTypeTrace, "sync", "sync %s", obj.Name)
 	require.Equal(t, 2, requestCount)
 }
 
@@ -74,7 +76,7 @@ func TestEventRecorder_AnnotatedEventf_Retry(t *testing.T) {
 		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
-		var payload Event
+		var payload eventv1.Event
 		err = json.Unmarshal(b, &payload)
 		require.NoError(t, err)
 
@@ -101,7 +103,7 @@ func TestEventRecorder_AnnotatedEventf_RateLimited(t *testing.T) {
 		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
-		var payload Event
+		var payload eventv1.Event
 		err = json.Unmarshal(b, &payload)
 		require.NoError(t, err)
 

@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	eventv1 "github.com/fluxcd/pkg/apis/event/v1beta1"
 	"github.com/fluxcd/pkg/runtime/logger"
 )
 
@@ -144,7 +145,7 @@ func (r *Recorder) AnnotatedEventf(
 
 	// Do not send trace events to notification controller,
 	// traces are persisted as Kubernetes events only as normal events.
-	if severity == EventSeverityTrace {
+	if severity == eventv1.EventSeverityTrace {
 		r.EventRecorder.AnnotatedEventf(object, annotations, corev1.EventTypeNormal, reason, messageFmt, args...)
 		return
 	}
@@ -190,7 +191,7 @@ func (r *Recorder) AnnotatedEventf(
 		return
 	}
 
-	event := Event{
+	event := eventv1.Event{
 		InvolvedObject:      *ref,
 		Severity:            severity,
 		Timestamp:           metav1.Now(),
@@ -224,10 +225,10 @@ func (r *Recorder) AnnotatedEventf(
 func eventTypeToSeverity(eventType string) string {
 	switch eventType {
 	case corev1.EventTypeWarning:
-		return EventSeverityError
-	case EventTypeTrace:
-		return EventSeverityTrace
+		return eventv1.EventSeverityError
+	case eventv1.EventTypeTrace:
+		return eventv1.EventSeverityTrace
 	default:
-		return EventSeverityInfo
+		return eventv1.EventSeverityInfo
 	}
 }
