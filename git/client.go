@@ -24,6 +24,8 @@ import (
 // on a Git repository.
 type RepositoryReader interface {
 	// Clone clones a repository from the provided url using the options provided.
+	// It returns a Commit object describing the Git commit that the repository
+	// HEAD points to. If the repository is empty, it returns a nil Commit.
 	Clone(ctx context.Context, url string, cloneOpts CloneOptions) (*Commit, error)
 	// IsClean returns whether the working tree is clean.
 	IsClean() (bool, error)

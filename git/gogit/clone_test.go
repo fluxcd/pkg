@@ -46,7 +46,7 @@ import (
 const testRepositoryPath = "../testdata/git/repo"
 
 func TestClone_cloneBranch(t *testing.T) {
-	repo, path, err := initRepo(t)
+	repo, repoPath, err := initRepo(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,6 +65,11 @@ func TestClone_cloneBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	_, emptyRepoPath, err := initRepo(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
 		name                   string
 		branch                 string
@@ -73,6 +78,7 @@ func TestClone_cloneBranch(t *testing.T) {
 		expectedCommit         string
 		expectedConcreteCommit bool
 		expectedErr            string
+		expectedEmpty          bool
 	}{
 		{
 			name:                   "Default branch",
@@ -102,6 +108,11 @@ func TestClone_cloneBranch(t *testing.T) {
 			branch:      "invalid",
 			expectedErr: "couldn't find remote ref \"refs/heads/invalid\"",
 		},
+		{
+			name:          "empty repo",
+			branch:        "master",
+			expectedEmpty: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -112,7 +123,14 @@ func TestClone_cloneBranch(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			cc, err := ggc.Clone(context.TODO(), path, git.CloneOptions{
+			var upstreamPath string
+			if tt.expectedEmpty {
+				upstreamPath = emptyRepoPath
+			} else {
+				upstreamPath = repoPath
+			}
+
+			cc, err := ggc.Clone(context.TODO(), upstreamPath, git.CloneOptions{
 				CheckoutStrategy: git.CheckoutStrategy{
 					Branch: tt.branch,
 				},
@@ -125,6 +143,14 @@ func TestClone_cloneBranch(t *testing.T) {
 				g.Expect(cc).To(BeNil())
 				return
 			}
+
+			if tt.expectedEmpty {
+				g.Expect(cc).To(BeNil())
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(filepath.Join(ggc.path, ".git")).To(BeADirectory())
+				return
+			}
+
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(cc.String()).To(Equal(tt.branch + "/" + tt.expectedCommit))
 			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectedConcreteCommit))
