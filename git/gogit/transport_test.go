@@ -207,6 +207,20 @@ func Test_transportAuth(t *testing.T) {
 			wantErr: errors.New("knownhosts: knownhosts: missing host pattern"),
 		},
 		{
+			name: "SSH private key without known_hosts",
+			opts: &git.AuthOptions{
+				Transport: git.SSH,
+				Username:  "example",
+				Identity:  []byte(privateKeyFixture),
+			},
+			wantFunc: func(g *WithT, t transport.AuthMethod, opts *git.AuthOptions) {
+				tt, ok := t.(*CustomPublicKeys)
+				g.Expect(ok).To(BeTrue())
+				g.Expect(tt.pk.User).To(Equal(opts.Username))
+				g.Expect(tt.callback).To(BeNil())
+			},
+		},
+		{
 			name:    "Empty",
 			opts:    &git.AuthOptions{},
 			wantErr: errors.New("no transport type set"),
