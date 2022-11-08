@@ -4,12 +4,14 @@ go 1.18
 
 replace (
 	github.com/fluxcd/pkg/apis/acl => ../apis/acl
+	github.com/fluxcd/pkg/apis/event => ../apis/event
 	github.com/fluxcd/pkg/apis/meta => ../apis/meta
 )
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20220903154154-e8044f6e4c72
 	github.com/fluxcd/pkg/apis/acl v0.1.0
+	github.com/fluxcd/pkg/apis/event v0.1.0
 	github.com/fluxcd/pkg/apis/meta v0.17.0
 	github.com/go-logr/logr v1.2.3
 	github.com/google/go-cmp v0.5.9
@@ -21,10 +23,10 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/zap v1.23.0
-	k8s.io/api v0.25.2
-	k8s.io/apimachinery v0.25.2
-	k8s.io/client-go v0.25.2
-	k8s.io/component-base v0.25.2
+	k8s.io/api v0.25.3
+	k8s.io/apimachinery v0.25.3
+	k8s.io/client-go v0.25.3
+	k8s.io/component-base v0.25.3
 	k8s.io/klog/v2 v2.80.1
 	sigs.k8s.io/cli-utils v0.33.0
 	sigs.k8s.io/controller-runtime v0.13.0
