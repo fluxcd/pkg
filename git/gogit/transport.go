@@ -50,10 +50,15 @@ func transportAuth(opts *git.AuthOptions) (transport.AuthMethod, error) {
 		if err != nil {
 			return nil, err
 		}
-		callback, err := knownhosts.New(opts.KnownHosts)
-		if err != nil {
-			return nil, err
+
+		var callback gossh.HostKeyCallback
+		if len(opts.KnownHosts) > 0 {
+			callback, err = knownhosts.New(opts.KnownHosts)
+			if err != nil {
+				return nil, err
+			}
 		}
+
 		customPK := &CustomPublicKeys{
 			pk:       pk,
 			callback: callback,
@@ -95,7 +100,9 @@ func (a *CustomPublicKeys) ClientConfig() (*gossh.ClientConfig, error) {
 		return nil, err
 	}
 
-	config.HostKeyCallback = a.callback
+	if a.callback != nil {
+		config.HostKeyCallback = a.callback
+	}
 	if len(git.KexAlgos) > 0 {
 		config.Config.KeyExchanges = git.KexAlgos
 	}
