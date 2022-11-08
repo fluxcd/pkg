@@ -79,6 +79,14 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, gitutil.LibGit2Error(err))
 	}
 
+	isEmpty, err := l.repository.IsEmpty()
+	if err != nil {
+		return nil, fmt.Errorf("unable to check if cloned repo '%s' is empty: %w", url, err)
+	}
+	if isEmpty {
+		return nil, nil
+	}
+
 	branchRef, err := l.repository.References.Lookup(fmt.Sprintf("refs/remotes/origin/%s", branch))
 	if err != nil {
 		return nil, fmt.Errorf("unable to lookup branch '%s' for '%s': %w", branch, url, gitutil.LibGit2Error(err))

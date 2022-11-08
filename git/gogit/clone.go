@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -93,13 +94,25 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 
 	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
 	if err != nil {
-		if err == transport.ErrEmptyRemoteRepository || err == transport.ErrRepositoryNotFound || isRemoteBranchNotFoundErr(err, ref.String()) {
+		if err == transport.ErrRepositoryNotFound || isRemoteBranchNotFoundErr(err, ref.String()) {
 			return nil, git.ErrRepositoryNotFound{
 				Message: fmt.Sprintf("unable to clone: %s", err),
 				URL:     url,
 			}
 		}
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, gitutil.GoGitError(err))
+		// Directly cloning an empty Git repo to a directory fails with this error.
+		// We check for the error and then init a new Git repo in that directory
+		// (which represents an empty repository).
+		if err == transport.ErrEmptyRemoteRepository {
+			if err = os.RemoveAll(g.path); err == nil {
+				if err = g.Init(ctx, url, branch); err == nil {
+					return nil, nil
+				}
+			}
+		}
+		if err != nil {
+			return nil, fmt.Errorf("unable to clone '%s': %w", url, gitutil.GoGitError(err))
+		}
 	}
 
 	head, err := repo.Head()
