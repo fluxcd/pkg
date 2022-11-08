@@ -24,16 +24,16 @@ import (
 	"path/filepath"
 	"time"
 
+	extgogit "github.com/fluxcd/go-git/v5"
+	"github.com/fluxcd/go-git/v5/config"
+	"github.com/fluxcd/go-git/v5/plumbing"
+	"github.com/fluxcd/go-git/v5/plumbing/cache"
+	"github.com/fluxcd/go-git/v5/plumbing/object"
+	"github.com/fluxcd/go-git/v5/storage"
+	"github.com/fluxcd/go-git/v5/storage/filesystem"
+	"github.com/fluxcd/go-git/v5/storage/memory"
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
-	extgogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/cache"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/storage"
-	"github.com/go-git/go-git/v5/storage/filesystem"
-	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit/fs"
@@ -188,12 +188,7 @@ func (g *Client) writeFile(path string, reader io.Reader) error {
 		return git.ErrNoGitRepository
 	}
 
-	wt, err := g.repository.Worktree()
-	if err != nil {
-		return err
-	}
-
-	f, err := wt.Filesystem.Create(path)
+	f, err := g.worktreeFS.Create(path)
 	if err != nil {
 		return err
 	}

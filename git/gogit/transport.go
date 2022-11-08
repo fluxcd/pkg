@@ -19,9 +19,9 @@ package gogit
 import (
 	"fmt"
 
-	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/fluxcd/go-git/v5/plumbing/transport"
+	"github.com/fluxcd/go-git/v5/plumbing/transport/http"
+	"github.com/fluxcd/go-git/v5/plumbing/transport/ssh"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/fluxcd/pkg/git"
