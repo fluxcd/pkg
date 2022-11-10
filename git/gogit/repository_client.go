@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
 	"time"
 
@@ -45,12 +46,13 @@ const ClientName = "go-git"
 // Client implements git.RepositoryClient.
 type Client struct {
 	*git.DiscardRepositoryCloser
-	path       string
-	repository *extgogit.Repository
-	authOpts   *git.AuthOptions
-	storer     storage.Storer
-	worktreeFS billy.Filesystem
-	forcePush  bool
+	path                string
+	repository          *extgogit.Repository
+	authOpts            *git.AuthOptions
+	storer              storage.Storer
+	worktreeFS          billy.Filesystem
+	forcePush           bool
+	credentialsOverHTTP bool
 }
 
 var _ git.RepositoryClient = &Client{}
@@ -128,7 +130,18 @@ func WithForcePush() ClientOption {
 	}
 }
 
+// WithInsecureCredentialsOverHTTP enables credentials being used over
+// HTTP. This is not recommended for production environments.
+func WithInsecureCredentialsOverHTTP(g *Client) error {
+	g.credentialsOverHTTP = true
+	return nil
+}
+
 func (g *Client) Init(ctx context.Context, url, branch string) error {
+	if err := g.validateUrl(url); err != nil {
+		return err
+	}
+
 	if g.repository != nil {
 		return nil
 	}
@@ -166,6 +179,10 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 }
 
 func (g *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+	if err := g.validateUrl(url); err != nil {
+		return nil, err
+	}
+
 	checkoutStrat := cloneOpts.CheckoutStrategy
 	switch {
 	case checkoutStrat.Commit != "":
@@ -181,6 +198,29 @@ func (g *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptio
 		}
 		return g.cloneBranch(ctx, url, branch, cloneOpts)
 	}
+}
+
+func (g *Client) validateUrl(u string) error {
+	ru, err := url.Parse(u)
+	if err != nil {
+		return fmt.Errorf("cannot parse url: %w", err)
+	}
+
+	if g.credentialsOverHTTP {
+		return nil
+	}
+
+	httpOrEmpty := ru.Scheme == string(git.HTTP) || ru.Scheme == ""
+	if httpOrEmpty && ru.User != nil {
+		return errors.New("URL cannot contain credentials when using HTTP")
+	}
+
+	if httpOrEmpty && g.authOpts != nil &&
+		(g.authOpts.Username != "" || g.authOpts.Password != "") {
+		return errors.New("basic auth cannot be sent over HTTP")
+	}
+
+	return nil
 }
 
 func (g *Client) writeFile(path string, reader io.Reader) error {
