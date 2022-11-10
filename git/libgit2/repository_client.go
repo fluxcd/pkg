@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -57,7 +58,8 @@ type Client struct {
 	// transportOptsURL serves as unique key for a particular set of transport
 	// options for a Git repository, which is then used to fetch these options
 	// at the transport level.
-	transportOptsURL string
+	transportOptsURL    string
+	credentialsOverHTTP bool
 }
 
 var _ git.RepositoryClient = &Client{}
@@ -102,7 +104,18 @@ func WithMemoryStorage(l *Client) error {
 	return nil
 }
 
+// WithInsecureCredentialsOverHTTP enables credentials being used over
+// HTTP. This is not recommended for production environments.
+func WithInsecureCredentialsOverHTTP(l *Client) error {
+	l.credentialsOverHTTP = true
+	return nil
+}
+
 func (l *Client) Init(ctx context.Context, url, branch string) error {
+	if err := l.validateUrl(url); err != nil {
+		return err
+	}
+
 	if l.repository != nil {
 		return nil
 	}
@@ -157,6 +170,10 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 }
 
 func (l *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+	if err := l.validateUrl(url); err != nil {
+		return nil, err
+	}
+
 	checkoutStrat := cloneOpts.CheckoutStrategy
 	switch {
 	case checkoutStrat.Commit != "":
@@ -172,6 +189,28 @@ func (l *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptio
 		}
 		return l.cloneBranch(ctx, url, branch, cloneOpts)
 	}
+}
+
+func (g *Client) validateUrl(u string) error {
+	ru, err := url.Parse(u)
+	if err != nil {
+		return fmt.Errorf("cannot parse url: %w", err)
+	}
+
+	if g.credentialsOverHTTP {
+		return nil
+	}
+
+	httpOrEmpty := ru.Scheme == string(git.HTTP) || ru.Scheme == ""
+	if httpOrEmpty && ru.User != nil {
+		return errors.New("URL cannot contain credentials when using HTTP")
+	}
+
+	if httpOrEmpty && g.authOpts != nil &&
+		(g.authOpts.Username != "" || g.authOpts.Password != "") {
+		return errors.New("basic auth cannot be sent over HTTP")
+	}
+	return nil
 }
 
 func (l *Client) writeFile(path string, reader io.Reader) error {

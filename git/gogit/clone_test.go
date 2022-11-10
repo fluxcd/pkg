@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -894,6 +896,182 @@ func Test_getRemoteHEAD(t *testing.T) {
 	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(head).To(Equal(fmt.Sprintf("%s/%s", "v0.1.0", cc)))
+}
+
+func TestClone_CredentialsOverHttp(t *testing.T) {
+	tests := []struct {
+		name                     string
+		username                 string
+		password                 string
+		allowCredentialsOverHttp bool
+		transformURL             func(string) string
+		expectCloneErr           string
+		expectRequest            bool
+	}{
+		{
+			name:           "blocked: basic auth over HTTP (name)",
+			username:       "just-name",
+			expectCloneErr: "basic auth cannot be sent over HTTP",
+		},
+		{
+			name:           "blocked: basic auth over HTTP (password)",
+			password:       "just-pass",
+			expectCloneErr: "basic auth cannot be sent over HTTP",
+		},
+		{
+			name:           "blocked: basic auth over HTTP (name and password)",
+			username:       "name",
+			password:       "pass",
+			expectCloneErr: "basic auth cannot be sent over HTTP",
+		},
+		{
+			name: "blocked: URL based credential over HTTP (name)",
+			transformURL: func(s string) string {
+				u, _ := url.Parse(s)
+				u.User = url.User("some-joe")
+				return u.String()
+			},
+			expectCloneErr: "URL cannot contain credentials when using HTTP",
+		},
+		{
+			name: "blocked: URL based credential over HTTP (name and password)",
+			transformURL: func(s string) string {
+				u, _ := url.Parse(s)
+				u.User = url.UserPassword("joe", "doe")
+				return u.String()
+			},
+			expectCloneErr: "URL cannot contain credentials when using HTTP",
+		},
+		{
+			name: "blocked: URL based credential over HTTP (without scheme)",
+			transformURL: func(s string) string {
+				u, _ := url.Parse(s)
+				u.User = url.UserPassword("joe", "doe")
+				u.Scheme = ""
+				return u.String()
+			},
+			expectCloneErr: "URL cannot contain credentials when using HTTP",
+		},
+		{
+			name: "blocked: URL based credential over HTTP (scheme with mixed casing)",
+			transformURL: func(s string) string {
+				u, _ := url.Parse(s)
+				u.User = url.UserPassword("joe", "doe")
+				u.Scheme = "HTtp"
+				return u.String()
+			},
+			expectCloneErr: "URL cannot contain credentials when using HTTP",
+		},
+		{
+			name:                     "allowed: basic auth over HTTP (name)",
+			username:                 "just-name",
+			expectCloneErr:           "unable to clone",
+			allowCredentialsOverHttp: true,
+			expectRequest:            true,
+		},
+		{
+			name:                     "allowed: basic auth over HTTP (password)",
+			password:                 "just-pass",
+			expectCloneErr:           "unable to clone",
+			allowCredentialsOverHttp: true,
+			expectRequest:            true,
+		},
+		{
+			name:                     "allowed: basic auth over HTTP (name and password)",
+			username:                 "name",
+			password:                 "pass",
+			expectCloneErr:           "unable to clone",
+			allowCredentialsOverHttp: true,
+			expectRequest:            true,
+		},
+		{
+			name: "allowed: URL based credential over HTTP (name)",
+			transformURL: func(s string) string {
+				u, _ := url.Parse(s)
+				u.User = url.User("some-joe")
+				return u.String()
+			},
+			expectCloneErr:           "unable to clone",
+			allowCredentialsOverHttp: true,
+			expectRequest:            true,
+		},
+		{
+			name: "allowed: URL based credential over HTTP (name and password)",
+			transformURL: func(s string) string {
+				u, _ := url.Parse(s)
+				u.User = url.UserPassword("joe", "doe")
+				return u.String()
+			},
+			expectCloneErr:           "unable to clone",
+			allowCredentialsOverHttp: true,
+			expectRequest:            true,
+		},
+		{
+			name: "allowed: URL based credential over HTTP (without scheme)",
+			transformURL: func(s string) string {
+				u, _ := url.Parse(s)
+				u.User = url.UserPassword("joe", "doe")
+				u.Scheme = ""
+				return u.String()
+			},
+			expectCloneErr:           "unable to clone",
+			allowCredentialsOverHttp: true,
+		},
+		{
+			name:           "execute request without creds",
+			expectCloneErr: "unable to clone",
+			expectRequest:  true,
+		},
+	}
+
+	totalRequests := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		totalRequests++
+	}))
+	defer ts.Close()
+
+	previousRequestCount := 0
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			previousRequestCount = totalRequests
+
+			tmpDir := t.TempDir()
+			opts := []ClientOption{WithDiskStorage}
+			if tt.allowCredentialsOverHttp {
+				opts = append(opts, WithInsecureCredentialsOverHTTP)
+			}
+
+			ggc, err := NewClient(tmpDir, &git.AuthOptions{
+				Transport: git.HTTP,
+				Username:  tt.username,
+				Password:  tt.password,
+			}, opts...)
+
+			g.Expect(err).ToNot(HaveOccurred())
+
+			repoURL := ts.URL
+			if tt.transformURL != nil {
+				repoURL = tt.transformURL(ts.URL)
+			}
+
+			_, err = ggc.Clone(context.TODO(), repoURL, git.CloneOptions{})
+
+			if tt.expectCloneErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.expectCloneErr))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+
+			if tt.expectRequest {
+				g.Expect(totalRequests).To(BeNumerically(">", previousRequestCount))
+			} else {
+				g.Expect(totalRequests).To(Equal(previousRequestCount))
+			}
+		})
+	}
 }
 
 func initRepo(tmpDir string) (*extgogit.Repository, string, error) {
