@@ -178,11 +178,11 @@ func TestGitLabCEE2E(t *testing.T) {
 
 			switch gitClient {
 			case gogit.ClientName:
-				client, err = gogit.NewClient(tmp, authOptions)
+				client, err = gogit.NewClient(tmp, authOptions, gogit.WithInsecureCredentialsOverHTTP, gogit.WithDiskStorage)
 				g.Expect(err).ToNot(HaveOccurred())
 				defer client.Close()
 			case libgit2.ClientName:
-				client, err = libgit2.NewClient(tmp, authOptions)
+				client, err = libgit2.NewClient(tmp, authOptions, libgit2.WithInsecureCredentialsOverHTTP, libgit2.WithDiskStorage)
 				g.Expect(err).ToNot(HaveOccurred())
 				defer client.Close()
 			default:
