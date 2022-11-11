@@ -37,6 +37,7 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/libgit2/transport"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gitutil"
 )
 
@@ -62,7 +63,7 @@ type Client struct {
 	credentialsOverHTTP bool
 }
 
-var _ git.RepositoryClient = &Client{}
+var _ repository.Client = &Client{}
 
 type ClientOption func(*Client) error
 

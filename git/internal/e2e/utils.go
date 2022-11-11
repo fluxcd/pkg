@@ -37,12 +37,13 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/ssh"
 )
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
-func testUsingClone(g *WithT, client git.RepositoryClient, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
+func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
 	// clone repo
 	_, err := client.Clone(context.TODO(), repoURL.String(), git.CloneOptions{
 		CheckoutStrategy: git.CheckoutStrategy{
@@ -105,7 +106,7 @@ func testUsingClone(g *WithT, client git.RepositoryClient, repoURL *url.URL, ups
 	g.Expect(headCommit).To(Equal(cc))
 }
 
-func testUsingInit(g *WithT, client git.RepositoryClient, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
+func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
 	// Create a new repository
 	err := client.Init(context.TODO(), repoURL.String(), "main")
 	g.Expect(err).ToNot(HaveOccurred())

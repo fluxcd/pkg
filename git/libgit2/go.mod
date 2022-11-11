@@ -5,7 +5,7 @@ go 1.18
 replace (
 	github.com/fluxcd/pkg/git => ../../git
 	// Enables the use of pkg/git/gogit/fs.
-	github.com/fluxcd/pkg/git/gogit => ../../git/gogit
+	github.com/fluxcd/pkg/git/gogit => ../gogit
 	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
 	github.com/fluxcd/pkg/gitutil => ../../gitutil
 	github.com/fluxcd/pkg/http/transport => ../../http/transport

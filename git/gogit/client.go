@@ -38,14 +38,15 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit/fs"
+	"github.com/fluxcd/pkg/git/repository"
 )
 
 // ClientName is the string representation of Client.
 const ClientName = "go-git"
 
-// Client implements git.RepositoryClient.
+// Client implements repository.Client.
 type Client struct {
-	*git.DiscardRepositoryCloser
+	*repository.DiscardCloser
 	path                string
 	repository          *extgogit.Repository
 	authOpts            *git.AuthOptions
@@ -55,7 +56,7 @@ type Client struct {
 	credentialsOverHTTP bool
 }
 
-var _ git.RepositoryClient = &Client{}
+var _ repository.Client = &Client{}
 
 type ClientOption func(*Client) error
 
