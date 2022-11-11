@@ -124,21 +124,9 @@ func TestGitHubE2E(t *testing.T) {
 			repoURL, authOptions, err := repoInfo(proto, repo)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			var client git.RepositoryClient
-			tmp := t.TempDir()
-
-			switch gitClient {
-			case gogit.ClientName:
-				client, err = gogit.NewClient(tmp, authOptions)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			case libgit2.ClientName:
-				client, err = libgit2.NewClient(tmp, authOptions)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			default:
-				t.Fatalf("invalid git client name: %s", gitClient)
-			}
+			client, err := newClient(gitClient, t.TempDir(), authOptions, false)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer client.Close()
 
 			testUsingClone(g, client, repoURL, upstreamRepoInfo{
 				url:      upstreamRepoURL,
@@ -163,21 +151,9 @@ func TestGitHubE2E(t *testing.T) {
 			repoURL, authOptions, err := repoInfo(proto, repo)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			var client git.RepositoryClient
-			tmp := t.TempDir()
-
-			switch gitClient {
-			case gogit.ClientName:
-				client, err = gogit.NewClient(tmp, authOptions)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			case libgit2.ClientName:
-				client, err = libgit2.NewClient(tmp, authOptions)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			default:
-				t.Fatalf("invalid git client name: %s", gitClient)
-			}
+			client, err := newClient(gitClient, t.TempDir(), authOptions, false)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer client.Close()
 
 			testUsingInit(g, client, repoURL, upstreamRepoInfo{
 				url:      upstreamRepoURL,
