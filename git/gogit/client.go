@@ -73,7 +73,7 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 	}
 
 	if len(clientOpts) == 0 {
-		clientOpts = append(clientOpts, WithDiskStorage)
+		clientOpts = append(clientOpts, WithDiskStorage())
 	}
 
 	for _, clientOpt := range clientOpts {
@@ -106,19 +106,23 @@ func WithWorkTreeFS(wt billy.Filesystem) ClientOption {
 	}
 }
 
-func WithDiskStorage(g *Client) error {
-	wt := fs.New(g.path)
-	dot := fs.New(filepath.Join(g.path, extgogit.GitDirName))
+func WithDiskStorage() ClientOption {
+	return func(c *Client) error {
+		wt := fs.New(c.path)
+		dot := fs.New(filepath.Join(c.path, extgogit.GitDirName))
 
-	g.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
-	g.worktreeFS = wt
-	return nil
+		c.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
+		c.worktreeFS = wt
+		return nil
+	}
 }
 
-func WithMemoryStorage(g *Client) error {
-	g.storer = memory.NewStorage()
-	g.worktreeFS = memfs.New()
-	return nil
+func WithMemoryStorage() ClientOption {
+	return func(c *Client) error {
+		c.storer = memory.NewStorage()
+		c.worktreeFS = memfs.New()
+		return nil
+	}
 }
 
 // WithForcePush enables the use of force push for all push operations
@@ -133,9 +137,11 @@ func WithForcePush() ClientOption {
 
 // WithInsecureCredentialsOverHTTP enables credentials being used over
 // HTTP. This is not recommended for production environments.
-func WithInsecureCredentialsOverHTTP(g *Client) error {
-	g.credentialsOverHTTP = true
-	return nil
+func WithInsecureCredentialsOverHTTP() ClientOption {
+	return func(c *Client) error {
+		c.credentialsOverHTTP = true
+		return nil
+	}
 }
 
 func (g *Client) Init(ctx context.Context, url, branch string) error {

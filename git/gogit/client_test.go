@@ -275,7 +275,7 @@ func TestForcePush(t *testing.T) {
 	cc2, err := commitFile(repo2, "test", "first push from second clone", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc2, err := NewClient(tmp2, nil, WithDiskStorage, WithForcePush())
+	ggc2, err := NewClient(tmp2, nil, WithDiskStorage(), WithForcePush())
 	g.Expect(err).ToNot(HaveOccurred())
 	ggc2.repository = repo2
 

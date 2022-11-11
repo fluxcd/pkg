@@ -79,7 +79,7 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 	}
 
 	if len(clientOpts) == 0 {
-		clientOpts = append(clientOpts, WithDiskStorage)
+		clientOpts = append(clientOpts, WithDiskStorage())
 	}
 
 	for _, clientOpt := range clientOpts {
@@ -95,21 +95,27 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 	return l, nil
 }
 
-func WithDiskStorage(l *Client) error {
-	l.repoFS = osfs.New(l.path)
-	return nil
+func WithDiskStorage() ClientOption {
+	return func(c *Client) error {
+		c.repoFS = osfs.New(c.path)
+		return nil
+	}
 }
 
-func WithMemoryStorage(l *Client) error {
-	l.repoFS = memfs.New()
-	return nil
+func WithMemoryStorage() ClientOption {
+	return func(c *Client) error {
+		c.repoFS = memfs.New()
+		return nil
+	}
 }
 
 // WithInsecureCredentialsOverHTTP enables credentials being used over
 // HTTP. This is not recommended for production environments.
-func WithInsecureCredentialsOverHTTP(l *Client) error {
-	l.credentialsOverHTTP = true
-	return nil
+func WithInsecureCredentialsOverHTTP() ClientOption {
+	return func(c *Client) error {
+		c.credentialsOverHTTP = true
+		return nil
+	}
 }
 
 func (l *Client) Init(ctx context.Context, url, branch string) error {

@@ -1038,9 +1038,9 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 			previousRequestCount = totalRequests
 
 			tmpDir := t.TempDir()
-			opts := []ClientOption{WithDiskStorage}
+			opts := []ClientOption{WithDiskStorage()}
 			if tt.allowCredentialsOverHttp {
-				opts = append(opts, WithInsecureCredentialsOverHTTP)
+				opts = append(opts, WithInsecureCredentialsOverHTTP())
 			}
 
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{
