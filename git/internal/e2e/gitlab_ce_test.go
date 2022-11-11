@@ -142,21 +142,9 @@ func TestGitLabCEE2E(t *testing.T) {
 			err = initRepo(upstreamRepoURL, "main", "../../testdata/git/repo", gitlabCEUsername, gitlabCEPassword)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			var client git.RepositoryClient
-			tmp := t.TempDir()
-
-			switch gitClient {
-			case gogit.ClientName:
-				client, err = gogit.NewClient(tmp, authOptions)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			case libgit2.ClientName:
-				client, err = libgit2.NewClient(tmp, authOptions)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			default:
-				t.Fatalf("invalid git client name: %s", gitClient)
-			}
+			client, err := newClient(gitClient, t.TempDir(), authOptions, true)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer client.Close()
 
 			testUsingClone(g, client, repoURL, upstreamRepoInfo{
 				url:      upstreamRepoURL,
@@ -173,21 +161,9 @@ func TestGitLabCEE2E(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			upstreamRepoURL := gitlabCEHTTPHost + "/" + gitlabCEUsername + "/" + repoName
 
-			var client git.RepositoryClient
-			tmp := t.TempDir()
-
-			switch gitClient {
-			case gogit.ClientName:
-				client, err = gogit.NewClient(tmp, authOptions, gogit.WithInsecureCredentialsOverHTTP, gogit.WithDiskStorage)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			case libgit2.ClientName:
-				client, err = libgit2.NewClient(tmp, authOptions, libgit2.WithInsecureCredentialsOverHTTP, libgit2.WithDiskStorage)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			default:
-				t.Fatalf("invalid git client name: %s", gitClient)
-			}
+			client, err := newClient(gitClient, t.TempDir(), authOptions, true)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer client.Close()
 
 			testUsingInit(g, client, repoURL, upstreamRepoInfo{
 				url:      upstreamRepoURL,

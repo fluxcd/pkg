@@ -105,25 +105,14 @@ func TestGitKitE2E(t *testing.T) {
 	testFunc := func(t *testing.T, proto git.TransportType, gitClient string) {
 		t.Run(fmt.Sprintf("repo created using Clone/%s/%s", gitClient, proto), func(t *testing.T) {
 			g := NewWithT(t)
-			var client git.RepositoryClient
-			tmp := t.TempDir()
 			repoName := fmt.Sprintf("gitkit-e2e-checkout-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
 
 			repoURL, authOptions, err := repoInfo(repoName, proto, gitServer)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			switch gitClient {
-			case gogit.ClientName:
-				client, err = gogit.NewClient(tmp, authOptions, gogit.WithInsecureCredentialsOverHTTP, gogit.WithDiskStorage)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			case libgit2.ClientName:
-				client, err = libgit2.NewClient(tmp, authOptions, libgit2.WithInsecureCredentialsOverHTTP, libgit2.WithDiskStorage)
-				g.Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
-			default:
-				t.Fatalf("invalid git client name: %s", gitClient)
-			}
+			client, err := newClient(gitClient, t.TempDir(), authOptions, true)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer client.Close()
 
 			// init repo on server
 			err = gitServer.InitRepo("../../testdata/git/repo", "main", repoName)
@@ -137,24 +126,15 @@ func TestGitKitE2E(t *testing.T) {
 
 		t.Run(fmt.Sprintf("repo created using Init/%s/%s", gitClient, proto), func(t *testing.T) {
 			g := NewWithT(t)
-			var client git.RepositoryClient
-			tmp := t.TempDir()
 			repoName := fmt.Sprintf("gitkit-e2e-init-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
 			upstreamRepoPath := filepath.Join(gitServer.Root(), repoName)
 
 			repoURL, authOptions, err := repoInfo(repoName, proto, gitServer)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			switch gitClient {
-			case gogit.ClientName:
-				client, err = gogit.NewClient(tmp, authOptions)
-				g.Expect(err).ToNot(HaveOccurred())
-			case libgit2.ClientName:
-				client, err = libgit2.NewClient(tmp, authOptions)
-				g.Expect(err).ToNot(HaveOccurred())
-			default:
-				t.Fatalf("invalid git client name: %s", gitClient)
-			}
+			client, err := newClient(gitClient, t.TempDir(), authOptions, true)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer client.Close()
 
 			testUsingInit(g, client, repoURL, upstreamRepoInfo{
 				url: upstreamRepoPath,
