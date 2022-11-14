@@ -56,7 +56,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
-			remoteHead := fmt.Sprintf("%s/%s", branch, hash)
+			remoteHead := fmt.Sprintf("%s@sha1:%s", branch, hash)
 			if remoteHead == opts.LastObservedCommit {
 				// Construct a non-concrete commit with the existing information.
 				c := &git.Commit{
@@ -173,13 +173,13 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
-			remoteHEAD := fmt.Sprintf("%s/%s", tag, hash)
+			remoteHEAD := fmt.Sprintf("%s@sha1:%s", tag, hash)
 			var same bool
 			if remoteHEAD == opts.LastObservedCommit {
 				same = true
 			} else if len(heads) > 1 {
 				hash = heads[1].Id.String()
-				remoteAnnotatedHEAD := fmt.Sprintf("%s/%s", tag, hash)
+				remoteAnnotatedHEAD := fmt.Sprintf("%s@sha1:%s", tag, hash)
 				if remoteAnnotatedHEAD == opts.LastObservedCommit {
 					same = true
 				}
