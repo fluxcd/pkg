@@ -67,9 +67,9 @@ type Commit struct {
 // for a "tag-1" tag.
 func (c *Commit) String() string {
 	if short := strings.SplitAfterN(c.Reference, "/", 3); len(short) == 3 {
-		return fmt.Sprintf("%s/%s", short[2], c.Hash)
+		return fmt.Sprintf("%s@sha1:%s", short[2], c.Hash)
 	}
-	return fmt.Sprintf("HEAD/%s", c.Hash)
+	return fmt.Sprintf("sha1:%s", c.Hash)
 }
 
 // Verify the Signature of the commit with the given key rings.
@@ -121,8 +121,8 @@ var (
 )
 
 // IsConcreteCommit returns if a given commit is a concrete commit. Concrete
-// commits have most of commit metadata and commit content. In contrast, a
-// partial commit may only have some metadata and no commit content.
+// commits have most of the commit metadata and content. In contrast, a partial
+// commit may only have some metadata and no commit content.
 func IsConcreteCommit(c Commit) bool {
 	if c.Hash != nil && c.Encoded != nil {
 		return true

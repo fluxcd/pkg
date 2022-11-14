@@ -131,7 +131,7 @@ func TestCommit_String(t *testing.T) {
 				Hash:      []byte("commit"),
 				Reference: "refs/heads/main",
 			},
-			want: "main/commit",
+			want: "main@sha1:commit",
 		},
 		{
 			name: "Reference with slash and commit",
@@ -139,14 +139,14 @@ func TestCommit_String(t *testing.T) {
 				Hash:      []byte("commit"),
 				Reference: "refs/heads/feature/branch",
 			},
-			want: "feature/branch/commit",
+			want: "feature/branch@sha1:commit",
 		},
 		{
-			name: "No reference",
+			name: "No name reference",
 			commit: &Commit{
 				Hash: []byte("commit"),
 			},
-			want: "HEAD/commit",
+			want: "sha1:commit",
 		},
 	}
 	for _, tt := range tests {
