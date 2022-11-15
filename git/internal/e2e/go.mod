@@ -30,8 +30,8 @@ require (
 	github.com/fluxcd/pkg/git v0.6.1
 	github.com/fluxcd/pkg/git/gogit v0.1.0
 	github.com/fluxcd/pkg/git/libgit2 v0.2.0
-	github.com/fluxcd/pkg/gittestserver v0.7.0
-	github.com/fluxcd/pkg/ssh v0.6.0
+	github.com/fluxcd/pkg/gittestserver v0.8.0
+	github.com/fluxcd/pkg/ssh v0.7.0
 	github.com/onsi/gomega v1.24.1
 )
 

@@ -34,10 +34,10 @@ require (
 	github.com/ProtonMail/go-crypto v0.0.0-20221026131551-cf6655e29de4
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/git v0.6.1
-	github.com/fluxcd/pkg/gittestserver v0.7.0
+	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/gitutil v0.2.0
 	github.com/fluxcd/pkg/http/transport v0.1.0
-	github.com/fluxcd/pkg/ssh v0.6.0
+	github.com/fluxcd/pkg/ssh v0.7.0
 	github.com/fluxcd/pkg/version v0.2.0
 	github.com/go-git/go-billy/v5 v5.3.1
 	github.com/go-logr/logr v1.2.3
