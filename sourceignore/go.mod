@@ -14,6 +14,6 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	golang.org/x/net v0.1.0 // indirect
+	golang.org/x/net v0.2.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
