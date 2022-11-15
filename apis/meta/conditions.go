@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Flux authors
+Copyright 2022 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -98,6 +98,28 @@ const (
 	// SuspendedReason indicates a condition or event has observed a suspension, for
 	// example because a resource has been suspended, or a dependency is.
 	SuspendedReason string = "Suspended"
+
+	// ProgressingWithRetryReason represents the fact that
+	// the reconciliation encountered an error that will be retried.
+	ProgressingWithRetryReason string = "ProgressingWithRetry"
+
+	// DependencyNotReadyReason represents the fact that
+	// one of the dependencies is not ready.
+	DependencyNotReadyReason string = "DependencyNotReady"
+
+	// InvalidPathReason signals a failure caused by an invalid path.
+	InvalidPathReason string = "InvalidPath"
+
+	// InvalidURLReason signals a failure caused by an invalid URL.
+	InvalidURLReason string = "InvalidURL"
+
+	// InsecureConnectionsDisallowedReason signals a failure caused by
+	// the use of insecure HTTP connections.
+	InsecureConnectionsDisallowedReason = "InsecureConnectionsDisallowed"
+
+	// UnsupportedConnectionTypeReason signals a failure caused by
+	// the use of unsupported network protocols.
+	UnsupportedConnectionTypeReason = "UnsupportedConnectionType"
 )
 
 // ObjectWithConditions describes a Kubernetes resource object with status conditions.
