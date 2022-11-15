@@ -34,7 +34,6 @@ import (
 	"github.com/fluxcd/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/gitutil"
 	"github.com/fluxcd/pkg/version"
 )
 
@@ -111,7 +110,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 			}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("unable to clone '%s': %w", url, gitutil.GoGitError(err))
+			return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
 		}
 	}
 
@@ -190,7 +189,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 				URL:     url,
 			}
 		}
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, gitutil.GoGitError(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
 	}
 
 	head, err := repo.Head()
@@ -235,7 +234,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts git.C
 				URL:     url,
 			}
 		}
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, gitutil.GoGitError(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
 	}
 
 	w, err := repo.Worktree()
@@ -291,7 +290,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts gi
 				URL:     url,
 			}
 		}
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, gitutil.GoGitError(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
 	}
 
 	repoTags, err := repo.Tags()
@@ -452,4 +451,24 @@ func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Comm
 
 func isRemoteBranchNotFoundErr(err error, ref string) bool {
 	return strings.Contains(err.Error(), fmt.Sprintf("couldn't find remote ref '%s'", ref))
+}
+
+// goGitError translates an error from the go-git library, or returns
+// `nil` if the argument is `nil`.
+func goGitError(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch strings.TrimSpace(err.Error()) {
+	case "unknown error: remote:":
+		// this unhelpful error arises because go-git takes the first
+		// line of the output on stderr, and for some git providers
+		// (GitLab, at least) the output has a blank line at the
+		// start. The rest of stderr is thrown away, so we can't get
+		// the actual error; but at least we know what was being
+		// attempted, and the likely cause.
+		return fmt.Errorf("push rejected; check git secret has write access")
+	default:
+		return err
+	}
 }

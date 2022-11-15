@@ -14,33 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gitutil
+package libgit2
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 )
-
-// GoGitError translates an error from the go-git library, or returns
-// `nil` if the argument is `nil`.
-func GoGitError(err error) error {
-	if err == nil {
-		return nil
-	}
-	switch strings.TrimSpace(err.Error()) {
-	case "unknown error: remote:":
-		// this unhelpful error arises because go-git takes the first
-		// line of the output on stderr, and for some git providers
-		// (GitLab, at least) the output has a blank line at the
-		// start. The rest of stderr is thrown away, so we can't get
-		// the actual error; but at least we know what was being
-		// attempted, and the likely cause.
-		return fmt.Errorf("push rejected; check git secret has write access")
-	default:
-		return err
-	}
-}
 
 // LibGit2Error translates an error from the libgit2 library, or
 // returns `nil` if the argument is `nil`.

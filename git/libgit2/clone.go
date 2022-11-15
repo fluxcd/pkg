@@ -27,7 +27,6 @@ import (
 	git2go "github.com/libgit2/git2go/v34"
 
 	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/gitutil"
 	"github.com/fluxcd/pkg/version"
 )
 
@@ -43,7 +42,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 	// Open remote connection.
 	err = l.remote.ConnectFetch(&remoteCallBacks, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch-connect to remote '%s': %w", url, gitutil.LibGit2Error(err))
+		return nil, fmt.Errorf("unable to fetch-connect to remote '%s': %w", url, LibGit2Error(err))
 	}
 	defer l.remote.Disconnect()
 
@@ -52,7 +51,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 	if opts.LastObservedCommit != "" {
 		heads, err := l.remote.Ls(branch)
 		if err != nil {
-			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, gitutil.LibGit2Error(err))
+			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, LibGit2Error(err))
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
@@ -76,7 +75,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 		},
 		"")
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, gitutil.LibGit2Error(err))
+		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, LibGit2Error(err))
 	}
 
 	isEmpty, err := l.repository.IsEmpty()
@@ -89,13 +88,13 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 
 	branchRef, err := l.repository.References.Lookup(fmt.Sprintf("refs/remotes/origin/%s", branch))
 	if err != nil {
-		return nil, fmt.Errorf("unable to lookup branch '%s' for '%s': %w", branch, url, gitutil.LibGit2Error(err))
+		return nil, fmt.Errorf("unable to lookup branch '%s' for '%s': %w", branch, url, LibGit2Error(err))
 	}
 	defer branchRef.Free()
 
 	upstreamCommit, err := l.repository.LookupCommit(branchRef.Target())
 	if err != nil {
-		return nil, fmt.Errorf("unable to lookup commit '%s' for '%s': %w", branch, url, gitutil.LibGit2Error(err))
+		return nil, fmt.Errorf("unable to lookup commit '%s' for '%s': %w", branch, url, LibGit2Error(err))
 	}
 	defer upstreamCommit.Free()
 
@@ -160,7 +159,7 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 	// Open remote connection.
 	err = l.remote.ConnectFetch(&remoteCallBacks, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch-connect to remote '%s': %w", url, gitutil.LibGit2Error(err))
+		return nil, fmt.Errorf("unable to fetch-connect to remote '%s': %w", url, LibGit2Error(err))
 	}
 	defer l.remote.Disconnect()
 
@@ -169,7 +168,7 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 	if opts.LastObservedCommit != "" {
 		heads, err := l.remote.Ls(tag)
 		if err != nil {
-			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, gitutil.LibGit2Error(err))
+			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, LibGit2Error(err))
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
@@ -203,7 +202,7 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 		"")
 
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, gitutil.LibGit2Error(err))
+		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, LibGit2Error(err))
 	}
 
 	cc, err := checkoutDetachedDwim(l.repository, tag)
@@ -226,7 +225,7 @@ func (l *Client) cloneCommit(ctx context.Context, url, commit string, opts git.C
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, gitutil.LibGit2Error(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, LibGit2Error(err))
 	}
 
 	l.repository = repo
@@ -264,7 +263,7 @@ func (l *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts gi
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, gitutil.LibGit2Error(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, LibGit2Error(err))
 	}
 	l.repository = repo
 	remote, err := repo.Remotes.Lookup(git.DefaultRemote)

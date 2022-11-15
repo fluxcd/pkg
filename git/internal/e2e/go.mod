@@ -7,7 +7,6 @@ replace (
 	github.com/fluxcd/pkg/git/gogit => ../../gogit
 	github.com/fluxcd/pkg/git/libgit2 => ../../libgit2
 	github.com/fluxcd/pkg/gittestserver => ../../../gittestserver
-	github.com/fluxcd/pkg/gitutil => ../../../gitutil
 	github.com/fluxcd/pkg/http/transport => ../../../http/transport
 	github.com/fluxcd/pkg/ssh => ../../../ssh
 	github.com/fluxcd/pkg/version => ../../../version
@@ -51,7 +50,6 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fluxcd/gitkit v0.6.0 // indirect
-	github.com/fluxcd/pkg/gitutil v0.2.0 // indirect
 	github.com/fluxcd/pkg/http/transport v0.1.0 // indirect
 	github.com/fluxcd/pkg/version v0.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect

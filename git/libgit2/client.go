@@ -38,7 +38,6 @@ import (
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/libgit2/transport"
 	"github.com/fluxcd/pkg/git/repository"
-	"github.com/fluxcd/pkg/gitutil"
 )
 
 // ClientName is the string representation of Client.
@@ -128,7 +127,7 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 	}
 	repo, err := git2go.InitRepository(l.path, false)
 	if err != nil {
-		return fmt.Errorf("unable to init repository for '%s': %w", url, gitutil.LibGit2Error(err))
+		return fmt.Errorf("unable to init repository for '%s': %w", url, LibGit2Error(err))
 	}
 
 	l.registerTransportOptions(ctx, url)
@@ -167,7 +166,7 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 			}
 		} else {
 			repo.Free()
-			return fmt.Errorf("unable to create remote for '%s': %w", url, gitutil.LibGit2Error(err))
+			return fmt.Errorf("unable to create remote for '%s': %w", url, LibGit2Error(err))
 		}
 	}
 
