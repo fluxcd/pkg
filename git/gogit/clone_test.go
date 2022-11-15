@@ -41,6 +41,7 @@ import (
 	"github.com/fluxcd/gitkit"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit/fs"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
 	"github.com/fluxcd/pkg/ssh"
 )
@@ -132,8 +133,8 @@ func TestClone_cloneBranch(t *testing.T) {
 				upstreamPath = repoPath
 			}
 
-			cc, err := ggc.Clone(context.TODO(), upstreamPath, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			cc, err := ggc.Clone(context.TODO(), upstreamPath, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: tt.branch,
 				},
 				ShallowClone:       true,
@@ -245,8 +246,8 @@ func TestClone_cloneTag(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			opts := git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			opts := repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Tag: tt.checkoutTag,
 				},
 				ShallowClone: true,
@@ -338,8 +339,8 @@ func TestClone_cloneCommit(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			opts := git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			opts := repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: tt.branch,
 					Commit: tt.commit,
 				},
@@ -452,8 +453,8 @@ func TestClone_cloneSemVer(t *testing.T) {
 			ggc, err := NewClient(tmpDir, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			opts := git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			opts := repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					SemVer: tt.constraint,
 				},
 				ShallowClone: true,
@@ -559,8 +560,8 @@ func Test_ssh_KeyTypes(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			cc, err := ggc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			cc, err := ggc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 				ShallowClone: true,
@@ -690,8 +691,8 @@ func Test_ssh_KeyExchangeAlgos(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			_, err = ggc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 				ShallowClone: true,
@@ -862,8 +863,8 @@ func Test_ssh_HostKeyAlgos(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			_, err = ggc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 				ShallowClone: true,
@@ -1038,9 +1039,9 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 			previousRequestCount = totalRequests
 
 			tmpDir := t.TempDir()
-			opts := []ClientOption{WithDiskStorage}
+			opts := []ClientOption{WithDiskStorage()}
 			if tt.allowCredentialsOverHttp {
-				opts = append(opts, WithInsecureCredentialsOverHTTP)
+				opts = append(opts, WithInsecureCredentialsOverHTTP())
 			}
 
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{
@@ -1056,7 +1057,7 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 				repoURL = tt.transformURL(ts.URL)
 			}
 
-			_, err = ggc.Clone(context.TODO(), repoURL, git.CloneOptions{})
+			_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneOptions{})
 
 			if tt.expectCloneErr != "" {
 				g.Expect(err).To(HaveOccurred())
@@ -1072,6 +1073,47 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGoGitErrorReplace(t *testing.T) {
+	// this is what go-git uses as the error message is if the remote
+	// sends a blank first line
+	unknownMessage := `unknown error: remote: `
+	err := errors.New(unknownMessage)
+	err = goGitError(err)
+	reformattedMessage := err.Error()
+	if reformattedMessage == unknownMessage {
+		t.Errorf("expected rewritten error, got %q", reformattedMessage)
+	}
+}
+
+func TestGoGitErrorUnchanged(t *testing.T) {
+	// this is (roughly) what GitHub sends if the deploy key doesn't
+	// have write access; go-git passes this on verbatim
+	regularMessage := `remote: ERROR: deploy key does not have write access`
+	expectedReformat := regularMessage
+	err := errors.New(regularMessage)
+	err = goGitError(err)
+	reformattedMessage := err.Error()
+	// test that it's been rewritten, without checking the exact content
+	if len(reformattedMessage) > len(expectedReformat) {
+		t.Errorf("expected %q, got %q", expectedReformat, reformattedMessage)
+	}
+}
+
+func Fuzz_GoGitError(f *testing.F) {
+	f.Add("")
+	f.Add("unknown error: remote: ")
+	f.Add("some other error")
+
+	f.Fuzz(func(t *testing.T, msg string) {
+		var err error
+		if msg != "" {
+			err = errors.New(msg)
+		}
+
+		_ = goGitError(err)
+	})
 }
 
 func initRepo(tmpDir string) (*extgogit.Repository, string, error) {

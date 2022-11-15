@@ -38,14 +38,15 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit/fs"
+	"github.com/fluxcd/pkg/git/repository"
 )
 
 // ClientName is the string representation of Client.
 const ClientName = "go-git"
 
-// Client implements git.RepositoryClient.
+// Client implements repository.Client.
 type Client struct {
-	*git.DiscardRepositoryCloser
+	*repository.DiscardCloser
 	path                string
 	repository          *extgogit.Repository
 	authOpts            *git.AuthOptions
@@ -55,7 +56,7 @@ type Client struct {
 	credentialsOverHTTP bool
 }
 
-var _ git.RepositoryClient = &Client{}
+var _ repository.Client = &Client{}
 
 type ClientOption func(*Client) error
 
@@ -72,7 +73,7 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 	}
 
 	if len(clientOpts) == 0 {
-		clientOpts = append(clientOpts, WithDiskStorage)
+		clientOpts = append(clientOpts, WithDiskStorage())
 	}
 
 	for _, clientOpt := range clientOpts {
@@ -105,19 +106,23 @@ func WithWorkTreeFS(wt billy.Filesystem) ClientOption {
 	}
 }
 
-func WithDiskStorage(g *Client) error {
-	wt := fs.New(g.path)
-	dot := fs.New(filepath.Join(g.path, extgogit.GitDirName))
+func WithDiskStorage() ClientOption {
+	return func(c *Client) error {
+		wt := fs.New(c.path)
+		dot := fs.New(filepath.Join(c.path, extgogit.GitDirName))
 
-	g.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
-	g.worktreeFS = wt
-	return nil
+		c.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
+		c.worktreeFS = wt
+		return nil
+	}
 }
 
-func WithMemoryStorage(g *Client) error {
-	g.storer = memory.NewStorage()
-	g.worktreeFS = memfs.New()
-	return nil
+func WithMemoryStorage() ClientOption {
+	return func(c *Client) error {
+		c.storer = memory.NewStorage()
+		c.worktreeFS = memfs.New()
+		return nil
+	}
 }
 
 // WithForcePush enables the use of force push for all push operations
@@ -132,9 +137,11 @@ func WithForcePush() ClientOption {
 
 // WithInsecureCredentialsOverHTTP enables credentials being used over
 // HTTP. This is not recommended for production environments.
-func WithInsecureCredentialsOverHTTP(g *Client) error {
-	g.credentialsOverHTTP = true
-	return nil
+func WithInsecureCredentialsOverHTTP() ClientOption {
+	return func(c *Client) error {
+		c.credentialsOverHTTP = true
+		return nil
+	}
 }
 
 func (g *Client) Init(ctx context.Context, url, branch string) error {
@@ -178,7 +185,7 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
 	if err := g.validateUrl(url); err != nil {
 		return nil, err
 	}
@@ -238,12 +245,12 @@ func (g *Client) writeFile(path string, reader io.Reader) error {
 	return err
 }
 
-func (g *Client) Commit(info git.Commit, commitOpts ...git.CommitOption) (string, error) {
+func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) (string, error) {
 	if g.repository == nil {
 		return "", git.ErrNoGitRepository
 	}
 
-	options := &git.CommitOptions{}
+	options := &repository.CommitOptions{}
 	for _, o := range commitOpts {
 		o(options)
 	}

@@ -37,7 +37,7 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/libgit2/transport"
-	"github.com/fluxcd/pkg/gitutil"
+	"github.com/fluxcd/pkg/git/repository"
 )
 
 // ClientName is the string representation of Client.
@@ -62,7 +62,7 @@ type Client struct {
 	credentialsOverHTTP bool
 }
 
-var _ git.RepositoryClient = &Client{}
+var _ repository.Client = &Client{}
 
 type ClientOption func(*Client) error
 
@@ -78,7 +78,7 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 	}
 
 	if len(clientOpts) == 0 {
-		clientOpts = append(clientOpts, WithDiskStorage)
+		clientOpts = append(clientOpts, WithDiskStorage())
 	}
 
 	for _, clientOpt := range clientOpts {
@@ -94,21 +94,27 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 	return l, nil
 }
 
-func WithDiskStorage(l *Client) error {
-	l.repoFS = osfs.New(l.path)
-	return nil
+func WithDiskStorage() ClientOption {
+	return func(c *Client) error {
+		c.repoFS = osfs.New(c.path)
+		return nil
+	}
 }
 
-func WithMemoryStorage(l *Client) error {
-	l.repoFS = memfs.New()
-	return nil
+func WithMemoryStorage() ClientOption {
+	return func(c *Client) error {
+		c.repoFS = memfs.New()
+		return nil
+	}
 }
 
 // WithInsecureCredentialsOverHTTP enables credentials being used over
 // HTTP. This is not recommended for production environments.
-func WithInsecureCredentialsOverHTTP(l *Client) error {
-	l.credentialsOverHTTP = true
-	return nil
+func WithInsecureCredentialsOverHTTP() ClientOption {
+	return func(c *Client) error {
+		c.credentialsOverHTTP = true
+		return nil
+	}
 }
 
 func (l *Client) Init(ctx context.Context, url, branch string) error {
@@ -121,7 +127,7 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 	}
 	repo, err := git2go.InitRepository(l.path, false)
 	if err != nil {
-		return fmt.Errorf("unable to init repository for '%s': %w", url, gitutil.LibGit2Error(err))
+		return fmt.Errorf("unable to init repository for '%s': %w", url, libGit2Error(err))
 	}
 
 	l.registerTransportOptions(ctx, url)
@@ -160,7 +166,7 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 			}
 		} else {
 			repo.Free()
-			return fmt.Errorf("unable to create remote for '%s': %w", url, gitutil.LibGit2Error(err))
+			return fmt.Errorf("unable to create remote for '%s': %w", url, libGit2Error(err))
 		}
 	}
 
@@ -169,7 +175,7 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (l *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+func (l *Client) Clone(ctx context.Context, url string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
 	if err := l.validateUrl(url); err != nil {
 		return nil, err
 	}
@@ -232,12 +238,12 @@ func (l *Client) writeFile(path string, reader io.Reader) error {
 	return nil
 }
 
-func (l *Client) Commit(info git.Commit, commitOpts ...git.CommitOption) (string, error) {
+func (l *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) (string, error) {
 	if l.repository == nil {
 		return "", git.ErrNoGitRepository
 	}
 
-	options := &git.CommitOptions{}
+	options := &repository.CommitOptions{}
 	for _, o := range commitOpts {
 		o(options)
 	}

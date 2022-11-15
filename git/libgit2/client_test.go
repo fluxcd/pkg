@@ -32,6 +32,7 @@ import (
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/libgit2/internal/test"
 	"github.com/fluxcd/pkg/git/libgit2/transport"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
 )
 
@@ -170,7 +171,7 @@ func TestCommit(t *testing.T) {
 			},
 			Message: "testing",
 		},
-		git.WithFiles(map[string]io.Reader{
+		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader("testing libgit2 commit"),
 		}),
 	)

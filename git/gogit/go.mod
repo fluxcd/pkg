@@ -5,7 +5,6 @@ go 1.18
 replace (
 	github.com/fluxcd/pkg/git => ../../git
 	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
-	github.com/fluxcd/pkg/gitutil => ../../gitutil
 	github.com/fluxcd/pkg/ssh => ../../ssh
 	github.com/fluxcd/pkg/version => ../../version
 )
@@ -16,7 +15,6 @@ require (
 	github.com/fluxcd/go-git/v5 v5.0.0-20221104190732-329fd6659b10
 	github.com/fluxcd/pkg/git v0.6.1
 	github.com/fluxcd/pkg/gittestserver v0.8.0
-	github.com/fluxcd/pkg/gitutil v0.2.0
 	github.com/fluxcd/pkg/ssh v0.7.0
 	github.com/fluxcd/pkg/version v0.2.0
 	github.com/go-git/go-billy/v5 v5.3.1
