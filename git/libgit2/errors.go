@@ -21,9 +21,9 @@ import (
 	"strings"
 )
 
-// LibGit2Error translates an error from the libgit2 library, or
+// libGit2Error translates an error from the libgit2 library, or
 // returns `nil` if the argument is `nil`.
-func LibGit2Error(err error) error {
+func libGit2Error(err error) error {
 	if err == nil {
 		return err
 	}

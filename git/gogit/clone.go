@@ -34,10 +34,11 @@ import (
 	"github.com/fluxcd/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/version"
 )
 
-func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts git.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repository.CloneOptions) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
@@ -126,7 +127,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 	return buildCommitWithRef(cc, ref)
 }
 
-func (g *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneOptions) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
@@ -204,7 +205,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 	return buildCommitWithRef(cc, ref)
 }
 
-func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts git.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneOptions) (*git.Commit, error) {
 	authMethod, err := transportAuth(g.authOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
@@ -256,7 +257,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts git.C
 	return buildCommitWithRef(cc, cloneOpts.ReferenceName)
 }
 
-func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts git.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneOptions) (*git.Commit, error) {
 	verConstraint, err := semver.NewConstraint(semverTag)
 	if err != nil {
 		return nil, fmt.Errorf("semver parse error: %w", err)

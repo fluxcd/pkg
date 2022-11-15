@@ -45,8 +45,8 @@ var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
 func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
 	// clone repo
-	_, err := client.Clone(context.TODO(), repoURL.String(), git.CloneOptions{
-		CheckoutStrategy: git.CheckoutStrategy{
+	_, err := client.Clone(context.TODO(), repoURL.String(), repository.CloneOptions{
+		CheckoutStrategy: repository.CheckoutStrategy{
 			Branch: "main",
 		},
 	})
@@ -55,7 +55,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	// commit and push to origin
 	cc, err := client.Commit(
 		mockCommitInfo(),
-		git.WithFiles(map[string]io.Reader{
+		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader(randStringRunes(10)),
 		}),
 	)
@@ -75,7 +75,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	// commit to and push new branch
 	cc, err = client.Commit(
 		mockCommitInfo(),
-		git.WithFiles(map[string]io.Reader{
+		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader(randStringRunes(10)),
 		}),
 	)
@@ -94,7 +94,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 
 	_, err = client.Commit(
 		mockCommitInfo(),
-		git.WithFiles(map[string]io.Reader{
+		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader(randStringRunes(10)),
 		}),
 	)
@@ -113,7 +113,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 
 	cc, err := client.Commit(
 		mockCommitInfo(),
-		git.WithFiles(map[string]io.Reader{
+		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader(randStringRunes(10)),
 		}),
 	)
@@ -131,7 +131,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 
 	cc, err = client.Commit(
 		mockCommitInfo(),
-		git.WithFiles(map[string]io.Reader{
+		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader(randStringRunes(10)),
 		}),
 	)
@@ -149,7 +149,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 
 	_, err = client.Commit(
 		mockCommitInfo(),
-		git.WithFiles(map[string]io.Reader{
+		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader(randStringRunes(10)),
 		}),
 	)

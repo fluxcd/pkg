@@ -27,10 +27,11 @@ import (
 	git2go "github.com/libgit2/git2go/v34"
 
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/version"
 )
 
-func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.CloneOptions) (_ *git.Commit, err error) {
+func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts repository.CloneOptions) (_ *git.Commit, err error) {
 	defer recoverPanic(&err)
 
 	err = l.Init(ctx, url, branch)
@@ -42,7 +43,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 	// Open remote connection.
 	err = l.remote.ConnectFetch(&remoteCallBacks, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch-connect to remote '%s': %w", url, LibGit2Error(err))
+		return nil, fmt.Errorf("unable to fetch-connect to remote '%s': %w", url, libGit2Error(err))
 	}
 	defer l.remote.Disconnect()
 
@@ -51,7 +52,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 	if opts.LastObservedCommit != "" {
 		heads, err := l.remote.Ls(branch)
 		if err != nil {
-			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, LibGit2Error(err))
+			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, libGit2Error(err))
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
@@ -75,7 +76,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 		},
 		"")
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, LibGit2Error(err))
+		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, libGit2Error(err))
 	}
 
 	isEmpty, err := l.repository.IsEmpty()
@@ -88,13 +89,13 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 
 	branchRef, err := l.repository.References.Lookup(fmt.Sprintf("refs/remotes/origin/%s", branch))
 	if err != nil {
-		return nil, fmt.Errorf("unable to lookup branch '%s' for '%s': %w", branch, url, LibGit2Error(err))
+		return nil, fmt.Errorf("unable to lookup branch '%s' for '%s': %w", branch, url, libGit2Error(err))
 	}
 	defer branchRef.Free()
 
 	upstreamCommit, err := l.repository.LookupCommit(branchRef.Target())
 	if err != nil {
-		return nil, fmt.Errorf("unable to lookup commit '%s' for '%s': %w", branch, url, LibGit2Error(err))
+		return nil, fmt.Errorf("unable to lookup commit '%s' for '%s': %w", branch, url, libGit2Error(err))
 	}
 	defer upstreamCommit.Free()
 
@@ -148,7 +149,7 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts git.C
 	return buildCommit(cc, "refs/heads/"+branch), nil
 }
 
-func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOptions) (_ *git.Commit, err error) {
+func (l *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneOptions) (_ *git.Commit, err error) {
 	defer recoverPanic(&err)
 
 	remoteCallBacks := RemoteCallbacks()
@@ -159,7 +160,7 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 	// Open remote connection.
 	err = l.remote.ConnectFetch(&remoteCallBacks, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch-connect to remote '%s': %w", url, LibGit2Error(err))
+		return nil, fmt.Errorf("unable to fetch-connect to remote '%s': %w", url, libGit2Error(err))
 	}
 	defer l.remote.Disconnect()
 
@@ -168,7 +169,7 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 	if opts.LastObservedCommit != "" {
 		heads, err := l.remote.Ls(tag)
 		if err != nil {
-			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, LibGit2Error(err))
+			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, libGit2Error(err))
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
@@ -202,7 +203,7 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 		"")
 
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, LibGit2Error(err))
+		return nil, fmt.Errorf("unable to fetch remote '%s': %w", url, libGit2Error(err))
 	}
 
 	cc, err := checkoutDetachedDwim(l.repository, tag)
@@ -213,7 +214,7 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts git.CloneOp
 	return buildCommit(cc, "refs/tags/"+tag), nil
 }
 
-func (l *Client) cloneCommit(ctx context.Context, url, commit string, opts git.CloneOptions) (_ *git.Commit, err error) {
+func (l *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneOptions) (_ *git.Commit, err error) {
 	defer recoverPanic(&err)
 
 	l.registerTransportOptions(ctx, url)
@@ -225,7 +226,7 @@ func (l *Client) cloneCommit(ctx context.Context, url, commit string, opts git.C
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, LibGit2Error(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, libGit2Error(err))
 	}
 
 	l.repository = repo
@@ -246,7 +247,7 @@ func (l *Client) cloneCommit(ctx context.Context, url, commit string, opts git.C
 	return buildCommit(cc, ""), nil
 }
 
-func (l *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts git.CloneOptions) (_ *git.Commit, err error) {
+func (l *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneOptions) (_ *git.Commit, err error) {
 	defer recoverPanic(&err)
 
 	verConstraint, err := semver.NewConstraint(semverTag)
@@ -263,7 +264,7 @@ func (l *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts gi
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, LibGit2Error(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, libGit2Error(err))
 	}
 	l.repository = repo
 	remote, err := repo.Remotes.Lookup(git.DefaultRemote)

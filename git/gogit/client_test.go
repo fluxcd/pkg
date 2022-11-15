@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
 )
 
@@ -163,7 +164,7 @@ func TestCommit(t *testing.T) {
 			},
 			Message: "testing",
 		},
-		git.WithFiles(map[string]io.Reader{
+		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader("testing gogit commit"),
 		}),
 	)

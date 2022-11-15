@@ -76,6 +76,12 @@ for module in ${modules}; do
 
 	# Iterate through all Go Fuzz targets, compiling each into a fuzzer.
 	for file in ${test_files}; do
+		# If the subdir is a module, skip this file, as it will be handled
+		# at the next iteration of the outer loop. 
+		if [ -f "$(dirname "${file}")/go.mod" ]; then
+			continue
+		fi
+
 		remove_test_funcs "${file}"
 
 		targets=$(grep -oP 'func \K(Fuzz\w*)' "${file}")

@@ -127,7 +127,7 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 	}
 	repo, err := git2go.InitRepository(l.path, false)
 	if err != nil {
-		return fmt.Errorf("unable to init repository for '%s': %w", url, LibGit2Error(err))
+		return fmt.Errorf("unable to init repository for '%s': %w", url, libGit2Error(err))
 	}
 
 	l.registerTransportOptions(ctx, url)
@@ -166,7 +166,7 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 			}
 		} else {
 			repo.Free()
-			return fmt.Errorf("unable to create remote for '%s': %w", url, LibGit2Error(err))
+			return fmt.Errorf("unable to create remote for '%s': %w", url, libGit2Error(err))
 		}
 	}
 
@@ -175,7 +175,7 @@ func (l *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (l *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+func (l *Client) Clone(ctx context.Context, url string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
 	if err := l.validateUrl(url); err != nil {
 		return nil, err
 	}
@@ -238,12 +238,12 @@ func (l *Client) writeFile(path string, reader io.Reader) error {
 	return nil
 }
 
-func (l *Client) Commit(info git.Commit, commitOpts ...git.CommitOption) (string, error) {
+func (l *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) (string, error) {
 	if l.repository == nil {
 		return "", git.ErrNoGitRepository
 	}
 
-	options := &git.CommitOptions{}
+	options := &repository.CommitOptions{}
 	for _, o := range commitOpts {
 		o(options)
 	}

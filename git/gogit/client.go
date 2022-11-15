@@ -185,7 +185,7 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *Client) Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
 	if err := g.validateUrl(url); err != nil {
 		return nil, err
 	}
@@ -245,12 +245,12 @@ func (g *Client) writeFile(path string, reader io.Reader) error {
 	return err
 }
 
-func (g *Client) Commit(info git.Commit, commitOpts ...git.CommitOption) (string, error) {
+func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) (string, error) {
 	if g.repository == nil {
 		return "", git.ErrNoGitRepository
 	}
 
-	options := &git.CommitOptions{}
+	options := &repository.CommitOptions{}
 	for _, o := range commitOpts {
 		o(options)
 	}

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/fluxcd/gitkit"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
 	"github.com/fluxcd/pkg/ssh"
 
@@ -148,8 +149,8 @@ func Test_ssh_keyTypes(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			commit, err := lgc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			commit, err := lgc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 			})
@@ -281,8 +282,8 @@ func Test_ssh_keyExchangeAlgos(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			_, err = lgc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			_, err = lgc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 			})
@@ -454,8 +455,8 @@ func Test_ssh_hostKeyAlgos(t *testing.T) {
 			defer cancel()
 
 			// Checkout the repo.
-			_, err = lgc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			_, err = lgc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 			})

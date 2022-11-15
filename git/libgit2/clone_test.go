@@ -33,6 +33,7 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/libgit2/internal/test"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
 )
 
@@ -138,8 +139,8 @@ func TestClone_cloneBranch(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
-			cc, err := lgc.Clone(context.TODO(), repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			cc, err := lgc.Clone(context.TODO(), repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: tt.branch,
 				},
 				LastObservedCommit: tt.lastRevision,
@@ -263,8 +264,8 @@ func TestClone_cloneTag(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
-			cloneOpts := git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			cloneOpts := repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Tag: tt.checkoutTag,
 				},
 			}
@@ -340,8 +341,8 @@ func TestClone_cloneCommit(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer lgc.Close()
 
-	cc, err := lgc.Clone(context.TODO(), repoURL, git.CloneOptions{
-		CheckoutStrategy: git.CheckoutStrategy{
+	cc, err := lgc.Clone(context.TODO(), repoURL, repository.CloneOptions{
+		CheckoutStrategy: repository.CheckoutStrategy{
 			Commit: c.String(),
 		},
 	})
@@ -357,8 +358,8 @@ func TestClone_cloneCommit(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	cc, err = lgc.Clone(context.TODO(), repoURL, git.CloneOptions{
-		CheckoutStrategy: git.CheckoutStrategy{
+	cc, err = lgc.Clone(context.TODO(), repoURL, repository.CloneOptions{
+		CheckoutStrategy: repository.CheckoutStrategy{
 			Commit: "4dc3185c5fc94eb75048376edeb44571cece25f4",
 		},
 	})
@@ -487,8 +488,8 @@ func TestClone_cloneSemVer(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			defer lgc.Close()
 
-			cc, err := lgc.Clone(context.TODO(), repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			cc, err := lgc.Clone(context.TODO(), repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					SemVer: tt.constraint,
 				},
 			})
@@ -665,7 +666,7 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 				repoURL = tt.transformURL(ts.URL)
 			}
 
-			_, err = lgc.Clone(context.TODO(), repoURL, git.CloneOptions{})
+			_, err = lgc.Clone(context.TODO(), repoURL, repository.CloneOptions{})
 
 			if tt.expectCloneErr != "" {
 				g.Expect(err).To(HaveOccurred())

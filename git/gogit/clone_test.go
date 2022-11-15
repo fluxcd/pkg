@@ -41,6 +41,7 @@ import (
 	"github.com/fluxcd/gitkit"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit/fs"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
 	"github.com/fluxcd/pkg/ssh"
 )
@@ -132,8 +133,8 @@ func TestClone_cloneBranch(t *testing.T) {
 				upstreamPath = repoPath
 			}
 
-			cc, err := ggc.Clone(context.TODO(), upstreamPath, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			cc, err := ggc.Clone(context.TODO(), upstreamPath, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: tt.branch,
 				},
 				ShallowClone:       true,
@@ -245,8 +246,8 @@ func TestClone_cloneTag(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			opts := git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			opts := repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Tag: tt.checkoutTag,
 				},
 				ShallowClone: true,
@@ -338,8 +339,8 @@ func TestClone_cloneCommit(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			opts := git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			opts := repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: tt.branch,
 					Commit: tt.commit,
 				},
@@ -452,8 +453,8 @@ func TestClone_cloneSemVer(t *testing.T) {
 			ggc, err := NewClient(tmpDir, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			opts := git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			opts := repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					SemVer: tt.constraint,
 				},
 				ShallowClone: true,
@@ -559,8 +560,8 @@ func Test_ssh_KeyTypes(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			cc, err := ggc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			cc, err := ggc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 				ShallowClone: true,
@@ -690,8 +691,8 @@ func Test_ssh_KeyExchangeAlgos(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			_, err = ggc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 				ShallowClone: true,
@@ -862,8 +863,8 @@ func Test_ssh_HostKeyAlgos(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(ctx, repoURL, git.CloneOptions{
-				CheckoutStrategy: git.CheckoutStrategy{
+			_, err = ggc.Clone(ctx, repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
 				ShallowClone: true,
@@ -1056,7 +1057,7 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 				repoURL = tt.transformURL(ts.URL)
 			}
 
-			_, err = ggc.Clone(context.TODO(), repoURL, git.CloneOptions{})
+			_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneOptions{})
 
 			if tt.expectCloneErr != "" {
 				g.Expect(err).To(HaveOccurred())

@@ -34,7 +34,7 @@ remote:
 	expectedReformat := "remote: This deploy key does not have write access to this project."
 
 	err := errors.New(gitlabMessage)
-	err = LibGit2Error(err)
+	err = libGit2Error(err)
 	reformattedMessage := err.Error()
 	if reformattedMessage != expectedReformat {
 		t.Errorf("expected %q, got %q", expectedReformat, reformattedMessage)
@@ -56,7 +56,7 @@ remote:
 	expectedReformat := "remote: This deploy key does not have write access to this project. You will need to create a new deploy key."
 
 	err := errors.New(multilineMessage)
-	err = LibGit2Error(err)
+	err = libGit2Error(err)
 	reformattedMessage := err.Error()
 	if reformattedMessage != expectedReformat {
 		t.Errorf("expected %q, got %q", expectedReformat, reformattedMessage)
@@ -68,7 +68,7 @@ func TestLibgit2ErrorUnchanged(t *testing.T) {
 	regularMessage := `remote: ERROR: deploy key does not have permissions`
 	expectedReformat := regularMessage
 	err := errors.New(regularMessage)
-	err = LibGit2Error(err)
+	err = libGit2Error(err)
 	reformattedMessage := err.Error()
 	if reformattedMessage != expectedReformat {
 		t.Errorf("expected %q, got %q", expectedReformat, reformattedMessage)
@@ -86,6 +86,6 @@ func Fuzz_LibGit2Error(f *testing.F) {
 			err = errors.New(msg)
 		}
 
-		_ = LibGit2Error(err)
+		_ = libGit2Error(err)
 	})
 }

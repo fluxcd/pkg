@@ -28,7 +28,7 @@ type Reader interface {
 	// Clone clones a repository from the provided url using the options provided.
 	// It returns a Commit object describing the Git commit that the repository
 	// HEAD points to. If the repository is empty, it returns a nil Commit.
-	Clone(ctx context.Context, url string, cloneOpts git.CloneOptions) (*git.Commit, error)
+	Clone(ctx context.Context, url string, cloneOpts CloneOptions) (*git.Commit, error)
 	// IsClean returns whether the working tree is clean.
 	IsClean() (bool, error)
 	// Head returns the hash of the current HEAD of the repo.
@@ -51,7 +51,7 @@ type Writer interface {
 	SwitchBranch(ctx context.Context, branch string) error
 	// Commit commits any changes made to the repository. commitOpts is an
 	// optional argument which can be provided to configure the commit.
-	Commit(info git.Commit, commitOpts ...git.CommitOption) (string, error)
+	Commit(info git.Commit, commitOpts ...CommitOption) (string, error)
 	Closer
 }
 
