@@ -45,3 +45,49 @@ func TestSecurePath(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(securePath).To(Equal(filepath.Join(wd, "outside")))
 }
+
+func TestExtractHashFromRevision(t *testing.T) {
+	tests := []struct {
+		name string
+		rev  string
+		want Hash
+	}{
+		{
+			name: "revision with branch and digest",
+			rev:  "main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name: "revision with digest",
+			rev:  "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name: "revision with slash branch and digest",
+			rev:  "feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name: "legacy revision with branch and hash",
+			rev:  "main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name: "legacy revision with slash branch and hash",
+			rev:  "feature/branch/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name: "legacy revision with hash",
+			rev:  "5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			g.Expect(ExtractHashFromRevision(tt.rev)).To(Equal(tt.want))
+		})
+	}
+}

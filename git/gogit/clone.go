@@ -56,18 +56,8 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		}
 
 		if head != "" && head == opts.LastObservedCommit {
-			// Construct a non-concrete commit with the existing information.
-			// Split the revision and take the last part as the hash.
-			// Example revision: main@sha1:43d7eb9c49cdd49b2494efd481aea1166fc22b67
-			var hash git.Hash
-			ss := strings.Split(head, "@")
-			if len(ss) > 1 {
-				hash = git.Hash(strings.TrimPrefix(ss[len(ss)-1], "sha1:"))
-			} else {
-				hash = git.Hash(strings.TrimPrefix(ss[0], "sha1:"))
-			}
 			c := &git.Commit{
-				Hash:      hash,
+				Hash:      git.ExtractHashFromRevision(head),
 				Reference: plumbing.NewBranchReferenceName(branch).String(),
 			}
 			return c, nil
@@ -146,18 +136,8 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		}
 
 		if head != "" && head == opts.LastObservedCommit {
-			// Construct a non-concrete commit with the existing information.
-			// Split the revision and take the last part as the hash.
-			// Example revision: 6.1.4@sha1:bf09377bfd5d3bcac1e895fa8ce52dc76695c060
-			var hash git.Hash
-			ss := strings.Split(head, "@")
-			if len(ss) > 1 {
-				hash = git.Hash(strings.TrimPrefix(ss[len(ss)-1], "sha1:"))
-			} else {
-				hash = git.Hash(strings.TrimPrefix(ss[0], "sha1:"))
-			}
 			c := &git.Commit{
-				Hash:      hash,
+				Hash:      git.ExtractHashFromRevision(head),
 				Reference: ref.String(),
 			}
 			return c, nil
@@ -406,7 +386,7 @@ func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
 func filterRefs(refs []*plumbing.Reference, currentRef plumbing.ReferenceName) string {
 	for _, ref := range refs {
 		if ref.Name().String() == currentRef.String() {
-			return fmt.Sprintf("%s@sha1:%s", currentRef.Short(), ref.Hash().String())
+			return fmt.Sprintf("%s@%s:%s", currentRef.Short(), git.HashTypeSHA1, ref.Hash().String())
 		}
 	}
 	return ""

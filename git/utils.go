@@ -19,6 +19,7 @@ package git
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 )
@@ -43,4 +44,23 @@ func SecurePath(path string) (string, error) {
 	}
 
 	return joined, nil
+}
+
+// ExtractHashFromRevision extracts the hash from a revision string. It accepts
+// the following formats:
+//
+//   - main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - 5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+func ExtractHashFromRevision(rev string) Hash {
+	if i := strings.LastIndex(rev, ":"); i != -1 {
+		return Hash(rev[i+1:])
+	}
+	if ss := strings.Split(rev, "/"); len(ss) > 1 {
+		return Hash(ss[len(ss)-1])
+	}
+	return Hash(rev)
 }

@@ -119,6 +119,83 @@ Bg2WzDuLKvQBi9tFSwnUbQoFFlOeiGW8G/bdkoJDWeS1oYgSD3nkmvXvrVESCrbT
 `
 )
 
+func TestHash_Algorithm(t *testing.T) {
+	tests := []struct {
+		name string
+		hash Hash
+		want string
+	}{
+		{
+			name: "SHA-1",
+			hash: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+			want: HashTypeSHA1,
+		},
+		{
+			name: "SHA-256",
+			hash: Hash("6ee9a7ade2ca791bc1bf9d133ef6ddaa9097cf521e6a19be92dbcc3f2e82f6d8"),
+			want: HashTypeUnknown,
+		},
+		{
+			name: "MD5",
+			hash: Hash("dba535cd50b291777a055338572e4a4b"),
+			want: HashTypeUnknown,
+		},
+		{
+			name: "Empty",
+			hash: Hash(""),
+			want: HashTypeUnknown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			g.Expect(tt.hash.Algorithm()).To(Equal(tt.want))
+		})
+	}
+}
+
+func TestHash_Digest(t *testing.T) {
+	tests := []struct {
+		name string
+		hash Hash
+		want string
+	}{
+		{
+			name: "With a SHA-1 hash",
+			hash: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+			want: "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "With an unknown (MD5) hash",
+			hash: Hash("dba535cd50b291777a055338572e4a4b"),
+			want: "<unknown>:dba535cd50b291777a055338572e4a4b",
+		},
+		{
+			name: "With an unknown (SHA-256) hash",
+			hash: Hash("6ee9a7ade2ca791bc1bf9d133ef6ddaa9097cf521e6a19be92dbcc3f2e82f6d8"),
+			want: "<unknown>:6ee9a7ade2ca791bc1bf9d133ef6ddaa9097cf521e6a19be92dbcc3f2e82f6d8",
+		},
+		{
+			name: "With a nil hash",
+			hash: nil,
+			want: "",
+		},
+		{
+			name: "With an empty hash",
+			hash: Hash(""),
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			g.Expect(tt.hash.Digest()).To(Equal(tt.want))
+		})
+	}
+}
+
 func TestCommit_String(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -128,25 +205,25 @@ func TestCommit_String(t *testing.T) {
 		{
 			name: "Reference and commit",
 			commit: &Commit{
-				Hash:      []byte("commit"),
+				Hash:      []byte("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
 				Reference: "refs/heads/main",
 			},
-			want: "main@sha1:commit",
+			want: "main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
 		},
 		{
 			name: "Reference with slash and commit",
 			commit: &Commit{
-				Hash:      []byte("commit"),
+				Hash:      []byte("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
 				Reference: "refs/heads/feature/branch",
 			},
-			want: "feature/branch@sha1:commit",
+			want: "feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
 		},
 		{
 			name: "No name reference",
 			commit: &Commit{
-				Hash: []byte("commit"),
+				Hash: []byte("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
 			},
-			want: "sha1:commit",
+			want: "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
 		},
 	}
 	for _, tt := range tests {
