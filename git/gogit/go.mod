@@ -13,7 +13,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221104190732-329fd6659b10
-	github.com/fluxcd/pkg/git v0.6.1
+	github.com/fluxcd/pkg/git v0.7.0
 	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/ssh v0.7.0
 	github.com/fluxcd/pkg/version v0.2.0

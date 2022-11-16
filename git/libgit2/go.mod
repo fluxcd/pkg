@@ -32,7 +32,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/ProtonMail/go-crypto v0.0.0-20221026131551-cf6655e29de4
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/git v0.6.1
+	github.com/fluxcd/pkg/git v0.7.0
 	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/http/transport v0.1.0
 	github.com/fluxcd/pkg/ssh v0.7.0
