@@ -26,7 +26,7 @@ replace github.com/libgit2/git2go/v34 => github.com/fluxcd/git2go/v34 v34.0.0
 require (
 	github.com/fluxcd/go-git-providers v0.10.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221104190732-329fd6659b10
-	github.com/fluxcd/pkg/git v0.6.1
+	github.com/fluxcd/pkg/git v0.7.0
 	github.com/fluxcd/pkg/git/gogit v0.1.0
 	github.com/fluxcd/pkg/git/libgit2 v0.2.0
 	github.com/fluxcd/pkg/gittestserver v0.8.0
