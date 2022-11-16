@@ -54,12 +54,9 @@ jobs:
       - name: Run tests
         if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
         run: |
-          if [[ ${{ matrix.provider }} = "gitkit" ]]; then
-            export GO_TESTS="-run TestGitKitE2E"
-          elif [[ ${{ matrix.provider }} = "gitlab-ce" ]]; then
-            export GO_TESTS="-run TestGitLabCEE2E"
-          fi
+          run_e2e=true
 
+          # don't run e2e tests for PRs from forked repos for Github and Gitlab
           if [[ ${{ github.event_name }} != "pull_request" ]] || \
             [[ "${{ github.event.pull_request.head.repo.full_name }}" = ${{ github.repository }} ]]; then
             if [[ ${{ matrix.provider }} = "github" ]]; then
@@ -70,8 +67,19 @@ jobs:
               export GITLAB_PAT="${{ secrets.GITLAB_BOT_TOKEN }}"
             fi
           else
-              echo "Skipping GitHub and GitLab E2E tests"
-              exit 0
+              run_e2e=false
           fi
 
-          cd git/internal/e2e && GO_TESTS="${GO_TESTS}" ./run.sh
+          if [[ ${{ matrix.provider }} = "gitkit" ]]; then
+            export GO_TESTS="-run TestGitKitE2E"
+            run_e2e=true
+          elif [[ ${{ matrix.provider }} = "gitlab-ce" ]]; then
+            export GO_TESTS="-run TestGitLabCEE2E"
+            run_e2e=true
+          fi
+
+          if [ $run_e2e = true ]; then
+            cd git/internal/e2e && GO_TESTS="${GO_TESTS}" ./run.sh
+          else
+            echo "skipping tests for ${{ matrix.provider }}"
+          fi
