@@ -19,6 +19,15 @@ package kustomize
 // SubstituteReference contains a reference to a resource containing
 // the variables name and value.
 type SubstituteReference struct {
+	// Kind of the values referent, valid values are ('Secret', 'ConfigMap').
 	Kind string `json:"kind"`
+
+	// Name of the values referent. Should reside in the same namespace as the
+	// referring resource.
 	Name string `json:"name"`
+
+	// Optional indicates whether the referenced resource must exist, or whether to
+	// tolerate its absence. If true and the referenced resource is absent, proceed
+	// as if the resource was present but empty, without any variables defined.
+	Optional bool `json:"optional,omitempty"`
 }

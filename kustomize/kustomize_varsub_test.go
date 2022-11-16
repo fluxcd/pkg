@@ -47,10 +47,10 @@ func TestKustomizationVarsub(t *testing.T) {
 
 	// Get resource from directory
 	fs := filesys.MakeFsOnDisk()
-	resMap, err := kustomize.BuildKustomization(fs, "./testdata/resources/")
+	resMap, err := kustomize.Build(fs, "./testdata/resources/")
 	g.Expect(err).NotTo(HaveOccurred())
 	for _, res := range resMap.Resources() {
-		outRes, err := kustomize.SubstituteVariables(context.Background(), kubeClient, clientObjects[0], res)
+		outRes, err := kustomize.SubstituteVariables(context.Background(), kubeClient, clientObjects[0], res, false)
 
 		g.Expect(err).NotTo(HaveOccurred())
 
