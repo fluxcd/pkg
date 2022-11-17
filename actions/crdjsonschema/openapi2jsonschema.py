@@ -105,19 +105,9 @@ def append_no_duplicates(obj, key, value):
         obj[key].append(value)
 
 
-def insert_api_version_kind_and_objectmeta(schema, api_version, kind, object_meta):
-    schema["properties"]["apiVersion"]["enum"] = [api_version]
-    schema["properties"]["apiVersion"]["default"] = api_version
-    schema["properties"]["kind"]["enum"] = [kind]
-    schema["properties"]["kind"]["default"] = kind
-    schema["properties"]["metadata"] = object_meta
-    return schema
-
-
-def write_schema_file(schema, api_version, kind, object_meta, filename):
+def write_schema_file(schema, filename):
     schemaJSON = ""
 
-    schema = insert_api_version_kind_and_objectmeta(schema, api_version, kind, object_meta)
     schema = additional_properties(schema)
     schema = replace_int_or_string(schema)
     schemaJSON = json.dumps(schema, indent=2)
@@ -128,7 +118,6 @@ def write_schema_file(schema, api_version, kind, object_meta, filename):
     f.write(schemaJSON)
     f.close()
     print("{filename}".format(filename=filename))
-    return schema
 
 
 if len(sys.argv) == 0:
@@ -163,45 +152,24 @@ for crdFile in sys.argv[2:]:
             filename_format = os.getenv("FILENAME_FORMAT", "{kind}-{group}-{version}")
             filename = ""
             if "spec" in y and "validation" in y["spec"] and "openAPIV3Schema" in y["spec"]["validation"]:
-                kind = y["spec"]["names"]["kind"]
-                version = y["spec"]["version"]
                 filename = filename_format.format(
-                    kind=kind,
+                    kind=y["spec"]["names"]["kind"],
                     group=y["spec"]["group"].split(".")[0],
-                    version=version,
+                    version=y["spec"]["version"],
                 ).lower() + ".json"
 
-                api_version = y["spec"]["group"] + "/" + version
                 schema = y["spec"]["validation"]["openAPIV3Schema"]
-                schema = write_schema_file(schema, api_version, kind, object_meta, filename)
-                one_of.append(schema)
+                write_schema_file(schema, filename)
             elif "spec" in y and "versions" in y["spec"]:
                 for version in y["spec"]["versions"]:
                     if "schema" in version and "openAPIV3Schema" in version["schema"]:
-                        kind = y["spec"]["names"]["kind"]
                         filename = filename_format.format(
-                            kind=kind,
+                            kind=y["spec"]["names"]["kind"],
                             group=y["spec"]["group"].split(".")[0],
                             version=version["name"],
                         ).lower() + ".json"
 
-                        api_version = y["spec"]["group"] + "/" + version["name"]
                         schema = version["schema"]["openAPIV3Schema"]
-                        schema = write_schema_file(schema, api_version, kind, object_meta, filename)
-                        one_of.append(schema)
-
-
-all_schemas = {
-    "description": "Auto-generated CRD JSON schema for Flux",
-    "title": "Flux CRD JSON schemas",
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "oneOf": one_of,
-}
-
-all_schemas_json = json.dumps(all_schemas, indent=2)
-all_schemas_f = open(combined_schemas_filename, "w")
-all_schemas_f.write(all_schemas_json)
-all_schemas_f.close()
-print(combined_schemas_filename)
+                        write_schema_file(schema, filename)
 
 exit(0)
