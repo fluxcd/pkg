@@ -6,7 +6,6 @@ RUN curl -sL https://github.com/mogensen/kubernetes-split-yaml/releases/download
     tar xz && chmod +x /kubernetes-split-yaml && /kubernetes-split-yaml -h
 
 COPY openapi2jsonschema.py /openapi2jsonschema.py
-COPY objectmeta-meta-v1.json /objectmeta-meta-v1.json
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
