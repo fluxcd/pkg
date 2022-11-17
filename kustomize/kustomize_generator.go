@@ -45,6 +45,7 @@ const (
 	specField                 = "spec"
 	targetNSField             = "targetNamespace"
 	patchesField              = "patches"
+	componentsField           = "components"
 	patchesSMField            = "patchesStrategicMerge"
 	patchesJson6902Field      = "patchesJson6902"
 	imagesField               = "images"
@@ -154,6 +155,19 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 			Patch:  p.Patch,
 			Target: adaptSelector(&p.Target),
 		})
+	}
+
+	components, _, err := g.getNestedStringSlice(specField, componentsField)
+	if err != nil {
+		errf := CleanDirectory(dirPath, action)
+		return action, fmt.Errorf("unable to get components: %w", fmt.Errorf("%v %v", err, errf))
+	}
+
+	for _, component := range components {
+		if !IsLocalRelativePath(component) {
+			return "", fmt.Errorf("component path '%s' must be local and relative", component)
+		}
+		kus.Components = append(kus.Components, component)
 	}
 
 	patchesSM, err := g.getPatchesStrategicMerge()
@@ -356,6 +370,15 @@ func (g *Generator) getNestedString(fields ...string) (string, bool, error) {
 	val, ok, err := unstructured.NestedString(g.kustomization.Object, fields...)
 	if err != nil {
 		return "", ok, err
+	}
+
+	return val, ok, nil
+}
+
+func (g *Generator) getNestedStringSlice(fields ...string) ([]string, bool, error) {
+	val, ok, err := unstructured.NestedStringSlice(g.kustomization.Object, fields...)
+	if err != nil {
+		return []string{}, ok, err
 	}
 
 	return val, ok, nil
@@ -590,4 +613,22 @@ func copyFile(src, dst string) (err error) {
 	}
 
 	return
+}
+
+func IsLocalRelativePath(path string) bool {
+	// From: https://github.com/kubernetes-sigs/kustomize/blob/84bd402cc0662c5df3f109c4f80c22611243c5f9/api/internal/git/repospec.go#L231-L239
+	// with "file://" removed/
+	for _, p := range []string{
+		// Order matters here.
+		"git::", "gh:", "ssh://", "https://", "http://",
+		"git@", "github.com:", "github.com/"} {
+		if len(p) < len(path) && strings.ToLower(path[:len(p)]) == p {
+			return false
+		}
+	}
+
+	if filepath.IsAbs(path) || filepath.IsAbs(strings.TrimPrefix(strings.ToLower(path), "file://")) {
+		return false
+	}
+	return true
 }

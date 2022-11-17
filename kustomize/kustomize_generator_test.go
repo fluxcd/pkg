@@ -17,15 +17,19 @@ limitations under the License.
 package kustomize_test
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/fluxcd/pkg/kustomize"
 	. "github.com/onsi/gomega"
 	"github.com/otiai10/copy"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
+	"sigs.k8s.io/yaml"
 )
 
 const resourcePath = "./testdata/resources/"
@@ -116,4 +120,118 @@ func Test_SecureBuild_rel_basedir(t *testing.T) {
 
 	_, err := kustomize.SecureBuild("testdata/relbase", "testdata/relbase/clusters/staging/flux-system", false)
 	g.Expect(err).ToNot(HaveOccurred())
+}
+
+func Test_Components(t *testing.T) {
+	tests := []struct {
+		name               string
+		dir                string
+		fluxComponents     []string
+		expectedComponents []any
+	}{
+		{
+			name:               "test kustomization.yaml with components and Flux Kustomization without components",
+			dir:                "components",
+			fluxComponents:     []string{},
+			expectedComponents: []any{"componentA"},
+		},
+		{
+			name:               "test kustomization.yaml without components and Flux Kustomization with components",
+			dir:                "",
+			fluxComponents:     []string{"componentB", "componentC"},
+			expectedComponents: []any{"componentB", "componentC"},
+		},
+		{
+			name:               "test kustomization.yaml with components and Flux Kustomization with components",
+			dir:                "components",
+			fluxComponents:     []string{"componentB", "componentC"},
+			expectedComponents: []any{"componentA", "componentB", "componentC"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			tmpDir, err := testTempDir(t)
+			g.Expect(err).ToNot(HaveOccurred())
+			if tt.dir != "" {
+				g.Expect(copy.Copy(filepath.Join("./testdata", tt.dir), tmpDir)).To(Succeed())
+			}
+			ks := unstructured.Unstructured{Object: map[string]any{}}
+			err = unstructured.SetNestedStringSlice(ks.Object, tt.fluxComponents, "spec", "components")
+			g.Expect(err).ToNot(HaveOccurred())
+
+			_, err = kustomize.NewGenerator(tmpDir, ks).WriteFile(tmpDir)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			kfileYAML, err := os.ReadFile(filepath.Join(tmpDir, "kustomization.yaml"))
+			g.Expect(err).ToNot(HaveOccurred())
+			var k any
+			g.Expect(yaml.Unmarshal(kfileYAML, &k)).To(Succeed())
+
+			g.Expect(k.(map[string]any)["components"]).Should(Equal(tt.expectedComponents))
+		})
+	}
+}
+
+func Test_IsLocalRelativePath(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		{
+			path:     "foobar.yaml",
+			expected: true,
+		},
+		{
+			path:     "./foobar.yaml",
+			expected: true,
+		},
+		{
+			path:     "file://foobar.yaml",
+			expected: true,
+		},
+		{
+			path:     "file:///foobar.yaml",
+			expected: false,
+		},
+		{
+			path:     "/foobar.yaml",
+			expected: false,
+		},
+		{
+			path:     "https://github.com/owner/repo",
+			expected: false,
+		},
+		{
+			path:     "git@github.com:owner/repo",
+			expected: false,
+		},
+		{
+			path:     "ssh://git@github.com/owner/repo",
+			expected: false,
+		},
+		{
+			path:     "github.com/owner/repo",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(kustomize.IsLocalRelativePath(tt.path)).Should(Equal(tt.expected))
+		})
+	}
+}
+
+func testTempDir(t *testing.T) (string, error) {
+	tmpDir := t.TempDir()
+
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	if err != nil {
+		return "", fmt.Errorf("error evaluating symlink: '%w'", err)
+	}
+
+	return tmpDir, err
 }
