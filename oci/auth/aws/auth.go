@@ -24,9 +24,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -64,7 +63,7 @@ func NewClient() *Client {
 // otherwise (visit
 // https://docs.aws.amazon.com/sdk-for-go/api/aws/session/ as a
 // starting point).
-func (c *Client) getLoginAuth(accountId, awsEcrRegion string) (authn.AuthConfig, error) {
+func (c *Client) getLoginAuth(ctx context.Context, accountId, awsEcrRegion string) (authn.AuthConfig, error) {
 	// No caching of tokens is attempted; the quota for getting an
 	// auth token is high enough that getting a token every time you
 	// scan an image is viable for O(500) images per region. See
@@ -72,12 +71,15 @@ func (c *Client) getLoginAuth(accountId, awsEcrRegion string) (authn.AuthConfig,
 	var authConfig authn.AuthConfig
 	accountIDs := []string{accountId}
 
-	// Configure session.
-	cfg := c.Config.WithRegion(awsEcrRegion)
-	ecrService := ecr.New(session.Must(session.NewSession(cfg)))
-	ecrToken, err := ecrService.GetAuthorizationToken(&ecr.GetAuthorizationTokenInput{
-		RegistryIds: aws.StringSlice(accountIDs),
-	})
+	cfg := c.Config.Copy()
+	cfg.Region = awsEcrRegion
+
+	ecrService := ecr.NewFromConfig(cfg)
+	ecrToken, err := ecrService.GetAuthorizationToken(ctx,
+		&ecr.GetAuthorizationTokenInput{
+			RegistryIds: accountIDs,
+		})
+
 	if err != nil {
 		return authConfig, err
 	}
@@ -117,7 +119,7 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn
 			return nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
 		}
 
-		authConfig, err := c.getLoginAuth(accountId, awsEcrRegion)
+		authConfig, err := c.getLoginAuth(ctx, accountId, awsEcrRegion)
 		if err != nil {
 			return nil, err
 		}

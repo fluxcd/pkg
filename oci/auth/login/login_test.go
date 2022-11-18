@@ -22,7 +22,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/go-containerregistry/pkg/name"
 	. "github.com/onsi/gomega"
 
@@ -71,8 +72,12 @@ func TestLogin(t *testing.T) {
 			beforeFunc: func(serverURL string, mgr *Manager, image *string) {
 				// Create ECR client and configure the manager.
 				ecrClient := aws.NewClient()
-				ecrClient.Config = ecrClient.WithEndpoint(serverURL).
-					WithCredentials(credentials.NewStaticCredentials("x", "y", "z"))
+				ecrClient.EndpointResolverWithOptions = awssdk.EndpointResolverWithOptionsFunc(
+					func(service, region string, options ...interface{}) (awssdk.Endpoint, error) {
+						return awssdk.Endpoint{URL: serverURL}, nil
+					})
+				ecrClient.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
+
 				mgr.WithECRClient(ecrClient)
 
 				*image = "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1"

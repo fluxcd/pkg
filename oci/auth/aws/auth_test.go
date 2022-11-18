@@ -22,7 +22,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
 )
@@ -150,10 +151,12 @@ func TestGetLoginAuth(t *testing.T) {
 
 			// Configure the client.
 			ec := NewClient()
-			ec.Config = ec.WithEndpoint(srv.URL).
-				WithCredentials(credentials.NewStaticCredentials("x", "y", "z"))
+			ec.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+				return aws.Endpoint{URL: srv.URL}, nil
+			})
+			ec.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
 
-			a, err := ec.getLoginAuth("some-account-id", "us-east-1")
+			a, err := ec.getLoginAuth(context.TODO(), "some-account-id", "us-east-1")
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
 				g.Expect(a).To(Equal(tt.wantAuthConfig))
@@ -213,8 +216,10 @@ func TestLogin(t *testing.T) {
 			})
 
 			ecrClient := NewClient()
-			ecrClient.Config = ecrClient.WithEndpoint(srv.URL).
-				WithCredentials(credentials.NewStaticCredentials("x", "y", "z"))
+			ecrClient.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+				return aws.Endpoint{URL: srv.URL}, nil
+			})
+			ecrClient.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
 
 			_, err := ecrClient.Login(context.TODO(), tt.autoLogin, tt.image)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
