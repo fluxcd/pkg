@@ -124,20 +124,7 @@ if len(sys.argv) == 0:
     print("missing file")
     exit(1)
 
-
-# This is the object meta v1 schema file taken from Instrumenta
-# https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/master-standalone/objectmeta-meta-v1.json
-object_meta_f = open("/objectmeta-meta-v1.json")
-object_meta = json.loads(object_meta_f.read())
-object_meta_f.close()
-
-one_of = list()
-
-# first arg is the combined schemas filename
-combined_schemas_filename = sys.argv[1]
-
-# second arg and the rest are CRD files to process
-for crdFile in sys.argv[2:]:
+for crdFile in sys.argv[1:]:
     if crdFile.startswith("http"):
       f = urllib.request.urlopen(crdFile)
     else:
