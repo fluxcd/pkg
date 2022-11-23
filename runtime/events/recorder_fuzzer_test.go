@@ -1,5 +1,5 @@
-//go:build gofuzz
-// +build gofuzz
+//go:build gofuzz_libfuzzer
+// +build gofuzz_libfuzzer
 
 /*
 Copyright 2021 The Flux authors
@@ -54,6 +54,7 @@ const defaultBinVersion = "1.24"
 //
 // TODO: refactor and remove build tag.
 func Fuzz_Eventf(f *testing.F) {
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		doOnce.Do(func() {
 			if err := ensureDependencies(); err != nil {

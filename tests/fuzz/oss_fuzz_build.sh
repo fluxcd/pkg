@@ -44,20 +44,6 @@ install_deps(){
 	fi
 }
 
-# Removes the content of test funcs which could cause the Fuzz
-# tests to break. This is not supported natively upstream.
-remove_test_funcs(){
-	filename=$1
-
-	echo "removing co-located *testing.T"
-	sed -i -e '/func Test.*testing.T) {$/ {:r;/\n}/!{N;br}; s/\n.*\n/\n/}' "${filename}"
-	# Remove gomega reference as it is not used by Fuzz tests.
-	sed -i 's;. "github.com/onsi/gomega";;g' "${filename}"
-
-	# After removing the body of the go testing funcs, consolidate the imports.
-	goimports -w "${filename}"
-}
-
 install_deps
 
 cd "${GO_SRC}/${PROJECT_PATH}"
@@ -68,7 +54,7 @@ for module in ${modules}; do
 	cd "${GO_SRC}/${PROJECT_PATH}/${module}"
 
 	# TODO: stop ignoring recorder_fuzzer_test.go. Temporary fix for fuzzing building issues.
-	test_files=$(grep -r --include='**_test.go' --files-with-matches 'func Fuzz' . | grep -v recorder_fuzzer_test.go || echo "")
+	test_files=$(grep -r --include='**_test.go' --files-with-matches 'func Fuzz' . || echo "")
 	if [ -z "${test_files}" ]; then
 		continue
 	fi
@@ -82,8 +68,6 @@ for module in ${modules}; do
 		if [ -f "$(dirname "${file}")/go.mod" ]; then
 			continue
 		fi
-
-		remove_test_funcs "${file}"
 
 		targets=$(grep -oP 'func \K(Fuzz\w*)' "${file}")
 		for target_name in ${targets}; do
