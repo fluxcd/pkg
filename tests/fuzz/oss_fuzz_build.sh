@@ -17,6 +17,10 @@
 
 set -euxo pipefail
 
+# This file aims for:
+# - Dynamically discover and build all fuzz tests within the repository.
+# - Work for both local make fuzz-smoketest and the upstream oss-fuzz.
+
 GOPATH="${GOPATH:-/root/go}"
 GO_SRC="${GOPATH}/src"
 PROJECT_PATH="github.com/fluxcd/pkg"
@@ -27,16 +31,12 @@ cleanup(){
 }
 trap cleanup EXIT
 
+# install_deps installs all dependencies needed for upstream oss-fuzz.
+# Unfortunately we can't pin versions here, as we want to always
+# have the latest, so that we can reproduce errors occuring upstream.
 install_deps(){
 	if ! command -v go-118-fuzz-build &> /dev/null || ! command -v addimport &> /dev/null; then
-		mkdir -p "${TMP_DIR}/go-118-fuzz-build"
-
-		git clone https://github.com/AdamKorcz/go-118-fuzz-build "${TMP_DIR}/go-118-fuzz-build"
-		cd "${TMP_DIR}/go-118-fuzz-build"
-		go build -o "${GOPATH}/bin/go-118-fuzz-build"
-
-		cd addimport
-		go build -o "${GOPATH}/bin/addimport"
+		go install github.com/AdamKorcz/go-118-fuzz-build@latest
 	fi
 
 	if ! command -v goimports &> /dev/null; then
@@ -45,7 +45,7 @@ install_deps(){
 }
 
 # Removes the content of test funcs which could cause the Fuzz
-# tests to break.
+# tests to break. This is not supported natively upstream.
 remove_test_funcs(){
 	filename=$1
 
@@ -67,12 +67,13 @@ for module in ${modules}; do
 
 	cd "${GO_SRC}/${PROJECT_PATH}/${module}"
 
-	test_files=$(grep -r --include='**_test.go' --files-with-matches 'func Fuzz' . || echo "")
+	# TODO: stop ignoring recorder_fuzzer_test.go. Temporary fix for fuzzing building issues.
+	test_files=$(grep -r --include='**_test.go' --files-with-matches 'func Fuzz' . | grep -v recorder_fuzzer_test.go || echo "")
 	if [ -z "${test_files}" ]; then
 		continue
 	fi
 
-	go get github.com/AdamKorcz/go-118-fuzz-build/utils
+	go get github.com/AdamKorcz/go-118-fuzz-build/testing
 
 	# Iterate through all Go Fuzz targets, compiling each into a fuzzer.
 	for file in ${test_files}; do
