@@ -38,7 +38,7 @@ const (
 // OS is a fs implementation based on the OS filesystem which has some
 // changes in behaviour when compared to the upstream go-git/go-billy/v5/osfs:
 //
-// - Chroot is not supported and paths are not changed from the underlying OS fs.
+// - Chroot doesn't return a chrooted filesystem but returns a new OS filesystem.
 // - Relative paths are forced to descend from the working dir.
 // - Symlinks don't have its targets modified, and therefore can point to locations
 // outside the working dir or to non-existent paths.
@@ -213,8 +213,9 @@ func (fs *OS) Readlink(link string) (string, error) {
 	return os.Readlink(link)
 }
 
+// Chroot returns a new OS filesystem, with working directory set to path.
 func (fs *OS) Chroot(path string) (billy.Filesystem, error) {
-	return nil, billy.ErrNotSupported
+	return New(path), nil
 }
 
 // Root returns the current working dir of the billy.Filesystem.
