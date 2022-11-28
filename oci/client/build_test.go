@@ -18,6 +18,8 @@ package client
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,11 +30,20 @@ import (
 )
 
 func TestBuild(t *testing.T) {
+	g := NewWithT(t)
 	c := NewLocalClient()
+
+	absPath := fmt.Sprintf("%s/deployment.yaml", t.TempDir())
+	err := copyFile(absPath, "testdata/artifact/deployment.yaml")
+	g.Expect(err).To(BeNil())
+
+	absDir, err := filepath.Abs("testdata/artifact")
+	g.Expect(err).To(BeNil())
 
 	tests := []struct {
 		name       string
 		path       string
+		testDir    string
 		ignorePath []string
 		expectErr  bool
 		checkPaths []string
@@ -49,6 +60,12 @@ func TestBuild(t *testing.T) {
 			checkPaths: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
 		},
 		{
+			name:       "absolute directory path",
+			path:       absDir,
+			ignorePath: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
+			checkPaths: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
+		},
+		{
 			name:       "existing path with leading slash",
 			path:       "./testdata/artifact",
 			ignorePath: []string{"ignore.txt", "ignore-dir/", "!/deploy", "somedir/git"},
@@ -59,6 +76,18 @@ func TestBuild(t *testing.T) {
 			path:       ".",
 			ignorePath: []string{"/*", "!/internal"},
 			checkPaths: []string{"/testdata", "!internal/", "build.go", "meta.go"},
+		},
+		{
+			name:       "relative file path",
+			path:       "testdata/artifact/deployment.yaml",
+			testDir:    "./",
+			checkPaths: []string{"!deployment.yaml"},
+		},
+		{
+			name:       "absolute file path",
+			path:       absPath,
+			testDir:    "./",
+			checkPaths: []string{"!deployment.yaml"},
 		},
 	}
 
@@ -86,48 +115,15 @@ func TestBuild(t *testing.T) {
 			err = tar.Untar(bytes.NewReader(b), untarDir, tar.WithMaxUntarSize(-1))
 			g.Expect(err).To(BeNil())
 
-			checkPathExists(t, untarDir, tt.path, tt.checkPaths)
+			checkPath(g, untarDir, tt.checkPaths)
 		})
 	}
 }
 
-// test only one file exists
-func TestBuildOneFile(t *testing.T) {
-	c := NewLocalClient()
-	g := NewWithT(t)
-
-	tmpDir := t.TempDir()
-	artifactPath := filepath.Join(tmpDir, "files.tar.gz")
-
-	sourceDir := "testdata/artifact"
-	sourceFile := filepath.Join(sourceDir, "/deployment.yaml")
-
-	err := c.Build(artifactPath, sourceFile, []string{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = os.Stat(artifactPath)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	b, err := os.ReadFile(artifactPath)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	untarDir := t.TempDir()
-	err = tar.Untar(bytes.NewReader(b), untarDir, tar.WithMaxUntarSize(-1))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	_, err = os.Stat(filepath.Join(untarDir, sourceFile))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	files, err := os.ReadDir(filepath.Join(untarDir, sourceDir))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Expect(len(files)).To(Equal(1))
-}
-
-func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
-	g := NewWithT(t)
+// checkPath takes a directory and an array of files as its argument. For each item in the array, if a file name in the list
+// is prefixed with an exclamation mark (!), it checks that the filepath exists else it checks that is doesn't exist.
+func checkPath(g *WithT, dir string, paths []string) {
+	g.THelper()
 
 	for _, path := range paths {
 		var shouldExist bool
@@ -136,7 +132,7 @@ func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
 			path = path[1:]
 		}
 
-		fullPath := filepath.Join(dir, testDir, path)
+		fullPath := filepath.Join(dir, path)
 		_, err := os.Stat(fullPath)
 		if shouldExist {
 			g.Expect(err).To(BeNil())
@@ -145,4 +141,20 @@ func checkPathExists(t *testing.T, dir, testDir string, paths []string) {
 		g.Expect(err).ToNot(BeNil())
 		g.Expect(os.IsNotExist(err)).To(BeTrue())
 	}
+}
+
+func copyFile(dst, src string) error {
+	f, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("unable to create file: %w", err)
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	_, err = io.Copy(f, source)
+	return err
 }
