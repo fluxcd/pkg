@@ -253,14 +253,13 @@ func TestTempFile(t *testing.T) {
 	g.Expect(f).To(BeNil())
 }
 
-func TestUnsupportedChroot(t *testing.T) {
+func TestChroot(t *testing.T) {
 	g := NewWithT(t)
 	fs := New(t.TempDir())
 
-	f, err := fs.Chroot("")
-	g.Expect(err).To(HaveOccurred())
-	g.Expect(err).To(Equal(billy.ErrNotSupported))
-	g.Expect(f).To(BeNil())
+	f, err := fs.Chroot("test")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(f).ToNot(BeNil())
 }
 
 func TestRoot(t *testing.T) {
