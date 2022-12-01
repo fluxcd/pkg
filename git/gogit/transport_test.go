@@ -18,11 +18,15 @@ package gogit
 
 import (
 	"errors"
+	"net"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/fluxcd/go-git/v5/plumbing/transport"
 	"github.com/fluxcd/go-git/v5/plumbing/transport/http"
 	. "github.com/onsi/gomega"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/fluxcd/pkg/git"
 )
@@ -68,11 +72,12 @@ MbcpIxCfl8oB09bWfY6tDQjyvwSYYo2Phdwm7kT92xc=
 
 func Test_transportAuth(t *testing.T) {
 	tests := []struct {
-		name     string
-		opts     *git.AuthOptions
-		wantFunc func(g *WithT, t transport.AuthMethod, opts *git.AuthOptions)
-		kexAlgos []string
-		wantErr  error
+		name                        string
+		opts                        *git.AuthOptions
+		wantFunc                    func(g *WithT, t transport.AuthMethod, opts *git.AuthOptions)
+		kexAlgos                    []string
+		fallbackToDefaultKnownHosts bool
+		wantErr                     error
 	}{
 		{
 			name: "Public HTTP Repositories",
@@ -241,7 +246,7 @@ func Test_transportAuth(t *testing.T) {
 				git.KexAlgos = tt.kexAlgos
 			}
 
-			got, err := transportAuth(tt.opts)
+			got, err := transportAuth(tt.opts, tt.fallbackToDefaultKnownHosts)
 			if tt.wantErr != nil {
 				g.Expect(err).To(Equal(tt.wantErr))
 				g.Expect(got).To(BeNil())
@@ -253,6 +258,46 @@ func Test_transportAuth(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_defaultKnownHosts(t *testing.T) {
+	g := NewWithT(t)
+	tmp, err := os.MkdirTemp("", "ssh_agent")
+	g.Expect(err).ToNot(HaveOccurred())
+	tmpSock := filepath.Join(tmp, "ssh_agent.sock")
+
+	listener, err := net.Listen("unix", tmpSock)
+	g.Expect(err).ToNot(HaveOccurred())
+	defer listener.Close()
+
+	c1, err := net.Dial("unix", listener.Addr().String())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	c2, err := listener.Accept()
+	if err != nil {
+		c1.Close()
+	}
+	g.Expect(err).ToNot(HaveOccurred())
+
+	defer c1.Close()
+	defer c2.Close()
+
+	go agent.ServeAgent(agent.NewKeyring(), c2)
+
+	os.Setenv("SSH_AUTH_SOCK", listener.Addr().String())
+	defer os.Unsetenv("SSH_AUTH_SOCK")
+
+	auth, err := transportAuth(&git.AuthOptions{
+		Transport: git.SSH,
+		Username:  "git",
+	}, true)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	defaultAuth, ok := auth.(*DefaultAuth)
+	g.Expect(ok).To(BeTrue())
+	cc, err := defaultAuth.ClientConfig()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cc.HostKeyCallback).ToNot(BeNil())
 }
 
 func Test_caBundle(t *testing.T) {

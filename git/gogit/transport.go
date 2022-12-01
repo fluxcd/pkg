@@ -30,7 +30,7 @@ import (
 
 // transportAuth constructs the transport.AuthMethod for the git.Transport of
 // the given git.AuthOptions. It returns the result, or an error.
-func transportAuth(opts *git.AuthOptions) (transport.AuthMethod, error) {
+func transportAuth(opts *git.AuthOptions, fallbackToDefaultKnownHosts bool) (transport.AuthMethod, error) {
 	if opts == nil {
 		return nil, nil
 	}
@@ -46,6 +46,21 @@ func transportAuth(opts *git.AuthOptions) (transport.AuthMethod, error) {
 		}
 		return nil, nil
 	case git.SSH:
+		// if the custom auth options don't provide a private key and known_hosts, we try
+		// to use the default known_hosts of the machine.
+		if len(opts.Identity)+len(opts.KnownHosts) == 0 && fallbackToDefaultKnownHosts {
+			authMethod, err := ssh.DefaultAuthBuilder(opts.Username)
+			if err != nil {
+				return nil, err
+			}
+			pkCallback, ok := authMethod.(*ssh.PublicKeysCallback)
+			if ok {
+				return &DefaultAuth{
+					pkCallack: pkCallback,
+				}, nil
+			}
+			return nil, nil
+		}
 		pk, err := ssh.NewPublicKeys(opts.Username, opts.Identity, opts.Password)
 		if err != nil {
 			return nil, err
@@ -110,5 +125,29 @@ func (a *CustomPublicKeys) ClientConfig() (*gossh.ClientConfig, error) {
 		config.HostKeyAlgorithms = git.HostKeyAlgos
 	}
 
+	return config, nil
+}
+
+type DefaultAuth struct {
+	pkCallack *ssh.PublicKeysCallback
+}
+
+func (a *DefaultAuth) Name() string {
+	return a.pkCallack.Name()
+}
+
+func (a *DefaultAuth) String() string {
+	return a.pkCallack.String()
+}
+
+func (a *DefaultAuth) ClientConfig() (*gossh.ClientConfig, error) {
+	config, err := a.pkCallack.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	config.HostKeyCallback, err = ssh.NewKnownHostsCallback()
+	if err != nil {
+		return nil, err
+	}
 	return config, nil
 }

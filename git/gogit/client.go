@@ -47,13 +47,14 @@ const ClientName = "go-git"
 // Client implements repository.Client.
 type Client struct {
 	*repository.DiscardCloser
-	path                string
-	repository          *extgogit.Repository
-	authOpts            *git.AuthOptions
-	storer              storage.Storer
-	worktreeFS          billy.Filesystem
-	forcePush           bool
-	credentialsOverHTTP bool
+	path                 string
+	repository           *extgogit.Repository
+	authOpts             *git.AuthOptions
+	storer               storage.Storer
+	worktreeFS           billy.Filesystem
+	forcePush            bool
+	credentialsOverHTTP  bool
+	useDefaultKnownHosts bool
 }
 
 var _ repository.Client = &Client{}
@@ -140,6 +141,15 @@ func WithForcePush() ClientOption {
 func WithInsecureCredentialsOverHTTP() ClientOption {
 	return func(c *Client) error {
 		c.credentialsOverHTTP = true
+		return nil
+	}
+}
+
+// WithFallbackToDefaultKnownHosts enables falling back to the default known_hosts
+// of the machine if the provided auth options don't provide it.
+func WithFallbackToDefaultKnownHosts() ClientOption {
+	return func(c *Client) error {
+		c.useDefaultKnownHosts = true
 		return nil
 	}
 }
@@ -309,7 +319,7 @@ func (g *Client) Push(ctx context.Context) error {
 		return git.ErrNoGitRepository
 	}
 
-	authMethod, err := transportAuth(g.authOpts)
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return fmt.Errorf("failed to construct auth method with options: %w", err)
 	}
@@ -332,7 +342,7 @@ func (g *Client) SwitchBranch(ctx context.Context, branchName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load worktree: %w", err)
 	}
-	authMethod, err := transportAuth(g.authOpts)
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return fmt.Errorf("failed to construct auth method with options: %w", err)
 	}
