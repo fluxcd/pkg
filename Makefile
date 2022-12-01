@@ -35,9 +35,13 @@ vet-%:
 	fi
 
 generate-%: controller-gen
-	# Run schemapatch to validate all the kubebuilder markers before generation
-	cd $(subst :,/,$*); CGO_ENABLED=0 $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..."
-	cd $(subst :,/,$*); CGO_ENABLED=0 $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..."
+# Run schemapatch to validate all the kubebuilder markers before generation
+	@if [ "$(PKG)" = "git:libgit2" ]; then \
+		cd $(subst :,/,$*); make generate ;\
+	else \
+		cd $(subst :,/,$*); CGO_ENABLED=1 $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..." ;\
+		CGO_ENABLED=1 $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..." ;\
+	fi
 
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
