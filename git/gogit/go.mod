@@ -11,6 +11,7 @@ replace (
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
+	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221125155829-0868f68485f2
