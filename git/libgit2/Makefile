@@ -22,7 +22,7 @@ export CGO_ENABLED=1
 export CGO_LDFLAGS=$(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --libs --static --cflags libgit2 2>/dev/null)
 
 tidy:
-	go mod tidy -compat=1.17
+	go mod tidy -compat=1.19
 
 fmt:
 	go fmt ./...
@@ -33,6 +33,10 @@ vet: $(LIBGIT2)
 test: $(LIBGIT2)
 	go test -tags 'netgo,osusergo,static_build$(addprefix ,,$(GO_TAGS))' $(GO_TEST_ARGS) ./... -coverprofile cover.out
 
+generate: controller-gen
+	CGO_ENABLED=0 $(CONTROLLER_GEN) object:headerFile="$(PROJECT_DIR)/hack/boilerplate.go.txt" paths="./..."
+	CGO_ENABLED=0 $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..." ;\
+
 libgit2: $(LIBGIT2)  ## Detect or download libgit2 library
 
 COSIGN = $(GOBIN)/cosign
@@ -40,6 +44,11 @@ $(LIBGIT2):
 	$(call go-install-tool,$(COSIGN),github.com/sigstore/cosign/cmd/cosign@latest)
 
 	IMG=$(LIBGIT2_IMG) TAG=$(LIBGIT2_TAG) PATH=$(PATH):$(GOBIN) ./hack/install-libraries.sh
+
+CONTROLLER_GEN = $(GOBIN)/controller-gen
+.PHONY: controller-gen
+controller-gen: ## Download controller-gen locally if necessary.
+	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0)
 
 define go-install-tool
 @[ -f $(1) ] || { \
