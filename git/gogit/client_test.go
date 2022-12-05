@@ -194,7 +194,7 @@ func TestPush(t *testing.T) {
 		Transport: git.HTTP,
 		Username:  "test-user",
 		Password:  "test-pass",
-	})
+	}, false)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
@@ -245,7 +245,7 @@ func TestForcePush(t *testing.T) {
 		Transport: git.HTTP,
 		Username:  "test-user",
 		Password:  "test-pass",
-	})
+	}, false)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	tmp1 := t.TempDir()

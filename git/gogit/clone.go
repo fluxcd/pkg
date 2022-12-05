@@ -42,7 +42,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
-	authMethod, err := transportAuth(g.authOpts)
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
 	}
@@ -132,7 +132,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
 
-	authMethod, err := transportAuth(g.authOpts)
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
 	}
@@ -206,7 +206,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 }
 
 func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneOptions) (*git.Commit, error) {
-	authMethod, err := transportAuth(g.authOpts)
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
 	}
@@ -263,7 +263,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 		return nil, fmt.Errorf("semver parse error: %w", err)
 	}
 
-	authMethod, err := transportAuth(g.authOpts)
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
 	}
