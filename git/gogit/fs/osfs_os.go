@@ -281,7 +281,7 @@ func (fs *OS) insideWorkingDirEval(filename string) (bool, error) {
 	if wd == "" || os.IsNotExist(err) {
 		wd = fs.workingDir
 	}
-	if dir != wd && !strings.HasPrefix(dir, wd+string(filepath.Separator)) {
+	if filename != wd && dir != wd && !strings.HasPrefix(dir, wd+string(filepath.Separator)) {
 		return false, fmt.Errorf("path outside working dir")
 	}
 	return true, nil
