@@ -29,9 +29,9 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/fluxcd/pkg/git/gogit/fs"
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
-	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-billy/v5/util"
 	git2go "github.com/libgit2/git2go/v34"
 
@@ -97,7 +97,7 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 
 func WithDiskStorage() ClientOption {
 	return func(c *Client) error {
-		c.repoFS = osfs.New(c.path)
+		c.repoFS = fs.New(c.path)
 		return nil
 	}
 }
