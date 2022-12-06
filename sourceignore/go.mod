@@ -3,7 +3,7 @@ module github.com/fluxcd/pkg/sourceignore
 go 1.18
 
 require (
-	github.com/fluxcd/go-git/v5 v5.0.0-20221104190732-329fd6659b10
+	github.com/fluxcd/go-git/v5 v5.0.0-20221206140629-ec778c2c37df
 	gotest.tools v2.2.0+incompatible
 )
 

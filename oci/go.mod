@@ -52,7 +52,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
-	github.com/fluxcd/go-git/v5 v5.0.0-20221104190732-329fd6659b10 // indirect
+	github.com/fluxcd/go-git/v5 v5.0.0-20221206140629-ec778c2c37df // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
