@@ -32,6 +32,7 @@ require (
 	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/ssh v0.7.0
 	github.com/go-logr/logr v1.2.3
+	github.com/google/uuid v1.3.0
 	github.com/onsi/gomega v1.24.1
 )
 
@@ -69,7 +70,6 @@ require (
 	github.com/google/go-github/v47 v47.1.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

@@ -139,7 +139,7 @@ func TestGitLabCEE2E(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			upstreamRepoURL := gitlabCEHTTPHost + "/" + gitlabCEUsername + "/" + repoName
-			err = initRepo(upstreamRepoURL, "main", "../../testdata/git/repo", gitlabCEUsername, gitlabCEPassword)
+			err = initRepo(t.TempDir(), upstreamRepoURL, "main", "../../testdata/git/repo", gitlabCEUsername, gitlabCEPassword)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			client, err := newClient(gitClient, t.TempDir(), authOptions, true)

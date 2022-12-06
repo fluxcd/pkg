@@ -34,6 +34,7 @@ import (
 	"github.com/fluxcd/go-git/v5/plumbing/object"
 	"github.com/fluxcd/go-git/v5/plumbing/transport"
 	"github.com/fluxcd/go-git/v5/plumbing/transport/http"
+	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/git"
@@ -56,10 +57,10 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	cc, err := client.Commit(
 		mockCommitInfo(),
 		repository.WithFiles(map[string]io.Reader{
-			"test": strings.NewReader(randStringRunes(10)),
+			"test1": strings.NewReader(uuid.New().String()),
 		}),
 	)
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred(), "first commit")
 
 	err = client.Push(context.TODO())
 	g.Expect(err).ToNot(HaveOccurred())
@@ -76,10 +77,10 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	cc, err = client.Commit(
 		mockCommitInfo(),
 		repository.WithFiles(map[string]io.Reader{
-			"test": strings.NewReader(randStringRunes(10)),
+			"test2": strings.NewReader(uuid.New().String()),
 		}),
 	)
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred(), "second commit")
 
 	err = client.Push(context.TODO())
 	g.Expect(err).ToNot(HaveOccurred())
@@ -95,10 +96,10 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	_, err = client.Commit(
 		mockCommitInfo(),
 		repository.WithFiles(map[string]io.Reader{
-			"test": strings.NewReader(randStringRunes(10)),
+			"test3": strings.NewReader(uuid.New().String()),
 		}),
 	)
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred(), "third commit")
 	err = client.Push(context.TODO())
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, _, err = headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
@@ -114,10 +115,10 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 	cc, err := client.Commit(
 		mockCommitInfo(),
 		repository.WithFiles(map[string]io.Reader{
-			"test": strings.NewReader(randStringRunes(10)),
+			"test1": strings.NewReader(uuid.New().String()),
 		}),
 	)
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred(), "first commit")
 
 	err = client.Push(context.TODO())
 	g.Expect(err).ToNot(HaveOccurred())
@@ -132,10 +133,10 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 	cc, err = client.Commit(
 		mockCommitInfo(),
 		repository.WithFiles(map[string]io.Reader{
-			"test": strings.NewReader(randStringRunes(10)),
+			"test2": strings.NewReader(uuid.New().String()),
 		}),
 	)
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred(), "second commit")
 
 	err = client.Push(context.TODO())
 	g.Expect(err).ToNot(HaveOccurred())
@@ -150,10 +151,10 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 	_, err = client.Commit(
 		mockCommitInfo(),
 		repository.WithFiles(map[string]io.Reader{
-			"test": strings.NewReader(randStringRunes(10)),
+			"test3": strings.NewReader(uuid.New().String()),
 		}),
 	)
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred(), "third commit")
 	err = client.Push(context.TODO())
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, _, err = headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
@@ -234,12 +235,7 @@ type upstreamRepoInfo struct {
 	password string
 }
 
-func initRepo(repoURL, branch, fixture, username, password string) error {
-	tmp, err := os.MkdirTemp("", "git-e2e-test")
-	if err != nil {
-		return err
-	}
-
+func initRepo(tmp, repoURL, branch, fixture, username, password string) error {
 	repo, err := extgogit.PlainInit(tmp, false)
 	if err != nil {
 		return err
