@@ -283,6 +283,11 @@ func initRepo(tmp, repoURL, branch, fixture, username, password string) error {
 		return err
 	}
 
+	_, err = wt.Add(".")
+	if err != nil {
+		return err
+	}
+
 	info := mockCommitInfo()
 	_, err = wt.Commit(info.Message, &extgogit.CommitOptions{
 		Author: &object.Signature{
