@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -313,9 +314,21 @@ func (l *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 	}
 	defer index.Free()
 
-	if err = util.Walk(l.repoFS, "",
+	walkPath := ""
+	// Workaround bug in MacOS.
+	if runtime.GOOS == "darwin" {
+		walkPath = l.path
+	}
+
+	if err = util.Walk(l.repoFS, walkPath,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
+				// Workaround bug in MacOS. This code is being sunsetting
+				// soon as part of libgit2 decommissioning, therefore no
+				// need for a more robust fix.
+				if strings.Contains(err.Error(), "path outside working dir") && path == l.path {
+					return nil
+				}
 				return err
 			}
 			// skip symlinks and any files that are within ".git/"
