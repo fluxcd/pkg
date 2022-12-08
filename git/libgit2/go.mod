@@ -35,7 +35,7 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/git v0.7.0
-	github.com/fluxcd/pkg/git/gogit v0.0.0-00010101000000-000000000000
+	github.com/fluxcd/pkg/git/gogit v0.3.1
 	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/http/transport v0.1.0
 	github.com/fluxcd/pkg/ssh v0.7.0
