@@ -27,7 +27,7 @@ require (
 	github.com/fluxcd/go-git-providers v0.10.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221206140629-ec778c2c37df
 	github.com/fluxcd/pkg/git v0.7.0
-	github.com/fluxcd/pkg/git/gogit v0.1.0
+	github.com/fluxcd/pkg/git/gogit v0.3.1
 	github.com/fluxcd/pkg/git/libgit2 v0.2.0
 	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/ssh v0.7.0
