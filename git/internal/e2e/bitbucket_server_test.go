@@ -140,7 +140,7 @@ func TestBitbucketServerE2E(t *testing.T) {
 
 			defer c.Repositories.Delete(context.TODO(), projectKey, repoName)
 
-			err = initRepo(upstreamRepoURL, "main", "../../testdata/git/repo", bitbucketServerUsername, bitbucketServerToken)
+			err = initRepo(t.TempDir(), upstreamRepoURL, "main", "../../testdata/git/repo", bitbucketServerUsername, bitbucketServerToken)
 			g.Expect(err).ToNot(HaveOccurred())
 			repoURL, authOptions, err := repoInfo(proto, repo)
 			g.Expect(err).ToNot(HaveOccurred())

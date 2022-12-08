@@ -121,8 +121,16 @@ func Test_writeFile(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(string(cont)).To(Equal(fileStr))
 
-	err = lgc.writeFile("../tmp/test3", strings.NewReader("path outside repo"))
-	g.Expect(err).To(HaveOccurred())
+	relPathContent := "rel path outside repo"
+	err = lgc.writeFile("../tmp/test3", strings.NewReader(relPathContent))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	relExpectedPath := filepath.Join(tmp, "tmp", "test3")
+	defer os.RemoveAll(relExpectedPath)
+
+	cont, err = os.ReadFile(relExpectedPath)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(string(cont)).To(Equal(relPathContent))
 }
 
 func TestCommit(t *testing.T) {

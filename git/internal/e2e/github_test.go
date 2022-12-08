@@ -119,7 +119,7 @@ func TestGitHubE2E(t *testing.T) {
 
 			defer repo.Delete(context.TODO())
 
-			err = initRepo(upstreamRepoURL, "main", "../../testdata/git/repo", githubUsername, githubOAuth2Token)
+			err = initRepo(t.TempDir(), upstreamRepoURL, "main", "../../testdata/git/repo", githubUsername, githubOAuth2Token)
 			g.Expect(err).ToNot(HaveOccurred())
 			repoURL, authOptions, err := repoInfo(proto, repo)
 			g.Expect(err).ToNot(HaveOccurred())
