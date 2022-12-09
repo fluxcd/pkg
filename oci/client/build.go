@@ -33,11 +33,17 @@ import (
 // Build archives the given directory as a tarball to the given local path.
 // While archiving, any environment specific data (for example, the user and group name) is stripped from file headers.
 func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (err error) {
-	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
-		return fmt.Errorf("invalid source dir path: %s", sourceDir)
+	absDir, err := filepath.Abs(sourceDir)
+	if err != nil {
+		return err
 	}
 
-	tf, err := os.CreateTemp(filepath.Split(sourceDir))
+	dirStat, err := os.Stat(absDir)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("invalid source dir path: %s", absDir)
+	}
+
+	tf, err := os.CreateTemp(filepath.Split(absDir))
 	if err != nil {
 		return err
 	}
@@ -49,10 +55,7 @@ func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (er
 	}()
 
 	ignore := strings.Join(ignorePaths, "\n")
-	var domain []string
-	if sourceDir != "." {
-		domain = strings.Split(filepath.Clean(sourceDir), string(filepath.Separator))
-	}
+	domain := strings.Split(filepath.Clean(absDir), string(filepath.Separator))
 	ps := sourceignore.ReadPatterns(strings.NewReader(ignore), domain)
 	matcher := sourceignore.NewMatcher(ps)
 	filter := func(p string, fi os.FileInfo) bool {
@@ -64,7 +67,7 @@ func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (er
 
 	gw := gzip.NewWriter(mw)
 	tw := tar.NewWriter(gw)
-	if err := filepath.Walk(sourceDir, func(p string, fi os.FileInfo, err error) error {
+	if err := filepath.Walk(absDir, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -82,17 +85,19 @@ func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (er
 		if err != nil {
 			return err
 		}
-		// The name needs to be modified to maintain directory structure
-		// as tar.FileInfoHeader only has access to the base name of the file.
-		// Ref: https://golang.org/src/archive/tar/common.go?#L626
-		relFilePath := p
-		if filepath.IsAbs(sourceDir) {
-			relFilePath, err = filepath.Rel(sourceDir, p)
+		if dirStat.IsDir() {
+			// The name needs to be modified to maintain directory structure
+			// as tar.FileInfoHeader only has access to the base name of the file.
+			// Ref: https://golang.org/src/archive/tar/common.go?#L6264
+			//
+			// we only want to do this if a directory was passed in
+			relFilePath, err := filepath.Rel(absDir, p)
 			if err != nil {
 				return err
 			}
+			// Normalize file path so it works on windows
+			header.Name = filepath.ToSlash(relFilePath)
 		}
-		header.Name = relFilePath
 
 		// Remove any environment specific data.
 		header.Gid = 0
