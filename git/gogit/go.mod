@@ -12,6 +12,7 @@ replace (
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
+	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221206140629-ec778c2c37df
@@ -30,7 +31,6 @@ require (
 	github.com/ProtonMail/go-crypto v0.0.0-20221026131551-cf6655e29de4 // indirect
 	github.com/acomagu/bufpipe v1.0.3 // indirect
 	github.com/cloudflare/circl v1.3.0 // indirect
-	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/gofrs/uuid v4.2.0+incompatible // indirect

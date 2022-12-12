@@ -255,11 +255,13 @@ func TestTempFile(t *testing.T) {
 
 func TestChroot(t *testing.T) {
 	g := NewWithT(t)
-	fs := New(t.TempDir())
+	tmp := t.TempDir()
+	fs := New(tmp)
 
 	f, err := fs.Chroot("test")
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(f).ToNot(BeNil())
+	g.Expect(f.Root()).To(Equal(filepath.Join(tmp, "test")))
 }
 
 func TestRoot(t *testing.T) {
