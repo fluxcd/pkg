@@ -20,10 +20,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -473,6 +475,88 @@ func TestClone_cloneSemVer(t *testing.T) {
 			g.Expect(os.ReadFile(filepath.Join(tmpDir, "tag"))).To(BeEquivalentTo(tt.expectTag))
 		})
 	}
+}
+
+func Test_cloneSubmodule(t *testing.T) {
+	g := NewWithT(t)
+
+	server, err := gittestserver.NewTempGitServer()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(server.Root())
+
+	err = server.StartHTTP()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer server.StopHTTP()
+
+	baseRepoPath := "base.git"
+	err = server.InitRepo("../testdata/git/repo", git.DefaultBranch, baseRepoPath)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	icingRepoPath := "icing.git"
+	err = server.InitRepo("../testdata/git/repo2", git.DefaultBranch, icingRepoPath)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tmp := t.TempDir()
+	icingRepo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+		URL:           server.HTTPAddress() + "/" + icingRepoPath,
+		ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
+		Tags:          extgogit.NoTags,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	cmd := exec.Command("git", "submodule", "add", fmt.Sprintf("%s/%s", server.HTTPAddress(), baseRepoPath))
+	cmd.Dir = tmp
+	_, err = cmd.Output()
+	g.Expect(err).ToNot(HaveOccurred())
+
+	wt, err := icingRepo.Worktree()
+	g.Expect(err).ToNot(HaveOccurred())
+	_, err = wt.Add(".gitmodules")
+	g.Expect(err).ToNot(HaveOccurred())
+	_, err = wt.Commit("submod", &extgogit.CommitOptions{
+		Author: &object.Signature{
+			Name: "test user",
+		},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	err = icingRepo.Push(&extgogit.PushOptions{})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tmpDir := t.TempDir()
+	ggc, err := NewClient(tmpDir, &git.AuthOptions{
+		Transport: git.HTTP,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	_, err = ggc.Clone(context.TODO(), server.HTTPAddress()+"/"+icingRepoPath, repository.CloneOptions{
+		CheckoutStrategy: repository.CheckoutStrategy{
+			Branch: "master",
+		},
+		ShallowClone:      true,
+		RecurseSubmodules: true,
+	})
+
+	expectedPaths := []string{"base", "base/foo.txt", "bar.txt", "."}
+	var c int
+	filepath.Walk(tmpDir, func(path string, d iofs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.Contains(path, ".git") {
+			return nil
+		}
+		rel, err := filepath.Rel(tmpDir, path)
+		if err != nil {
+			return err
+		}
+		for _, expectedPath := range expectedPaths {
+			if rel == expectedPath {
+				c += 1
+			}
+		}
+		return nil
+	})
+	g.Expect(c).To(Equal(len(expectedPaths)))
 }
 
 // Test_ssh_KeyTypes assures support for the different types of keys
