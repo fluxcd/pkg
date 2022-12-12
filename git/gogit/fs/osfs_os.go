@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/go-git/go-billy/v5"
 )
 
@@ -215,7 +216,11 @@ func (fs *OS) Readlink(link string) (string, error) {
 
 // Chroot returns a new OS filesystem, with working directory set to path.
 func (fs *OS) Chroot(path string) (billy.Filesystem, error) {
-	return New(path), nil
+	joined, err := securejoin.SecureJoin(fs.workingDir, path)
+	if err != nil {
+		return nil, err
+	}
+	return New(joined), nil
 }
 
 // Root returns the current working dir of the billy.Filesystem.
