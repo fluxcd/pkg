@@ -96,7 +96,15 @@ func TestClone_cloneBranch(t *testing.T) {
 			name:                   "skip clone if LastRevision hasn't changed",
 			branch:                 "master",
 			filesCreated:           map[string]string{"branch": "init"},
-			lastRevision:           fmt.Sprintf("master@%s:%s", git.HashTypeSHA1, firstCommit.String()),
+			lastRevision:           fmt.Sprintf("master@%s", git.Hash(firstCommit.String()).Digest()),
+			expectedCommit:         firstCommit.String(),
+			expectedConcreteCommit: false,
+		},
+		{
+			name:                   "skip clone if LastRevision hasn't changed (legacy)",
+			branch:                 "master",
+			filesCreated:           map[string]string{"branch": "init"},
+			lastRevision:           fmt.Sprintf("master/%s", firstCommit.String()),
 			expectedCommit:         firstCommit.String(),
 			expectedConcreteCommit: false,
 		},
@@ -104,7 +112,15 @@ func TestClone_cloneBranch(t *testing.T) {
 			name:                   "Other branch - revision has changed",
 			branch:                 "test",
 			filesCreated:           map[string]string{"branch": "second"},
-			lastRevision:           fmt.Sprintf("master@%s:%s", git.HashTypeSHA1, firstCommit.String()),
+			lastRevision:           fmt.Sprintf("master@%s", git.Hash(firstCommit.String()).Digest()),
+			expectedCommit:         secondCommit.String(),
+			expectedConcreteCommit: true,
+		},
+		{
+			name:                   "Other branch - revision has changed (legacy)",
+			branch:                 "test",
+			filesCreated:           map[string]string{"branch": "second"},
+			lastRevision:           fmt.Sprintf("master/%s", firstCommit.String()),
 			expectedCommit:         secondCommit.String(),
 			expectedConcreteCommit: true,
 		},
@@ -258,7 +274,7 @@ func TestClone_cloneTag(t *testing.T) {
 			// If last revision is provided, configure it.
 			if tt.lastRevTag != "" {
 				lc := tagCommits[tt.lastRevTag]
-				opts.LastObservedCommit = fmt.Sprintf("%s@%s:%s", tt.lastRevTag, git.HashTypeSHA1, lc)
+				opts.LastObservedCommit = fmt.Sprintf("%s@%s", tt.lastRevTag, git.Hash(lc).Digest())
 			}
 
 			cc, err := ggc.Clone(context.TODO(), path, opts)
@@ -970,7 +986,7 @@ func Test_getRemoteHEAD(t *testing.T) {
 	ref := plumbing.NewBranchReferenceName(git.DefaultBranch)
 	head, err := getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(head).To(Equal(fmt.Sprintf("%s@%s:%s", git.DefaultBranch, git.HashTypeSHA1, cc)))
+	g.Expect(head).To(Equal(fmt.Sprintf("%s@%s", git.DefaultBranch, git.Hash(cc.String()).Digest())))
 
 	cc, err = commitFile(repo, "test", "testing current head tag", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
@@ -980,7 +996,7 @@ func Test_getRemoteHEAD(t *testing.T) {
 	ref = plumbing.NewTagReferenceName("v0.1.0")
 	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(head).To(Equal(fmt.Sprintf("%s@%s:%s", "v0.1.0", git.HashTypeSHA1, cc)))
+	g.Expect(head).To(Equal(fmt.Sprintf("%s@%s", "v0.1.0", git.Hash(cc.String()).Digest())))
 }
 
 func TestClone_CredentialsOverHttp(t *testing.T) {

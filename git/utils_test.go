@@ -46,6 +46,167 @@ func TestSecurePath(t *testing.T) {
 	g.Expect(securePath).To(Equal(filepath.Join(wd, "outside")))
 }
 
+func TestTransformRevision(t *testing.T) {
+	tests := []struct {
+		name string
+		rev  string
+		want string
+	}{
+		{
+			name: "revision with branch and digest",
+			rev:  "main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "revision with digest",
+			rev:  "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "revision with slash branch and digest",
+			rev:  "feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "legacy revision with branch and hash",
+			rev:  "main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "legacy revision with slash branch and hash",
+			rev:  "feature/branch/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "legacy revision with hash",
+			rev:  "5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "legacy revision with HEAD named pointer and hash",
+			rev:  "HEAD/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "empty revision",
+			rev:  "",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			got := TransformRevision(tt.rev)
+			g.Expect(got).To(Equal(tt.want))
+		})
+	}
+}
+
+func TestSplitRevision(t *testing.T) {
+	tests := []struct {
+		name        string
+		rev         string
+		wantPointer string
+		wantHash    Hash
+	}{
+		{
+			name:        "revision with branch and digest",
+			rev:         "main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			wantPointer: "main",
+			wantHash:    Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name:     "revision with digest",
+			rev:      "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			wantHash: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name:        "revision with slash branch and digest",
+			rev:         "feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			wantPointer: "feature/branch",
+			wantHash:    Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name:        "legacy revision with branch and hash",
+			rev:         "main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			wantPointer: "main",
+			wantHash:    Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name:     "legacy revision with hash",
+			rev:      "5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			wantHash: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name:        "empty revision",
+			rev:         "",
+			wantPointer: "",
+			wantHash:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			p, h := SplitRevision(tt.rev)
+			g.Expect(p).To(Equal(tt.wantPointer))
+			g.Expect(h).To(Equal(tt.wantHash))
+		})
+	}
+}
+
+func TestExtractNamedPointerFromRevision(t *testing.T) {
+	tests := []struct {
+		name string
+		rev  string
+		want string
+	}{
+		{
+			name: "revision with branch and digest",
+			rev:  "main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "main",
+		},
+		{
+			name: "revision with digest",
+			rev:  "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "",
+		},
+		{
+			name: "revision with slash branch and digest",
+			rev:  "feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "feature/branch",
+		},
+		{
+			name: "legacy revision with branch and hash",
+			rev:  "main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "main",
+		},
+		{
+			name: "legacy revision with slash branch and hash",
+			rev:  "feature/branch/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "feature/branch",
+		},
+		{
+			name: "legacy revision with hash",
+			rev:  "5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "",
+		},
+		{
+			name: "legacy revision with HEAD named pointer and hash",
+			rev:  "HEAD/5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			g.Expect(ExtractNamedPointerFromRevision(tt.rev)).To(Equal(tt.want))
+		})
+	}
+}
+
 func TestExtractHashFromRevision(t *testing.T) {
 	tests := []struct {
 		name string

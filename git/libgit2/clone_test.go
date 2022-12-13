@@ -114,7 +114,15 @@ func TestClone_cloneBranch(t *testing.T) {
 			name:                   "skip clone - lastRevision hasn't changed",
 			branch:                 defaultBranch,
 			filesCreated:           map[string]string{"branch": "second"},
-			lastRevision:           fmt.Sprintf("%s@%s:%s", defaultBranch, git.HashTypeSHA1, secondCommit.String()),
+			lastRevision:           fmt.Sprintf("%s@%s", defaultBranch, git.Hash(secondCommit.String()).Digest()),
+			expectedCommit:         secondCommit.String(),
+			expectedConcreteCommit: false,
+		},
+		{
+			name:                   "skip clone - lastRevision hasn't changed (legacy)",
+			branch:                 defaultBranch,
+			filesCreated:           map[string]string{"branch": "second"},
+			lastRevision:           fmt.Sprintf("%s/%s", defaultBranch, secondCommit.String()),
 			expectedCommit:         secondCommit.String(),
 			expectedConcreteCommit: false,
 		},
@@ -122,7 +130,15 @@ func TestClone_cloneBranch(t *testing.T) {
 			name:                   "lastRevision is different",
 			branch:                 defaultBranch,
 			filesCreated:           map[string]string{"branch": "second"},
-			lastRevision:           fmt.Sprintf("%s@%s:%s", defaultBranch, git.HashTypeSHA1, firstCommit.String()),
+			lastRevision:           fmt.Sprintf("%s@%s", defaultBranch, git.Hash(firstCommit.String()).Digest()),
+			expectedCommit:         secondCommit.String(),
+			expectedConcreteCommit: true,
+		},
+		{
+			name:                   "lastRevision is different (legacy)",
+			branch:                 defaultBranch,
+			filesCreated:           map[string]string{"branch": "second"},
+			lastRevision:           fmt.Sprintf("%s/%s", defaultBranch, firstCommit.String()),
 			expectedCommit:         secondCommit.String(),
 			expectedConcreteCommit: true,
 		},
@@ -272,7 +288,7 @@ func TestClone_cloneTag(t *testing.T) {
 			// If last revision is provided, configure it.
 			if tt.lastRevTag != "" {
 				lc := tagCommits[tt.lastRevTag]
-				cloneOpts.LastObservedCommit = fmt.Sprintf("%s@%s:%s", tt.lastRevTag, git.HashTypeSHA1, lc.Id().String())
+				cloneOpts.LastObservedCommit = fmt.Sprintf("%s@%s", tt.lastRevTag, git.Hash(lc.Id().String()).Digest())
 			}
 
 			cc, err := lgc.Clone(context.TODO(), repoURL, cloneOpts)

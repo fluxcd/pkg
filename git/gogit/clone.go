@@ -49,13 +49,12 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 
 	ref := plumbing.NewBranchReferenceName(branch)
 	// check if previous revision has changed before attempting to clone
-	if opts.LastObservedCommit != "" {
+	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
 		head, err := getRemoteHEAD(ctx, url, ref, g.authOpts, authMethod)
 		if err != nil {
 			return nil, err
 		}
-
-		if head != "" && head == opts.LastObservedCommit {
+		if head != "" && head == lastObserved {
 			c := &git.Commit{
 				Hash:      git.ExtractHashFromRevision(head),
 				Reference: plumbing.NewBranchReferenceName(branch).String(),
@@ -386,7 +385,7 @@ func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
 func filterRefs(refs []*plumbing.Reference, currentRef plumbing.ReferenceName) string {
 	for _, ref := range refs {
 		if ref.Name().String() == currentRef.String() {
-			return fmt.Sprintf("%s@%s:%s", currentRef.Short(), git.HashTypeSHA1, ref.Hash().String())
+			return fmt.Sprintf("%s@%s", currentRef.Short(), git.Hash(ref.Hash().String()).Digest())
 		}
 	}
 	return ""

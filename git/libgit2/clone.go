@@ -49,15 +49,15 @@ func (l *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 
 	// When the last observed revision is set, check whether it is still the
 	// same at the remote branch. If so, short-circuit the clone operation here.
-	if opts.LastObservedCommit != "" {
+	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
 		heads, err := l.remote.Ls(branch)
 		if err != nil {
 			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, libGit2Error(err))
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
-			remoteHead := fmt.Sprintf("%s@%s:%s", branch, git.HashTypeSHA1, hash)
-			if remoteHead == opts.LastObservedCommit {
+			remoteHead := fmt.Sprintf("%s@%s", branch, git.Hash(hash).Digest())
+			if remoteHead == lastObserved {
 				// Construct a non-concrete commit with the existing information.
 				c := &git.Commit{
 					Hash:      git.Hash(hash),
@@ -166,21 +166,21 @@ func (l *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 
 	// When the last observed revision is set, check whether it is still the
 	// same at the remote branch. If so, short-circuit the clone operation here.
-	if opts.LastObservedCommit != "" {
+	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
 		heads, err := l.remote.Ls(tag)
 		if err != nil {
 			return nil, fmt.Errorf("unable to remote ls for '%s': %w", url, libGit2Error(err))
 		}
 		if len(heads) > 0 {
 			hash := heads[0].Id.String()
-			remoteHEAD := fmt.Sprintf("%s@%s:%s", tag, git.HashTypeSHA1, hash)
+			remoteHEAD := fmt.Sprintf("%s@%s", tag, git.Hash(hash).Digest())
 			var same bool
-			if remoteHEAD == opts.LastObservedCommit {
+			if remoteHEAD == lastObserved {
 				same = true
 			} else if len(heads) > 1 {
 				hash = heads[1].Id.String()
-				remoteAnnotatedHEAD := fmt.Sprintf("%s@%s:%s", tag, git.HashTypeSHA1, hash)
-				if remoteAnnotatedHEAD == opts.LastObservedCommit {
+				remoteAnnotatedHEAD := fmt.Sprintf("%s@%s", tag, git.Hash(hash).Digest())
+				if remoteAnnotatedHEAD == lastObserved {
 					same = true
 				}
 			}

@@ -37,7 +37,7 @@ const (
 type Hash []byte
 
 // Algorithm returns the algorithm of the hash based on its length.
-// This is a heuristic, and may not be accurate for truncated user constructed
+// This is heuristic, and may not be accurate for truncated user constructed
 // hashes. The library itself does not produce truncated hashes.
 func (h Hash) Algorithm() string {
 	switch len(h) {
