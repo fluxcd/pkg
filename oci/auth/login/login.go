@@ -18,6 +18,7 @@ package login
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -30,15 +31,25 @@ import (
 
 // ImageRegistryProvider analyzes the provided registry and returns the identified
 // container image registry provider.
-func ImageRegistryProvider(ref name.Reference) oci.Provider {
-	_, _, ok := aws.ParseRegistry(ref.Context().RegistryStr())
+func ImageRegistryProvider(url string, ref name.Reference) oci.Provider {
+	// If the url is a repository root address, use it to analyze. Else, derive
+	// the registry from the name reference.
+	// NOTE: This is because name.Reference of a repository root assumes that
+	// the reference is an image name and defaults to using index.docker.io as
+	// the registry host.
+	addr := strings.TrimSuffix(url, "/")
+	if strings.ContainsRune(addr, '/') {
+		addr = ref.Context().RegistryStr()
+	}
+
+	_, _, ok := aws.ParseRegistry(addr)
 	if ok {
 		return oci.ProviderAWS
 	}
-	if gcp.ValidHost(ref.Context().RegistryStr()) {
+	if gcp.ValidHost(addr) {
 		return oci.ProviderGCP
 	}
-	if azure.ValidHost(ref.Context().RegistryStr()) {
+	if azure.ValidHost(addr) {
 		return oci.ProviderAzure
 	}
 	return oci.ProviderGeneric
@@ -94,14 +105,14 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 
 // Login performs authentication against a registry and returns the
 // authentication material. For generic registry provider, it is no-op.
-func (m *Manager) Login(ctx context.Context, image string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
-	switch ImageRegistryProvider(ref) {
+func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
+	switch ImageRegistryProvider(url, ref) {
 	case oci.ProviderAWS:
-		return m.ecr.Login(ctx, opts.AwsAutoLogin, image)
+		return m.ecr.Login(ctx, opts.AwsAutoLogin, url)
 	case oci.ProviderGCP:
-		return m.gcr.Login(ctx, opts.GcpAutoLogin, image, ref)
+		return m.gcr.Login(ctx, opts.GcpAutoLogin, url, ref)
 	case oci.ProviderAzure:
-		return m.acr.Login(ctx, opts.AzureAutoLogin, image, ref)
+		return m.acr.Login(ctx, opts.AzureAutoLogin, url, ref)
 	}
 	return nil, nil
 }

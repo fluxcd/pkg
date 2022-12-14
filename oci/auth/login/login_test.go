@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
@@ -40,18 +41,26 @@ func TestImageRegistryProvider(t *testing.T) {
 		want  oci.Provider
 	}{
 		{"ecr", "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1", oci.ProviderAWS},
+		{"ecr-root", "012345678901.dkr.ecr.us-east-1.amazonaws.com", oci.ProviderAWS},
+		{"ecr-root with slash", "012345678901.dkr.ecr.us-east-1.amazonaws.com/", oci.ProviderAWS},
 		{"gcr", "gcr.io/foo/bar:v1", oci.ProviderGCP},
+		{"gcr-root", "gcr.io", oci.ProviderGCP},
 		{"acr", "foo.azurecr.io/bar:v1", oci.ProviderAzure},
+		{"acr-root", "foo.azurecr.io", oci.ProviderAzure},
 		{"docker.io", "foo/bar:v1", oci.ProviderGeneric},
+		{"docker.io-root", "docker.io", oci.ProviderGeneric},
+		{"library", "alpine", oci.ProviderGeneric},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			ref, err := name.ParseReference(tt.image)
+			// Trim suffix to allow parsing it as reference without modifying
+			// the given image address.
+			ref, err := name.ParseReference(strings.TrimSuffix(tt.image, "/"))
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(ImageRegistryProvider(ref)).To(Equal(tt.want))
+			g.Expect(ImageRegistryProvider(tt.image, ref)).To(Equal(tt.want))
 		})
 	}
 }
