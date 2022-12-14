@@ -72,11 +72,13 @@ func TestLogin(t *testing.T) {
 			beforeFunc: func(serverURL string, mgr *Manager, image *string) {
 				// Create ECR client and configure the manager.
 				ecrClient := aws.NewClient()
-				ecrClient.EndpointResolverWithOptions = awssdk.EndpointResolverWithOptionsFunc(
+				cfg := awssdk.NewConfig()
+				cfg.EndpointResolverWithOptions = awssdk.EndpointResolverWithOptionsFunc(
 					func(service, region string, options ...interface{}) (awssdk.Endpoint, error) {
 						return awssdk.Endpoint{URL: serverURL}, nil
 					})
-				ecrClient.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
+				cfg.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
+				ecrClient.WithConfig(cfg)
 
 				mgr.WithECRClient(ecrClient)
 
