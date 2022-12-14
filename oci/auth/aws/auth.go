@@ -23,8 +23,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,38 +50,60 @@ func ParseRegistry(registry string) (accountId, awsEcrRegion string, ok bool) {
 // Client is a AWS ECR client which can log into the registry and return
 // authorization information.
 type Client struct {
-	*aws.Config
+	config *aws.Config
+	mu     sync.Mutex
 }
 
-// NewClient creates a new ECR client with default configurations.
+// NewClient creates a new empty ECR client.
+// NOTE: In order to avoid breaking the auth API with aws-sdk-go-v2's default
+// config, return an empty Client. Client.getLoginAuth() loads the default
+// config if Client.config is nil. This also enables tests to configure the
+// Client with stub before calling the login method using Client.WithConfig().
 func NewClient() *Client {
-	return &Client{Config: aws.NewConfig()}
+	return &Client{}
 }
 
-// getLoginAuth obtains authentication for ECR given the account
-// ID and region (taken from the image). This assumes that the pod has
+// WithConfig allows setting the client config if it's uninitialized.
+func (c *Client) WithConfig(cfg *aws.Config) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.config == nil {
+		c.config = cfg
+	}
+}
+
+// getLoginAuth obtains authentication for ECR given the
+// region (taken from the image). This assumes that the pod has
 // IAM permissions to get an authentication token, which will usually
 // be the case if it's running in EKS, and may need additional setup
-// otherwise (visit
-// https://docs.aws.amazon.com/sdk-for-go/api/aws/session/ as a
-// starting point).
-func (c *Client) getLoginAuth(ctx context.Context, accountId, awsEcrRegion string) (authn.AuthConfig, error) {
+// otherwise (visit https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
+// as a starting point).
+func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.AuthConfig, error) {
 	// No caching of tokens is attempted; the quota for getting an
 	// auth token is high enough that getting a token every time you
 	// scan an image is viable for O(500) images per region. See
 	// https://docs.aws.amazon.com/general/latest/gr/ecr.html.
 	var authConfig authn.AuthConfig
-	accountIDs := []string{accountId}
+	var cfg aws.Config
 
-	cfg := c.Config.Copy()
-	cfg.Region = awsEcrRegion
+	c.mu.Lock()
+	if c.config != nil {
+		cfg = c.config.Copy()
+	} else {
+		var err error
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(awsEcrRegion))
+		if err != nil {
+			c.mu.Unlock()
+			return authConfig, fmt.Errorf("failed to load default configuration: %w", err)
+		}
+		c.config = &cfg
+	}
+	c.mu.Unlock()
 
 	ecrService := ecr.NewFromConfig(cfg)
-	ecrToken, err := ecrService.GetAuthorizationToken(ctx,
-		&ecr.GetAuthorizationTokenInput{
-			RegistryIds: accountIDs,
-		})
-
+	// NOTE: ecr.GetAuthorizationTokenInput has deprecated RegistryIds. Hence,
+	// pass nil input.
+	ecrToken, err := ecrService.GetAuthorizationToken(ctx, nil)
 	if err != nil {
 		return authConfig, err
 	}
@@ -114,12 +138,12 @@ func (c *Client) getLoginAuth(ctx context.Context, accountId, awsEcrRegion strin
 func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn.Authenticator, error) {
 	if autoLogin {
 		ctrl.LoggerFrom(ctx).Info("logging in to AWS ECR for " + image)
-		accountId, awsEcrRegion, ok := ParseRegistry(image)
+		_, awsEcrRegion, ok := ParseRegistry(image)
 		if !ok {
 			return nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
 		}
 
-		authConfig, err := c.getLoginAuth(ctx, accountId, awsEcrRegion)
+		authConfig, err := c.getLoginAuth(ctx, awsEcrRegion)
 		if err != nil {
 			return nil, err
 		}

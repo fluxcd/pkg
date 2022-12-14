@@ -149,14 +149,16 @@ func TestGetLoginAuth(t *testing.T) {
 				srv.Close()
 			})
 
-			// Configure the client.
+			// Configure test client.
 			ec := NewClient()
-			ec.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			cfg := aws.NewConfig()
+			cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 				return aws.Endpoint{URL: srv.URL}, nil
 			})
-			ec.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
+			cfg.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
+			ec.WithConfig(cfg)
 
-			a, err := ec.getLoginAuth(context.TODO(), "some-account-id", "us-east-1")
+			a, err := ec.getLoginAuth(context.TODO(), "us-east-1")
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
 				g.Expect(a).To(Equal(tt.wantAuthConfig))
@@ -215,11 +217,14 @@ func TestLogin(t *testing.T) {
 				srv.Close()
 			})
 
+			// Configure test client.
 			ecrClient := NewClient()
-			ecrClient.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			cfg := aws.NewConfig()
+			cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 				return aws.Endpoint{URL: srv.URL}, nil
 			})
-			ecrClient.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
+			cfg.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
+			ecrClient.WithConfig(cfg)
 
 			_, err := ecrClient.Login(context.TODO(), tt.autoLogin, tt.image)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
