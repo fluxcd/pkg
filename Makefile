@@ -16,6 +16,9 @@ GO_TEST_ARGS ?= -race
 # Architecture to use envtest with
 ENVTEST_ARCH ?= amd64
 
+# Kubernetes versions to use envtest with
+ENVTEST_KUBERNETES_VERSION?=1.25
+
 all:
 	$(MAKE) $(targets)
 
@@ -67,7 +70,6 @@ controller-gen: ## Download controller-gen locally if necessary.
 	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0)
 
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
-ENVTEST_KUBERNETES_VERSION?=latest
 install-envtest: setup-envtest
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	$(ENVTEST) use $(ENVTEST_KUBERNETES_VERSION) --arch=$(ENVTEST_ARCH) --bin-dir=$(ENVTEST_ASSETS_DIR)
