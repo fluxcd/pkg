@@ -7,7 +7,7 @@ replace github.com/fluxcd/pkg/testserver => ../testserver
 require (
 	github.com/fluxcd/pkg/testserver v0.4.0
 	golang.org/x/crypto v0.2.0
-	helm.sh/helm/v3 v3.10.2
+	helm.sh/helm/v3 v3.10.3
 	sigs.k8s.io/yaml v1.3.0
 )
 
