@@ -83,7 +83,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		Auth:              authMethod,
 		RemoteName:        git.DefaultRemote,
 		ReferenceName:     plumbing.NewBranchReferenceName(branch),
-		SingleBranch:      true,
+		SingleBranch:      g.singleBranch,
 		NoCheckout:        false,
 		Depth:             depth,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
@@ -173,7 +173,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		Auth:              authMethod,
 		RemoteName:        git.DefaultRemote,
 		ReferenceName:     plumbing.NewTagReferenceName(tag),
-		SingleBranch:      true,
+		SingleBranch:      g.singleBranch,
 		NoCheckout:        false,
 		Depth:             depth,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
@@ -222,7 +222,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		CABundle:          caBundle(g.authOpts),
 	}
 	if opts.Branch != "" {
-		cloneOpts.SingleBranch = true
+		cloneOpts.SingleBranch = g.singleBranch
 		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(opts.Branch)
 	}
 

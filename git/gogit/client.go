@@ -55,6 +55,7 @@ type Client struct {
 	forcePush            bool
 	credentialsOverHTTP  bool
 	useDefaultKnownHosts bool
+	singleBranch         bool
 }
 
 var _ repository.Client = &Client{}
@@ -71,6 +72,8 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 	g := &Client{
 		path:     securePath,
 		authOpts: authOpts,
+		// Default to single branch as it is the most performant option.
+		singleBranch: true,
 	}
 
 	if len(clientOpts) == 0 {
@@ -103,6 +106,25 @@ func WithStorer(s storage.Storer) ClientOption {
 func WithWorkTreeFS(wt billy.Filesystem) ClientOption {
 	return func(c *Client) error {
 		c.worktreeFS = wt
+		return nil
+	}
+}
+
+// WithSingleBranch indicates whether only the references of a single
+// branch will be fetched during cloning operations.
+// For read-only clones, and for single branch write operations,
+// a single branch is advised for performance reasons.
+//
+// For write operations that require multiple branches, for example,
+// cloning from main and pushing into a feature branch, this should be
+// disabled. Otherwise a second fetch will be required to get the state
+// of the target branch, which won't work against some Git servers due
+// to MULTI_ACK not being implemented in go-git.
+//
+// By default this is enabled.
+func WithSingleBranch(singleBranch bool) ClientOption {
+	return func(c *Client) error {
+		c.singleBranch = singleBranch
 		return nil
 	}
 }
@@ -337,6 +359,32 @@ func (g *Client) Push(ctx context.Context) error {
 	})
 }
 
+// SwitchBranch switches the current branch to the given branch name.
+//
+// No new references are fetched from the remote during the process,
+// this is to ensure that the same flow can be used across all Git
+// servers, regardless of them requiring MULTI_ACK or not. Once MULTI_ACK
+// is implemented in go-git, this can be revisited.
+//
+// If more than one remote branch state is required, create the gogit
+// client using WithSingleBranch(false). This will fetch all remote
+// branches as part of the initial clone. Note that this is fully
+// compatible with shallow clones.
+//
+// The following cases are handled:
+// - Branch does not exist results in one being created using HEAD
+// of the worktree.
+// - Branch exists only remotely, results in a local branch being
+// created tracking the remote HEAD.
+// - Branch exists only locally, results in a checkout to the
+// existing branch.
+// - Branch exists locally and remotely, the local branch will take
+// precendece.
+//
+// To override a remote branch with the state from the current branch,
+// (i.e. image automation controller), use WithForcePush(true) in
+// combination with WithSingleBranch(true). This will ignore the
+// remote branch's existence.
 func (g *Client) SwitchBranch(ctx context.Context, branchName string) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
@@ -346,59 +394,49 @@ func (g *Client) SwitchBranch(ctx context.Context, branchName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load worktree: %w", err)
 	}
-	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
-	if err != nil {
-		return fmt.Errorf("failed to construct auth method with options: %w", err)
+
+	// Assumes both local and remote branches exists until proven otherwise.
+	remote, local := true, true
+	remRefName := plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, branchName)
+	remRef, err := g.repository.Reference(remRefName, true)
+	if errors.Is(err, plumbing.ErrReferenceNotFound) {
+		remote = false
+	} else if err != nil {
+		return fmt.Errorf("could not fetch remote reference '%s': %w", branchName, err)
 	}
 
-	_, err = g.repository.Branch(branchName)
-	var create bool
-	if err == extgogit.ErrBranchNotFound {
-		create = true
+	refName := plumbing.NewBranchReferenceName(branchName)
+	_, err = g.repository.Reference(refName, true)
+	if errors.Is(err, plumbing.ErrReferenceNotFound) {
+		local = false
 	} else if err != nil {
-		return err
+		return fmt.Errorf("could not fetch local reference '%s': %w", branchName, err)
+	}
+
+	create := false
+	// If the remote branch exists, but not the local branch, create a local
+	// reference to the remote's HEAD.
+	if remote && !local {
+		branchRef := plumbing.NewHashReference(refName, remRef.Hash())
+
+		err = g.repository.Storer.SetReference(branchRef)
+		if err != nil {
+			return fmt.Errorf("could not create reference to remote HEAD '%s': %w", branchRef.Hash().String(), err)
+		}
+	} else if !remote && !local {
+		// If the target branch does not exist locally or remotely, create a new
+		// branch using the current worktree HEAD.
+		create = true
 	}
 
 	err = wt.Checkout(&extgogit.CheckoutOptions{
-		Branch: plumbing.NewBranchReferenceName(branchName),
+		Branch: refName,
 		Create: create,
 	})
 	if err != nil {
 		return fmt.Errorf("could not checkout to branch '%s': %w", branchName, err)
 	}
 
-	// When force push is enabled, we always override the push branch.
-	// No need to fetch additional refs from that branch.
-	if g.forcePush {
-		return nil
-	}
-
-	err = g.repository.FetchContext(ctx, &extgogit.FetchOptions{
-		RemoteName: extgogit.DefaultRemoteName,
-		RefSpecs: []config.RefSpec{
-			config.RefSpec(fmt.Sprintf("+refs/heads/%s:refs/remotes/%s/%[1]s", branchName, extgogit.DefaultRemoteName)),
-		},
-		Auth: authMethod,
-	})
-	if err != nil && !errors.Is(err, extgogit.NoErrAlreadyUpToDate) && !errors.Is(err, extgogit.NoMatchingRefSpecError{}) {
-		return fmt.Errorf("could not fetch context: %w", err)
-	}
-	ref, err := g.repository.Reference(plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, branchName), true)
-
-	// If remote ref doesn't exist, no need to reset to remote target commit, exit early.
-	if err == plumbing.ErrReferenceNotFound {
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("could not fetch remote reference '%s': %w", branchName, err)
-	}
-
-	err = wt.Reset(&extgogit.ResetOptions{
-		Commit: ref.Hash(),
-		Mode:   extgogit.HardReset,
-	})
-	if err != nil {
-		return fmt.Errorf("could not reset branch to be at commit '%s': %w", ref.Hash().String(), err)
-	}
 	return nil
 }
 

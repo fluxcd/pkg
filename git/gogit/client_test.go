@@ -307,10 +307,12 @@ func TestForcePush(t *testing.T) {
 
 func TestSwitchBranch(t *testing.T) {
 	tests := []struct {
-		name      string
-		setupFunc func(g *WithT, path string) string
-		branch    string
-		forcePush bool
+		name         string
+		setupFunc    func(g *WithT, path string) string
+		changeRepo   func(g *WithT, c *Client) string
+		branch       string
+		forcePush    bool
+		singleBranch bool
 	}{
 		{
 			name: "switch to a branch ahead of the current branch",
@@ -335,6 +337,79 @@ func TestSwitchBranch(t *testing.T) {
 				return cc.String()
 			},
 			branch: "ahead",
+		},
+		{
+			name: "switch to a branch that exists locally and remotely",
+			setupFunc: func(g *WithT, repoURL string) string {
+				tmp := t.TempDir()
+				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+					URL:           repoURL,
+					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
+					RemoteName:    git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				err = createBranch(repo, "ahead")
+				g.Expect(err).ToNot(HaveOccurred())
+
+				cc, err := commitFile(repo, "test", "I live in the remote branch", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				err = repo.Push(&extgogit.PushOptions{
+					RemoteName: git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+				return cc.String()
+			},
+			changeRepo: func(g *WithT, c *Client) string {
+				wt, err := c.repository.Worktree()
+				g.Expect(err).ToNot(HaveOccurred())
+
+				err = wt.Checkout(&extgogit.CheckoutOptions{
+					Branch: plumbing.NewBranchReferenceName("ahead"),
+					Create: true,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				cc, err := commitFile(c.repository, "new change", "local branch is warmer though", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+
+				err = wt.Checkout(&extgogit.CheckoutOptions{
+					Branch: plumbing.Master,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				return cc.String()
+			},
+			branch: "ahead",
+		},
+		{
+			name: "singlebranch: ignore a branch that exists in the remote",
+			setupFunc: func(g *WithT, repoURL string) string {
+				tmp := t.TempDir()
+				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+					URL:           repoURL,
+					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
+					RemoteName:    git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				head, err := repo.Head()
+				g.Expect(err).ToNot(HaveOccurred())
+
+				err = createBranch(repo, "singlebranch-ahead")
+				g.Expect(err).ToNot(HaveOccurred())
+
+				_, err = commitFile(repo, "test", "I am going to be treated as stale", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				err = repo.Push(&extgogit.PushOptions{
+					RemoteName: git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				return head.Hash().String()
+			},
+			branch:       "singlebranch-ahead",
+			singleBranch: true,
 		},
 		{
 			name: "switch to a branch behind the current branch",
@@ -387,20 +462,16 @@ func TestSwitchBranch(t *testing.T) {
 				})
 				g.Expect(err).ToNot(HaveOccurred())
 
-				ref, err := repo.Head()
-				g.Expect(err).ToNot(HaveOccurred())
-				hash := ref.Hash().String()
-
 				err = createBranch(repo, "ahead")
 				g.Expect(err).ToNot(HaveOccurred())
 
-				_, err = commitFile(repo, "test", "testing gogit switch ahead branch", time.Now())
+				cc, err := commitFile(repo, "test", "testing gogit switch ahead branch", time.Now())
 				g.Expect(err).ToNot(HaveOccurred())
 				err = repo.Push(&extgogit.PushOptions{
 					RemoteName: git.DefaultRemote,
 				})
 				g.Expect(err).ToNot(HaveOccurred())
-				return hash
+				return cc.String()
 			},
 			branch:    "ahead",
 			forcePush: true,
@@ -447,6 +518,36 @@ func TestSwitchBranch(t *testing.T) {
 			branch:    "new",
 			forcePush: true,
 		},
+		{
+			name: "force: ignore a branch that exists in the remote",
+			setupFunc: func(g *WithT, repoURL string) string {
+				tmp := t.TempDir()
+				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+					URL:           repoURL,
+					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
+					RemoteName:    git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				head, err := repo.Head()
+				g.Expect(err).ToNot(HaveOccurred())
+
+				err = createBranch(repo, "singlebranch-ahead")
+				g.Expect(err).ToNot(HaveOccurred())
+
+				_, err = commitFile(repo, "test", "remote change that will be overwritten", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				err = repo.Push(&extgogit.PushOptions{
+					RemoteName: git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				return head.Hash().String()
+			},
+			branch:       "singlebranch-ahead",
+			singleBranch: true,
+			forcePush:    true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -464,19 +565,22 @@ func TestSwitchBranch(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			defer server.StopHTTP()
 
+			var expectedHash string
+			if tt.setupFunc != nil {
+				expectedHash = tt.setupFunc(g, filepath.Join(server.Root(), "test.git"))
+			}
+
 			repoURL := server.HTTPAddressWithCredentials() + "/" + "test.git"
 			tmp := t.TempDir()
 			repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
 				URL:           repoURL,
 				ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
 				RemoteName:    git.DefaultRemote,
+				SingleBranch:  tt.singleBranch,
 			})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			var expectedHash string
-			if tt.setupFunc != nil {
-				expectedHash = tt.setupFunc(g, filepath.Join(server.Root(), "test.git"))
-			} else {
+			if tt.setupFunc == nil {
 				head, err := repo.Head()
 				g.Expect(err).ToNot(HaveOccurred())
 				expectedHash = head.Hash().String()
@@ -486,6 +590,10 @@ func TestSwitchBranch(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			ggc.repository = repo
 			ggc.forcePush = tt.forcePush
+
+			if tt.changeRepo != nil {
+				expectedHash = tt.changeRepo(g, ggc)
+			}
 
 			err = ggc.SwitchBranch(context.TODO(), tt.branch)
 			g.Expect(err).ToNot(HaveOccurred())
