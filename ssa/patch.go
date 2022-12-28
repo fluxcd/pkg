@@ -63,8 +63,8 @@ type FieldManager struct {
 	OperationType metav1.ManagedFieldsOperationType `json:"operationType"`
 }
 
-// patchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching prefix and operation type.
-func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FieldManager) []jsonPatch {
+// PatchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching prefix and operation type.
+func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FieldManager) []jsonPatch {
 	objEntries := object.GetManagedFields()
 
 	var patches []jsonPatch
@@ -95,9 +95,9 @@ func patchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fie
 	return append(patches, newPatchReplace(managedFieldsPath, entries))
 }
 
-// patchReplaceFieldsManagers returns a jsonPatch array for replacing the managers with matching prefix and operation type
+// PatchReplaceFieldsManagers returns a jsonPatch array for replacing the managers with matching prefix and operation type
 // with the specified manager name and an apply operation.
-func patchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FieldManager, name string) ([]jsonPatch, error) {
+func PatchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FieldManager, name string) ([]jsonPatch, error) {
 	objEntries := object.GetManagedFields()
 
 	var prevManagedFields metav1.ManagedFieldsEntry
@@ -190,8 +190,8 @@ func mergeManagedFieldsV1(prevField *metav1.FieldsV1, newField *metav1.FieldsV1)
 	return &mergedField, nil
 }
 
-// patchRemoveAnnotations returns a jsonPatch array for removing annotations with matching keys.
-func patchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []jsonPatch {
+// PatchRemoveAnnotations returns a jsonPatch array for removing annotations with matching keys.
+func PatchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []jsonPatch {
 	var patches []jsonPatch
 	annotations := object.GetAnnotations()
 	for _, key := range keys {
@@ -203,8 +203,8 @@ func patchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []
 	return patches
 }
 
-// patchRemoveLabels returns a jsonPatch array for removing labels with matching keys.
-func patchRemoveLabels(object *unstructured.Unstructured, keys []string) []jsonPatch {
+// PatchRemoveLabels returns a jsonPatch array for removing labels with matching keys.
+func PatchRemoveLabels(object *unstructured.Unstructured, keys []string) []jsonPatch {
 	var patches []jsonPatch
 	labels := object.GetLabels()
 	for _, key := range keys {

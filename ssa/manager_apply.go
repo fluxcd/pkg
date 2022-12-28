@@ -251,15 +251,15 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 	var patches []jsonPatch
 
 	if len(opts.Annotations) > 0 {
-		patches = append(patches, patchRemoveAnnotations(existingObject, opts.Annotations)...)
+		patches = append(patches, PatchRemoveAnnotations(existingObject, opts.Annotations)...)
 	}
 
 	if len(opts.Labels) > 0 {
-		patches = append(patches, patchRemoveLabels(existingObject, opts.Labels)...)
+		patches = append(patches, PatchRemoveLabels(existingObject, opts.Labels)...)
 	}
 
 	if len(opts.FieldManagers) > 0 {
-		managedFieldPatch, err := patchReplaceFieldsManagers(existingObject, opts.FieldManagers, m.owner.Field)
+		managedFieldPatch, err := PatchReplaceFieldsManagers(existingObject, opts.FieldManagers, m.owner.Field)
 		if err != nil {
 			return false, err
 		}
