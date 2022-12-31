@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -43,6 +44,7 @@ type Impersonator struct {
 	defaultServiceAccount string
 	serviceAccountName    string
 	namespace             string
+	scheme                *runtime.Scheme
 }
 
 // NewImpersonator creates an Impersonator from the given arguments.
@@ -63,6 +65,30 @@ func NewImpersonator(kubeClient rc.Client,
 		defaultServiceAccount: defaultServiceAccount,
 		serviceAccountName:    serviceAccountName,
 		namespace:             namespace,
+		scheme:                kubeClient.Scheme(),
+	}
+}
+
+// NewImpersonator creates an Impersonator from the given arguments.
+func NewImpersonatorWithScheme(kubeClient rc.Client,
+	statusPoller *polling.StatusPoller,
+	pollingOpts polling.Options,
+	kubeConfigRef *meta.KubeConfigReference,
+	kubeConfigOpts KubeConfigOptions,
+	defaultServiceAccount string,
+	serviceAccountName string,
+	namespace string,
+	scheme *runtime.Scheme) *Impersonator {
+	return &Impersonator{
+		Client:                kubeClient,
+		statusPoller:          statusPoller,
+		pollingOpts:           pollingOpts,
+		kubeConfigRef:         kubeConfigRef,
+		kubeConfigOpts:        kubeConfigOpts,
+		defaultServiceAccount: defaultServiceAccount,
+		serviceAccountName:    serviceAccountName,
+		namespace:             namespace,
+		scheme:                scheme,
 	}
 }
 
@@ -121,7 +147,10 @@ func (i *Impersonator) clientForServiceAccountOrDefault() (rc.Client, *polling.S
 		return nil, nil, err
 	}
 
-	client, err := rc.New(restConfig, rc.Options{Mapper: restMapper})
+	client, err := rc.New(restConfig, rc.Options{
+		Scheme: i.scheme,
+		Mapper: restMapper,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,7 +179,10 @@ func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *pol
 		return nil, nil, err
 	}
 
-	client, err := rc.New(restConfig, rc.Options{Mapper: restMapper})
+	client, err := rc.New(restConfig, rc.Options{
+		Scheme: i.scheme,
+		Mapper: restMapper,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
