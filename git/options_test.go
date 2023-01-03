@@ -186,6 +186,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 			data: map[string][]byte{
 				"username":    []byte("example"), // This takes precedence over the one from the URL
 				"password":    []byte("secret"),
+				"bearerToken": []byte("token"),
 				"identity":    []byte(privateKeyFixture),
 				"known_hosts": []byte(knownHostsFixture),
 				"caFile":      []byte("mock"),
@@ -194,6 +195,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal("example"))
 				g.Expect(opts.Password).To(Equal("secret"))
+				g.Expect(opts.BearerToken).To(Equal("token"))
 				g.Expect(opts.Identity).To(BeEquivalentTo(privateKeyFixture))
 				g.Expect(opts.KnownHosts).To(BeEquivalentTo(knownHostsFixture))
 				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))

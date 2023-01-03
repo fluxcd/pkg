@@ -38,13 +38,14 @@ const (
 // AuthOptions are the authentication options for the Transport of
 // communication with a remote origin.
 type AuthOptions struct {
-	Transport  TransportType
-	Host       string
-	Username   string
-	Password   string
-	Identity   []byte
-	KnownHosts []byte
-	CAFile     []byte
+	Transport   TransportType
+	Host        string
+	Username    string
+	Password    string
+	BearerToken string
+	Identity    []byte
+	KnownHosts  []byte
+	CAFile      []byte
 }
 
 // KexAlgos hosts the key exchange algorithms to be used for SSH connections.
@@ -88,6 +89,7 @@ func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 	if len(data) > 0 {
 		opts.Username = string(data["username"])
 		opts.Password = string(data["password"])
+		opts.BearerToken = string(data["bearerToken"])
 		opts.CAFile = data["caFile"]
 		opts.Identity = data["identity"]
 		opts.KnownHosts = data["known_hosts"]
