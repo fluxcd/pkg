@@ -1,0 +1,19 @@
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta2
+kind: Alert
+metadata:
+  name: on-call-webapp
+  namespace: default
+spec:
+  providerRef:
+    name: slack
+  eventSeverity: error
+  eventSources:
+    - kind: GitRepository
+      name: '*'
+    - kind: Kustomization
+      name: '*'
+  exclusionList:
+    # ignore messages when something first enters the system
+    - "version list argument cannot be empty"
+    - "ImageRepository\.image\.toolkit\.fluxcd\.io \".*\" not found"
