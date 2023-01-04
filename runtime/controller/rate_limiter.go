@@ -59,3 +59,11 @@ func GetRateLimiter(opts RateLimiterOptions) ratelimiter.RateLimiter {
 		opts.MinRetryDelay,
 		opts.MaxRetryDelay)
 }
+
+// GetDefaultRateLimiter returns a new exponential failure
+// ratelimiter.RateLimiter with the default configuration.
+func GetDefaultRateLimiter() ratelimiter.RateLimiter {
+	return workqueue.NewItemExponentialFailureRateLimiter(
+		defaultMinRetryDelay,
+		defaultMaxRetryDelay)
+}
