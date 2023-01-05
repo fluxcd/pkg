@@ -2,10 +2,8 @@ module github.com/fluxcd/pkg/oci/tests/integration
 
 go 1.18
 
-replace github.com/fluxcd/pkg/oci => ../../
-
 require (
-	github.com/fluxcd/pkg/oci v0.6.0
+	github.com/fluxcd/pkg/oci v0.17.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20220726140458-65e1a901cbb9
 	github.com/google/go-containerregistry v0.13.0
 	github.com/hashicorp/terraform-json v0.14.0

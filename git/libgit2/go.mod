@@ -2,16 +2,6 @@ module github.com/fluxcd/pkg/git/libgit2
 
 go 1.18
 
-replace (
-	github.com/fluxcd/pkg/git => ../../git
-	// Enables the use of pkg/git/gogit/fs.
-	github.com/fluxcd/pkg/git/gogit => ../gogit
-	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
-	github.com/fluxcd/pkg/http/transport => ../../http/transport
-	github.com/fluxcd/pkg/ssh => ../../ssh
-	github.com/fluxcd/pkg/version => ../../version
-)
-
 // Fix CVE-2022-1996 (for v2, Go Modules incompatible)
 replace github.com/emicklei/go-restful => github.com/emicklei/go-restful v2.16.0+incompatible
 
@@ -35,7 +25,7 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/git v0.8.0
-	github.com/fluxcd/pkg/git/gogit v0.3.1
+	github.com/fluxcd/pkg/git/gogit v0.5.0
 	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/http/transport v0.1.0
 	github.com/fluxcd/pkg/ssh v0.7.0

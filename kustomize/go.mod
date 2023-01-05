@@ -2,8 +2,6 @@ module github.com/fluxcd/pkg/kustomize
 
 go 1.18
 
-replace github.com/fluxcd/pkg/apis/kustomize => ../apis/kustomize
-
 require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/pkg/apis/kustomize v0.8.0

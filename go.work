@@ -1,0 +1,29 @@
+go 1.18
+
+use (
+	./apis/acl
+	./apis/event
+	./apis/kustomize
+	./apis/meta
+	./git
+	./git/gogit
+	./git/internal/e2e
+	./git/libgit2
+	./gittestserver
+	./helmtestserver
+	./http/fetch
+	./http/transport
+	./kustomize
+	./lockedfile
+	./masktoken
+	./oci
+	./oci/tests/integration
+	./runtime
+	./sourceignore
+	./ssa
+	./ssh
+	./tar
+	./testserver
+	./untar
+	./version
+)

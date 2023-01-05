@@ -2,13 +2,6 @@ module github.com/fluxcd/pkg/git/gogit
 
 go 1.18
 
-replace (
-	github.com/fluxcd/pkg/git => ../../git
-	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
-	github.com/fluxcd/pkg/ssh => ../../ssh
-	github.com/fluxcd/pkg/version => ../../version
-)
-
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5

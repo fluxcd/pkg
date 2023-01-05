@@ -136,6 +136,8 @@ github.com/evanphx/json-patch v4.12.0+incompatible h1:4onqiflcdA9EOZ4RxV643DvftH
 github.com/evanphx/json-patch/v5 v5.6.0 h1:b91NhWfaz02IuVxO9faSllyAtNXHMPkC5J8sJCLunww=
 github.com/evanphx/json-patch/v5 v5.6.0/go.mod h1:G79N1coSVB93tBe7j6PhzjmR3/2VvlbKOFpnXhI9Bw4=
 github.com/flowstack/go-jsonschema v0.1.1/go.mod h1:yL7fNggx1o8rm9RlgXv7hTBWxdBM0rVwpMwimd3F3N0=
+github.com/fluxcd/pkg/oci v0.17.0 h1:DYoT0HG3DogEmeXRif6ZzTYwAZe+iqYWP4QpsP37ZBE=
+github.com/fluxcd/pkg/oci v0.17.0/go.mod h1:UjxCQcdcKtog/ad9Vr2yPYjz9keNSoLdTOOiUNqCRiY=
 github.com/fluxcd/test-infra/tftestenv v0.0.0-20220726140458-65e1a901cbb9 h1:+yQtW3Q9MI2rSvcX2zZUA8q1dMMkSESgH7TfJtvLBU8=
 github.com/fluxcd/test-infra/tftestenv v0.0.0-20220726140458-65e1a901cbb9/go.mod h1:k6Gpx/GKi2qtFdGg8oUudww0elpknijNXt5hwKT7OJQ=
 github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568/go.mod h1:xEzjJPgXI435gkrCt3MPfRiAkVrwSbHsst4LCFVfpJc=

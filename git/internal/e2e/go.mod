@@ -2,16 +2,6 @@ module github.com/fluxcd/pkg/git/internal/e2e
 
 go 1.18
 
-replace (
-	github.com/fluxcd/pkg/git => ../../../git
-	github.com/fluxcd/pkg/git/gogit => ../../gogit
-	github.com/fluxcd/pkg/git/libgit2 => ../../libgit2
-	github.com/fluxcd/pkg/gittestserver => ../../../gittestserver
-	github.com/fluxcd/pkg/http/transport => ../../../http/transport
-	github.com/fluxcd/pkg/ssh => ../../../ssh
-	github.com/fluxcd/pkg/version => ../../../version
-)
-
 // Fix CVE-2022-1996 (for v2, Go Modules incompatible)
 replace github.com/emicklei/go-restful => github.com/emicklei/go-restful v2.16.0+incompatible
 
@@ -27,8 +17,8 @@ require (
 	github.com/fluxcd/go-git-providers v0.10.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221206140629-ec778c2c37df
 	github.com/fluxcd/pkg/git v0.8.0
-	github.com/fluxcd/pkg/git/gogit v0.3.1
-	github.com/fluxcd/pkg/git/libgit2 v0.2.0
+	github.com/fluxcd/pkg/git/gogit v0.5.0
+	github.com/fluxcd/pkg/git/libgit2 v0.4.1
 	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/ssh v0.7.0
 	github.com/go-logr/logr v1.2.3

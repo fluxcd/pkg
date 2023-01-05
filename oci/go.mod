@@ -2,12 +2,6 @@ module github.com/fluxcd/pkg/oci
 
 go 1.18
 
-replace (
-	github.com/fluxcd/pkg/sourceignore => ../sourceignore
-	github.com/fluxcd/pkg/tar => ../tar
-	github.com/fluxcd/pkg/version => ../version
-)
-
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0

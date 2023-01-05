@@ -2,12 +2,6 @@ module github.com/fluxcd/pkg/runtime
 
 go 1.18
 
-replace (
-	github.com/fluxcd/pkg/apis/acl => ../apis/acl
-	github.com/fluxcd/pkg/apis/event => ../apis/event
-	github.com/fluxcd/pkg/apis/meta => ../apis/meta
-)
-
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1
 	github.com/fluxcd/pkg/apis/acl v0.1.0
