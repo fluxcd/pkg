@@ -292,7 +292,6 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 		return "", err
 	}
 
-	var changed bool
 	for path, content := range options.Files {
 		if err := g.writeFile(path, content); err != nil {
 			return "", err
@@ -300,7 +299,6 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 		if _, err = wt.Add(path); err != nil {
 			return "", fmt.Errorf("cannot stage file %s: %w", path, err)
 		}
-		changed = true
 	}
 
 	status, err := wt.Status()
@@ -310,10 +308,14 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 
 	for file := range status {
 		_, _ = wt.Add(file)
-		changed = true
+	}
+	
+	clean, err := status.IsClean()
+	if err != nil {
+		return "", err
 	}
 
-	if !changed {
+	if clean {
 		head, err := g.repository.Head()
 		if err != nil {
 			return "", err
