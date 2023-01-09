@@ -56,20 +56,10 @@ func NewImpersonator(kubeClient rc.Client,
 	defaultServiceAccount string,
 	serviceAccountName string,
 	namespace string) *Impersonator {
-	return &Impersonator{
-		Client:                kubeClient,
-		statusPoller:          statusPoller,
-		pollingOpts:           pollingOpts,
-		kubeConfigRef:         kubeConfigRef,
-		kubeConfigOpts:        kubeConfigOpts,
-		defaultServiceAccount: defaultServiceAccount,
-		serviceAccountName:    serviceAccountName,
-		namespace:             namespace,
-		scheme:                kubeClient.Scheme(),
-	}
+	return NewImpersonatorWithScheme(kubeClient, statusPoller, pollingOpts, kubeConfigRef, kubeConfigOpts, defaultServiceAccount, serviceAccountName, namespace, kubeClient.Scheme())
 }
 
-// NewImpersonator creates an Impersonator from the given arguments.
+// NewImpersonatorWithScheme creates an Impersonator from the given arguments with a client runtime scheme.
 func NewImpersonatorWithScheme(kubeClient rc.Client,
 	statusPoller *polling.StatusPoller,
 	pollingOpts polling.Options,
