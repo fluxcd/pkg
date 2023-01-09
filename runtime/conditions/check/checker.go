@@ -34,6 +34,10 @@ type checkFunc func(ctx context.Context, obj conditions.Getter, condns *Conditio
 // Checker performs all the status checks. It is configured to provide context
 // of the target controller.
 type Checker struct {
+	// requireConditions is used to indicate that the checker requires
+	// conditions context to operate. It is used to perform validation of the
+	// checker instance.
+	requireConditions bool
 	// K8s client, to fetch the latest version of an object.
 	client.Client
 	// conditions is the conditions context of the target controller.
@@ -55,7 +59,8 @@ type Checker struct {
 	// ExcludeChecks map[string]bool
 }
 
-// NewChecker constructs and returns a new Checker for a controller.
+// NewChecker constructs and returns a new reconciled status Checker for a
+// controller.
 func NewChecker(cli client.Client, condns *Conditions) *Checker {
 	warnChecks := []checkFunc{
 		check_WARN0001,
@@ -74,11 +79,38 @@ func NewChecker(cli client.Client, condns *Conditions) *Checker {
 		check_FAIL0007,
 		check_FAIL0008,
 		check_FAIL0009,
-		check_FAIL0010,
+	}
+	return &Checker{
+		requireConditions: true,
+		Client:            cli,
+		conditions:        condns,
+		warnChecks:        warnChecks,
+		failChecks:        failChecks,
+		Stdout:            os.Stdout,
+		Stderr:            os.Stderr,
+	}
+}
+
+// NewInProgressChecker constructs and returns a new in-progress status Checker
+// for a controller. This exists separatly from NewChecker because the status
+// considerations are different for different scenarios, making certain checks
+// to not apply when an object is in mid-reconciliation with intermediate
+// status values.
+func NewInProgressChecker(cli client.Client) *Checker {
+	warnChecks := []checkFunc{
+		check_WARN0003,
+		check_WARN0004,
+		check_WARN0005,
+	}
+	failChecks := []checkFunc{
+		check_FAIL0002,
+		check_FAIL0004,
+		check_FAIL0005,
+		check_FAIL0006,
+		check_FAIL0011,
 	}
 	return &Checker{
 		Client:     cli,
-		conditions: condns,
 		warnChecks: warnChecks,
 		failChecks: failChecks,
 		Stdout:     os.Stdout,
@@ -101,7 +133,7 @@ func (c Checker) CheckErr(ctx context.Context, obj conditions.Getter) {
 
 // Check performs all the warn and fail checks and returns the results.
 func (c Checker) Check(ctx context.Context, obj conditions.Getter) (fail, warn error) {
-	if c.conditions == nil {
+	if c.requireConditions && c.conditions == nil {
 		return fmt.Errorf("no conditions context provided"), nil
 	}
 	// Fetch the latest version of the object.
