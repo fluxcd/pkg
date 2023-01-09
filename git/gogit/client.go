@@ -287,20 +287,15 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 		o(options)
 	}
 
-	wt, err := g.repository.Worktree()
-	if err != nil {
-		return "", err
-	}
-
-	var changed bool
 	for path, content := range options.Files {
 		if err := g.writeFile(path, content); err != nil {
 			return "", err
 		}
-		if _, err = wt.Add(path); err != nil {
-			return "", fmt.Errorf("cannot stage file %s: %w", path, err)
-		}
-		changed = true
+	}
+
+	wt, err := g.repository.Worktree()
+	if err != nil {
+		return "", err
 	}
 
 	status, err := wt.Status()
@@ -308,6 +303,7 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 		return "", err
 	}
 
+	var changed bool
 	for file := range status {
 		_, _ = wt.Add(file)
 		changed = true
