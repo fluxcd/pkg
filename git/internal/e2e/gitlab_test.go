@@ -35,14 +35,17 @@ import (
 )
 
 const (
-	gitlabUsername = "fluxcd-gitprovider-bot"
-	gitlabOrgname  = "fluxcd-testing"
+	gitlabPat      = "GITLAB_PAT"
+	gitlabUser     = "GITLAB_USER"
+	gitlabGroup    = "GITLAB_GROUP"
 	gitlabSSHHost  = "ssh://" + git.DefaultPublicKeyAuthUser + "@" + gitlab.DefaultDomain
 	gitlabHTTPHost = "https://" + gitlab.DefaultDomain
 )
 
 var (
 	gitlabPrivateToken string
+	gitlabUsername     string
+	gitlabGroupname    string
 )
 
 func TestGitLabE2E(t *testing.T) {
@@ -50,6 +53,14 @@ func TestGitLabE2E(t *testing.T) {
 	gitlabPrivateToken = os.Getenv(gitlabPat)
 	if gitlabPrivateToken == "" {
 		t.Fatalf("could not read gitlab PAT")
+	}
+	gitlabUsername = os.Getenv(gitlabUser)
+	if gitlabUsername == "" {
+		t.Fatalf("could not read gitlab username")
+	}
+	gitlabGroupname = os.Getenv(gitlabGroup)
+	if gitlabGroupname == "" {
+		t.Fatalf("could not read gitlab org name")
 	}
 
 	c, err := gitlab.NewClient(gitlabPrivateToken, "", gitprovider.WithDestructiveAPICalls(true))
@@ -62,7 +73,7 @@ func TestGitLabE2E(t *testing.T) {
 		var err error
 
 		if proto == git.SSH {
-			repoURL, err = url.Parse(gitlabSSHHost + "/" + gitlabOrgname + "/" + repo.Repository().GetRepository())
+			repoURL, err = url.Parse(gitlabSSHHost + "/" + gitlabGroupname + "/" + repo.Repository().GetRepository())
 			if err != nil {
 				return nil, nil, err
 			}
@@ -87,7 +98,7 @@ func TestGitLabE2E(t *testing.T) {
 				return nil, nil, err
 			}
 		} else {
-			repoURL, err = url.Parse(gitlabHTTPHost + "/" + gitlabOrgname + "/" + repo.Repository().GetRepository())
+			repoURL, err = url.Parse(gitlabHTTPHost + "/" + gitlabGroupname + "/" + repo.Repository().GetRepository())
 			if err != nil {
 				return nil, nil, err
 			}
@@ -110,7 +121,7 @@ func TestGitLabE2E(t *testing.T) {
 			g := NewWithT(t)
 
 			repoName := fmt.Sprintf("gitlab-e2e-checkout-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
-			upstreamRepoURL := gitlabHTTPHost + "/" + gitlabOrgname + "/" + repoName
+			upstreamRepoURL := gitlabHTTPHost + "/" + gitlabGroupname + "/" + repoName
 
 			ref, err := gitprovider.ParseOrgRepositoryURL(upstreamRepoURL)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -139,7 +150,7 @@ func TestGitLabE2E(t *testing.T) {
 			g := NewWithT(t)
 
 			repoName := fmt.Sprintf("gitlab-e2e-checkout-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
-			upstreamRepoURL := gitlabHTTPHost + "/" + gitlabOrgname + "/" + repoName
+			upstreamRepoURL := gitlabHTTPHost + "/" + gitlabGroupname + "/" + repoName
 
 			ref, err := gitprovider.ParseOrgRepositoryURL(upstreamRepoURL)
 			g.Expect(err).ToNot(HaveOccurred())

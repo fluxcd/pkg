@@ -43,5 +43,5 @@ if [[ ${exitCode} -ne 0 ]]; then
 fi
 echo "GitLab PAT created successfully"
 
-export GITLAB_PAT="${TOKEN}"
+export GITLAB_CE_PAT="${TOKEN}"
 export GITLAB_ROOT_PASSWORD="${password}"

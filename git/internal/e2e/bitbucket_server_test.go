@@ -36,11 +36,11 @@ import (
 )
 
 const (
-	projectKey  = "GOG"
-	sshPort     = "7999"
-	stashToken  = "STASH_TOKEN"
-	stashUser   = "STASH_USER"
-	stashDomain = "STASH_DOMAIN"
+	stashSSHPort    = "7999"
+	stashToken      = "STASH_TOKEN"
+	stashUser       = "STASH_USER"
+	stashDomain     = "STASH_DOMAIN"
+	stashProjectKey = "STASH_PROJECT_KEY"
 )
 
 var (
@@ -48,6 +48,7 @@ var (
 	bitbucketServerUser     string
 	bitbucketServerHost     string
 	bitbucketServerUsername string
+	projectKey              string
 	deployKey               *bitbucket.DeployKey
 )
 
@@ -65,11 +66,15 @@ func TestBitbucketServerE2E(t *testing.T) {
 	if bitbucketServerHost == "" {
 		t.Fatalf("could not read bitbucket domain")
 	}
+	projectKey = os.Getenv(stashProjectKey)
+	if projectKey == "" {
+		t.Fatalf("could not read bitbucket project key")
+	}
 
 	bitbucketServerHTTPHost := "https://" + bitbucketServerHost
 	bitbucketURL, err := url.Parse(bitbucketServerHTTPHost)
 	g.Expect(err).ToNot(HaveOccurred())
-	bitbucketServerSSHHost := "ssh://" + git.DefaultPublicKeyAuthUser + "@" + bitbucketURL.Hostname() + ":" + sshPort
+	bitbucketServerSSHHost := "ssh://" + git.DefaultPublicKeyAuthUser + "@" + bitbucketURL.Hostname() + ":" + stashSSHPort
 
 	c, err := bitbucket.NewClient(nil, bitbucketServerHTTPHost, nil, logr.Discard(), bitbucket.WithAuth(bitbucketServerUsername, bitbucketServerToken))
 	g.Expect(err).ToNot(HaveOccurred())

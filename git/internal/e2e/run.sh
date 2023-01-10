@@ -21,4 +21,3 @@ PKG_CONFIG_PATH="${PKG_CONFIG_PATH}" CGO_LDFLAGS="${CGO_LDFLAGS}" CGO_ENABLED=1 
 if [[ "${GO_TESTS}" = "" ]] || [[ "${GO_TESTS}" = "-run TestGitLabCEE2E" ]]; then
     docker kill gitlab && docker rm gitlab
 fi
-

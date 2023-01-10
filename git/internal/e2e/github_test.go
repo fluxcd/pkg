@@ -35,14 +35,16 @@ import (
 )
 
 const (
-	githubUsername = "fluxcd-gitprovider-bot"
-	githubOrgname  = "fluxcd-testing"
 	githubSSHHost  = "ssh://" + git.DefaultPublicKeyAuthUser + "@" + github.DefaultDomain
 	githubHTTPHost = "https://" + github.DefaultDomain
+	githubUser     = "GITHUB_USER"
+	githubOrg      = "GITHUB_ORG"
 )
 
 var (
 	githubOAuth2Token string
+	githubUsername    string
+	githubOrgname     string
 )
 
 func TestGitHubE2E(t *testing.T) {
@@ -50,6 +52,14 @@ func TestGitHubE2E(t *testing.T) {
 	githubOAuth2Token = os.Getenv(github.TokenVariable)
 	if githubOAuth2Token == "" {
 		t.Fatalf("could not read github oauth2 token")
+	}
+	githubUsername = os.Getenv(githubUser)
+	if githubUsername == "" {
+		t.Fatalf("could not read github username")
+	}
+	githubOrgname = os.Getenv(githubOrg)
+	if githubOrgname == "" {
+		t.Fatalf("could not read github org name")
 	}
 
 	c, err := github.NewClient(gitprovider.WithDestructiveAPICalls(true), gitprovider.WithOAuth2Token(githubOAuth2Token))

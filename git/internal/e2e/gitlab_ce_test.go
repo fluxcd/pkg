@@ -38,7 +38,7 @@ const (
 	gitlabCEUsername   = "root"
 	gitlabCEHTTPHost   = "http://127.0.0.1:8080"
 	gitlabCESSHHost    = "ssh://git@127.0.0.1:2222"
-	gitlabPat          = "GITLAB_PAT"
+	gitlabCEPat        = "GITLAB_CE_PAT"
 	gitlabRootPassword = "GITLAB_ROOT_PASSWORD"
 )
 
@@ -48,7 +48,7 @@ var (
 )
 
 func TestGitLabCEE2E(t *testing.T) {
-	gitlabCEPrivateToken = os.Getenv(gitlabPat)
+	gitlabCEPrivateToken = os.Getenv(gitlabCEPat)
 	if gitlabCEPrivateToken == "" {
 		t.Fatalf("could not read gitlab private token")
 	}
