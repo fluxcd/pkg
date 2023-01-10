@@ -182,6 +182,21 @@ func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recEr
 	return recErr
 }
 
+// ProgressiveStatus helps report the progressive status of an object based on
+// the given status value and drift information.
+// It always sets Reconciling=True with the given status values.
+// Ready condition is set only when:
+// - there's no existing Ready condition in the status
+// - Ready=Unknown
+// - drift is detected
+func ProgressiveStatus(drift bool, obj conditions.Setter, reason, messageFormat string, messageArgs ...interface{}) {
+	conditions.MarkReconciling(obj, reason, messageFormat, messageArgs...)
+	if drift || !conditions.Has(obj, meta.ReadyCondition) || conditions.IsUnknown(obj, meta.ReadyCondition) {
+		conditions.MarkUnknown(obj, meta.ReadyCondition, reason, messageFormat, messageArgs...)
+		return
+	}
+}
+
 // AddPatchOptions adds patch options to a given patch option based on the
 // passed conditions.Setter, ownedConditions and fieldOwner, and returns the
 // patch options.

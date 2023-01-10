@@ -562,44 +562,38 @@ func Test_check_FAIL0009(t *testing.T) {
 	}
 }
 
-func Test_check_FAIL0010(t *testing.T) {
+func Test_check_FAIL0011(t *testing.T) {
 	tests := []struct {
-		name                   string
-		rootObservedGeneration int64
-		conditions             []metav1.Condition
-		wantErr                bool
+		name          string
+		addConditions func(obj conditions.Setter)
+		wantErr       bool
 	}{
 		{
-			name:                   "Reconciling False",
-			rootObservedGeneration: 3,
-			conditions: []metav1.Condition{
-				{
-					Type:               meta.ReconcilingCondition,
-					Status:             metav1.ConditionFalse,
-					ObservedGeneration: 3,
-				},
+			name: "Ready False",
+			addConditions: func(obj conditions.Setter) {
+				conditions.MarkFalse(obj, meta.ReconcilingCondition, "Foo1", "Bar1")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "Foo2", "Bar2")
 			},
 		},
 		{
-			name:                   "Reconciling True, root ObservedGeneration < Reconciling ObservedGeneration",
-			rootObservedGeneration: 2,
-			conditions: []metav1.Condition{
-				{
-					Type:               meta.ReconcilingCondition,
-					Status:             metav1.ConditionTrue,
-					ObservedGeneration: 3,
-				},
+			name: "Ready Unknown, Reconciling True",
+			addConditions: func(obj conditions.Setter) {
+				conditions.MarkTrue(obj, meta.ReconcilingCondition, "Foo1", "Bar1")
+				conditions.MarkUnknown(obj, meta.ReadyCondition, "Foo2", "Bar2")
 			},
 		},
 		{
-			name:                   "Reconciling True, root ObservedGeneration = Reconciling ObservedGeneration",
-			rootObservedGeneration: 3,
-			conditions: []metav1.Condition{
-				{
-					Type:               meta.ReconcilingCondition,
-					Status:             metav1.ConditionTrue,
-					ObservedGeneration: 3,
-				},
+			name: "Ready Unknown, Reconciling False",
+			addConditions: func(obj conditions.Setter) {
+				conditions.MarkFalse(obj, meta.ReconcilingCondition, "Foo1", "Bar1")
+				conditions.MarkUnknown(obj, meta.ReadyCondition, "Foo2", "Bar2")
+			},
+			wantErr: true,
+		},
+		{
+			name: "Ready Unknown, No Reconciling condition",
+			addConditions: func(obj conditions.Setter) {
+				conditions.MarkUnknown(obj, meta.ReadyCondition, "Foo2", "Bar2")
 			},
 			wantErr: true,
 		},
@@ -609,16 +603,14 @@ func Test_check_FAIL0010(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			scheme := runtime.NewScheme()
-			g.Expect(testdata.AddFakeToScheme(scheme)).To(Succeed())
-
 			obj := &testdata.Fake{}
-			obj.Status.ObservedGeneration = tt.rootObservedGeneration
-			obj.SetConditions(tt.conditions)
 
-			err := check_FAIL0010(context.TODO(), obj, nil)
+			if tt.addConditions != nil {
+				tt.addConditions(obj)
+			}
+
+			err := check_FAIL0011(context.TODO(), obj, nil)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 		})
 	}
-
 }

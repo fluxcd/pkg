@@ -28,6 +28,7 @@ import (
 )
 
 // Negative polarity condition present when Ready condition is True.
+// NOTE: This is not applicable for mid-reconciliation patched status.
 func check_WARN0001(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
 	if !conditions.IsTrue(obj, meta.ReadyCondition) {
 		return nil
@@ -53,6 +54,7 @@ func check_WARN0001(ctx context.Context, obj conditions.Getter, condns *Conditio
 
 // Ready condition should have the value of the negative polarity conditon
 // that's present with the highest priority.
+// NOTE: This is not applicable for mid-reconciliation patched status.
 func check_WARN0002(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
 	if conditions.IsTrue(obj, meta.ReadyCondition) {
 		return nil

@@ -27,6 +27,9 @@ import (
 )
 
 // Negative polarity condition cannot be True when Ready condition is True.
+// NOTE: This is only true for full reconciliation status. This is not true
+// during mid-reconciliation status. Reconciling can be True without any drift,
+// keeping Ready=True at the same time.
 func check_FAIL0001(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
 	if !conditions.IsTrue(obj, meta.ReadyCondition) {
 		return nil
@@ -61,6 +64,9 @@ func check_FAIL0002(ctx context.Context, obj conditions.Getter, condns *Conditio
 }
 
 // Ready condition must be False when Reconciling condition is True.
+// NOTE: This is only true for full reconciliation status. This is not true
+// during mid-reconciliation status. Reconciling can be True without any drift,
+// keeping Ready=True at the same time.
 func check_FAIL0003(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
 	if !conditions.Has(obj, meta.ReconcilingCondition) {
 		return nil
@@ -117,6 +123,8 @@ func check_FAIL0006(ctx context.Context, obj conditions.Getter, condns *Conditio
 
 // Ready condition must be False when the ObservedGeneration is less than the
 // object Generation.
+// NOTE: This is only true for full reconciliation status. This is not true
+// during mid-reconciliation status, Ready can be True, False or Unknown.
 func check_FAIL0007(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
 	og, err := getStatusObservedGeneration(obj)
 	if err != nil {
@@ -132,6 +140,9 @@ func check_FAIL0007(ctx context.Context, obj conditions.Getter, condns *Conditio
 
 // Ready condition must be False when any of the status condition's
 // ObservedGeneration is less than the object Generation.
+// NOTE: This is only true for full reconciliation status. This is not true
+// during mid-reconciliation status. Ready can be of any value when any of the
+// status condition's ObservedGeneration is less than the object Generation.
 func check_FAIL0008(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
 	if !conditions.IsReady(obj) {
 		return nil
@@ -152,6 +163,9 @@ func check_FAIL0008(ctx context.Context, obj conditions.Getter, condns *Conditio
 
 // The status conditions' ObservedGenerations must be equal to the root
 // ObservedGeneration when Ready condition is True.
+// NOTE: This is only true for full reconciliation status. This is not true
+// during mid-reconciliation patching. Reconciling condition can be updated with
+// new observed generation while Ready=True in the previous generation.
 func check_FAIL0009(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
 	if !conditions.IsReady(obj) {
 		return nil
@@ -173,19 +187,14 @@ func check_FAIL0009(ctx context.Context, obj conditions.Getter, condns *Conditio
 	return nil
 }
 
-// The root ObservedGeneration must be less than the Reconciling condition
-// ObservedGeneration when Reconciling condition is True.
-func check_FAIL0010(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
-	if !conditions.IsReconciling(obj) {
+// A mid-reconciliation object's status must have Reconciling=True when
+// Ready=Unknown.
+func check_FAIL0011(ctx context.Context, obj conditions.Getter, condns *Conditions) error {
+	if !conditions.IsUnknown(obj, meta.ReadyCondition) {
 		return nil
 	}
-	og, err := getStatusObservedGeneration(obj)
-	if err != nil {
-		return fmt.Errorf("CHECK_FAIL0010: failed to get observed generation: %w", err)
-	}
-	rec := conditions.Get(obj, meta.ReconcilingCondition)
-	if og >= rec.ObservedGeneration {
-		return fmt.Errorf("The root ObservedGeneration must be less than the Reconciling condition ObservedGeneration when Reconciling condition is True")
+	if !conditions.IsTrue(obj, meta.ReconcilingCondition) {
+		return fmt.Errorf("A mid-reconciliation patched status must have Reconciling=True when Ready=Unknown")
 	}
 	return nil
 }
