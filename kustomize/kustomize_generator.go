@@ -415,54 +415,12 @@ func (g *Generator) generateKustomization(dirPath string) (Action, string, error
 		}
 	}
 
-	scan := func(base string) ([]string, error) {
-		var paths []string
-		pvd := provider.NewDefaultDepProvider()
-		rf := pvd.GetResourceFactory()
-		err := fs.Walk(base, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if path == base {
-				return nil
-			}
-			if info.IsDir() {
-				// If a sub-directory contains an existing kustomization file add the
-				// directory as a resource and do not decend into it.
-				for _, kfilename := range konfig.RecognizedKustomizationFileNames() {
-					if kpath := filepath.Join(path, kfilename); fs.Exists(kpath) && !fs.IsDir(kpath) {
-						paths = append(paths, path)
-						return filepath.SkipDir
-					}
-				}
-				return nil
-			}
-
-			extension := filepath.Ext(path)
-			if extension != ".yaml" && extension != ".yml" {
-				return nil
-			}
-
-			fContents, err := fs.ReadFile(path)
-			if err != nil {
-				return err
-			}
-
-			if _, err := rf.SliceFromBytes(fContents); err != nil {
-				return fmt.Errorf("failed to decode Kubernetes YAML from %s: %w", path, err)
-			}
-			paths = append(paths, path)
-			return nil
-		})
-		return paths, err
-	}
-
 	abs, err := filepath.Abs(dirPath)
 	if err != nil {
 		return UnchangedAction, "", err
 	}
 
-	files, err := scan(abs)
+	files, err := scanManifests(fs, abs)
 	if err != nil {
 		return UnchangedAction, "", err
 	}
@@ -495,6 +453,63 @@ func (g *Generator) generateKustomization(dirPath string) (Action, string, error
 	}
 
 	return CreatedAction, kfile, os.WriteFile(kfile, kd, os.ModePerm)
+}
+
+// scanManifests walks through the given base path parsing all the files and
+// collecting a list of all the yaml file paths which can be used as
+// kustomization resources.
+func scanManifests(fs filesys.FileSystem, base string) ([]string, error) {
+	var paths []string
+	pvd := provider.NewDefaultDepProvider()
+	rf := pvd.GetResourceFactory()
+	err := fs.Walk(base, func(path string, info os.FileInfo, err error) (walkErr error) {
+		if err != nil {
+			walkErr = err
+			return
+		}
+		if path == base {
+			return
+		}
+		if info.IsDir() {
+			// If a sub-directory contains an existing kustomization file add the
+			// directory as a resource and do not decend into it.
+			for _, kfilename := range konfig.RecognizedKustomizationFileNames() {
+				if kpath := filepath.Join(path, kfilename); fs.Exists(kpath) && !fs.IsDir(kpath) {
+					paths = append(paths, path)
+					return filepath.SkipDir
+				}
+			}
+			return
+		}
+
+		extension := filepath.Ext(path)
+		if extension != ".yaml" && extension != ".yml" {
+			return
+		}
+
+		fContents, err := fs.ReadFile(path)
+		if err != nil {
+			walkErr = err
+			return
+		}
+
+		// Kustomize YAML parser tends to panic in unpredicted ways due to
+		// (accidental) invalid object data; recover when this happens to ensure
+		// continuity of operations.
+		defer func() {
+			if r := recover(); r != nil {
+				walkErr = fmt.Errorf("recovered from panic while parsing YAML file %s: %v", filepath.Base(path), r)
+			}
+		}()
+
+		if _, err := rf.SliceFromBytes(fContents); err != nil {
+			walkErr = fmt.Errorf("failed to decode Kubernetes YAML from %s: %w", path, err)
+			return
+		}
+		paths = append(paths, path)
+		return
+	})
+	return paths, err
 }
 
 func adaptSelector(selector *kustomize.Selector) (output *kustypes.Selector) {
