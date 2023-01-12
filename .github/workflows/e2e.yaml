@@ -61,17 +61,17 @@ jobs:
           if [[ ${{ github.event_name }} != "pull_request" ]] || \
             [[ "${{ github.event.pull_request.head.repo.full_name }}" = ${{ github.repository }} ]]; then
             if [[ ${{ matrix.provider }} = "github" ]]; then
-              export GO_TESTS="-run TestGitHubE2E"
+              export GO_TEST_ARGS="-run TestGitHubE2E"
               export GITHUB_USER="fluxcd-gitprovider-bot"
               export GITHUB_ORG="fluxcd-testing"
               export GITHUB_TOKEN="${{ secrets.GITPROVIDER_BOT_TOKEN }}"
             elif [[ ${{ matrix.provider }} = "gitlab" ]]; then
-              export GO_TESTS="-run TestGitLabE2E"
+              export GO_TEST_ARGS="-run TestGitLabE2E"
               export GITLAB_USER="fluxcd-gitprovider-bot"
               export GITLAB_GROUP="fluxcd-testing"
               export GITLAB_PAT="${{ secrets.GITLAB_BOT_TOKEN }}"
             elif [[ ${{ matrix.provider }} = "bitbucket-server" ]]; then
-              export GO_TESTS="-run TestBitbucketServerE2E"
+              export GO_TEST_ARGS="-run TestBitbucketServerE2E"
               export STASH_PROJECT_KEY="GOG"
               export STASH_TOKEN="${{ secrets.STASH_TOKEN }}"
               export STASH_DOMAIN="${{ secrets.STASH_DOMAIN }}"
@@ -82,15 +82,15 @@ jobs:
           fi
 
           if [[ ${{ matrix.provider }} = "gitkit" ]]; then
-            export GO_TESTS="-run TestGitKitE2E"
+            export GO_TEST_ARGS="-run TestGitKitE2E"
             run_e2e=true
           elif [[ ${{ matrix.provider }} = "gitlab-ce" ]]; then
-            export GO_TESTS="-run TestGitLabCEE2E"
+            export GO_TEST_ARGS="-run TestGitLabCEE2E"
             run_e2e=true
           fi
 
           if [ $run_e2e = true ]; then
-            cd git/internal/e2e && GO_TESTS="${GO_TESTS}" ./run.sh
+            cd git/internal/e2e && GO_TEST_ARGS="${GO_TEST_ARGS}" ./run.sh
           else
             echo "skipping tests for ${{ matrix.provider }}"
           fi
