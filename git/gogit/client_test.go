@@ -660,6 +660,7 @@ func TestValidateUrl(t *testing.T) {
 		transport           git.TransportType
 		username            string
 		password            string
+		bearerToken         string
 		url                 string
 		credentialsOverHttp bool
 		expectedError       string
@@ -687,6 +688,26 @@ func TestValidateUrl(t *testing.T) {
 			password:  "pass",
 			url:       "https://url",
 		},
+		{
+			name:          "blocked: bearer token over http",
+			transport:     git.HTTP,
+			bearerToken:   "token",
+			url:           "http://url",
+			expectedError: "bearer token cannot be sent over HTTP",
+		},
+		{
+			name:                "allowed: bearer token over http with insecure enabled",
+			transport:           git.HTTP,
+			bearerToken:         "token",
+			url:                 "http://url",
+			credentialsOverHttp: true,
+		},
+		{
+			name:        "allowed: bearer token over https",
+			transport:   git.HTTPS,
+			bearerToken: "token",
+			url:         "https://url",
+		},
 	}
 
 	for _, tt := range tests {
@@ -699,9 +720,10 @@ func TestValidateUrl(t *testing.T) {
 			}
 
 			ggc, err := NewClient(t.TempDir(), &git.AuthOptions{
-				Transport: tt.transport,
-				Username:  tt.username,
-				Password:  tt.password,
+				Transport:   tt.transport,
+				Username:    tt.username,
+				Password:    tt.password,
+				BearerToken: tt.bearerToken,
 			}, opts...)
 			g.Expect(err).ToNot(HaveOccurred())
 

@@ -254,9 +254,12 @@ func (g *Client) validateUrl(u string) error {
 		return errors.New("URL cannot contain credentials when using HTTP")
 	}
 
-	if httpOrEmpty && g.authOpts != nil &&
-		(g.authOpts.Username != "" || g.authOpts.Password != "") {
-		return errors.New("basic auth cannot be sent over HTTP")
+	if httpOrEmpty && g.authOpts != nil {
+		if g.authOpts.Username != "" || g.authOpts.Password != "" {
+			return errors.New("basic auth cannot be sent over HTTP")
+		} else if g.authOpts.BearerToken != "" {
+			return errors.New("bearer token cannot be sent over HTTP")
+		}
 	}
 
 	return nil
