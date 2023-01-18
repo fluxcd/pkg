@@ -14,7 +14,7 @@ tests are run against the following providers:
 ### Gitkit
 
 ```shell
-GO_TEST_ARGS='-run TestGitKitE2E' ./run.sh
+GO_TEST_PREFIX='TestGitKitE2E' ./run.sh
 ```
 
 ### GitLab CE
@@ -28,7 +28,7 @@ related to the container:
 * `GITLAB_CONTAINER`: Name of the contianer running GitLab. Defaults to gitlab-flux-e2e.
 
 ```shell
-GO_TEST_ARGS='-run TestGitLabCEE2E' ./run.sh
+GO_TEST_PREFIX='TestGitLabCEE2E' ./run.sh
 ```
 
 ### GitHub
@@ -44,7 +44,7 @@ Specify the token, username and org name as environment variables for the script
 org already exists as it won't be created by the script itself.
 
 ```shell
-GO_TEST_ARGS='-run TestGitHubE2E' GITHUB_USER='***' GITHUB_ORG='***' GITHUB_TOKEN='***' ./run.sh 
+GO_TEST_PREFIX='TestGitHubE2E' GITHUB_USER='***' GITHUB_ORG='***' GITHUB_TOKEN='***' ./run.sh 
 ```
 
 ### GitLab
@@ -61,7 +61,7 @@ Specify the token, username and group name as environment variables for the scri
 group already exists as it won't be created by the script itself.
 
 ```shell
-GO_TEST_ARGS='-run TestGitLabE2E' GITLAB_USER='***' GITLAB_GROUP='***' GITLAB_PAT='***' ./run.sh 
+GO_TEST_PREFIX='TestGitLabE2E' GITLAB_USER='***' GITLAB_GROUP='***' GITLAB_PAT='***' ./run.sh 
 ```
 
 ### Bitbucket Server
@@ -77,5 +77,5 @@ environment variables for the script. Please make sure that the project already 
 won't be created by the script itself.
 
 ```shell
-GO_TEST_ARGS='-run TestBitbucketServerE2E' STASH_USER='***' STASH_TOKEN='***' STASH_DOMAIN='***' STASH_PROJECT_KEY='***' ./run.sh
+GO_TEST_PREFIX='TestBitbucketServerE2E' STASH_USER='***' STASH_TOKEN='***' STASH_DOMAIN='***' STASH_PROJECT_KEY='***' ./run.sh
 ```
