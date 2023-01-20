@@ -235,7 +235,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal(DefaultPublicKeyAuthUser)) // Not the specified username
-				g.Expect(opts.Password).To(Equal(""))
+				g.Expect(opts.Password).To(Equal("secret"))                 // For passphrase protected ssh key
 				g.Expect(opts.BearerToken).To(Equal(""))
 				g.Expect(opts.Identity).To(BeEquivalentTo(privateKeyFixture))
 				g.Expect(opts.KnownHosts).To(BeEquivalentTo(knownHostsFixture))

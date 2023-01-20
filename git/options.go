@@ -91,6 +91,7 @@ func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 			opts.Identity = data["identity"]
 			opts.KnownHosts = data["known_hosts"]
 			opts.Username = u.User.Username()
+			opts.Password = string(data["password"])
 			// We fallback to using "git" as the username when cloning Git
 			// repositories through SSH since that's the conventional username used
 			// by Git providers.
