@@ -87,25 +87,31 @@ func (o AuthOptions) Validate() error {
 func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 	opts := newAuthOptions(u)
 	if len(data) > 0 {
-		opts.Username = string(data["username"])
-		opts.Password = string(data["password"])
-		opts.BearerToken = string(data["bearerToken"])
-		opts.CAFile = data["caFile"]
-		opts.Identity = data["identity"]
-		opts.KnownHosts = data["known_hosts"]
+		if opts.Transport == SSH {
+			opts.Identity = data["identity"]
+			opts.KnownHosts = data["known_hosts"]
+			opts.Username = u.User.Username()
+			// We fallback to using "git" as the username when cloning Git
+			// repositories through SSH since that's the conventional username used
+			// by Git providers.
+			if opts.Username == "" {
+				opts.Username = DefaultPublicKeyAuthUser
+			}
+		} else if token, found := data["bearerToken"]; found {
+			opts.CAFile = data["caFile"]
+			opts.BearerToken = string(token)
+		} else {
+			opts.CAFile = data["caFile"]
+			opts.Username = string(data["username"])
+			opts.Password = string(data["password"])
+		}
 	}
 
-	if opts.Username == "" {
+	if opts.Transport != SSH && opts.Username == "" {
 		opts.Username = u.User.Username()
 	}
 
-	// We fallback to using "git" as the username when cloning Git
-	// repositories through SSH since that's the conventional username used
-	// by Git providers.
-	if opts.Username == "" && opts.Transport == SSH {
-		opts.Username = DefaultPublicKeyAuthUser
-	}
-	if opts.Password == "" {
+	if opts.Transport != SSH && opts.Password == "" {
 		opts.Password, _ = u.User.Password()
 	}
 
