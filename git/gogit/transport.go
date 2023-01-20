@@ -43,6 +43,10 @@ func transportAuth(opts *git.AuthOptions, fallbackToDefaultKnownHosts bool) (tra
 				Username: opts.Username,
 				Password: opts.Password,
 			}, nil
+		} else if opts.BearerToken != "" {
+			return &http.TokenAuth{
+				Token: opts.BearerToken,
+			}, nil
 		}
 		return nil, nil
 	case git.SSH:

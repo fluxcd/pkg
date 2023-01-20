@@ -112,6 +112,18 @@ func Test_transportAuth(t *testing.T) {
 			},
 		},
 		{
+			name: "HTTP bearer token",
+			opts: &git.AuthOptions{
+				Transport:   git.HTTP,
+				BearerToken: "http-token",
+			},
+			wantFunc: func(g *WithT, t transport.AuthMethod, opts *git.AuthOptions) {
+				g.Expect(t).To(Equal(&http.TokenAuth{
+					Token: opts.BearerToken,
+				}))
+			},
+		},
+		{
 			name: "HTTPS basic auth",
 			opts: &git.AuthOptions{
 				Transport: git.HTTPS,
@@ -122,6 +134,18 @@ func Test_transportAuth(t *testing.T) {
 				g.Expect(t).To(Equal(&http.BasicAuth{
 					Username: opts.Username,
 					Password: opts.Password,
+				}))
+			},
+		},
+		{
+			name: "HTTPS bearer token",
+			opts: &git.AuthOptions{
+				Transport:   git.HTTPS,
+				BearerToken: "https-token",
+			},
+			wantFunc: func(g *WithT, t transport.AuthMethod, opts *git.AuthOptions) {
+				g.Expect(t).To(Equal(&http.TokenAuth{
+					Token: opts.BearerToken,
 				}))
 			},
 		},

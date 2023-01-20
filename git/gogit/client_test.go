@@ -653,3 +653,106 @@ func TestHead(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(hash.String()).To(Equal(cc))
 }
+
+func TestValidateUrl(t *testing.T) {
+	tests := []struct {
+		name                string
+		transport           git.TransportType
+		username            string
+		password            string
+		bearerToken         string
+		url                 string
+		credentialsOverHttp bool
+		expectedError       string
+	}{
+		{
+			name:          "blocked: basic auth over http",
+			transport:     git.HTTP,
+			username:      "user",
+			password:      "pass",
+			url:           "http://url",
+			expectedError: "basic auth cannot be sent over HTTP",
+		},
+		{
+			name:                "allowed: basic auth over http with insecure enabled",
+			transport:           git.HTTP,
+			username:            "user",
+			password:            "pass",
+			url:                 "http://url",
+			credentialsOverHttp: true,
+		},
+		{
+			name:      "allowed: basic auth over https",
+			transport: git.HTTPS,
+			username:  "user",
+			password:  "pass",
+			url:       "https://url",
+		},
+		{
+			name:          "blocked: bearer token over http",
+			transport:     git.HTTP,
+			bearerToken:   "token",
+			url:           "http://url",
+			expectedError: "bearer token cannot be sent over HTTP",
+		},
+		{
+			name:                "allowed: bearer token over http with insecure enabled",
+			transport:           git.HTTP,
+			bearerToken:         "token",
+			url:                 "http://url",
+			credentialsOverHttp: true,
+		},
+		{
+			name:        "allowed: bearer token over https",
+			transport:   git.HTTPS,
+			bearerToken: "token",
+			url:         "https://url",
+		},
+		{
+			name:          "blocked: basic auth and bearer token at the same time over http",
+			transport:     git.HTTP,
+			username:      "user",
+			password:      "pass",
+			bearerToken:   "token",
+			url:           "http://url",
+			expectedError: "basic auth and bearer token cannot be set at the same time",
+		},
+		{
+			name:          "blocked: basic auth and bearer token at the same time over https",
+			transport:     git.HTTPS,
+			username:      "user",
+			password:      "pass",
+			bearerToken:   "token",
+			url:           "https://url",
+			expectedError: "basic auth and bearer token cannot be set at the same time",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			opts := []ClientOption{WithDiskStorage()}
+			if tt.credentialsOverHttp {
+				opts = append(opts, WithInsecureCredentialsOverHTTP())
+			}
+
+			ggc, err := NewClient(t.TempDir(), &git.AuthOptions{
+				Transport:   tt.transport,
+				Username:    tt.username,
+				Password:    tt.password,
+				BearerToken: tt.bearerToken,
+			}, opts...)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			err = ggc.validateUrl(tt.url)
+
+			if tt.expectedError == "" {
+				g.Expect(err).To(BeNil())
+			} else {
+				g.Expect(err).ToNot(BeNil())
+				g.Expect(err.Error()).To(ContainSubstring(tt.expectedError))
+			}
+		})
+	}
+}

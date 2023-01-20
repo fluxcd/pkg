@@ -181,10 +181,10 @@ func TestAuthOptionsFromData(t *testing.T) {
 		wantErr  string
 	}{
 		{
-			name: "Sets values from Secret",
-			URL:  "https://git@example.com",
+			name: "Sets only relevant values from Secret for HTTPS with basic auth",
+			URL:  "https://example.com",
 			data: map[string][]byte{
-				"username":    []byte("example"), // This takes precedence over the one from the URL
+				"username":    []byte("example"),
 				"password":    []byte("secret"),
 				"identity":    []byte(privateKeyFixture),
 				"known_hosts": []byte(knownHostsFixture),
@@ -194,9 +194,52 @@ func TestAuthOptionsFromData(t *testing.T) {
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal("example"))
 				g.Expect(opts.Password).To(Equal("secret"))
+				g.Expect(opts.BearerToken).To(Equal(""))
+				g.Expect(opts.Identity).To(BeNil())
+				g.Expect(opts.KnownHosts).To(BeNil())
+				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
+			},
+		},
+		{
+			name: "Sets only relevant values from Secret for HTTPS with bearer token",
+			URL:  "https://example.com",
+			data: map[string][]byte{
+				"username":    []byte("example"),
+				"password":    []byte("secret"),
+				"bearerToken": []byte("token"),
+				"identity":    []byte(privateKeyFixture),
+				"known_hosts": []byte(knownHostsFixture),
+				"caFile":      []byte("mock"),
+			},
+
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Username).To(Equal(""))
+				g.Expect(opts.Password).To(Equal(""))
+				g.Expect(opts.BearerToken).To(Equal("token")) // Preferred over basic auth when provided
+				g.Expect(opts.Identity).To(BeNil())
+				g.Expect(opts.KnownHosts).To(BeNil())
+				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
+			},
+		},
+		{
+			name: "Sets only relevant values from Secret for SSH",
+			URL:  "ssh://example.com",
+			data: map[string][]byte{
+				"username":    []byte("example"),
+				"password":    []byte("secret"),
+				"bearerToken": []byte("token"),
+				"identity":    []byte(privateKeyFixture),
+				"known_hosts": []byte(knownHostsFixture),
+				"caFile":      []byte("mock"),
+			},
+
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Username).To(Equal(DefaultPublicKeyAuthUser)) // Not the specified username
+				g.Expect(opts.Password).To(Equal("secret"))                 // For passphrase protected ssh key
+				g.Expect(opts.BearerToken).To(Equal(""))
 				g.Expect(opts.Identity).To(BeEquivalentTo(privateKeyFixture))
 				g.Expect(opts.KnownHosts).To(BeEquivalentTo(knownHostsFixture))
-				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
+				g.Expect(opts.CAFile).To(BeNil())
 			},
 		},
 		{
@@ -208,6 +251,27 @@ func TestAuthOptionsFromData(t *testing.T) {
 			},
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal(DefaultPublicKeyAuthUser))
+			},
+		},
+		{
+			name: "Sets user for SSH from URL",
+			URL:  "ssh://user@example.com",
+			data: map[string][]byte{
+				"identity":    []byte(privateKeyFixture),
+				"known_hosts": []byte(knownHostsFixture),
+			},
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Username).To(Equal("user"))
+			},
+		},
+		{
+			name: "Sets caFile for HTTPS",
+			URL:  "https://example.com",
+			data: map[string][]byte{
+				"caFile": []byte("mock"),
+			},
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
 			},
 		},
 		{
@@ -228,6 +292,28 @@ func TestAuthOptionsFromData(t *testing.T) {
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal("example"))
 				g.Expect(opts.Password).To(Equal("secret"))
+			},
+		},
+		{
+			name: "Sets username from Secret over username from URL",
+			URL:  "http://example@example.com",
+			data: map[string][]byte{
+				"username": []byte("user"),
+				"password": []byte("secret"),
+			},
+
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Username).To(Equal("user"))
+				g.Expect(opts.Password).To(Equal("secret"))
+			},
+		},
+		{
+			name: "Sets username and password from URL only",
+			URL:  "https://user:pass@example.com",
+			data: nil,
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Username).To(Equal("user"))
+				g.Expect(opts.Password).To(Equal("pass"))
 			},
 		},
 		{

@@ -988,6 +988,7 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 		name                     string
 		username                 string
 		password                 string
+		bearerToken              string
 		allowCredentialsOverHttp bool
 		transformURL             func(string) string
 		expectCloneErr           string
@@ -1008,6 +1009,11 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 			username:       "name",
 			password:       "pass",
 			expectCloneErr: "basic auth cannot be sent over HTTP",
+		},
+		{
+			name:           "blocked: bearer token over HTTP",
+			bearerToken:    "token",
+			expectCloneErr: "bearer token cannot be sent over HTTP",
 		},
 		{
 			name: "blocked: URL based credential over HTTP (name)",
@@ -1065,6 +1071,13 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 			name:                     "allowed: basic auth over HTTP (name and password)",
 			username:                 "name",
 			password:                 "pass",
+			expectCloneErr:           "unable to clone",
+			allowCredentialsOverHttp: true,
+			expectRequest:            true,
+		},
+		{
+			name:                     "allowed: bearer token over HTTP",
+			bearerToken:              "token",
 			expectCloneErr:           "unable to clone",
 			allowCredentialsOverHttp: true,
 			expectRequest:            true,
@@ -1129,9 +1142,10 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 			}
 
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{
-				Transport: git.HTTP,
-				Username:  tt.username,
-				Password:  tt.password,
+				Transport:   git.HTTP,
+				Username:    tt.username,
+				Password:    tt.password,
+				BearerToken: tt.bearerToken,
 			}, opts...)
 
 			g.Expect(err).ToNot(HaveOccurred())
