@@ -245,6 +245,16 @@ func (g *Client) validateUrl(u string) error {
 		return fmt.Errorf("cannot parse url: %w", err)
 	}
 
+	if g.authOpts != nil {
+		httpOrHttps := g.authOpts.Transport == git.HTTP || g.authOpts.Transport == git.HTTPS
+		hasUsernameOrPassword := g.authOpts.Username != "" || g.authOpts.Password != ""
+		hasBearerToken := g.authOpts.BearerToken != ""
+
+		if httpOrHttps && hasBearerToken && hasUsernameOrPassword {
+			return errors.New("basic auth and bearer token cannot be set at the same time")
+		}
+	}
+
 	if g.credentialsOverHTTP {
 		return nil
 	}

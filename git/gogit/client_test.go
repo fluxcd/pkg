@@ -708,6 +708,24 @@ func TestValidateUrl(t *testing.T) {
 			bearerToken: "token",
 			url:         "https://url",
 		},
+		{
+			name:          "blocked: basic auth and bearer token at the same time over http",
+			transport:     git.HTTP,
+			username:      "user",
+			password:      "pass",
+			bearerToken:   "token",
+			url:           "http://url",
+			expectedError: "basic auth and bearer token cannot be set at the same time",
+		},
+		{
+			name:          "blocked: basic auth and bearer token at the same time over https",
+			transport:     git.HTTPS,
+			username:      "user",
+			password:      "pass",
+			bearerToken:   "token",
+			url:           "https://url",
+			expectedError: "basic auth and bearer token cannot be set at the same time",
+		},
 	}
 
 	for _, tt := range tests {
