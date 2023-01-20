@@ -213,6 +213,27 @@ func TestAuthOptionsFromData(t *testing.T) {
 			},
 		},
 		{
+			name: "Sets user for SSH from URL",
+			URL:  "ssh://user@example.com",
+			data: map[string][]byte{
+				"identity":    []byte(privateKeyFixture),
+				"known_hosts": []byte(knownHostsFixture),
+			},
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Username).To(Equal("user"))
+			},
+		},
+		{
+			name: "Sets caFile for HTTPS",
+			URL:  "https://example.com",
+			data: map[string][]byte{
+				"caFile": []byte("mock"),
+			},
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
+			},
+		},
+		{
 			name: "Sets transport from URL",
 			URL:  "http://git@example.com",
 			data: nil,
@@ -230,6 +251,15 @@ func TestAuthOptionsFromData(t *testing.T) {
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal("example"))
 				g.Expect(opts.Password).To(Equal("secret"))
+			},
+		},
+		{
+			name: "Sets username and password from URL only",
+			URL:  "https://user:pass@example.com",
+			data: nil,
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Username).To(Equal("user"))
+				g.Expect(opts.Password).To(Equal("pass"))
 			},
 		},
 		{
