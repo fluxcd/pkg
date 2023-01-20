@@ -295,6 +295,19 @@ func TestAuthOptionsFromData(t *testing.T) {
 			},
 		},
 		{
+			name: "Sets username from Secret over username from URL",
+			URL:  "http://example@example.com",
+			data: map[string][]byte{
+				"username": []byte("user"),
+				"password": []byte("secret"),
+			},
+
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.Username).To(Equal("user"))
+				g.Expect(opts.Password).To(Equal("secret"))
+			},
+		},
+		{
 			name: "Sets username and password from URL only",
 			URL:  "https://user:pass@example.com",
 			data: nil,
