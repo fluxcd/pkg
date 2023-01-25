@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
+	hpav2 "k8s.io/api/autoscaling/v2"
 	hpav2beta1 "k8s.io/api/autoscaling/v2beta1"
 	hpav2beta2 "k8s.io/api/autoscaling/v2beta2"
 	corev1 "k8s.io/api/core/v1"
@@ -427,6 +428,17 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
 				}
 				u.Object = out
+			case "autoscaling/v2":
+				var d hpav2.HorizontalPodAutoscaler
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+				if err != nil {
+					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
+				}
+				u.Object = out
 			}
 		}
 
@@ -455,6 +467,34 @@ func fixHorizontalPodAutoscaler(object *unstructured.Unstructured) error {
 			}
 
 			var metrics []hpav2beta2.MetricSpec
+			for _, metric := range d.Spec.Metrics {
+				found := false
+				for _, existing := range metrics {
+					if apiequality.Semantic.DeepEqual(metric, existing) {
+						found = true
+						break
+					}
+				}
+				if !found && metric.Type != "" {
+					metrics = append(metrics, metric)
+				}
+			}
+
+			d.Spec.Metrics = metrics
+
+			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
+			if err != nil {
+				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
+			}
+			object.Object = out
+		case "autoscaling/v2":
+			var d hpav2.HorizontalPodAutoscaler
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(object.Object, &d)
+			if err != nil {
+				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
+			}
+
+			var metrics []hpav2.MetricSpec
 			for _, metric := range d.Spec.Metrics {
 				found := false
 				for _, existing := range metrics {

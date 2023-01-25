@@ -4,7 +4,7 @@ kind: Namespace
 metadata:
   name: "%[1]s"
 ---
-apiVersion: autoscaling/v2beta2
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: "%[1]s"

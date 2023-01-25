@@ -17,7 +17,7 @@ GO_TEST_ARGS ?= -race
 ENVTEST_ARCH ?= amd64
 
 # Kubernetes versions to use envtest with
-ENVTEST_KUBERNETES_VERSION?=1.25
+ENVTEST_KUBERNETES_VERSION?=1.26
 
 all:
 	$(MAKE) $(targets)
