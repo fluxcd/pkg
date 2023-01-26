@@ -242,12 +242,17 @@ func TestApply_Force(t *testing.T) {
 		}
 	})
 
-	t.Run("recreates immutable StorageClass", func(t *testing.T) {
+	t.Run("recreates immutable StorageClass based on metadata", func(t *testing.T) {
 		// update parameters
 		err = unstructured.SetNestedField(st.Object, "true", "parameters", "encrypted")
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		meta := map[string]string{
+			"fluxcd.io/force": "true",
+		}
+		st.SetAnnotations(meta)
 
 		// apply and expect to fail
 		_, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
@@ -255,8 +260,8 @@ func TestApply_Force(t *testing.T) {
 			t.Fatal("Expected error got none")
 		}
 
-		// force apply
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{Force: true, WaitTimeout: timeout})
+		// force apply selector
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{ForceSelector: meta, WaitTimeout: timeout})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -383,9 +388,9 @@ func TestApply_Exclusions(t *testing.T) {
 
 		// apply with exclusions
 		changeSet, err := manager.ApplyAll(ctx, objects, ApplyOptions{
-			Force:       false,
-			Exclusions:  meta,
-			WaitTimeout: time.Second,
+			Force:             false,
+			ExclusionSelector: meta,
+			WaitTimeout:       time.Second,
 		})
 		if err != nil {
 			t.Fatal(err)

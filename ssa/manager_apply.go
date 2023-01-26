@@ -34,11 +34,13 @@ type ApplyOptions struct {
 	// Force configures the engine to recreate objects that contain immutable field changes.
 	Force bool `json:"force"`
 
-	// Exclusions determines which in-cluster objects are skipped from apply
-	// based on the specified key-value pairs.
-	// A nil Exclusions map means all objects are applied
-	// regardless of their metadata labels and annotations.
-	Exclusions map[string]string `json:"exclusions"`
+	// ForceSelector determines which in-cluster objects are Force applied
+	// based on the matching labels or annotations.
+	ForceSelector map[string]string `json:"forceSelector"`
+
+	// ExclusionSelector determines which in-cluster objects are skipped from apply
+	// based on the matching labels or annotations.
+	ExclusionSelector map[string]string `json:"exclusionSelector"`
 
 	// WaitTimeout defines after which interval should the engine give up on waiting for
 	// cluster scoped resources to become ready.
@@ -67,9 +69,9 @@ type ApplyCleanupOptions struct {
 // DefaultApplyOptions returns the default apply options where force apply is disabled.
 func DefaultApplyOptions() ApplyOptions {
 	return ApplyOptions{
-		Force:       false,
-		Exclusions:  nil,
-		WaitTimeout: 60 * time.Second,
+		Force:             false,
+		ExclusionSelector: nil,
+		WaitTimeout:       60 * time.Second,
 	}
 }
 
@@ -80,13 +82,13 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	existingObject := object.DeepCopy()
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-	if existingObject != nil && AnyInMetadata(existingObject, opts.Exclusions) {
+	if m.shouldSkipApply(existingObject, opts) {
 		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-		if opts.Force && IsImmutableError(err) {
+		if m.shouldForceApply(object, existingObject, opts, err) {
 			if err := m.client.Delete(ctx, existingObject); err != nil {
 				return nil, fmt.Errorf("%s immutable field detected, failed to delete object, error: %w",
 					FmtUnstructured(dryRunObject), err)
@@ -130,14 +132,14 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		existingObject := object.DeepCopy()
 		_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-		if existingObject != nil && AnyInMetadata(existingObject, opts.Exclusions) {
+		if m.shouldSkipApply(existingObject, opts) {
 			changeSet.Add(*m.changeSetEntry(existingObject, UnchangedAction))
 			continue
 		}
 
 		dryRunObject := object.DeepCopy()
 		if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-			if opts.Force && IsImmutableError(err) {
+			if m.shouldForceApply(object, existingObject, opts, err) {
 				if err := m.client.Delete(ctx, existingObject); err != nil {
 					return nil, fmt.Errorf("%s immutable field detected, failed to delete object, error: %w",
 						FmtUnstructured(dryRunObject), err)
@@ -278,4 +280,26 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 	patch := client.RawPatch(types.JSONPatchType, rawPatch)
 
 	return true, m.client.Patch(ctx, existingObject, patch, client.FieldOwner(m.owner.Field))
+}
+
+// shouldForceApply determines based on the apply error and ApplyOptions if the object should be recreated.
+// An object is recreated if the apply error was due to immutable field changes and if the object
+// contains a label or annotation which matches the ApplyOptions.ForceSelector.
+func (m *ResourceManager) shouldForceApply(desiredObject *unstructured.Unstructured,
+	object *unstructured.Unstructured, opts ApplyOptions, err error) bool {
+	if IsImmutableError(err) {
+		if opts.Force ||
+			AnyInMetadata(desiredObject, opts.ForceSelector) ||
+			(object != nil && AnyInMetadata(object, opts.ForceSelector)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// shouldSkipApply determines based on the object metadata and ApplyOptions if the object should be skipped.
+// An object is not applied if it contains a label or annotation which matches the ApplyOptions.ExclusionSelector.
+func (m *ResourceManager) shouldSkipApply(object *unstructured.Unstructured, opts ApplyOptions) bool {
+	return object != nil && AnyInMetadata(object, opts.ExclusionSelector)
 }
