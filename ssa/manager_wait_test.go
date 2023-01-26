@@ -80,11 +80,13 @@ func TestWaitForSet(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		opts := []client.PatchOption{
-			client.ForceOwnership,
-			client.FieldOwner(manager.owner.Field),
+		opts := &client.SubResourcePatchOptions{
+			PatchOptions: client.PatchOptions{
+				FieldManager: manager.owner.Field,
+			},
 		}
-		if err := manager.client.Status().Patch(ctx, clusterCR, client.Apply, opts...); err != nil {
+
+		if err := manager.client.Status().Patch(ctx, clusterCR, client.Apply, opts); err != nil {
 			t.Fatal(err)
 		}
 
