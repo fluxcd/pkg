@@ -82,7 +82,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	existingObject := object.DeepCopy()
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-	if m.shouldSkipApply(existingObject, opts) {
+	if m.shouldSkipApply(object, existingObject, opts) {
 		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
@@ -132,7 +132,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		existingObject := object.DeepCopy()
 		_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-		if m.shouldSkipApply(existingObject, opts) {
+		if m.shouldSkipApply(object, existingObject, opts) {
 			changeSet.Add(*m.changeSetEntry(existingObject, UnchangedAction))
 			continue
 		}
@@ -286,11 +286,11 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 // An object is recreated if the apply error was due to immutable field changes and if the object
 // contains a label or annotation which matches the ApplyOptions.ForceSelector.
 func (m *ResourceManager) shouldForceApply(desiredObject *unstructured.Unstructured,
-	object *unstructured.Unstructured, opts ApplyOptions, err error) bool {
+	existingObject *unstructured.Unstructured, opts ApplyOptions, err error) bool {
 	if IsImmutableError(err) {
 		if opts.Force ||
 			AnyInMetadata(desiredObject, opts.ForceSelector) ||
-			(object != nil && AnyInMetadata(object, opts.ForceSelector)) {
+			(existingObject != nil && AnyInMetadata(existingObject, opts.ForceSelector)) {
 			return true
 		}
 	}
@@ -300,6 +300,8 @@ func (m *ResourceManager) shouldForceApply(desiredObject *unstructured.Unstructu
 
 // shouldSkipApply determines based on the object metadata and ApplyOptions if the object should be skipped.
 // An object is not applied if it contains a label or annotation which matches the ApplyOptions.ExclusionSelector.
-func (m *ResourceManager) shouldSkipApply(object *unstructured.Unstructured, opts ApplyOptions) bool {
-	return object != nil && AnyInMetadata(object, opts.ExclusionSelector)
+func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructured,
+	existingObject *unstructured.Unstructured, opts ApplyOptions) bool {
+	return AnyInMetadata(desiredObject, opts.ExclusionSelector) ||
+		(existingObject != nil && AnyInMetadata(existingObject, opts.ExclusionSelector))
 }

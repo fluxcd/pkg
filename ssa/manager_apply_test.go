@@ -416,6 +416,24 @@ func TestApply_Exclusions(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("skips apply when desired state is annotated", func(t *testing.T) {
+		configMapClone := configMap.DeepCopy()
+		meta := map[string]string{
+			"fluxcd.io/ignore": "true",
+		}
+		configMapClone.SetAnnotations(meta)
+
+		// apply changes without exclusions
+		changeSet, err := manager.Apply(ctx, configMapClone, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if changeSet.Action != string(UnchangedAction) {
+			t.Errorf("Diff found for %s", changeSet.String())
+		}
+	})
 }
 
 func TestApply_Cleanup(t *testing.T) {
