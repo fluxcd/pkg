@@ -213,6 +213,13 @@ func (h *Helper) Patch(ctx context.Context, obj client.Object, opts ...Option) e
 		clientOpts = append(clientOpts, client.FieldOwner(options.FieldOwner))
 	}
 
+	statusOpts := &client.SubResourcePatchOptions{}
+	if options.FieldOwner != "" {
+		statusOpts.PatchOptions = client.PatchOptions{
+			FieldManager: options.FieldOwner,
+		}
+	}
+
 	// Issue patches and return errors in an aggregate.
 	return kerrors.NewAggregate([]error{
 		// Patch the conditions first.
@@ -220,11 +227,11 @@ func (h *Helper) Patch(ctx context.Context, obj client.Object, opts ...Option) e
 		// Given that we pass in metadata.resourceVersion to perform a 3-way-merge conflict resolution,
 		// patching conditions first avoids an extra loop if spec or status patch succeeds first
 		// given that causes the resourceVersion to mutate.
-		h.patchStatusConditions(ctx, obj, options.ForceOverwriteConditions, options.OwnedConditions, clientOpts...),
+		h.patchStatusConditions(ctx, obj, options.ForceOverwriteConditions, options.OwnedConditions, statusOpts),
 
 		// Then proceed to patch the rest of the object.
 		h.patch(ctx, obj, clientOpts...),
-		h.patchStatus(ctx, obj, clientOpts...),
+		h.patchStatus(ctx, obj, statusOpts),
 	})
 }
 
@@ -241,7 +248,7 @@ func (h *Helper) patch(ctx context.Context, obj client.Object, opts ...client.Pa
 }
 
 // patchStatus issues a patch if the status has changed.
-func (h *Helper) patchStatus(ctx context.Context, obj client.Object, opts ...client.PatchOption) error {
+func (h *Helper) patchStatus(ctx context.Context, obj client.Object, opts ...client.SubResourcePatchOption) error {
 	if !h.shouldPatch("status") {
 		return nil
 	}
@@ -261,7 +268,7 @@ func (h *Helper) patchStatus(ctx context.Context, obj client.Object, opts ...cli
 //
 // Condition changes are then applied to the latest version of the object, and if there are no unresolvable conflicts,
 // the patch is sent again.
-func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, forceOverwrite bool, ownedConditions []string, opts ...client.PatchOption) error {
+func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, forceOverwrite bool, ownedConditions []string, opts ...client.SubResourcePatchOption) error {
 	// Nothing to do if the object isn't a condition patcher.
 	if !h.isConditionsSetter {
 		return nil

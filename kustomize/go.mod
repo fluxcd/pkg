@@ -6,7 +6,7 @@ replace github.com/fluxcd/pkg/apis/kustomize => ../apis/kustomize
 
 require (
 	github.com/drone/envsubst v1.0.3
-	github.com/fluxcd/pkg/apis/kustomize v0.7.0
+	github.com/fluxcd/pkg/apis/kustomize v0.8.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/gomega v1.26.0
 	github.com/otiai10/copy v1.9.0
