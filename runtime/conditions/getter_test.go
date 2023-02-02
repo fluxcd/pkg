@@ -59,6 +59,11 @@ func TestGetAndHas(t *testing.T) {
 
 	g.Expect(Has(obj, "conditionBaz")).To(BeTrue())
 	g.Expect(Get(obj, "conditionBaz")).To(HaveSameStateOf(TrueCondition("conditionBaz", "", "")))
+
+	Set(obj, FalseCondition("conditionFoo", "", ""))
+	g.Expect(HasAny(obj, []string{"conditionFoo", "conditionX"})).To(BeTrue())
+	g.Expect(HasAny(obj, []string{"conditionY", "conditionBaz"})).To(BeTrue())
+	g.Expect(HasAny(obj, []string{"conditionX", "conditionY"})).To(BeFalse())
 }
 
 func TestIsMethods(t *testing.T) {

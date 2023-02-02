@@ -57,6 +57,16 @@ func Has(from Getter, t string) bool {
 	return Get(from, t) != nil
 }
 
+// HasAny returns true if a condition with any of the given types exist.
+func HasAny(from Getter, t []string) bool {
+	for _, ct := range t {
+		if Has(from, ct) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsTrue is true if the condition with the given type is True, otherwise it is false if the condition is not True or if
 // the condition does not exist (is nil).
 func IsTrue(from Getter, t string) bool {
