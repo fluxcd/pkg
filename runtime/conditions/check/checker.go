@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/onsi/gomega"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -34,6 +35,8 @@ type checkFunc func(ctx context.Context, obj conditions.Getter, condns *Conditio
 // Checker performs all the status checks. It is configured to provide context
 // of the target controller.
 type Checker struct {
+	// g is used to run the checker as a gomega test helper.
+	g *gomega.WithT
 	// requireConditions is used to indicate that the checker requires
 	// conditions context to operate. It is used to perform validation of the
 	// checker instance.
@@ -118,16 +121,29 @@ func NewInProgressChecker(cli client.Client) *Checker {
 	}
 }
 
+// WithT takes a *gomega.WithT and returns a Checker that can be used to make
+// gomega assertions.
+func (c *Checker) WithT(g *gomega.WithT) *Checker {
+	c.g = g
+	return c
+}
+
 // CheckErr performs all the warn and fail checks and prints them to stdout and
 // stderr, and exits. This is to be used in CLI.
 func (c Checker) CheckErr(ctx context.Context, obj conditions.Getter) {
+	if c.g != nil {
+		c.g.THelper()
+	}
 	fail, warn := c.Check(ctx, obj)
 	if warn != nil {
-		fmt.Fprintf(c.Stdout, "[Check-WARN]: %v\n", warn)
+		fmt.Fprintf(c.Stdout, "[Check-WARN]: %v\nObserved conditions: %v", warn, obj.GetConditions())
 	}
 	if fail != nil {
-		fmt.Fprintf(c.Stderr, "[Check-FAIL]: %v\n", fail)
-		os.Exit(1)
+		if c.g == nil {
+			fmt.Fprintf(c.Stderr, "[Check-FAIL]: %v\nObserved conditions: %v", fail, obj.GetConditions())
+			os.Exit(1)
+		}
+		c.g.Expect(fail).ToNot(gomega.HaveOccurred(), fmt.Sprintf("[Check-FAIL]: %v\nObserved conditions: %v", fail, obj.GetConditions()))
 	}
 }
 
