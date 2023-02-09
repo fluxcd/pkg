@@ -37,6 +37,12 @@ const (
 )
 
 const (
+	// ConfigMediaType is the OCI media type for the config layer.
+	ConfigMediaType = "application/vnd.cncf.flux.config.v1+json"
+
+	// ContentMediaType is the OCI media type for the content layer.
+	ContentMediaType = "application/vnd.cncf.flux.content.v1.tar+gzip"
+
 	// SourceAnnotation is the OpenContainers annotation for specifying
 	// the upstream source of an OCI artifact.
 	SourceAnnotation = "org.opencontainers.image.source"
