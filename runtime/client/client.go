@@ -52,7 +52,7 @@ type Options struct {
 	// QPS indicates the maximum queries-per-second of requests sent to the Kubernetes API, defaults to 50.
 	QPS float32
 
-	// Burst indicates the maximum burst queries-per-second of requests sent to the Kubernetes API, defaults to 100.
+	// Burst indicates the maximum burst queries-per-second of requests sent to the Kubernetes API, defaults to 300.
 	Burst int
 }
 
@@ -60,7 +60,7 @@ type Options struct {
 func (o *Options) BindFlags(fs *pflag.FlagSet) {
 	fs.Float32Var(&o.QPS, flagQPS, 50.0,
 		"The maximum queries-per-second of requests sent to the Kubernetes API.")
-	fs.IntVar(&o.Burst, flagBurst, 100,
+	fs.IntVar(&o.Burst, flagBurst, 300,
 		"The maximum burst queries-per-second of requests sent to the Kubernetes API.")
 }
 
