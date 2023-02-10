@@ -26,7 +26,35 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 )
 
+const (
+	// HashTypeSHA1 is the SHA1 hash algorithm.
+	HashTypeSHA1 = "sha1"
+	// HashTypeUnknown is an unknown hash algorithm.
+	HashTypeUnknown = "<unknown>"
+)
+
+// Hash is the (non-truncated) SHA-1 or SHA-256 hash of a Git commit.
 type Hash []byte
+
+// Algorithm returns the algorithm of the hash based on its length.
+// This is heuristic, and may not be accurate for truncated user constructed
+// hashes. The library itself does not produce truncated hashes.
+func (h Hash) Algorithm() string {
+	switch len(h) {
+	case 40:
+		return HashTypeSHA1
+	default:
+		return HashTypeUnknown
+	}
+}
+
+// Digest returns a digest of the commit, in the format of "<algorithm>:<hash>".
+func (h Hash) Digest() string {
+	if len(h) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", h.Algorithm(), h)
+}
 
 // String returns the Hash as a string.
 func (h Hash) String() string {
@@ -43,7 +71,7 @@ type Signature struct {
 
 // Commit contains all possible information about a Git commit.
 type Commit struct {
-	// Hash is the SHA1 hash of the commit.
+	// Hash is the hash of the commit.
 	Hash Hash
 	// Reference is the original reference of the commit, for example:
 	// 'refs/tags/foo'.
@@ -57,7 +85,7 @@ type Commit struct {
 	Signature string
 	// Encoded is the encoded commit, without any signature.
 	Encoded []byte
-	// Message is the commit message, contains arbitrary text.
+	// Message is the commit message, containing arbitrary text.
 	Message string
 }
 
@@ -67,9 +95,9 @@ type Commit struct {
 // for a "tag-1" tag.
 func (c *Commit) String() string {
 	if short := strings.SplitAfterN(c.Reference, "/", 3); len(short) == 3 {
-		return fmt.Sprintf("%s/%s", short[2], c.Hash)
+		return fmt.Sprintf("%s@%s", short[2], c.Hash.Digest())
 	}
-	return fmt.Sprintf("HEAD/%s", c.Hash)
+	return c.Hash.Digest()
 }
 
 // Verify the Signature of the commit with the given key rings.
@@ -121,8 +149,8 @@ var (
 )
 
 // IsConcreteCommit returns if a given commit is a concrete commit. Concrete
-// commits have most of commit metadata and commit content. In contrast, a
-// partial commit may only have some metadata and no commit content.
+// commits have most of the commit metadata and content. In contrast, a partial
+// commit may only have some metadata and no commit content.
 func IsConcreteCommit(c Commit) bool {
 	if c.Hash != nil && c.Encoded != nil {
 		return true

@@ -19,6 +19,7 @@ package git
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 )
@@ -43,4 +44,92 @@ func SecurePath(path string) (string, error) {
 	}
 
 	return joined, nil
+}
+
+// TransformRevision transforms a "legacy" revision string into a "new"
+// revision string. It accepts the following formats:
+//
+//   - main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - HEAD/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//
+// Which are transformed into the following formats respectively:
+//
+// - main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+// - feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+// - sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//
+// NOTE: This function is only intended to be used for backwards compatibility
+// with the old revision format. It may be removed in a future release.
+func TransformRevision(rev string) string {
+	if rev == "" || strings.LastIndex(rev, ":") >= 0 {
+		return rev
+	}
+	p, h := SplitRevision(rev)
+	if p == "" {
+		return h.Digest()
+	}
+	return p + "@" + h.Digest()
+}
+
+// SplitRevision splits a revision string into it's named pointer and hash
+// components. It accepts the following formats:
+//
+//   - main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - HEAD/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - 5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//
+// If the revision string does not contain a named pointer, the returned
+// string will be empty.
+func SplitRevision(rev string) (string, Hash) {
+	return ExtractNamedPointerFromRevision(rev), ExtractHashFromRevision(rev)
+}
+
+// ExtractNamedPointerFromRevision extracts the named pointer from a revision
+// string. It accepts the following formats:
+//
+//   - main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//
+// If the revision string does not contain a named pointer, the returned string
+// is empty.
+func ExtractNamedPointerFromRevision(rev string) string {
+	if i := strings.LastIndex(rev, "@"); i != -1 {
+		return rev[:i]
+	}
+	if i := strings.LastIndex(rev, "/"); i != -1 {
+		if s := rev[:i]; s != "HEAD" {
+			return s
+		}
+	}
+	return ""
+}
+
+// ExtractHashFromRevision extracts the hash from a revision string. It accepts
+// the following formats:
+//
+//   - main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - main/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - feature/branch/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - HEAD/5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+//   - 5394cb7f48332b2de7c17dd8b8384bbc84b7e738
+func ExtractHashFromRevision(rev string) Hash {
+	if rev == "" {
+		return nil
+	}
+	if i := strings.LastIndex(rev, ":"); i != -1 {
+		return Hash(rev[i+1:])
+	}
+	if ss := strings.Split(rev, "/"); len(ss) > 1 {
+		return Hash(ss[len(ss)-1])
+	}
+	return Hash(rev)
 }
