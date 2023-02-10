@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	git2go "github.com/libgit2/git2go/v34"
-	"k8s.io/apimachinery/pkg/util/uuid"
 
 	"github.com/fluxcd/pkg/git"
 )
@@ -31,7 +31,7 @@ const (
 )
 
 func getTransportOptsURL(transport git.TransportType) string {
-	return string(transport) + "://" + string(uuid.NewUUID())
+	return string(transport) + "://" + uuid.New().String()
 }
 
 func pushError(err error, url string) error {

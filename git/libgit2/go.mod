@@ -37,11 +37,11 @@ require (
 	github.com/fluxcd/pkg/version v0.2.0
 	github.com/go-git/go-billy/v5 v5.4.1
 	github.com/go-logr/logr v1.2.3
+	github.com/google/uuid v1.3.0
 	github.com/libgit2/git2go/v34 v34.0.0
 	github.com/onsi/gomega v1.24.1
 	golang.org/x/crypto v0.6.0
 	golang.org/x/net v0.6.0
-	k8s.io/apimachinery v0.26.1
 	sigs.k8s.io/controller-runtime v0.14.4
 )
 
@@ -69,7 +69,6 @@ require (
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -106,6 +105,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.26.1 // indirect
 	k8s.io/apiextensions-apiserver v0.26.1 // indirect
+	k8s.io/apimachinery v0.26.1 // indirect
 	k8s.io/client-go v0.26.1 // indirect
 	k8s.io/component-base v0.26.1 // indirect
 	k8s.io/klog/v2 v2.90.0 // indirect
