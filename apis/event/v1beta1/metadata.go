@@ -21,7 +21,10 @@ const (
 	// MetaRevisionKey is the key used to hold the source artifact revision.
 	MetaRevisionKey string = "revision"
 	// MetaChecksumKey is the key used to hold the source artifact checksum.
+	// Deprecated: in favor of MetaDigestKey.
 	MetaChecksumKey string = "checksum"
+	// MetaDigestKey is the key used to hold the source artifact digest.
+	MetaDigestKey string = "digest"
 	// MetaCommitStatusKey is the key used to signal a Git commit status event.
 	MetaCommitStatusKey string = "commit_status"
 	// MetaCommitStatusUpdateValue is the value of MetaCommitStatusKey
