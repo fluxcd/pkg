@@ -128,13 +128,12 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 
 	ref := plumbing.NewTagReferenceName(tag)
 	// check if previous revision has changed before attempting to clone
-	if opts.LastObservedCommit != "" {
+	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
 		head, err := getRemoteHEAD(ctx, url, ref, g.authOpts, authMethod)
 		if err != nil {
 			return nil, err
 		}
-
-		if head != "" && head == opts.LastObservedCommit {
+		if head != "" && head == lastObserved {
 			c := &git.Commit{
 				Hash:      git.ExtractHashFromRevision(head),
 				Reference: ref.String(),
@@ -364,11 +363,11 @@ func recurseSubmodules(recurse bool) extgogit.SubmoduleRescursivity {
 
 func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
 	authOpts *git.AuthOptions, authMethod transport.AuthMethod) (string, error) {
-	config := &config.RemoteConfig{
+	remoteCfg := &config.RemoteConfig{
 		Name: git.DefaultRemote,
 		URLs: []string{url},
 	}
-	remote := extgogit.NewRemote(memory.NewStorage(), config)
+	remote := extgogit.NewRemote(memory.NewStorage(), remoteCfg)
 	listOpts := &extgogit.ListOptions{
 		Auth:     authMethod,
 		CABundle: authOpts.CAFile,
