@@ -63,12 +63,13 @@ func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata,
 
 	layer, err := tarball.LayerFromFile(tmpFile, tarball.WithMediaType(oci.ContentMediaType))
 	if err != nil {
-		return "", fmt.Errorf("appeding content to artifact failed: %w", err)
+		return "", fmt.Errorf("creating content layer failed: %w", err)
 	}
 
-	img, err = mutate.Append(img, mutate.Addendum{
-		Layer: layer,
-	})
+	img, err = mutate.Append(img, mutate.Addendum{Layer: layer})
+	if err != nil {
+		return "", fmt.Errorf("appeding content to artifact failed: %w", err)
+	}
 
 	if err := crane.Push(img, url, c.optionsWithContext(ctx)...); err != nil {
 		return "", fmt.Errorf("pushing artifact failed: %w", err)
