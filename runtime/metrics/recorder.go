@@ -57,10 +57,10 @@ func NewRecorder() *Recorder {
 		),
 		durationHistogram: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name:    "gotk_reconcile_duration_seconds",
-				Help:    "The duration in seconds of a GitOps Toolkit resource reconciliation.",
+				Name: "gotk_reconcile_duration_seconds",
+				Help: "The duration in seconds of a GitOps Toolkit resource reconciliation.",
 				// Use a histogram with 10 count buckets between 1ms - 1hour
-				Buckets: prometheus.ExponentialBucketsRange(10e-3, 3600, 10),
+				Buckets: prometheus.ExponentialBucketsRange(10e-3, 1800, 10),
 			},
 			[]string{"kind", "name", "namespace"},
 		),
