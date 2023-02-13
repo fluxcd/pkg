@@ -22,9 +22,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/v1/types"
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/oci"
@@ -34,44 +36,63 @@ func Test_Push_Pull(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
 	c := NewLocalClient()
+	testDir := "testdata/artifact"
 	tag := "v0.0.1"
+	source := "github.com/fluxcd/flux2"
+	revision := "rev"
 	repo := "test-push" + randStringRunes(5)
 
 	url := fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag)
 	metadata := Metadata{
-		Source:   "github.com/fluxcd/flux2",
-		Revision: "rev",
+		Source:   source,
+		Revision: revision,
 	}
 
-	testDir := "testdata/artifact"
+	// Build and push the artifact to registry
 	_, err := c.Push(ctx, url, testDir, metadata, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 
+	// Verify that the artifact and its tag is present in the registry
 	tags, err := crane.ListTags(fmt.Sprintf("%s/%s", dockerReg, repo))
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(len(tags)).To(BeEquivalentTo(1))
+	g.Expect(tags[0]).To(BeEquivalentTo(tag))
 
+	// Pull the artifact from registry
 	image, err := crane.Pull(fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag))
 	g.Expect(err).ToNot(HaveOccurred())
 
+	// Extract the manifest from the pulled artifact
 	manifest, err := image.Manifest()
 	g.Expect(err).ToNot(HaveOccurred())
 
+	// Verify that annotations exist in manifest
 	g.Expect(manifest.Annotations[oci.CreatedAnnotation]).ToNot(BeEmpty())
-	g.Expect(manifest.Annotations[oci.SourceAnnotation]).ToNot(BeEmpty())
-	g.Expect(manifest.Annotations[oci.RevisionAnnotation]).ToNot(BeEmpty())
+	g.Expect(manifest.Annotations[oci.SourceAnnotation]).To(BeEquivalentTo(source))
+	g.Expect(manifest.Annotations[oci.RevisionAnnotation]).To(BeEquivalentTo(revision))
+
+	// Verify media types
+	g.Expect(manifest.MediaType).To(Equal(types.OCIManifestSchema1))
+	g.Expect(manifest.Config.MediaType).To(BeEquivalentTo(oci.ConfigMediaType))
+	g.Expect(len(manifest.Layers)).To(BeEquivalentTo(1))
+	g.Expect(manifest.Layers[0].MediaType).To(BeEquivalentTo(oci.ContentMediaType))
 
 	tmpDir := t.TempDir()
+
+	// Pull the artifact from registry and extract its contents to tmp
 	_, err = c.Pull(ctx, url, tmpDir)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	// Walk directory the test directory and check that all paths exists in the extracted archive
-	err = filepath.Walk(testDir, func(path string, info fs.FileInfo, err error) error {
-		tmpPath := filepath.Join(tmpDir, path)
-		if _, err := os.Stat(tmpPath); err != nil && os.IsNotExist(err) {
-			return fmt.Errorf("path '%s' doesn't exist in archive", path)
+	// Walk the test directory and check that all files exist in the pulled artifact
+	fsErr := filepath.Walk(testDir, func(path string, info fs.FileInfo, err error) error {
+		if !info.IsDir() {
+			tmpPath := filepath.Join(tmpDir, strings.TrimPrefix(path, testDir))
+			if _, err := os.Stat(tmpPath); err != nil && os.IsNotExist(err) {
+				return fmt.Errorf("path '%s' doesn't exist in archive", path)
+			}
 		}
 
 		return nil
 	})
+	g.Expect(fsErr).ToNot(HaveOccurred())
 }

@@ -28,6 +28,10 @@ import (
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
+	"github.com/google/go-containerregistry/pkg/v1/types"
+
+	"github.com/fluxcd/pkg/oci"
 )
 
 // Push creates an artifact from the given directory, uploads the artifact
@@ -50,14 +54,22 @@ func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata,
 		return "", err
 	}
 
-	img, err := crane.Append(empty.Image, tmpFile)
+	ct := time.Now().UTC()
+	meta.Created = ct.Format(time.RFC3339)
+
+	img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
+	img = mutate.ConfigMediaType(img, oci.ConfigMediaType)
+	img = mutate.Annotations(img, meta.ToAnnotations()).(gcrv1.Image)
+
+	layer, err := tarball.LayerFromFile(tmpFile, tarball.WithMediaType(oci.ContentMediaType))
+	if err != nil {
+		return "", fmt.Errorf("creating content layer failed: %w", err)
+	}
+
+	img, err = mutate.Append(img, mutate.Addendum{Layer: layer})
 	if err != nil {
 		return "", fmt.Errorf("appeding content to artifact failed: %w", err)
 	}
-
-	ct := time.Now()
-	meta.Created = ct.Format(time.RFC3339)
-	img = mutate.Annotations(img, meta.ToAnnotations()).(gcrv1.Image)
 
 	if err := crane.Push(img, url, c.optionsWithContext(ctx)...); err != nil {
 		return "", fmt.Errorf("pushing artifact failed: %w", err)

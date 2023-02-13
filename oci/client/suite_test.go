@@ -19,16 +19,19 @@ package client
 import (
 	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/distribution/distribution/v3/configuration"
+	dcontext "github.com/distribution/distribution/v3/context"
 	"github.com/distribution/distribution/v3/registry"
 	_ "github.com/distribution/distribution/v3/registry/auth/htpasswd"
 	_ "github.com/distribution/distribution/v3/registry/storage/driver/inmemory"
 	"github.com/phayes/freeport"
+	"github.com/sirupsen/logrus"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -43,6 +46,11 @@ func init() {
 func setupRegistryServer(ctx context.Context) error {
 	// Registry config
 	config := &configuration.Configuration{}
+	config.Log.AccessLog.Disabled = true
+	config.Log.Level = "error"
+	logger := logrus.New()
+	logger.SetOutput(io.Discard)
+	dcontext.SetDefaultLogger(logrus.NewEntry(logger))
 	port, err := freeport.GetFreePort()
 	if err != nil {
 		return fmt.Errorf("failed to get free port: %s", err)
