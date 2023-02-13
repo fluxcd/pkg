@@ -193,6 +193,8 @@ func (l *Client) Clone(ctx context.Context, url string, cloneOpts repository.Clo
 	switch {
 	case checkoutStrat.Commit != "":
 		return l.cloneCommit(ctx, url, checkoutStrat.Commit, cloneOpts)
+	case checkoutStrat.RefName != "":
+		return nil, errors.New("unable to use RefName: client does not support this strategy")
 	case checkoutStrat.Tag != "":
 		return l.cloneTag(ctx, url, checkoutStrat.Tag, cloneOpts)
 	case checkoutStrat.SemVer != "":

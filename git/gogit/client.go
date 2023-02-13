@@ -226,6 +226,8 @@ func (g *Client) Clone(ctx context.Context, url string, cloneOpts repository.Clo
 	switch {
 	case checkoutStrat.Commit != "":
 		return g.cloneCommit(ctx, url, checkoutStrat.Commit, cloneOpts)
+	case checkoutStrat.RefName != "":
+		return g.cloneRefName(ctx, url, checkoutStrat.RefName, cloneOpts)
 	case checkoutStrat.Tag != "":
 		return g.cloneTag(ctx, url, checkoutStrat.Tag, cloneOpts)
 	case checkoutStrat.SemVer != "":
