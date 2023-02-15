@@ -25,11 +25,11 @@ replace github.com/libgit2/git2go/v34 => github.com/fluxcd/git2go/v34 v34.0.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.0
-	github.com/ProtonMail/go-crypto v0.0.0-20230201104953-d1d05f4e2bfb
+	github.com/ProtonMail/go-crypto v0.0.0-20230214155104-81033d7f4442
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/git v0.9.0
+	github.com/fluxcd/pkg/git v0.10.0
 	github.com/fluxcd/pkg/git/gogit v0.5.0
 	github.com/fluxcd/pkg/gittestserver v0.8.0
 	github.com/fluxcd/pkg/http/transport v0.1.0
@@ -41,7 +41,7 @@ require (
 	github.com/libgit2/git2go/v34 v34.0.0
 	github.com/onsi/gomega v1.24.1
 	golang.org/x/crypto v0.6.0
-	golang.org/x/net v0.6.0
+	golang.org/x/net v0.7.0
 	sigs.k8s.io/controller-runtime v0.14.4
 )
 
