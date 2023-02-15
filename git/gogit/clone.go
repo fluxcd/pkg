@@ -55,6 +55,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 			return nil, err
 		}
 		if head != "" && head == lastObserved {
+			// Construct a non-concrete commit with the existing information.
 			c := &git.Commit{
 				Hash:      git.ExtractHashFromRevision(head),
 				Reference: plumbing.NewBranchReferenceName(branch).String(),
@@ -134,6 +135,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 			return nil, err
 		}
 		if head != "" && head == lastObserved {
+			// Construct a non-concrete commit with the existing information.
 			c := &git.Commit{
 				Hash:      git.ExtractHashFromRevision(head),
 				Reference: ref.String(),
@@ -354,6 +356,39 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 	return buildCommitWithRef(cc, ref)
 }
 
+func (g *Client) cloneRefName(ctx context.Context, url string, refName string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
+	if g.authOpts == nil {
+		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
+	}
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
+	}
+	head, err := getRemoteHEAD(ctx, url, plumbing.ReferenceName(refName), g.authOpts, authMethod)
+	if err != nil {
+		return nil, err
+	}
+	if head == "" {
+		return nil, fmt.Errorf("unable to resolve ref '%s' to a specific commit", refName)
+	}
+
+	hash := git.ExtractHashFromRevision(head)
+	// check if previous revision has changed before attempting to clone
+	if lastObserved := git.TransformRevision(cloneOpts.LastObservedCommit); lastObserved != "" {
+		if hash.Digest() != "" && hash.Digest() == lastObserved {
+			// Construct a non-concrete commit with the existing information.
+			// We exclude the reference here to ensure compatibility with the format
+			// of the Commit object returned by cloneCommit().
+			c := &git.Commit{
+				Hash: hash,
+			}
+			return c, nil
+		}
+	}
+
+	return g.cloneCommit(ctx, url, hash.String(), cloneOpts)
+}
+
 func recurseSubmodules(recurse bool) extgogit.SubmoduleRescursivity {
 	if recurse {
 		return extgogit.DefaultSubmoduleRecursionDepth
@@ -363,6 +398,11 @@ func recurseSubmodules(recurse bool) extgogit.SubmoduleRescursivity {
 
 func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
 	authOpts *git.AuthOptions, authMethod transport.AuthMethod) (string, error) {
+	// ref: https://git-scm.com/docs/git-check-ref-format#_description; point no. 6
+	if strings.HasPrefix(ref.String(), "/") || strings.HasSuffix(ref.String(), "/") {
+		return "", fmt.Errorf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())
+	}
+
 	remoteCfg := &config.RemoteConfig{
 		Name: git.DefaultRemote,
 		URLs: []string{url},

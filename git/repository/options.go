@@ -62,10 +62,16 @@ type CheckoutStrategy struct {
 	// Tag to checkout, takes precedence over Branch.
 	Tag string
 
-	// SemVer tag expression to checkout, takes precedence over Tag.
+	// SemVer tag expression to checkout, takes precedence over Branch and Tag.
 	SemVer string `json:"semver,omitempty"`
 
-	// Commit SHA1 to checkout, takes precedence over Tag and SemVer.
+	// RefName is the reference to checkout to. It must conform to the
+	// Git reference format: https://git-scm.com/book/en/v2/Git-Internals-Git-References
+	// Examples: "refs/heads/main", "refs/pull/420/head", "refs/tags/v0.1.0"
+	// It takes precedence over Branch, Tag and SemVer.
+	RefName string
+
+	// Commit SHA1 to checkout, takes precedence over all the other options.
 	// If supported by the client, it can be combined with Branch.
 	Commit string
 }

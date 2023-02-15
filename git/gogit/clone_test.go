@@ -32,6 +32,7 @@ import (
 	"time"
 
 	extgogit "github.com/fluxcd/go-git/v5"
+	"github.com/fluxcd/go-git/v5/config"
 	"github.com/fluxcd/go-git/v5/plumbing"
 	"github.com/fluxcd/go-git/v5/plumbing/cache"
 	"github.com/fluxcd/go-git/v5/plumbing/object"
@@ -489,6 +490,147 @@ func TestClone_cloneSemVer(t *testing.T) {
 			g.Expect(cc.String()).To(Equal(tt.expectTag + "@" + git.HashTypeSHA1 + ":" + refs[tt.expectTag]))
 			g.Expect(filepath.Join(tmpDir, "tag")).To(BeARegularFile())
 			g.Expect(os.ReadFile(filepath.Join(tmpDir, "tag"))).To(BeEquivalentTo(tt.expectTag))
+		})
+	}
+}
+
+func TestClone_cloneRefName(t *testing.T) {
+	g := NewWithT(t)
+
+	server, err := gittestserver.NewTempGitServer()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(server.Root())
+	err = server.StartHTTP()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer server.StopHTTP()
+
+	repoPath := "test.git"
+	err = server.InitRepo("../testdata/git/repo", git.DefaultBranch, repoPath)
+	g.Expect(err).ToNot(HaveOccurred())
+	repoURL := server.HTTPAddress() + "/" + repoPath
+	repo, err := extgogit.PlainClone(t.TempDir(), false, &extgogit.CloneOptions{
+		URL: repoURL,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// head is the current HEAD on master
+	head, err := repo.Head()
+	g.Expect(err).ToNot(HaveOccurred())
+	err = createBranch(repo, "test")
+	g.Expect(err).ToNot(HaveOccurred())
+	err = repo.Push(&extgogit.PushOptions{})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// create a new branch for testing tags in order to avoid disturbing the state
+	// of the current branch that's used for testing branches later.
+	err = createBranch(repo, "tag-testing")
+	g.Expect(err).ToNot(HaveOccurred())
+	hash, err := commitFile(repo, "bar.txt", "this is the way", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+	err = repo.Push(&extgogit.PushOptions{})
+	g.Expect(err).ToNot(HaveOccurred())
+	_, err = tag(repo, hash, false, "v0.1.0", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+	err = repo.Push(&extgogit.PushOptions{
+		RefSpecs: []config.RefSpec{
+			config.RefSpec("+refs/tags/v0.1.0" + ":refs/tags/v0.1.0"),
+		},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// set a custom reference, in the format of GitHub PRs.
+	err = repo.Storer.SetReference(plumbing.NewHashReference(plumbing.ReferenceName("/refs/pull/1/head"), hash))
+	g.Expect(err).ToNot(HaveOccurred())
+	err = repo.Push(&extgogit.PushOptions{
+		RefSpecs: []config.RefSpec{
+			config.RefSpec("+refs/pull/1/head" + ":refs/pull/1/head"),
+		},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tests := []struct {
+		name                   string
+		refName                string
+		filesCreated           map[string]string
+		lastRevision           string
+		expectedCommit         string
+		expectedConcreteCommit bool
+		expectedErr            string
+	}{
+		{
+			name:                   "ref name pointing to a branch",
+			refName:                "refs/heads/master",
+			filesCreated:           map[string]string{"foo.txt": "test file\n"},
+			expectedCommit:         git.Hash(head.Hash().String()).Digest(),
+			expectedConcreteCommit: true,
+		},
+		{
+			name:                   "skip clone if LastRevision is unchanged",
+			refName:                "refs/heads/master",
+			lastRevision:           git.Hash(head.Hash().String()).Digest(),
+			expectedCommit:         git.Hash(head.Hash().String()).Digest(),
+			expectedConcreteCommit: false,
+		},
+		{
+			name:                   "skip clone if LastRevision is unchanged even if the reference changes",
+			refName:                "refs/heads/test",
+			lastRevision:           git.Hash(head.Hash().String()).Digest(),
+			expectedCommit:         git.Hash(head.Hash().String()).Digest(),
+			expectedConcreteCommit: false,
+		},
+		{
+			name:                   "ref name pointing to a tag",
+			refName:                "refs/tags/v0.1.0",
+			filesCreated:           map[string]string{"bar.txt": "this is the way"},
+			lastRevision:           git.Hash(head.Hash().String()).Digest(),
+			expectedCommit:         git.Hash(hash.String()).Digest(),
+			expectedConcreteCommit: true,
+		},
+		{
+			name:                   "ref name pointing to a pull request",
+			refName:                "refs/pull/1/head",
+			filesCreated:           map[string]string{"bar.txt": "this is the way"},
+			expectedCommit:         git.Hash(hash.String()).Digest(),
+			expectedConcreteCommit: true,
+		},
+		{
+			name:        "non existing ref",
+			refName:     "refs/tags/v0.2.0",
+			expectedErr: "unable to resolve ref 'refs/tags/v0.2.0' to a specific commit",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			tmpDir := t.TempDir()
+			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			g.Expect(err).ToNot(HaveOccurred())
+
+			cc, err := ggc.Clone(context.TODO(), repoURL, repository.CloneOptions{
+				CheckoutStrategy: repository.CheckoutStrategy{
+					RefName: tt.refName,
+				},
+				LastObservedCommit: tt.lastRevision,
+			})
+
+			if tt.expectedErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.expectedErr))
+				g.Expect(cc).To(BeNil())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(cc.String()).To(Equal(tt.expectedCommit))
+			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectedConcreteCommit))
+
+			for k, v := range tt.filesCreated {
+				g.Expect(filepath.Join(tmpDir, k)).To(BeARegularFile())
+				content, err := os.ReadFile(filepath.Join(tmpDir, k))
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(string(content)).To(Equal(v))
+			}
 		})
 	}
 }
@@ -997,6 +1139,16 @@ func Test_getRemoteHEAD(t *testing.T) {
 	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(head).To(Equal(fmt.Sprintf("%s@%s", "v0.1.0", git.Hash(cc.String()).Digest())))
+
+	ref = plumbing.ReferenceName("/refs/heads/main")
+	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(Equal(fmt.Sprintf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())))
+
+	ref = plumbing.ReferenceName("refs/heads/main/")
+	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(Equal(fmt.Sprintf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())))
 }
 
 func TestClone_CredentialsOverHttp(t *testing.T) {
