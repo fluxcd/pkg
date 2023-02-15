@@ -17,11 +17,11 @@ require (
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221219190809-2e5c9d01cfc4
 	github.com/fluxcd/pkg/git v0.10.0
-	github.com/fluxcd/pkg/gittestserver v0.8.0
-	github.com/fluxcd/pkg/ssh v0.7.0
-	github.com/fluxcd/pkg/version v0.2.0
+	github.com/fluxcd/pkg/gittestserver v0.8.1
+	github.com/fluxcd/pkg/ssh v0.7.1
+	github.com/fluxcd/pkg/version v0.2.1
 	github.com/go-git/go-billy/v5 v5.4.1
-	github.com/onsi/gomega v1.24.1
+	github.com/onsi/gomega v1.26.0
 	golang.org/x/crypto v0.6.0
 	golang.org/x/sys v0.5.0
 )

@@ -30,16 +30,16 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/git v0.10.0
-	github.com/fluxcd/pkg/git/gogit v0.5.0
-	github.com/fluxcd/pkg/gittestserver v0.8.0
+	github.com/fluxcd/pkg/git/gogit v0.7.0
+	github.com/fluxcd/pkg/gittestserver v0.8.1
 	github.com/fluxcd/pkg/http/transport v0.1.0
-	github.com/fluxcd/pkg/ssh v0.7.0
-	github.com/fluxcd/pkg/version v0.2.0
+	github.com/fluxcd/pkg/ssh v0.7.1
+	github.com/fluxcd/pkg/version v0.2.1
 	github.com/go-git/go-billy/v5 v5.4.1
 	github.com/go-logr/logr v1.2.3
 	github.com/google/uuid v1.3.0
 	github.com/libgit2/git2go/v34 v34.0.0
-	github.com/onsi/gomega v1.24.1
+	github.com/onsi/gomega v1.26.0
 	golang.org/x/crypto v0.6.0
 	golang.org/x/net v0.7.0
 	sigs.k8s.io/controller-runtime v0.14.4
