@@ -6,16 +6,13 @@ replace github.com/fluxcd/pkg/testserver => ../testserver
 
 require (
 	github.com/fluxcd/pkg/testserver v0.4.0
-	golang.org/x/crypto v0.5.0
+	golang.org/x/crypto v0.6.0
 	helm.sh/helm/v3 v3.11.1
 	sigs.k8s.io/yaml v1.3.0
 )
 
 // Fix CVE-2022-28948
 replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
-
-// Fix CVE-2022-31030
-replace github.com/containerd/containerd => github.com/containerd/containerd v1.6.6
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -110,12 +107,12 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	go.starlark.net v0.0.0-20221028183056-acb66ad56dd2 // indirect
-	golang.org/x/net v0.5.0 // indirect
+	golang.org/x/net v0.6.0 // indirect
 	golang.org/x/oauth2 v0.2.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.4.0 // indirect
-	golang.org/x/term v0.4.0 // indirect
-	golang.org/x/text v0.6.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20221114212237-e4508ebdbee1 // indirect
