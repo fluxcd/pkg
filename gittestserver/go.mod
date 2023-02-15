@@ -5,9 +5,9 @@ go 1.18
 require (
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/go-git/v5 v5.0.0-20221206140629-ec778c2c37df
-	github.com/go-git/go-billy/v5 v5.3.1
-	golang.org/x/crypto v0.2.0
+	github.com/fluxcd/go-git/v5 v5.0.0-20221219190809-2e5c9d01cfc4
+	github.com/go-git/go-billy/v5 v5.4.1
+	golang.org/x/crypto v0.6.0
 )
 
 // Fix CVE-2022-28948
@@ -28,7 +28,7 @@ require (
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/skeema/knownhosts v1.1.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.2 // indirect
-	golang.org/x/net v0.2.0 // indirect
-	golang.org/x/sys v0.2.0 // indirect
+	golang.org/x/net v0.6.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
