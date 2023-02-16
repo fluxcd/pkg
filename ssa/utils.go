@@ -212,7 +212,7 @@ func ObjectsToJSON(objects []*unstructured.Unstructured) (string, error) {
 		Items      []*unstructured.Unstructured `json:"items,omitempty"`
 	}{
 		ApiVersion: "v1",
-		Kind:       "ListMeta",
+		Kind:       "List",
 		Items:      objects,
 	}
 
