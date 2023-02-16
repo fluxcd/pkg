@@ -40,7 +40,19 @@ $ kubectl logs test-job-93tbl-4jp2r
 - Azure account with an active subscription to be able to create AKS and ACR,
     and permission to assign roles. Role assignment is required for allowing AKS
     workloads to access ACR.
-- Azure CLI, need to be logged in using `az login`.
+- Azure CLI, need to be logged in using `az login` as a User (not a Service
+  Principal).
+
+  **NOTE:** To use Service Principal (for example in CI environment), set the
+  `ARM-*` variables in `.env`, source it and authenticate Azure CLI with:
+  ```console
+  $ az login --service-principal -u $ARM_CLIENT_ID -p $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
+  ```
+  In this case, the AzureRM client in terraform uses the Service Principal to
+  authenticate and the Azure CLI is used only for authenticating with ACR for
+  logging in and pushing container images. Attempting to authenticate terraform
+  using Azure CLI with Service Principal results in the following error:
+  > Authenticating using the Azure CLI is only supported as a User (not a Service Principal).
 - Docker CLI for registry login.
 - kubectl for applying certain install manifests.
 
