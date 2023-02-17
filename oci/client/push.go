@@ -58,10 +58,10 @@ func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata,
 	meta.Created = ct.Format(time.RFC3339)
 
 	img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
-	img = mutate.ConfigMediaType(img, oci.ConfigMediaType)
+	img = mutate.ConfigMediaType(img, oci.CanonicalConfigMediaType)
 	img = mutate.Annotations(img, meta.ToAnnotations()).(gcrv1.Image)
 
-	layer, err := tarball.LayerFromFile(tmpFile, tarball.WithMediaType(oci.ContentMediaType))
+	layer, err := tarball.LayerFromFile(tmpFile, tarball.WithMediaType(oci.CanonicalContentMediaType))
 	if err != nil {
 		return "", fmt.Errorf("creating content layer failed: %w", err)
 	}

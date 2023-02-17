@@ -17,9 +17,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.13
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.18.3
 	github.com/distribution/distribution/v3 v3.0.0-20230214150026-36d8c594d7aa
-	github.com/fluxcd/pkg/sourceignore v0.3.1
+	github.com/fluxcd/pkg/sourceignore v0.3.2
 	github.com/fluxcd/pkg/tar v0.2.0
-	github.com/fluxcd/pkg/version v0.2.0
+	github.com/fluxcd/pkg/version v0.2.1
 	github.com/google/go-containerregistry v0.13.0
 	github.com/onsi/gomega v1.26.0
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
