@@ -27,12 +27,12 @@ import (
 	"strings"
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	bitbucket "github.com/fluxcd/go-git-providers/stash"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
-	"github.com/fluxcd/pkg/git/libgit2"
 	"github.com/go-logr/logr"
-	. "github.com/onsi/gomega"
 )
 
 const (
@@ -127,7 +127,7 @@ func TestBitbucketServerE2E(t *testing.T) {
 	}
 
 	protocols := []git.TransportType{git.HTTP, git.SSH}
-	clients := []string{gogit.ClientName, libgit2.ClientName}
+	clients := []string{gogit.ClientName}
 
 	testFunc := func(t *testing.T, proto git.TransportType, gitClient string) {
 		t.Run(fmt.Sprintf("repo created using Clone/%s/%s", gitClient, proto), func(t *testing.T) {

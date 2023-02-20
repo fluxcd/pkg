@@ -24,7 +24,6 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
-	"github.com/fluxcd/pkg/git/libgit2"
 	"github.com/fluxcd/pkg/git/repository"
 )
 
@@ -35,11 +34,6 @@ func newClient(gitClient, tmp string, authOptions *git.AuthOptions, insecure boo
 			return gogit.NewClient(tmp, authOptions, gogit.WithInsecureCredentialsOverHTTP(), gogit.WithDiskStorage())
 		}
 		return gogit.NewClient(tmp, authOptions)
-	case libgit2.ClientName:
-		if insecure {
-			return libgit2.NewClient(tmp, authOptions, libgit2.WithInsecureCredentialsOverHTTP(), libgit2.WithDiskStorage())
-		}
-		return libgit2.NewClient(tmp, authOptions)
 	}
 	return nil, fmt.Errorf("invalid git client name: %s", gitClient)
 }

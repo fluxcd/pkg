@@ -30,16 +30,10 @@ import (
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
-	"github.com/fluxcd/pkg/git/libgit2"
-	"github.com/fluxcd/pkg/git/libgit2/transport"
 	"github.com/fluxcd/pkg/gittestserver"
 )
 
 func TestMain(m *testing.M) {
-	err := transport.InitManagedTransport()
-	if err != nil {
-		panic("could not init managed transport")
-	}
 	code := m.Run()
 	os.Exit(code)
 }
@@ -100,7 +94,7 @@ func TestGitKitE2E(t *testing.T) {
 	}
 
 	protocols := []git.TransportType{git.SSH, git.HTTP}
-	gitClients := []string{gogit.ClientName, libgit2.ClientName}
+	gitClients := []string{gogit.ClientName}
 
 	testFunc := func(t *testing.T, proto git.TransportType, gitClient string) {
 		t.Run(fmt.Sprintf("repo created using Clone/%s/%s", gitClient, proto), func(t *testing.T) {

@@ -1,6 +1,6 @@
 # Git E2E Tests
 
-This package contains E2E tests for `pkg/git/gogit` and `pkg/git/libgit2`. The current
+This package contains E2E tests for `pkg/git/gogit`. The current
 tests are run against the following providers:
 
 * [GitHub](https://github.com)

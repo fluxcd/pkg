@@ -39,19 +39,15 @@ jobs:
               - '.github/workflows/e2e.yaml'
             git:
               - 'git/**'
-      - name: Restore Go cache
-        if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/cache@v3
-        with:
-          path: /home/runner/work/_temp/_github_home/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
       - name: Setup Go
         if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
         uses: actions/setup-go@v3
         with:
           go-version: 1.19.x
+          cache: true
+          cache-dependency-path: |
+            **/go.sum
+            **/go.mod
       - name: Run tests
         if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
         run: |
