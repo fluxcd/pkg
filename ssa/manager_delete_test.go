@@ -66,7 +66,7 @@ func TestDelete(t *testing.T) {
 		// verify the change set contains only created actions
 		var output []string
 		for _, entry := range changeSet.Entries {
-			if diff := cmp.Diff(entry.Action, string(DeletedAction)); diff != "" {
+			if diff := cmp.Diff(entry.Action, DeletedAction); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 			output = append(output, entry.Subject)
@@ -151,7 +151,7 @@ func TestDelete_Exclusions(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if entry.Action != string(UnchangedAction) && entry.Subject == FmtUnstructured(configMap) {
+			if entry.Action != UnchangedAction && entry.Subject == FmtUnstructured(configMap) {
 				t.Errorf("Expected %s, got %s", UnchangedAction, entry.Action)
 			}
 		}
