@@ -1,6 +1,5 @@
 VER?=0.0.1
 MODULES=$(shell find . -mindepth 2 -maxdepth 4 -type f -name 'go.mod' | cut -c 3- | sed 's|/[^/]*$$||' | sort -u | tr / :)
-targets=$(addprefix test-, $(MODULES))
 root_dir=$(shell git rev-parse --show-toplevel)
 
 # Use $GOBIN from the environment if set, otherwise use ./bin
@@ -23,13 +22,22 @@ ENVTEST_ARCH ?= amd64
 ENVTEST_KUBERNETES_VERSION?=1.26
 
 all:
-	$(MAKE) $(targets)
+	$(MAKE) $(addprefix test-, $(MODULES))
+
+tidy:
+	$(MAKE) $(addprefix tidy-, $(MODULES))
 
 tidy-%:
 	cd $(subst :,/,$*); go mod tidy -compat=1.19
 
+fmt:
+	$(MAKE) $(addprefix fmt-, $(MODULES))
+
 fmt-%:
 	cd $(subst :,/,$*); go fmt ./...
+
+vet:
+	$(MAKE) $(addprefix vet-, $(MODULES))
 
 vet-%:
 	cd $(subst :,/,$*); go vet ./... ;\
