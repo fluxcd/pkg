@@ -151,8 +151,8 @@ func TestDelete_Exclusions(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if entry.Action != UnchangedAction && entry.Subject == FmtUnstructured(configMap) {
-				t.Errorf("Expected %s, got %s", UnchangedAction, entry.Action)
+			if entry.Action != SkippedAction && entry.Subject == FmtUnstructured(configMap) {
+				t.Errorf("Expected %s, got %s", SkippedAction, entry.Action)
 			}
 		}
 

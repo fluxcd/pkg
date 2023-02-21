@@ -41,6 +41,9 @@ const (
 	UnchangedAction Action = "unchanged"
 	// DeletedAction represents the deletion of an object.
 	DeletedAction Action = "deleted"
+	// SkippedAction represents the fact that no action was performed on an object
+	// due to the object being excluded from the reconciliation.
+	SkippedAction Action = "skipped"
 	// UnknownAction represents an unknown action.
 	UnknownAction Action = "unknown"
 )

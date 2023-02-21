@@ -83,7 +83,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 	if m.shouldSkipApply(object, existingObject, opts) {
-		return m.changeSetEntry(object, UnchangedAction), nil
+		return m.changeSetEntry(object, SkippedAction), nil
 	}
 
 	dryRunObject := object.DeepCopy()
@@ -133,7 +133,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 		if m.shouldSkipApply(object, existingObject, opts) {
-			changeSet.Add(*m.changeSetEntry(existingObject, UnchangedAction))
+			changeSet.Add(*m.changeSetEntry(existingObject, SkippedAction))
 			continue
 		}
 
