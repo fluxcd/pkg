@@ -5,16 +5,13 @@ on:
   push:
     branches:
       - main
-      - darwin-workflow
+      - libgi2*
 
 permissions: read-all
 
 jobs:
   test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-12]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3

@@ -13,6 +13,9 @@ endif
 PKG?=$*
 GO_TEST_ARGS ?= -race
 
+# API generation utilities
+CONTROLLER_GEN_VERSION ?= v0.11.1
+
 # Architecture to use envtest with
 ENVTEST_ARCH ?= amd64
 
@@ -29,31 +32,17 @@ fmt-%:
 	cd $(subst :,/,$*); go fmt ./...
 
 vet-%:
-# "git:libgit2" is the wildcard that comes after "vet-"
-# running make vet-git:libgit2 will cd into git/libgit2 and run make vet
-	@if [ "$(PKG)" = "git:libgit2" ]; then \
-		cd $(subst :,/,$*); make vet ;\
-	else \
-		cd $(subst :,/,$*); go vet ./... ;\
-	fi
+	cd $(subst :,/,$*); go vet ./... ;\
+
 
 generate-%: controller-gen
-# Run schemapatch to validate all the kubebuilder markers before generation
-	@if [ "$(PKG)" = "git:libgit2" ]; then \
-		cd $(subst :,/,$*); make generate ;\
-	else \
-		cd $(subst :,/,$*); CGO_ENABLED=1 $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..." ;\
-		CGO_ENABLED=1 $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..." ;\
-	fi
+	cd $(subst :,/,$*); CGO_ENABLED=0 $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..." ;\
+	CGO_ENABLED=0 $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..." ;\
 
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
 test-%: tidy-% generate-% fmt-% vet-% install-envtest
-	@if [ "$(PKG)" = "git:libgit2" ]; then \
-		cd $(subst :,/,$*); make test ;\
-	else \
-		cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... $(GO_TEST_ARGS) -coverprofile cover.out ;\
-	fi
+	cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... $(GO_TEST_ARGS) -coverprofile cover.out ;\
 
 release-%:
 	$(eval REL_PATH=$(subst :,/,$*))
@@ -67,7 +56,7 @@ release-%:
 CONTROLLER_GEN = $(GOBIN)/controller-gen
 .PHONY: controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0)
+	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION))
 
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
 install-envtest: setup-envtest
