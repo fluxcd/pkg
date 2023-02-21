@@ -78,11 +78,11 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 	}
 
 	if !sel.Matches(labels.Set(existingObject.GetLabels())) {
-		return m.changeSetEntry(object, UnchangedAction), nil
+		return m.changeSetEntry(object, SkippedAction), nil
 	}
 
 	if AnyInMetadata(existingObject, opts.Exclusions) {
-		return m.changeSetEntry(object, UnchangedAction), nil
+		return m.changeSetEntry(object, SkippedAction), nil
 	}
 
 	if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(opts.PropagationPolicy)); err != nil {

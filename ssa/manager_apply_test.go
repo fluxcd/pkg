@@ -397,7 +397,7 @@ func TestApply_Exclusions(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if entry.Action != UnchangedAction {
+			if entry.Action == ConfiguredAction {
 				t.Errorf("Diff found for %s", entry.String())
 			}
 		}
