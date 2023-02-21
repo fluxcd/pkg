@@ -235,6 +235,37 @@ func TestCommit_String(t *testing.T) {
 	}
 }
 
+func TestCommit_AbsoluteReference(t *testing.T) {
+	tests := []struct {
+		name   string
+		commit *Commit
+		want   string
+	}{
+		{
+			name: "Reference and commit",
+			commit: &Commit{
+				Hash:      []byte("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+				Reference: "refs/heads/main",
+			},
+			want: "refs/heads/main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "No name reference",
+			commit: &Commit{
+				Hash: []byte("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+			},
+			want: "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			g.Expect(tt.commit.AbsoluteReference()).To(Equal(tt.want))
+		})
+	}
+}
+
 func TestCommit_Verify(t *testing.T) {
 	tests := []struct {
 		name     string

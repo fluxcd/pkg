@@ -561,36 +561,36 @@ func TestClone_cloneRefName(t *testing.T) {
 			name:                   "ref name pointing to a branch",
 			refName:                "refs/heads/master",
 			filesCreated:           map[string]string{"foo.txt": "test file\n"},
-			expectedCommit:         git.Hash(head.Hash().String()).Digest(),
+			expectedCommit:         head.Hash().String(),
 			expectedConcreteCommit: true,
 		},
 		{
 			name:                   "skip clone if LastRevision is unchanged",
 			refName:                "refs/heads/master",
-			lastRevision:           git.Hash(head.Hash().String()).Digest(),
-			expectedCommit:         git.Hash(head.Hash().String()).Digest(),
+			lastRevision:           "refs/heads/master" + "@" + git.HashTypeSHA1 + ":" + head.Hash().String(),
+			expectedCommit:         head.Hash().String(),
 			expectedConcreteCommit: false,
 		},
 		{
 			name:                   "skip clone if LastRevision is unchanged even if the reference changes",
 			refName:                "refs/heads/test",
-			lastRevision:           git.Hash(head.Hash().String()).Digest(),
-			expectedCommit:         git.Hash(head.Hash().String()).Digest(),
+			lastRevision:           "refs/heads/test" + "@" + git.HashTypeSHA1 + ":" + head.Hash().String(),
+			expectedCommit:         head.Hash().String(),
 			expectedConcreteCommit: false,
 		},
 		{
 			name:                   "ref name pointing to a tag",
 			refName:                "refs/tags/v0.1.0",
 			filesCreated:           map[string]string{"bar.txt": "this is the way"},
-			lastRevision:           git.Hash(head.Hash().String()).Digest(),
-			expectedCommit:         git.Hash(hash.String()).Digest(),
+			lastRevision:           "refs/heads/test" + "@" + git.HashTypeSHA1 + ":" + head.Hash().String(),
+			expectedCommit:         hash.String(),
 			expectedConcreteCommit: true,
 		},
 		{
 			name:                   "ref name pointing to a pull request",
 			refName:                "refs/pull/1/head",
 			filesCreated:           map[string]string{"bar.txt": "this is the way"},
-			expectedCommit:         git.Hash(hash.String()).Digest(),
+			expectedCommit:         hash.String(),
 			expectedConcreteCommit: true,
 		},
 		{
@@ -622,7 +622,7 @@ func TestClone_cloneRefName(t *testing.T) {
 			}
 
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(cc.String()).To(Equal(tt.expectedCommit))
+			g.Expect(cc.AbsoluteReference()).To(Equal(tt.refName + "@" + git.HashTypeSHA1 + ":" + tt.expectedCommit))
 			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectedConcreteCommit))
 
 			for k, v := range tt.filesCreated {
@@ -1128,7 +1128,7 @@ func Test_getRemoteHEAD(t *testing.T) {
 	ref := plumbing.NewBranchReferenceName(git.DefaultBranch)
 	head, err := getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(head).To(Equal(fmt.Sprintf("%s@%s", git.DefaultBranch, git.Hash(cc.String()).Digest())))
+	g.Expect(head).To(Equal(fmt.Sprintf("refs/heads/%s@%s", git.DefaultBranch, git.Hash(cc.String()).Digest())))
 
 	cc, err = commitFile(repo, "test", "testing current head tag", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
@@ -1138,7 +1138,7 @@ func Test_getRemoteHEAD(t *testing.T) {
 	ref = plumbing.NewTagReferenceName("v0.1.0")
 	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(head).To(Equal(fmt.Sprintf("%s@%s", "v0.1.0", git.Hash(cc.String()).Digest())))
+	g.Expect(head).To(Equal(fmt.Sprintf("refs/tags/%s@%s", "v0.1.0", git.Hash(cc.String()).Digest())))
 
 	ref = plumbing.ReferenceName("/refs/heads/main")
 	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)

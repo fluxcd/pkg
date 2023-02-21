@@ -90,12 +90,23 @@ type Commit struct {
 }
 
 // String returns a string representation of the Commit, composed
-// out the last part of the Reference element, and/or Hash.
-// For example: 'tag-1/a0c14dc8580a23f79bc654faa79c4f62b46c2c22',
-// for a "tag-1" tag.
+// out of the last part of the Reference element (if not empty) and Hash.
+// For example: 'tag-1@sha1:a0c14dc8580a23f79bc654faa79c4f62b46c2c22',
+// for a "refs/tags/tag-1" Reference.
 func (c *Commit) String() string {
 	if short := strings.SplitAfterN(c.Reference, "/", 3); len(short) == 3 {
 		return fmt.Sprintf("%s@%s", short[2], c.Hash.Digest())
+	}
+	return c.Hash.Digest()
+}
+
+// AbsoluteReference returns a string representation of the Commit, composed
+// out of the Reference element (if not empty) and Hash.
+// For example: 'refs/tags/tag-1@sha1:a0c14dc8580a23f79bc654faa79c4f62b46c2c22'
+// for a "refs/tags/tag-1" Reference.
+func (c *Commit) AbsoluteReference() string {
+	if c.Reference != "" {
+		return fmt.Sprintf("%s@%s", c.Reference, c.Hash.Digest())
 	}
 	return c.Hash.Digest()
 }
