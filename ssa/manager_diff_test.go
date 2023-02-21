@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
 
@@ -159,6 +160,66 @@ func TestDiff(t *testing.T) {
 
 		if strings.Contains(string(mergedObjYaml), newVal) {
 			t.Errorf("Mismatch from expected value, got %s", string(mergedObjYaml))
+		}
+	})
+}
+
+func TestDiff_Exclusions(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("ignore")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, configMap := getFirstObject(objects, "ConfigMap", id)
+	_, secret := getFirstObject(objects, "Secret", id)
+
+	if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
+		t.Fatal(err)
+	}
+
+	meta := map[string]string{
+		"fluxcd.io/ignore": "true",
+	}
+	opts := DefaultDiffOptions()
+	opts.Exclusions = meta
+
+	t.Run("diffs non-exclusion", func(t *testing.T) {
+		entry, _, _, err := manager.Diff(ctx, secret, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if entry.Action != UnchangedAction && entry.Subject == FmtUnstructured(secret) {
+			t.Errorf("Expected %s, got %s", UnchangedAction, entry.Action)
+		}
+	})
+
+	t.Run("skips diff exclusion", func(t *testing.T) {
+		// mutate in-cluster object
+		configMapClone := configMap.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(configMapClone), configMapClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		configMapClone.SetAnnotations(meta)
+
+		if err := manager.client.Update(ctx, configMapClone); err != nil {
+			t.Fatal(err)
+		}
+
+		entry, _, _, err := manager.Diff(ctx, configMap, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if entry.Action != SkippedAction && entry.Subject == FmtUnstructured(configMap) {
+			t.Errorf("Expected %s, got %s", SkippedAction, entry.Action)
 		}
 	})
 }
