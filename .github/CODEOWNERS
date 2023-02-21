@@ -1,3 +1,14 @@
-git/* @stefanprodan
-ssh/* @hiddeco
-testserver/* @hiddeco
+# These owners will be the default owners for everything in
+# the repo. Unless a later match takes precedence.
+*                   @fluxcd/core-maintainers
+
+# The following have a bit more specific owners and require e.g.
+# specific domain expertise.
+/actions/           @stefanprodan
+/apis/              @darkowlzz @hiddeco @stefanprodan
+/ssa/               @stefanprodan
+/runtime/           @darkowlzz @hiddeco @stefanprodan
+/sourceignore/      @hiddeco
+/kustomize/         @stefanprodan
+/git/               @aryan9600 @hiddeco
+/oci/               @stefanprodan
