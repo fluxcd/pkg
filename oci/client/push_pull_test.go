@@ -73,9 +73,9 @@ func Test_Push_Pull(t *testing.T) {
 
 	// Verify media types
 	g.Expect(manifest.MediaType).To(Equal(types.OCIManifestSchema1))
-	g.Expect(manifest.Config.MediaType).To(BeEquivalentTo(oci.ConfigMediaType))
+	g.Expect(manifest.Config.MediaType).To(BeEquivalentTo(oci.CanonicalConfigMediaType))
 	g.Expect(len(manifest.Layers)).To(BeEquivalentTo(1))
-	g.Expect(manifest.Layers[0].MediaType).To(BeEquivalentTo(oci.ContentMediaType))
+	g.Expect(manifest.Layers[0].MediaType).To(BeEquivalentTo(oci.CanonicalContentMediaType))
 
 	tmpDir := t.TempDir()
 
