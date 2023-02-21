@@ -77,6 +77,6 @@ func (m *ResourceManager) changeSetEntry(o *unstructured.Unstructured, action Ac
 		ObjMetadata:  object.UnstructuredToObjMetadata(o),
 		GroupVersion: o.GroupVersionKind().Version,
 		Subject:      FmtUnstructured(o),
-		Action:       string(action),
+		Action:       action,
 	}
 }

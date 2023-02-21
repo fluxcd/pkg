@@ -27,12 +27,22 @@ import (
 // Action represents the action type performed by the reconciliation process.
 type Action string
 
+// String returns the string representation of the action.
+func (a Action) String() string {
+	return string(a)
+}
+
 const (
-	CreatedAction    Action = "created"
+	// CreatedAction represents the creation of a new object.
+	CreatedAction Action = "created"
+	// ConfiguredAction represents the update of an existing object.
 	ConfiguredAction Action = "configured"
-	UnchangedAction  Action = "unchanged"
-	DeletedAction    Action = "deleted"
-	UnknownAction    Action = "unknown"
+	// UnchangedAction represents the absence of any action to an object.
+	UnchangedAction Action = "unchanged"
+	// DeletedAction represents the deletion of an object.
+	DeletedAction Action = "deleted"
+	// UnknownAction represents an unknown action.
+	UnknownAction Action = "unknown"
 )
 
 // ChangeSet holds the result of the reconciliation of an object collection.
@@ -63,8 +73,8 @@ func (c *ChangeSet) String() string {
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
-func (c *ChangeSet) ToMap() map[string]string {
-	res := make(map[string]string, len(c.Entries))
+func (c *ChangeSet) ToMap() map[string]Action {
+	res := make(map[string]Action, len(c.Entries))
 	for _, entry := range c.Entries {
 		res[entry.Subject] = entry.Action
 	}
@@ -91,7 +101,7 @@ type ChangeSetEntry struct {
 	Subject string
 
 	// Action represents the action type taken by the reconciler for this object.
-	Action string
+	Action Action
 }
 
 func (e ChangeSetEntry) String() string {

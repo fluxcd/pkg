@@ -64,7 +64,7 @@ func TestApply(t *testing.T) {
 		// verify the change set contains only created actions
 		var output []string
 		for _, entry := range changeSet.Entries {
-			if diff := cmp.Diff(entry.Action, string(CreatedAction)); diff != "" {
+			if diff := cmp.Diff(entry.Action, CreatedAction); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 			output = append(output, entry.Subject)
@@ -85,7 +85,7 @@ func TestApply(t *testing.T) {
 
 		// verify the change set contains only unchanged actions
 		for _, entry := range changeSet.Entries {
-			if diff := cmp.Diff(string(UnchangedAction), entry.Action); diff != "" {
+			if diff := cmp.Diff(UnchangedAction, entry.Action); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s\n%v", diff, changeSet)
 			}
 		}
@@ -107,11 +107,11 @@ func TestApply(t *testing.T) {
 		// verify the change set contains the configured action only for the configmap
 		for _, entry := range changeSet.Entries {
 			if entry.Subject == configMapName {
-				if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
+				if diff := cmp.Diff(ConfiguredAction, entry.Action); diff != "" {
 					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 				}
 			} else {
-				if diff := cmp.Diff(string(UnchangedAction), entry.Action); diff != "" {
+				if diff := cmp.Diff(UnchangedAction, entry.Action); diff != "" {
 					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 				}
 			}
@@ -189,11 +189,11 @@ func TestApply_Force(t *testing.T) {
 		// verify the secret was recreated
 		for _, entry := range changeSet.Entries {
 			if entry.Subject == secretName {
-				if diff := cmp.Diff(string(CreatedAction), entry.Action); diff != "" {
+				if diff := cmp.Diff(CreatedAction, entry.Action); diff != "" {
 					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 				}
 			} else {
-				if diff := cmp.Diff(string(UnchangedAction), entry.Action); diff != "" {
+				if diff := cmp.Diff(UnchangedAction, entry.Action); diff != "" {
 					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 				}
 			}
@@ -234,7 +234,7 @@ func TestApply_Force(t *testing.T) {
 		// verify the binding was recreated
 		for _, entry := range changeSet.Entries {
 			if entry.Subject == crbName {
-				if diff := cmp.Diff(string(CreatedAction), entry.Action); diff != "" {
+				if diff := cmp.Diff(CreatedAction, entry.Action); diff != "" {
 					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 				}
 				break
@@ -269,7 +269,7 @@ func TestApply_Force(t *testing.T) {
 		// verify the storage class was recreated
 		for _, entry := range changeSet.Entries {
 			if entry.Subject == stName {
-				if diff := cmp.Diff(string(CreatedAction), entry.Action); diff != "" {
+				if diff := cmp.Diff(CreatedAction, entry.Action); diff != "" {
 					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 				}
 				break
@@ -337,7 +337,7 @@ func TestApply_NoOp(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if entry.Action != string(UnchangedAction) {
+			if entry.Action != UnchangedAction {
 				t.Errorf("Diff found for %s", entry.String())
 			}
 		}
@@ -397,7 +397,7 @@ func TestApply_Exclusions(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if entry.Action != string(UnchangedAction) {
+			if entry.Action != UnchangedAction {
 				t.Errorf("Diff found for %s", entry.String())
 			}
 		}
@@ -411,7 +411,7 @@ func TestApply_Exclusions(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if entry.Action != string(ConfiguredAction) && entry.Subject == FmtUnstructured(configMap) {
+			if entry.Action != ConfiguredAction && entry.Subject == FmtUnstructured(configMap) {
 				t.Errorf("Expected %s, got %s", ConfiguredAction, entry.Action)
 			}
 		}
@@ -430,7 +430,7 @@ func TestApply_Exclusions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if changeSet.Action != string(UnchangedAction) {
+		if changeSet.Action != UnchangedAction {
 			t.Errorf("Diff found for %s", changeSet.String())
 		}
 	})
@@ -494,7 +494,7 @@ func TestApply_Cleanup(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
+			if diff := cmp.Diff(ConfiguredAction, entry.Action); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 		}
@@ -542,7 +542,7 @@ func TestApply_Cleanup(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
+			if diff := cmp.Diff(ConfiguredAction, entry.Action); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 		}
@@ -751,7 +751,7 @@ func TestApply_Cleanup_Exclusions(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if diff := cmp.Diff(string(ConfiguredAction), entry.Action); diff != "" {
+			if diff := cmp.Diff(ConfiguredAction, entry.Action); diff != "" {
 				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 			}
 		}

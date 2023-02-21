@@ -59,7 +59,7 @@ func TestDiff(t *testing.T) {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
-		if diff := cmp.Diff(string(UnchangedAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(UnchangedAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 	})
@@ -76,7 +76,7 @@ func TestDiff(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(ConfiguredAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
@@ -191,7 +191,7 @@ func TestDiff_Removals(t *testing.T) {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
-		if diff := cmp.Diff(string(UnchangedAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(UnchangedAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
@@ -214,7 +214,7 @@ func TestDiff_Removals(t *testing.T) {
 
 		mergedObjYaml, _ := yaml.Marshal(mergedObj)
 
-		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(ConfiguredAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
@@ -235,7 +235,7 @@ func TestDiff_Removals(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(ConfiguredAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
@@ -274,7 +274,7 @@ func TestDiffHPA(t *testing.T) {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
-		if diff := cmp.Diff(string(UnchangedAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(UnchangedAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 	})
@@ -295,7 +295,7 @@ func TestDiffHPA(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(ConfiguredAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
@@ -310,7 +310,7 @@ func TestDiffHPA(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(string(UnchangedAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(UnchangedAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 	})
@@ -326,7 +326,7 @@ func TestDiffHPA(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(string(ConfiguredAction), changeSetEntry.Action); diff != "" {
+		if diff := cmp.Diff(ConfiguredAction, changeSetEntry.Action); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
 
