@@ -62,7 +62,7 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 	if existingObject != nil && AnyInMetadata(existingObject, opts.Exclusions) {
-		return m.changeSetEntry(existingObject, UnchangedAction), nil, nil, nil
+		return m.changeSetEntry(existingObject, SkippedAction), nil, nil, nil
 	}
 
 	dryRunObject := object.DeepCopy()
