@@ -27,7 +27,7 @@ jobs:
       - name: Run tests
         env:
           SKIP_COSIGN_VERIFICATION: true
-        run: make all
+        run: make test
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then

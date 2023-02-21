@@ -21,8 +21,7 @@ ENVTEST_ARCH ?= amd64
 # Kubernetes versions to use envtest with
 ENVTEST_KUBERNETES_VERSION?=1.26
 
-all:
-	$(MAKE) $(addprefix test-, $(MODULES))
+all: tidy generate fmt vet
 
 tidy:
 	$(MAKE) $(addprefix tidy-, $(MODULES))
@@ -43,9 +42,18 @@ vet-%:
 	cd $(subst :,/,$*); go vet ./... ;\
 
 
+# Run generate for all modules
+generate:
+	$(MAKE) $(addprefix generate-, $(MODULES))
+
+# Generate manifests e.g. CRD, RBAC etc.
 generate-%: controller-gen
 	cd $(subst :,/,$*); CGO_ENABLED=0 $(CONTROLLER_GEN) schemapatch:manifests="./" paths="./..." ;\
 	CGO_ENABLED=0 $(CONTROLLER_GEN) object:headerFile="$(root_dir)/hack/boilerplate.go.txt" paths="./..." ;\
+
+# Run tests for all modules
+test:
+	$(MAKE) $(addprefix test-, $(MODULES))
 
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
