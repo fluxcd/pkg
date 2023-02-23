@@ -117,6 +117,12 @@ func TestSplitRevision(t *testing.T) {
 			wantHash:    Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
 		},
 		{
+			name:        "revision with reference name and digest",
+			rev:         "refs/pull/420/head@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			wantPointer: "refs/pull/420/head",
+			wantHash:    Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
 			name:     "revision with digest",
 			rev:      "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
 			wantHash: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
@@ -168,6 +174,11 @@ func TestExtractNamedPointerFromRevision(t *testing.T) {
 			want: "main",
 		},
 		{
+			name: "revision with ref name and digest",
+			rev:  "refs/merge-request/1/head@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: "refs/merge-request/1/head",
+		},
+		{
 			name: "revision with digest",
 			rev:  "sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
 			want: "",
@@ -216,6 +227,11 @@ func TestExtractHashFromRevision(t *testing.T) {
 		{
 			name: "revision with branch and digest",
 			rev:  "main@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+			want: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+		},
+		{
+			name: "revision with ref name and digest",
+			rev:  "refs/pull/1/head@sha1:5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
 			want: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
 		},
 		{

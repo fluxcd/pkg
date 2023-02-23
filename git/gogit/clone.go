@@ -54,10 +54,12 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		if err != nil {
 			return nil, err
 		}
-		if head != "" && head == lastObserved {
+		hash := git.ExtractHashFromRevision(head)
+		shortRef := fmt.Sprintf("%s@%s", branch, hash.Digest())
+		if head != "" && shortRef == lastObserved {
 			// Construct a non-concrete commit with the existing information.
 			c := &git.Commit{
-				Hash:      git.ExtractHashFromRevision(head),
+				Hash:      hash,
 				Reference: plumbing.NewBranchReferenceName(branch).String(),
 			}
 			return c, nil
@@ -134,10 +136,12 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		if err != nil {
 			return nil, err
 		}
-		if head != "" && head == lastObserved {
+		hash := git.ExtractHashFromRevision(head)
+		shortRef := fmt.Sprintf("%s@%s", tag, hash.Digest())
+		if head != "" && shortRef == lastObserved {
 			// Construct a non-concrete commit with the existing information.
 			c := &git.Commit{
-				Hash:      git.ExtractHashFromRevision(head),
+				Hash:      hash,
 				Reference: ref.String(),
 			}
 			return c, nil
@@ -234,6 +238,9 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		return nil, fmt.Errorf("unable to checkout commit '%s': %w", commit, err)
 	}
 	g.repository = repo
+	if opts.RefName != "" {
+		cloneOpts.ReferenceName = plumbing.ReferenceName(opts.RefName)
+	}
 	return buildCommitWithRef(cc, cloneOpts.ReferenceName)
 }
 
@@ -375,12 +382,11 @@ func (g *Client) cloneRefName(ctx context.Context, url string, refName string, c
 	hash := git.ExtractHashFromRevision(head)
 	// check if previous revision has changed before attempting to clone
 	if lastObserved := git.TransformRevision(cloneOpts.LastObservedCommit); lastObserved != "" {
-		if hash.Digest() != "" && hash.Digest() == lastObserved {
+		if head != "" && head == lastObserved {
 			// Construct a non-concrete commit with the existing information.
-			// We exclude the reference here to ensure compatibility with the format
-			// of the Commit object returned by cloneCommit().
 			c := &git.Commit{
-				Hash: hash,
+				Reference: refName,
+				Hash:      hash,
 			}
 			return c, nil
 		}
@@ -424,7 +430,7 @@ func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
 func filterRefs(refs []*plumbing.Reference, currentRef plumbing.ReferenceName) string {
 	for _, ref := range refs {
 		if ref.Name().String() == currentRef.String() {
-			return fmt.Sprintf("%s@%s", currentRef.Short(), git.Hash(ref.Hash().String()).Digest())
+			return fmt.Sprintf("%s@%s", currentRef.String(), git.Hash(ref.Hash().String()).Digest())
 		}
 	}
 	return ""
