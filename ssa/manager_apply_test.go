@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -153,6 +154,7 @@ func TestApply_Force(t *testing.T) {
 	secretName, secret := getFirstObject(objects, "Secret", id)
 	crbName, crb := getFirstObject(objects, "ClusterRoleBinding", id)
 	stName, st := getFirstObject(objects, "StorageClass", id)
+	_, svc := getFirstObject(objects, "Service", id)
 
 	// create objects
 	if _, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
@@ -274,6 +276,25 @@ func TestApply_Force(t *testing.T) {
 				}
 				break
 			}
+		}
+	})
+
+	t.Run("force apply returns validation error", func(t *testing.T) {
+		// update to invalid yaml
+		err = unstructured.SetNestedField(svc.Object, "ClusterIPSS", "spec", "type")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// force apply objects
+		_, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{Force: true, WaitTimeout: timeout})
+		if err == nil {
+			t.Fatal("expected validation error but got none")
+		}
+
+		// should return validation error
+		if !strings.Contains(err.Error(), "is invalid") {
+			t.Errorf("expected error to contain invalid msg but got: %s", err)
 		}
 	})
 }
