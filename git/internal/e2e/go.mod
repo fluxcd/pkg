@@ -11,25 +11,22 @@ replace (
 	github.com/fluxcd/pkg/version => ../../../version
 )
 
-// Fix CVE-2022-1996 (for v2, Go Modules incompatible)
-replace github.com/emicklei/go-restful => github.com/emicklei/go-restful v2.16.0+incompatible
-
 require (
 	github.com/fluxcd/go-git-providers v0.14.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221219190809-2e5c9d01cfc4
 	github.com/fluxcd/pkg/git v0.10.0
-	github.com/fluxcd/pkg/git/gogit v0.7.0
+	github.com/fluxcd/pkg/git/gogit v0.7.1
 	github.com/fluxcd/pkg/gittestserver v0.8.1
 	github.com/fluxcd/pkg/ssh v0.7.1
 	github.com/go-logr/logr v1.2.3
 	github.com/google/uuid v1.3.0
-	github.com/onsi/gomega v1.26.0
+	github.com/onsi/gomega v1.27.2
 )
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.0 // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
-	github.com/ProtonMail/go-crypto v0.0.0-20230214155104-81033d7f4442 // indirect
+	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
 	github.com/acomagu/bufpipe v1.0.3 // indirect
 	github.com/cloudflare/circl v1.3.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
