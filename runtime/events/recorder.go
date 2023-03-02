@@ -130,8 +130,8 @@ func (r *Recorder) AnnotatedEventf(
 	// Add object info in the logger.
 	log := r.Log.WithValues("name", ref.Name, "namespace", ref.Namespace, "reconciler kind", ref.Kind)
 
-	// Log the event if in debug mode.
-	if log.GetSink().Enabled(logger.DebugLevel) {
+	// Log the event if in trace mode.
+	if log.GetSink().Enabled(logger.TraceLevel) {
 		msg := fmt.Sprintf(messageFmt, args...)
 		if eventtype == corev1.EventTypeWarning {
 			log.Error(errors.New(reason), msg, "annotations", annotations)
