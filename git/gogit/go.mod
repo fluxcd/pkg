@@ -16,7 +16,7 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221219190809-2e5c9d01cfc4
-	github.com/fluxcd/pkg/git v0.10.0
+	github.com/fluxcd/pkg/git v0.11.0
 	github.com/fluxcd/pkg/gittestserver v0.8.1
 	github.com/fluxcd/pkg/ssh v0.7.1
 	github.com/fluxcd/pkg/version v0.2.1
