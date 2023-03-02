@@ -8,15 +8,21 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/pkg/apis/kustomize v0.8.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/onsi/gomega v1.26.0
+	github.com/onsi/gomega v1.27.2
 	github.com/otiai10/copy v1.9.0
-	k8s.io/api v0.26.1
-	k8s.io/apiextensions-apiserver v0.26.1
-	k8s.io/apimachinery v0.26.1
-	sigs.k8s.io/controller-runtime v0.14.4
+	k8s.io/api v0.26.2
+	k8s.io/apiextensions-apiserver v0.26.2
+	k8s.io/apimachinery v0.26.2
+	sigs.k8s.io/controller-runtime v0.14.5
 	sigs.k8s.io/kustomize/api v0.12.1
 	sigs.k8s.io/kustomize/kyaml v0.13.9
 	sigs.k8s.io/yaml v1.3.0
+)
+
+// Pin kustomize to v4.5.7
+replace (
+	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.12.1
+	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.9
 )
 
 // Fix CVE-2022-28948
@@ -62,7 +68,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/client-go v0.26.1 // indirect
+	k8s.io/client-go v0.26.2 // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20230109183929-3758b55a6596 // indirect
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448 // indirect
