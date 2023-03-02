@@ -12,19 +12,19 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.3.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.1
 	github.com/Masterminds/semver/v3 v3.2.0
-	github.com/aws/aws-sdk-go-v2 v1.17.4
-	github.com/aws/aws-sdk-go-v2/config v1.18.13
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.13
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.18.3
-	github.com/distribution/distribution/v3 v3.0.0-20230214150026-36d8c594d7aa
+	github.com/aws/aws-sdk-go-v2 v1.17.5
+	github.com/aws/aws-sdk-go-v2/config v1.18.15
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.15
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.18.5
+	github.com/distribution/distribution/v3 v3.0.0-20230223072852-e5d5810851d1
 	github.com/fluxcd/pkg/sourceignore v0.3.2
 	github.com/fluxcd/pkg/tar v0.2.0
 	github.com/fluxcd/pkg/version v0.2.1
 	github.com/google/go-containerregistry v0.13.0
-	github.com/onsi/gomega v1.26.0
+	github.com/onsi/gomega v1.27.2
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/sirupsen/logrus v1.9.0
-	sigs.k8s.io/controller-runtime v0.14.4
+	sigs.k8s.io/controller-runtime v0.14.5
 )
 
 require (
@@ -32,14 +32,14 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.8.1 // indirect
 	github.com/Shopify/logrus-bugsnag v0.0.0-20171204204709-577dee27f20d // indirect
 	github.com/acomagu/bufpipe v1.0.3 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.22 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.28 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.22 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.29 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.22 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.12.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.18.3 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.29 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.30 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.12.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.18.5 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bshuster-repo/logrus-logstash-hook v1.0.0 // indirect
