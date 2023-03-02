@@ -10,8 +10,8 @@ replace (
 require (
 	github.com/fluxcd/pkg/tar v0.2.0
 	github.com/fluxcd/pkg/testserver v0.4.0
-	github.com/hashicorp/go-retryablehttp v0.7.1
-	github.com/onsi/gomega v1.24.1
+	github.com/hashicorp/go-retryablehttp v0.7.2
+	github.com/onsi/gomega v1.27.2
 )
 
 require (
