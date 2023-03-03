@@ -46,6 +46,10 @@ func Test_Push_Pull(t *testing.T) {
 	metadata := Metadata{
 		Source:   source,
 		Revision: revision,
+		Annotations: map[string]string{
+			"org.opencontainers.image.documentation": "https://my/readme.md",
+			"org.opencontainers.image.licenses":      "Apache-2.0",
+		},
 	}
 
 	// Build and push the artifact to registry
@@ -80,8 +84,12 @@ func Test_Push_Pull(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Pull the artifact from registry and extract its contents to tmp
-	_, err = c.Pull(ctx, url, tmpDir)
+	meta, err := c.Pull(ctx, url, tmpDir)
 	g.Expect(err).ToNot(HaveOccurred())
+
+	// Verify custom annotations
+	g.Expect(meta.Annotations["org.opencontainers.image.documentation"]).To(BeEquivalentTo("https://my/readme.md"))
+	g.Expect(meta.Annotations["org.opencontainers.image.licenses"]).To(BeEquivalentTo("Apache-2.0"))
 
 	// Walk the test directory and check that all files exist in the pulled artifact
 	fsErr := filepath.Walk(testDir, func(path string, info fs.FileInfo, err error) error {
