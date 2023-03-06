@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -80,7 +81,7 @@ func DefaultApplyOptions() ApplyOptions {
 // When immutable field changes are detected, the object is recreated if 'force' is set to 'true'.
 func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstructured, opts ApplyOptions) (*ChangeSetEntry, error) {
 	existingObject := object.DeepCopy()
-	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
+	getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 	if m.shouldSkipApply(object, existingObject, opts) {
 		return m.changeSetEntry(object, SkippedAction), nil
@@ -88,7 +89,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-		if m.shouldForceApply(object, existingObject, opts, err) {
+		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
 			if err := m.client.Delete(ctx, existingObject); err != nil {
 				return nil, fmt.Errorf("%s immutable field detected, failed to delete object, error: %w",
 					FmtUnstructured(dryRunObject), err)
@@ -130,7 +131,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 	var toApply []*unstructured.Unstructured
 	for _, object := range objects {
 		existingObject := object.DeepCopy()
-		_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
+		getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 		if m.shouldSkipApply(object, existingObject, opts) {
 			changeSet.Add(*m.changeSetEntry(existingObject, SkippedAction))
@@ -139,7 +140,10 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 
 		dryRunObject := object.DeepCopy()
 		if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-			if m.shouldForceApply(object, existingObject, opts, err) {
+			// we cannot have an immutable error (and therefore shouldn't false apply) if the resource doesn't exist
+			// on the cluster. Note that resource might not exist because we wrongly identified an error as immutable and deleted
+			// it when ApplyAll was called the last time (the check for ImmutableError returns false positives)
+			if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
 				if err := m.client.Delete(ctx, existingObject); err != nil {
 					return nil, fmt.Errorf("%s immutable field detected, failed to delete object, error: %w",
 						FmtUnstructured(dryRunObject), err)
