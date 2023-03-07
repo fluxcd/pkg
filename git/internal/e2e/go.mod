@@ -15,9 +15,9 @@ require (
 	github.com/fluxcd/go-git-providers v0.14.0
 	github.com/fluxcd/go-git/v5 v5.0.0-20221219190809-2e5c9d01cfc4
 	github.com/fluxcd/pkg/git v0.11.0
-	github.com/fluxcd/pkg/git/gogit v0.7.1
+	github.com/fluxcd/pkg/git/gogit v0.8.1
 	github.com/fluxcd/pkg/gittestserver v0.8.1
-	github.com/fluxcd/pkg/ssh v0.7.1
+	github.com/fluxcd/pkg/ssh v0.7.3
 	github.com/go-logr/logr v1.2.3
 	github.com/google/uuid v1.3.0
 	github.com/onsi/gomega v1.27.2
@@ -57,12 +57,12 @@ require (
 	github.com/xanzy/go-gitlab v0.78.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.uber.org/zap v1.24.0 // indirect
-	golang.org/x/crypto v0.6.0 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect
-	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.5.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
