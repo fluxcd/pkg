@@ -20,6 +20,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
@@ -70,7 +72,7 @@ var stackLevelStrings = map[string]zapcore.Level{
 //		flag.Parse()
 //
 //		// Use the values during the initialisation of the logger
-//		ctrl.SetLogger(logger.NewLogger(logOptions))
+//		logger.SetLogger(logger.NewLogger(loggerOptions))
 //	}
 type Options struct {
 	LogEncoding string
@@ -111,4 +113,11 @@ func NewLogger(opts Options) logr.Logger {
 	}
 
 	return zap.New(zap.UseFlagOptions(&zapOpts))
+}
+
+// SetLogger sets the logger for the controller-runtime and klog packages to the given logger.
+// It is not thread-safe, and should be called as early as possible in the program's execution.
+func SetLogger(logger logr.Logger) {
+	ctrl.SetLogger(logger)
+	klog.SetLoggerWithOptions(logger.WithName("runtime"), klog.ContextualLogger(true))
 }
