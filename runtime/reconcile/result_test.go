@@ -171,6 +171,20 @@ func TestResultFinalizer(t *testing.T) {
 			},
 		},
 		{
+			name: "result with error, ready and reconciling, change to not ready",
+			beforeFunc: func(obj conditions.Setter) {
+				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
+				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+			},
+			result:  resultFailed,
+			recErr:  errors.New("foo failed"),
+			wantErr: true,
+			assertConditions: []metav1.Condition{
+				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "foo failed"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "some msg X"),
+			},
+		},
+		{
 			name: "stalled and reconciling, Ready=False, remove reconciling, retain ready",
 			beforeFunc: func(obj conditions.Setter) {
 				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "some msg X")

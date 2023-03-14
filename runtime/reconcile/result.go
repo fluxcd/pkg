@@ -134,7 +134,7 @@ func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recEr
 	// Ready=False with the reconcile error. If Ready is already False with a
 	// reason, preserve the value.
 	if recErr != nil {
-		if conditions.IsUnknown(obj, meta.ReadyCondition) || conditions.IsReady(obj) {
+		if conditions.IsUnknown(obj, meta.ReadyCondition) || conditions.IsTrue(obj, meta.ReadyCondition) {
 			conditions.MarkFalse(obj, meta.ReadyCondition, meta.FailedReason, recErr.Error())
 		}
 	}
