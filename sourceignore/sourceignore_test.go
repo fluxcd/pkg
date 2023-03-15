@@ -203,6 +203,8 @@ func TestLoadExcludePatterns(t *testing.T) {
 		"d/.gitignore":      "ignored",
 		"z/.sourceignore":   "last.txt",
 		"a/b/.sourceignore": "subdir.txt",
+		"e/last.txt":        "foo",
+		"a/c/subdir.txt":    "bar",
 	}
 	for n, c := range files {
 		if err := os.MkdirAll(filepath.Join(tmpDir, filepath.Dir(n)), 0o750); err != nil {
@@ -222,7 +224,7 @@ func TestLoadExcludePatterns(t *testing.T) {
 			name: "traverse loads",
 			dir:  tmpDir,
 			want: []gitignore.Pattern{
-				gitignore.ParsePattern("root.txt", nil),
+				gitignore.ParsePattern("root.txt", []string{}),
 				gitignore.ParsePattern("subdir.txt", []string{"a", "b"}),
 				gitignore.ParsePattern("last.txt", []string{"z"}),
 			},
