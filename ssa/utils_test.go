@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	. "github.com/onsi/gomega"
 )
 
 func TestCmpMaskData(t *testing.T) {
@@ -157,6 +158,83 @@ stringData:
 
 			if len(objects) != tc.expected {
 				t.Errorf("unexpected number of objects in %v", objects)
+			}
+		})
+	}
+}
+
+func TestSetCommonMetadata(t *testing.T) {
+	testCases := []struct {
+		name        string
+		resources   string
+		labels      map[string]string
+		annotations map[string]string
+	}{
+		{
+			name: "adds metadata",
+			resources: `
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test
+  namespace: default
+stringData:
+  key: "private-key"
+`,
+			labels: map[string]string{
+				"test1": "lb1",
+				"test2": "lb2",
+			},
+			annotations: map[string]string{
+				"test1": "a1",
+				"test2": "a2",
+			},
+		},
+		{
+			name: "overrides metadata",
+			resources: `
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test
+  namespace: default
+  labels:
+    test1: over
+  annotations:
+    test2: over
+stringData:
+  key: "private-key"
+`,
+			labels: map[string]string{
+				"test1": "lb1",
+			},
+			annotations: map[string]string{
+				"test1": "an1",
+				"test2": "an2",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			objects, err := ReadObjects(strings.NewReader(tc.resources))
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			SetCommonMetadata(objects, tc.labels, tc.annotations)
+
+			for _, object := range objects {
+				for k, v := range tc.labels {
+					g.Expect(object.GetLabels()).To(HaveKeyWithValue(k, v))
+				}
+				for k, v := range tc.annotations {
+					g.Expect(object.GetAnnotations()).To(HaveKeyWithValue(k, v))
+				}
 			}
 		})
 	}
