@@ -40,6 +40,38 @@ import (
 
 const fmtSeparator = "/"
 
+// SetCommonMetadata adds the specified labels and annotations to all objects.
+// Existing keys will have their values overridden.
+func SetCommonMetadata(objects []*unstructured.Unstructured, labels map[string]string, annotations map[string]string) {
+	for _, object := range objects {
+		lbs := object.GetLabels()
+		if lbs == nil {
+			lbs = make(map[string]string)
+		}
+
+		for k, v := range labels {
+			lbs[k] = v
+		}
+
+		if len(lbs) > 0 {
+			object.SetLabels(lbs)
+		}
+
+		ans := object.GetAnnotations()
+		if ans == nil {
+			ans = make(map[string]string)
+		}
+
+		for k, v := range annotations {
+			ans[k] = v
+		}
+
+		if len(ans) > 0 {
+			object.SetAnnotations(ans)
+		}
+	}
+}
+
 // FmtObjMetadata returns the object ID in the format <kind>/<namespace>/<name>.
 func FmtObjMetadata(obj object.ObjMetadata) string {
 	var builder strings.Builder

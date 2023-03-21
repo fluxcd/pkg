@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/google/go-cmp v0.5.9
+	github.com/onsi/gomega v1.24.1
 	k8s.io/api v0.26.2
 	k8s.io/apimachinery v0.26.2
 	sigs.k8s.io/cli-utils v0.34.0
