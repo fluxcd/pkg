@@ -1,31 +1,60 @@
-name: Setup helm CLI
-description: A GitHub Action for running helm commands
-author: Stefan Prodan
+name: Setup Helm CLI
+description: A GitHub Action for installing the Helm CLI
+author: Flux project
 branding:
   color: blue
   icon: command
 inputs:
   version:
-    description: "strict semver"
-    required: true
-    default: "3.6.1"
-  arch:
-    description: "arch can be amd64 or arm64"
-    required: true
-    default: "amd64"
+    description: Strict SemVer of the Helm CLI to install. Defaults to the latest release.
+    required: false
 runs:
   using: composite
   steps:
-    - name: "Download and copy the binary to /usr/local/bin"
+    - name: Download the binary to the runner's cache dir
       shell: bash
       run: |
         VERSION=${{ inputs.version }}
-        ARCH=${{ inputs.arch }}
-        BIN_URL="https://get.helm.sh/helm-v${VERSION}-linux-${ARCH}.tar.gz"
-        curl -sL ${BIN_URL} -o /tmp/helm.tar.gz
-        mkdir -p /tmp/helm
-        tar -C /tmp/helm/ -zxvf /tmp/helm.tar.gz
-        sudo cp /tmp/helm/linux-${ARCH}/helm /usr/local/bin
-        rm -rf /tmp/helm/ /tmp/helm.tar.gz
-        which helm
+        if [[ -z "$VERSION" ]] || [[ "$VERSION" = "latest" ]]; then
+          VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" https://api.github.com/repos/helm/helm/releases/latest | grep tag_name | cut -d '"' -f 4)
+        fi
+        if [[ -z "$VERSION" ]]; then
+          echo "Unable to determine Helm version"
+          exit 1
+        fi
+        if [[ ! $VERSION = v* ]]; then
+          VERSION="v${VERSION}"
+        fi
+
+        OS="${RUNNER_OS,,}"
+        
+        HELM_EXEC_FILE="helm"
+        if [[ "$OS" == "windows" ]]; then
+            HELM_EXEC_FILE="${HELM_EXEC_FILE}.exe"
+        fi
+
+        HELM_TOOL_DIR="${RUNNER_TOOL_CACHE}/helm/${VERSION}/${OS}/${RUNNER_ARCH,,}"
+        if [[ ! -x "${HELM_TOOL_DIR}/${HELM_EXEC_FILE}" ]]; then
+          # Download the installer.
+          HELM_INSTALLER_TMP="$(mktemp -t helm-installer-XXXXXX)"
+          curl -fsSL -o "$HELM_INSTALLER_TMP" https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+          chmod +x "$HELM_INSTALLER_TMP"
+
+          # Run the installer.
+          echo "Running Helm installer"
+          mkdir -p "$HELM_TOOL_DIR"
+          USE_SUDO=false HELM_INSTALL_DIR="$HELM_TOOL_DIR" VERIFY_CHECKSUM=true VERIFY_SIGNATURES=false "$HELM_INSTALLER_TMP" --version "$VERSION"
+
+          # Clean up.
+          echo "Cleaning up"
+          rm -rf "$HELM_INSTALLER_TMP"
+        fi
+
+        # Add the Helm tool dir to the path.
+        echo "Adding Helm to path"
+        echo "$HELM_TOOL_DIR" >> "$GITHUB_PATH"
+
+    - name: Print installed Helm version
+      shell: bash
+      run: |
         helm version
