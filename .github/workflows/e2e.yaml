@@ -24,7 +24,7 @@ jobs:
           - bitbucket-server
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
 
       # Since this is a monorepo, changes in other packages will also trigger these e2e tests
       # meant only for the git package. This detects us whether the changed files are part of the
@@ -41,10 +41,10 @@ jobs:
               - 'git/**'
       - name: Setup Go
         if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: 1.20.x
-          cache: true
+          # https://github.com/actions/setup-go/blob/main/docs/adrs/0000-caching-dependencies.md#example-of-real-use-cases
           cache-dependency-path: |
             **/go.sum
             **/go.mod
