@@ -1,6 +1,6 @@
-name: 'crdjsonschema'
-description: 'A GitHub Action to generate OpenAPI JSON schema from Kubernetes CRD'
-author: 'Stefan Prodan'
+name: crdjsonschema
+description: Generate OpenAPI JSON schemas from Custom Resource Definitions
+author: Flux project
 branding:
   icon: 'command'
   color: 'blue'
