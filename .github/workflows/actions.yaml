@@ -25,5 +25,4 @@ jobs:
       - uses: ./actions/helm
       - uses: ./actions/kubectl
       - uses: ./actions/kustomize
-      - uses: ./actions/kubebuilder
       - uses: ./actions/sops
