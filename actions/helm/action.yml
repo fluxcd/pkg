@@ -26,14 +26,15 @@ runs:
           VERSION="v${VERSION}"
         fi
 
-        OS="${RUNNER_OS,,}"
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
         
         HELM_EXEC_FILE="helm"
         if [[ "$OS" == "windows" ]]; then
             HELM_EXEC_FILE="${HELM_EXEC_FILE}.exe"
         fi
 
-        HELM_TOOL_DIR="${RUNNER_TOOL_CACHE}/helm/${VERSION}/${OS}/${RUNNER_ARCH,,}"
+        HELM_TOOL_DIR="${RUNNER_TOOL_CACHE}/helm/${VERSION}/${OS}/${ARCH}"
         if [[ ! -x "${HELM_TOOL_DIR}/${HELM_EXEC_FILE}" ]]; then
           # Download the installer.
           HELM_INSTALLER_TMP="$(mktemp -t helm-installer-XXXXXX)"
@@ -43,6 +44,10 @@ runs:
           # Run the installer.
           echo "Running Helm installer"
           mkdir -p "$HELM_TOOL_DIR"
+          if [[ "$OS" = "macos" ]]; then
+            # Workaround for "helm not found. Is "<path>" on your $PATH?
+            export PATH="$HELM_TOOL_DIR:$PATH"
+          fi
           USE_SUDO=false HELM_INSTALL_DIR="$HELM_TOOL_DIR" VERIFY_CHECKSUM=true VERIFY_SIGNATURES=false "$HELM_INSTALLER_TMP" --version "$VERSION"
 
           # Clean up.

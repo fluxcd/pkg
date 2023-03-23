@@ -26,7 +26,8 @@ runs:
           exit 1
         fi
 
-        OS="${RUNNER_OS,,}"
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
 
         SETUPENVTEST_EXEC_FILE="setup-envtest"
         if [[ "$OS" == "windows" ]]; then
@@ -34,7 +35,7 @@ runs:
         fi
 
         # Install the latest version of the setup-envtest tool.
-        SETUPENVTEST_TOOL_DIR="${RUNNER_TOOL_CACHE}/setup-envtest/${VERSION}/${OS}/${RUNNER_ARCH,,}"
+        SETUPENVTEST_TOOL_DIR="${RUNNER_TOOL_CACHE}/setup-envtest/${VERSION}/${OS}/${ARCH}"
         if [[ ! -x "${SETUPENVTEST_TOOL_DIR}/${SETUPENVTEST_EXEC_FILE}" ]]; then
           echo "Installing setup-envtest@$VERSION"
           mkdir -p "$SETUPENVTEST_TOOL_DIR"

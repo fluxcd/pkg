@@ -26,12 +26,12 @@ runs:
           VERSION="v${VERSION}"
         fi
 
-        OS="${RUNNER_OS,,}"
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
         if [[ "$OS" == "macos" ]]; then
           OS="darwin"
         fi
 
-        ARCH="${RUNNER_ARCH,,}"
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
         if [[ "$ARCH" == "x64" ]]; then
           ARCH="amd64"
         elif [[ "$ARCH" == "x86" ]]; then
@@ -67,6 +67,7 @@ runs:
           echo "Installing kubectl to ${KUBECTL_TOOL_DIR}"
           mkdir -p "$KUBECTL_TOOL_DIR"
           mv "$KUBECTL_TARGET_FILE" "$KUBECTL_TOOL_DIR/$KUBECTL_EXEC_FILE"
+          chmod +x "$KUBECTL_TOOL_DIR/$KUBECTL_EXEC_FILE"
         fi
 
         echo "Adding kubectl to path"

@@ -27,12 +27,12 @@ runs:
           VERSION="v${VERSION}"
         fi
 
-        OS="${RUNNER_OS,,}"
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
         if [[ "$OS" == "macos" ]]; then
           OS="darwin"
         fi
 
-        ARCH="${RUNNER_ARCH,,}"
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
         if [[ "$ARCH" == "x64" ]]; then
           ARCH="amd64"
         fi
@@ -67,6 +67,7 @@ runs:
           echo "Installing kustomize to ${KUSTOMIZE_TOOL_DIR}"
           mkdir -p "$KUSTOMIZE_TOOL_DIR"
           tar xzf "$DL_DIR/$KUSTOMIZE_TARGET_FILE" -C "$KUSTOMIZE_TOOL_DIR" $KUSTOMIZE_EXEC_FILE
+          chmod +x "$KUSTOMIZE_TOOL_DIR/$KUSTOMIZE_EXEC_FILE"
         fi
 
         echo "Adding kustomize to path"
