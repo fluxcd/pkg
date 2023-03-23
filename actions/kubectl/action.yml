@@ -46,7 +46,7 @@ runs:
         KUBECTL_TOOL_DIR="${RUNNER_TOOL_CACHE}/kubectl/${VERSION}/${OS}/${ARCH}"
         if [[ ! -x "$KUBECTL_TOOL_DIR/$KUBECTL_EXEC_FILE" ]]; then
           DL_DIR="$(mktemp -dt kubectl-XXXXXX)"
-          trap "rm -rf $DL_DIR" EXIT
+          trap 'rm -rf $DL_DIR' EXIT
 
           echo "Downloading kubectl ${VERSION} for ${OS}/${ARCH}"
           KUBECTL_DOWNLOAD_URL="https://dl.k8s.io/${VERSION}/bin/${OS}/${ARCH}/${KUBECTL_EXEC_FILE}"

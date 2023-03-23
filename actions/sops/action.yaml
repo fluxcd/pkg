@@ -44,7 +44,7 @@ runs:
         SOPS_TOOL_DIR="${RUNNER_TOOL_CACHE}/sops/${VERSION}/${OS}/${ARCH}"
         if [[ ! -x "$SOPS_TOOL_DIR/$SOPS_EXEC_FILE" ]]; then
           DL_DIR="$(mktemp -dt sops-XXXXXX)"
-          trap "rm -rf $DL_DIR" EXIT
+          trap 'rm -rf $DL_DIR' EXIT
         
           echo "Downloading sops ${VERSION} for ${OS}/${ARCH}"
           SOPS_TARGET_FILE="sops-${VERSION}.${OS}.${ARCH}"

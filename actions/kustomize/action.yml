@@ -45,7 +45,7 @@ runs:
         KUSTOMIZE_TOOL_DIR="${RUNNER_TOOL_CACHE}/kustomize/${VERSION}/${OS}/${ARCH}"
         if [[ ! -x "$KUSTOMIZE_TOOL_DIR/$KUSTOMIZE_EXEC_FILE" ]]; then
           DL_DIR="$(mktemp -dt kustomize-XXXXXX)"
-          trap "rm -rf $DL_DIR" EXIT
+          trap 'rm -rf $DL_DIR' EXIT
 
           echo "Downloading kustomize ${VERSION} for ${OS}/${ARCH}"
           KUSTOMIZE_TARGET_FILE="kustomize_${VERSION}_${OS}_${ARCH}.tar.gz"
