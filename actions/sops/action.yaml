@@ -1,25 +1,70 @@
 name: Setup SOPS
-description: A GitHub Action for running sops commands
-author: Soule BA
+description: A GitHub Action for installing the SOPS CLI
+author: Flux project
 branding:
   color: blue
   icon: command
 inputs:
   version:
-    description: "strict semver"
-    required: true
-    default: "3.7.1"
+    description: Strict SemVer of the SOPS CLI to install. Defaults to the latest release.
+    required: false
 runs:
   using: composite
   steps:
-    - name: "Download and copy the binary to /usr/local/bin"
+    - name: Download the binary to the runner's cache dir
       shell: bash
       run: |
         VERSION=${{ inputs.version }}
-        REPO_URL=https://github.com/mozilla/sops/releases/download
-        BIN_URL="${REPO_URL}/v${VERSION}/sops-v${VERSION}.linux"
-        curl -fL --no-progress-meter ${BIN_URL} -o /tmp/sops
-        chmod +x /tmp/sops
-        sudo mv /tmp/sops /usr/local/bin
-        which sops
+        if [[ -z "$VERSION" ]] || [[ "$VERSION" == "latest" ]]; then
+          VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" https://api.github.com/repos/mozilla/sops/releases/latest | grep tag_name | cut -d '"' -f 4)
+        fi
+        if [[ -z "$VERSION" ]]; then
+          echo "Unable to determine Kustomize version"
+        exit 1
+        fi
+        if [[ ! $VERSION = v* ]]; then
+          VERSION="v${VERSION}"
+        fi
+        
+        OS="${RUNNER_OS,,}"
+        if [[ "$OS" == "macos" ]]; then
+          OS="darwin"
+        fi
+        
+        ARCH="${RUNNER_ARCH,,}"
+        if [[ "$ARCH" == "x64" ]]; then
+          ARCH="amd64"
+        fi
+        
+        SOPS_EXEC_FILE="sops"
+        if [[ "$OS" == "windows" ]]; then
+            SOPS_EXEC_FILE="${SOPS_EXEC_FILE}.exe"
+        fi
+        
+        SOPS_TOOL_DIR="${RUNNER_TOOL_CACHE}/sops/${VERSION}/${OS}/${ARCH}"
+        if [[ ! -x "$SOPS_TOOL_DIR/$SOPS_EXEC_FILE" ]]; then
+          DL_DIR="$(mktemp -dt sops-XXXXXX)"
+          trap "rm -rf $DL_DIR" EXIT
+        
+          echo "Downloading sops ${VERSION} for ${OS}/${ARCH}"
+          SOPS_TARGET_FILE="sops-${VERSION}.${OS}.${ARCH}"
+          if [[ "$OS" == "windows" ]]; then
+            SOPS_TARGET_FILE="sops-${VERSION}.exe"
+          fi
+
+          SOPS_DOWNLOAD_URL="https://github.com/mozilla/sops/releases/download/${VERSION}/"
+          curl -fsSL -o "$DL_DIR/$SOPS_TARGET_FILE" "$SOPS_DOWNLOAD_URL/$SOPS_TARGET_FILE"
+
+          echo "Installing sops to ${SOPS_TOOL_DIR}"
+          mkdir -p "$SOPS_TOOL_DIR"
+          mv "$DL_DIR/$SOPS_TARGET_FILE" "$SOPS_TOOL_DIR/$SOPS_EXEC_FILE"
+          chmod +x "$SOPS_TOOL_DIR/$SOPS_EXEC_FILE"
+        fi
+
+        echo "Adding sops to path"
+        echo "$SOPS_TOOL_DIR" >> "$GITHUB_PATH"
+
+    - name: Print installed sops version
+      shell: bash
+      run: |
         sops --version
