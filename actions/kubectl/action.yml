@@ -1,29 +1,78 @@
 name: Setup kubectl CLI
-description: A GitHub Action for running kubectl commands
-author: Stefan Prodan
+description: A GitHub Action for installing the kubectl CLI
+author: Flux project
 branding:
   color: blue
   icon: command
 inputs:
   version:
-    description: "strict semver"
-    required: true
-    default: "1.21.1"
-  arch:
-    description: "arch can be amd64 or arm64"
-    required: true
-    default: "amd64"
+    description: Strict SemVer of the kubectl CLI to install. Defaults to the latest release.
+    required: false
 runs:
   using: composite
   steps:
-    - name: "Download and copy the binary to /usr/local/bin"
+    - name: Download the binary to the runner's cache dir
       shell: bash
       run: |
         VERSION=${{ inputs.version }}
-        ARCH=${{ inputs.arch }}
-        BIN_URL="https://storage.googleapis.com/kubernetes-release/release/v${VERSION}/bin/linux/${ARCH}/kubectl"
-        curl -sL ${BIN_URL} -o /tmp/kubectl
-        sudo cp /tmp/kubectl /usr/local/bin
-        rm -rf /tmp/kubectl
-        which kubectl
-        kubectl version --client=true
+        if [[ -z "$VERSION" ]] || [[ "$VERSION" = "latest" ]]; then
+          VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f 4)
+        fi
+        if [[ -z "$VERSION" ]]; then
+          echo "Unable to determine Kubernetes version"
+          exit 1
+        fi
+        if [[ ! $VERSION = v* ]]; then
+          VERSION="v${VERSION}"
+        fi
+
+        OS="${RUNNER_OS,,}"
+        if [[ "$OS" == "macos" ]]; then
+          OS="darwin"
+        fi
+
+        ARCH="${RUNNER_ARCH,,}"
+        if [[ "$ARCH" == "x64" ]]; then
+          ARCH="amd64"
+        elif [[ "$ARCH" == "x86" ]]; then
+          ARCH="386"
+        fi
+
+        KUBECTL_EXEC_FILE="kubectl"
+        if [[ "$OS" == "windows" ]]; then
+            KUBECTL_EXEC_FILE="${KUBECTL_EXEC_FILE}.exe"
+        fi
+
+        KUBECTL_TOOL_DIR="${RUNNER_TOOL_CACHE}/kubectl/${VERSION}/${OS}/${ARCH}"
+        if [[ ! -x "$KUBECTL_TOOL_DIR/$KUBECTL_EXEC_FILE" ]]; then
+          DL_DIR="$(mktemp -dt kubectl-XXXXXX)"
+          trap "rm -rf $DL_DIR" EXIT
+
+          echo "Downloading kubectl ${VERSION} for ${OS}/${ARCH}"
+          KUBECTL_DOWNLOAD_URL="https://dl.k8s.io/${VERSION}/bin/${OS}/${ARCH}/${KUBECTL_EXEC_FILE}"
+          KUBECTL_TARGET_FILE="$DL_DIR/$KUBECTL_EXEC_FILE"
+          KUBECTL_SHA256_FILE="$DL_DIR/$KUBECTL_EXEC_FILE.sha256"
+
+          curl -fsSL -o "$KUBECTL_TARGET_FILE" "$KUBECTL_DOWNLOAD_URL"
+          curl -fsSL -o "$KUBECTL_SHA256_FILE" "$KUBECTL_DOWNLOAD_URL.sha256"
+
+          echo "Verifying checksum"
+          sum=$(openssl sha1 -sha256 ${KUBECTL_TARGET_FILE} | awk '{print $2}')
+          expected_sum=$(cat ${KUBECTL_SHA256_FILE})
+          if [ "$sum" != "$expected_sum" ]; then
+            echo "SHA sum of ${KUBECTL_TARGET_FILE} does not match. Aborting."
+            exit 1
+          fi
+          
+          echo "Installing kubectl to ${KUBECTL_TOOL_DIR}"
+          mkdir -p "$KUBECTL_TOOL_DIR"
+          mv "$KUBECTL_TARGET_FILE" "$KUBECTL_TOOL_DIR/$KUBECTL_EXEC_FILE"
+        fi
+
+        echo "Adding kubectl to path"
+        echo "$KUBECTL_TOOL_DIR" >> "$GITHUB_PATH"
+
+    - name: Print installed kubectl version
+      shell: bash
+      run: |
+        kubectl version --client
