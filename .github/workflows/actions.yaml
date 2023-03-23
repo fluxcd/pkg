@@ -11,18 +11,24 @@ on:
 permissions: read-all
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  actions:
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.version }}
+    name: actions on ${{ matrix.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
-      - name: Setup Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
-        with:
-          go-version: 1.20.x
-          cache: false
-      - uses: ./actions/envtest
-      - uses: ./actions/helm
-      - uses: ./actions/kubectl
-      - uses: ./actions/kustomize
-      - uses: ./actions/sops
+      - name: Setup envtest
+        uses: ./actions/envtest
+      - name: Setup helm
+        uses: ./actions/helm
+      - name: Setup kubectl
+        uses: ./actions/kubectl
+      - name: Setup kustomize
+        uses: ./actions/kustomize
+      - name: Setup sops
+        uses: ./actions/sops
