@@ -17,16 +17,20 @@ limitations under the License.
 package fetch
 
 import (
-	"crypto/sha256"
+	_ "crypto/sha256"
+	_ "crypto/sha512"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/opencontainers/go-digest"
+	_ "github.com/opencontainers/go-digest/blake3"
 
 	"github.com/fluxcd/pkg/tar"
 )
@@ -63,7 +67,7 @@ func NewArchiveFetcher(retries, maxDownloadSize, maxUntarSize int, hostnameOverw
 // If the file server responds with 5xx errors, the download operation is retried.
 // If the file server responds with 404, the returned error is of type FileNotFoundError.
 // If the file server is unavailable for more than 3 minutes, the returned error contains the original status code.
-func (r *ArchiveFetcher) Fetch(archiveURL, checksum, dir string) error {
+func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 	if r.hostnameOverwrite != "" {
 		u, err := url.Parse(archiveURL)
 		if err != nil {
@@ -123,9 +127,9 @@ func (r *ArchiveFetcher) Fetch(archiveURL, checksum, dir string) error {
 		return fmt.Errorf("failed to seek back to beginning: %w", err)
 	}
 
-	// Ensure that the checksum of the downloaded file matches the
-	// known checksum.
-	if err := r.verifyChecksum(checksum, f); err != nil {
+	// Ensure that the digest of the downloaded file matches the
+	// known digest.
+	if err := r.verifyDigest(digest, f); err != nil {
 		return err
 	}
 
@@ -143,20 +147,25 @@ func (r *ArchiveFetcher) Fetch(archiveURL, checksum, dir string) error {
 	return nil
 }
 
-// verifyChecksum computes the checksum of the tarball and returns an error if the computed value
-// does not match the artifact advertised checksum.
-func (r *ArchiveFetcher) verifyChecksum(checksum string, reader io.Reader) error {
-	hasher := sha256.New()
+// verifyDigest verifies the digest of the reader, and returns an error if it
+// doesn't match.
+func (r *ArchiveFetcher) verifyDigest(dig string, reader io.Reader) error {
+	if !strings.Contains(dig, ":") {
+		dig = "sha256:" + dig
+	}
 
-	// Computes reader's checksum.
-	if _, err := io.Copy(hasher, reader); err != nil {
+	d, err := digest.Parse(dig)
+	if err != nil {
+		return fmt.Errorf("failed to parse digest: %w", err)
+	}
+
+	// Verify reader's data.
+	verifier := d.Verifier()
+	if _, err := io.Copy(verifier, reader); err != nil {
 		return err
 	}
-
-	if newChecksum := fmt.Sprintf("%x", hasher.Sum(nil)); newChecksum != checksum {
-		return fmt.Errorf("failed to verify archive: computed checksum '%s' doesn't match provided '%s' (check whether file size exceeds max download size)",
-			newChecksum, checksum)
+	if !verifier.Verified() {
+		return fmt.Errorf("failed to verify archive: computed digest doesn't match provided '%s' (check whether file size exceeds max download size)", dig)
 	}
-
 	return nil
 }
