@@ -2,7 +2,7 @@ module github.com/fluxcd/pkg/apis/meta
 
 go 1.18
 
-require k8s.io/apimachinery v0.26.2
+require k8s.io/apimachinery v0.26.3
 
 require (
 	github.com/go-logr/logr v1.2.3 // indirect
