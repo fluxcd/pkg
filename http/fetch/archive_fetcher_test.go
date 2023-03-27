@@ -47,16 +47,24 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 	tests := []struct {
 		name            string
 		url             string
-		checksum        string
+		digest          string
 		maxDownloadSize int
 		maxUntarSize    int
 		wantErr         bool
 		wantErrType     error
 	}{
 		{
+			name:            "fetches and verifies the digest",
+			url:             artifactURL,
+			digest:          "sha256:" + artifactChecksum,
+			maxDownloadSize: -1,
+			maxUntarSize:    -1,
+			wantErr:         false,
+		},
+		{
 			name:            "fetches and verifies the checksum",
 			url:             artifactURL,
-			checksum:        artifactChecksum,
+			digest:          artifactChecksum,
 			maxDownloadSize: -1,
 			maxUntarSize:    -1,
 			wantErr:         false,
@@ -64,7 +72,7 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 		{
 			name:            "breaches max download size",
 			url:             artifactURL,
-			checksum:        artifactChecksum,
+			digest:          artifactChecksum,
 			maxDownloadSize: 1,
 			maxUntarSize:    -1,
 			wantErr:         true,
@@ -72,15 +80,23 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 		{
 			name:            "breaches max untar size",
 			url:             artifactURL,
-			checksum:        artifactChecksum,
+			digest:          artifactChecksum,
 			maxDownloadSize: -1,
 			maxUntarSize:    1,
 			wantErr:         true,
 		},
 		{
-			name:            "fails to verify the checksum",
+			name:            "fails with digest parsing error",
 			url:             artifactURL,
-			checksum:        artifactChecksum + "1",
+			digest:          "sha1:4c624b40731c876b23d36fe732833ea8261f7f00",
+			maxDownloadSize: -1,
+			maxUntarSize:    1,
+			wantErr:         true,
+		},
+		{
+			name:            "fails to verify the digest",
+			url:             artifactURL,
+			digest:          "sha256:5c234ee52ff0e3dcc8528d6b9383cc235ad13a11658466f29df3be9eda6ee447",
 			maxDownloadSize: -1,
 			maxUntarSize:    -1,
 			wantErr:         true,
@@ -88,7 +104,7 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 		{
 			name:            "fails with not found error",
 			url:             artifactURL + "1",
-			checksum:        artifactChecksum,
+			digest:          artifactChecksum,
 			maxDownloadSize: -1,
 			maxUntarSize:    -1,
 			wantErr:         true,
@@ -101,7 +117,7 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 			g := NewWithT(t)
 
 			fetcher := NewArchiveFetcher(1, tt.maxDownloadSize, tt.maxUntarSize, "")
-			err = fetcher.Fetch(tt.url, tt.checksum, tmpDir)
+			err = fetcher.Fetch(tt.url, tt.digest, tmpDir)
 
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
