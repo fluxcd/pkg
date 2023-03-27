@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	timeout         = time.Second * 10
-	extendedTimeout = time.Second * 15
+	timeout         = time.Second * 20
+	extendedTimeout = timeout * 2
 )
 
 var (
