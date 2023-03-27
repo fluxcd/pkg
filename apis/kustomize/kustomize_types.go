@@ -89,11 +89,11 @@ type Patch struct {
 	// Patch contains an inline StrategicMerge patch or an inline JSON6902 patch with
 	// an array of operation objects.
 	// +required
-	Patch string `json:"patch,omitempty"`
+	Patch string `json:"patch"`
 
 	// Target points to the resources that the patch document should be applied to.
 	// +optional
-	Target Selector `json:"target,omitempty"`
+	Target *Selector `json:"target,omitempty"`
 }
 
 // JSON6902 is a JSON6902 operation object.

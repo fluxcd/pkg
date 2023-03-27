@@ -151,7 +151,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 	for _, p := range patches {
 		kus.Patches = append(kus.Patches, kustypes.Patch{
 			Patch:  p.Patch,
-			Target: adaptSelector(&p.Target),
+			Target: adaptSelector(p.Target),
 		})
 	}
 
