@@ -1,32 +1,79 @@
 name: Setup kustomize CLI
-description: A GitHub Action for running kustomize commands
-author: Stefan Prodan
+description: A GitHub Action for installing the kustomize CLI
+author: Flux project
 branding:
   color: blue
   icon: command
 inputs:
   version:
-    description: "strict semver"
-    required: true
-    default: "4.1.3"
-  arch:
-    description: "arch can be amd64 or arm64"
-    required: true
-    default: "amd64"
+    description: "Strict SemVer of the kustomize CLI. Defaults to 4.5.7. Use 'latest' to get the latest release."
+    required: false
+    default: "4.5.7"
 runs:
   using: composite
   steps:
-    - name: "Download and copy the binary to /usr/local/bin"
+    - name: Download the binary to the runner's cache dir
       shell: bash
       run: |
         VERSION=${{ inputs.version }}
-        ARCH=${{ inputs.arch }}
-        REPO_URL=https://github.com/kubernetes-sigs/kustomize/releases/download
-        BIN_URL="${REPO_URL}/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_${ARCH}.tar.gz"
-        curl -fL --no-progress-meter ${BIN_URL} -o /tmp/kustomize.tar.gz
-        mkdir -p /tmp/kustomize
-        tar -C /tmp/kustomize/ -zxvf /tmp/kustomize.tar.gz
-        sudo cp /tmp/kustomize/kustomize /usr/local/bin
-        rm -rf /tmp/kustomize/ /tmp/kustomize.tar.gz
-        which kustomize
+        if [[ -z "$VERSION" ]] || [[ "$VERSION" == "latest" ]]; then
+          VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" https://api.github.com/repos/kubernetes-sigs/kustomize/releases/latest | grep tag_name | cut -d '"' -f 4)
+        fi
+        if [[ -z "$VERSION" ]]; then
+          echo "Unable to determine Kustomize version"
+        exit 1
+        fi
+        if [[ ! $VERSION = v* ]]; then
+          VERSION="v${VERSION}"
+        fi
+
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
+        if [[ "$OS" == "macos" ]]; then
+          OS="darwin"
+        fi
+
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
+        if [[ "$ARCH" == "x64" ]]; then
+          ARCH="amd64"
+        fi
+
+        KUSTOMIZE_EXEC_FILE="kustomize"
+        if [[ "$OS" == "windows" ]]; then
+            KUSTOMIZE_EXEC_FILE="${KUSTOMIZE_EXEC_FILE}.exe"
+        fi
+
+        KUSTOMIZE_TOOL_DIR="${RUNNER_TOOL_CACHE}/kustomize/${VERSION}/${OS}/${ARCH}"
+        if [[ ! -x "$KUSTOMIZE_TOOL_DIR/$KUSTOMIZE_EXEC_FILE" ]]; then
+          DL_DIR="$(mktemp -dt kustomize-XXXXXX)"
+          trap 'rm -rf $DL_DIR' EXIT
+
+          echo "Downloading kustomize ${VERSION} for ${OS}/${ARCH}"
+          KUSTOMIZE_TARGET_FILE="kustomize_${VERSION}_${OS}_${ARCH}.tar.gz"
+          KUSTOMIZE_CHECKSUMS_FILE="checksums.txt"
+
+          KUSTOMIZE_DOWNLOAD_URL="https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${VERSION}/"
+
+          curl -fsSL -o "$DL_DIR/$KUSTOMIZE_TARGET_FILE" "$KUSTOMIZE_DOWNLOAD_URL/$KUSTOMIZE_TARGET_FILE"
+          curl -fsSL -o "$DL_DIR/$KUSTOMIZE_CHECKSUMS_FILE" "$KUSTOMIZE_DOWNLOAD_URL/$KUSTOMIZE_CHECKSUMS_FILE"
+
+          echo "Verifying checksum"
+          sum=$(openssl sha1 -sha256 "$DL_DIR/$KUSTOMIZE_TARGET_FILE" | awk '{print $2}')
+          expected_sum=$(grep "$KUSTOMIZE_TARGET_FILE" "$DL_DIR/$KUSTOMIZE_CHECKSUMS_FILE" | awk '{print $1}')
+          if [ "$sum" != "$expected_sum" ]; then
+            echo "SHA sum of ${KUSTOMIZE_TARGET_FILE} does not match. Aborting."
+            exit 1
+          fi
+
+          echo "Installing kustomize to ${KUSTOMIZE_TOOL_DIR}"
+          mkdir -p "$KUSTOMIZE_TOOL_DIR"
+          tar xzf "$DL_DIR/$KUSTOMIZE_TARGET_FILE" -C "$KUSTOMIZE_TOOL_DIR" $KUSTOMIZE_EXEC_FILE
+          chmod +x "$KUSTOMIZE_TOOL_DIR/$KUSTOMIZE_EXEC_FILE"
+        fi
+
+        echo "Adding kustomize to path"
+        echo "$KUSTOMIZE_TOOL_DIR" >> "$GITHUB_PATH"
+
+    - name: Print installed kustomize version
+      shell: bash
+      run: |
         kustomize version

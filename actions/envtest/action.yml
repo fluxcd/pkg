@@ -1,16 +1,69 @@
 name: Setup envtest
-description: A GitHub Action for setting up controller-runtime envtest
+description: A GitHub Action for installing setup-envtest and envtest binaries
 author: Flux project
 branding:
   color: blue
   icon: command
 inputs:
   version:
-    description: 'Kubernetes version'
-    required: false
-    default: "latest"
+    description: Strict SemVer or version range of the envtest binaries to install. Defaults to the latest release.
+    required: true
+    default: latest
 runs:
-  using: docker
-  image: Dockerfile
-  args:
-    - ${{ inputs.version }}
+  using: composite
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
+      with:
+        go-version: 1.20.x
+        cache: false
+    - name: Download the binary to the runner's cache dir
+      shell: bash
+      run: |
+        VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" "https://api.github.com/repos/kubernetes-sigs/controller-runtime/commits?path=tools/setup-envtest&page=1&per_page=1" | grep sha | head -n1 | cut -d '"' -f 4)
+        if [[ -z "$VERSION" ]]; then
+          echo "Unable to determine latest setup-envtest version"
+          exit 1
+        fi
+
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
+
+        SETUPENVTEST_EXEC_FILE="setup-envtest"
+        if [[ "$OS" == "windows" ]]; then
+            SETUPENVTEST_EXEC_FILE="${SETUPENVTEST_EXEC_FILE}.exe"
+        fi
+
+        # Install the latest version of the setup-envtest tool.
+        SETUPENVTEST_TOOL_DIR="${RUNNER_TOOL_CACHE}/setup-envtest/${VERSION}/${OS}/${ARCH}"
+        if [[ ! -x "${SETUPENVTEST_TOOL_DIR}/${SETUPENVTEST_EXEC_FILE}" ]]; then
+          echo "Installing setup-envtest@$VERSION"
+          mkdir -p "$SETUPENVTEST_TOOL_DIR"
+          GOBIN="$SETUPENVTEST_TOOL_DIR" go install "sigs.k8s.io/controller-runtime/tools/setup-envtest@${VERSION}"
+
+          # Cleanup cache to avoid affecting other builds. Some go builds may get
+          # affected by this cache populated in the above operations.
+          go clean -cache
+        fi
+
+        # Add the setup-envtest tool dir to the path.
+        echo "Adding setup-envtest to path"
+        echo "$SETUPENVTEST_TOOL_DIR" >> "$GITHUB_PATH"
+
+    - name: Install the specified version of envtest
+      shell: bash
+      run: |
+        VERSION=${{ inputs.version }}
+        if [[ -z "$VERSION" ]]; then
+          VERSION="latest"
+        fi
+
+        # Install the assets for the specified version of Kubernetes.
+        ENVTEST_TOOL_DIR="${RUNNER_TOOL_CACHE}/envtest"
+        echo "Installing envtest assets for Kubernetes $VERSION"
+        setup-envtest use --bin-dir "$ENVTEST_TOOL_DIR" "$VERSION"
+
+        # Export the path to the KUBEBUILDER_ASSETS environment variable.
+        echo "Exporting KUBEBUILDER_ASSETS"
+        ENVTEST_ASSETS_PATH=$(setup-envtest use --bin-dir "$ENVTEST_TOOL_DIR" -i "$VERSION" -p path)
+        echo "KUBEBUILDER_ASSETS='$ENVTEST_ASSETS_PATH'" >> "$GITHUB_ENV"
