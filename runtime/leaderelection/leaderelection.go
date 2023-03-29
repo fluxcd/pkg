@@ -17,6 +17,8 @@ limitations under the License.
 package leaderelection
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -89,4 +91,19 @@ func (o *Options) BindFlags(fs *pflag.FlagSet) {
 		"Duration that the leading controller manager will retry refreshing leadership before giving up (duration string).")
 	fs.DurationVar(&o.RetryPeriod, flagRetryPeriod, 5*time.Second,
 		"Duration the LeaderElector clients should wait between tries of actions (duration string).")
+}
+
+// GenerateID generates a unique leader election ID based on the given base and
+// additional strings. The base is used as the base and suffixed with a short hash
+// of the additional strings if provided.
+// If the name is empty, an empty string is returned.
+func GenerateID(base string, additions ...string) string {
+	if base != "" && len(additions) > 0 {
+		sum := sha256.New()
+		for _, a := range additions {
+			sum.Write([]byte(a))
+		}
+		base += "-" + fmt.Sprintf("%x", sum.Sum(nil))[:8]
+	}
+	return base
 }
