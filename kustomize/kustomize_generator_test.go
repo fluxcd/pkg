@@ -235,3 +235,59 @@ func testTempDir(t *testing.T) (string, error) {
 
 	return tmpDir, err
 }
+
+func TestKustomizationGenerator_WithSourceIgnore(t *testing.T) {
+	tests := []struct {
+		name   string
+		path   string
+		ignore string
+	}{
+		{
+			name: "withouth ignore",
+		},
+		{
+			name:   "with ignore",
+			ignore: "!config.yaml",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			// Create a kustomization file with varsub
+			yamlKus, err := os.ReadFile("./testdata/kustomization.yaml")
+			g.Expect(err).NotTo(HaveOccurred())
+
+			clientObjects, err := readYamlObjects(strings.NewReader(string(yamlKus)))
+			g.Expect(err).NotTo(HaveOccurred())
+
+			var resMap resmap.ResMap
+			//Get a generator
+			gen := kustomize.NewGeneratorWithIgnore("", tt.ignore, clientObjects[0])
+			action, err := gen.WriteFile(resourcePath, kustomize.WithSaveOriginalKustomization())
+			g.Expect(err).NotTo(HaveOccurred())
+			defer kustomize.CleanDirectory(resourcePath, action)
+
+			// Get resource from directory
+			fs := filesys.MakeFsOnDisk()
+			resMap, err = kustomize.Build(fs, resourcePath)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			// Check that the resource has been substituted
+			resources, err := resMap.AsYaml()
+			g.Expect(err).NotTo(HaveOccurred())
+
+			//load expected result
+			var expected []byte
+			if tt.ignore != "" {
+				expected, err = os.ReadFile("./testdata/kustomization_expected.yaml")
+				g.Expect(err).NotTo(HaveOccurred())
+			} else {
+				expected, err = os.ReadFile("./testdata/kustomization_with_sourceignore_expected.yaml")
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+
+			g.Expect(string(resources)).To(Equal(string(expected)))
+		})
+	}
+}
