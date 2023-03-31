@@ -67,6 +67,8 @@ const (
 // - a directory path and a kustomization object
 type Generator struct {
 	root          string
+	ignore        string
+	filter        bool
 	kustomization unstructured.Unstructured
 }
 
@@ -79,6 +81,18 @@ type SavingOptions func(dirPath, file string, action Action) error
 func NewGenerator(root string, kustomization unstructured.Unstructured) *Generator {
 	return &Generator{
 		root:          root,
+		kustomization: kustomization,
+	}
+}
+
+// NewGeneratorWithIgnore creates a new kustomize generator
+// It takes a root directory, a kustomization object and a string of files to ignore
+// The generator will combine the ignore files with the default ignore files i.e. .sourceignoreÒ
+func NewGeneratorWithIgnore(root, ignore string, kustomization unstructured.Unstructured) *Generator {
+	return &Generator{
+		root:          root,
+		ignore:        ignore,
+		filter:        true,
 		kustomization: kustomization,
 	}
 }
@@ -131,6 +145,15 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 	if err := yaml.Unmarshal(data, &kus); err != nil {
 		errf := CleanDirectory(dirPath, action)
 		return action, fmt.Errorf("%v %v", err, errf)
+	}
+
+	// apply filters if any
+	if g.filter {
+		err = filterKsWithIgnoreFiles(&kus, dirPath, g.ignore)
+		if err != nil {
+			errf := CleanDirectory(dirPath, action)
+			return action, fmt.Errorf("%v %v", err, errf)
+		}
 	}
 
 	tg, ok, err := g.getNestedString(specField, targetNSField)
