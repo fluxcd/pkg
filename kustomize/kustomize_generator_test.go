@@ -243,7 +243,7 @@ func TestKustomizationGenerator_WithSourceIgnore(t *testing.T) {
 		ignore string
 	}{
 		{
-			name: "withouth ignore",
+			name: "without ignore",
 		},
 		{
 			name:   "with ignore",
@@ -279,11 +279,10 @@ func TestKustomizationGenerator_WithSourceIgnore(t *testing.T) {
 
 			//load expected result
 			var expected []byte
-			if tt.ignore != "" {
-				expected, err = os.ReadFile("./testdata/kustomization_expected.yaml")
-				g.Expect(err).NotTo(HaveOccurred())
+			if tt.ignore == "" {
+				expected = []byte("")
 			} else {
-				expected, err = os.ReadFile("./testdata/kustomization_with_sourceignore_expected.yaml")
+				expected, err = os.ReadFile("./testdata/kustomization_with_ignore_expected.yaml")
 				g.Expect(err).NotTo(HaveOccurred())
 			}
 
