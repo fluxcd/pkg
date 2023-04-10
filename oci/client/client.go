@@ -53,6 +53,11 @@ func NewLocalClient() *Client {
 	return &Client{options: options}
 }
 
+// GetOptions returns the list of crane.Option used by this Client.
+func (c *Client) GetOptions() []crane.Option {
+	return c.options
+}
+
 // optionsWithContext returns the crane options for the given context.
 func (c *Client) optionsWithContext(ctx context.Context) []crane.Option {
 	options := []crane.Option{
