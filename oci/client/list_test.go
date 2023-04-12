@@ -33,7 +33,7 @@ import (
 func Test_List(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
-	c := NewLocalClient()
+	c := NewClient(DefaultOptions())
 	repo := "test-list" + randStringRunes(5)
 	tags := []string{"v0.0.1", "v0.0.2", "v0.0.3", "v6.0.0", "v6.0.1", "v6.0.2", "v6.0.2-rc.1", "v6.0.2-alpha", "staging-fb3355b"}
 	source := "github.com/fluxcd/fluxv2"

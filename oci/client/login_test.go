@@ -60,7 +60,7 @@ func Test_Login(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			c := NewLocalClient()
+			c := NewClient(DefaultOptions())
 			ctx := context.Background()
 			err := c.LoginWithCredentials(tt.creds)
 			g.Expect(err).ToNot(HaveOccurred())

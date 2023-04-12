@@ -31,7 +31,7 @@ import (
 func TestDelete(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
-	c := NewLocalClient()
+	c := NewClient(DefaultOptions())
 	repo := "test-delete" + randStringRunes(5)
 	tags := []string{"v0.0.1", "v0.0.2", "v0.0.3", "latest"}
 	source := "github.com/fluxcd/fluxv2"

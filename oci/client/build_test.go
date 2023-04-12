@@ -31,7 +31,7 @@ import (
 
 func TestBuild(t *testing.T) {
 	g := NewWithT(t)
-	c := NewLocalClient()
+	c := NewClient(DefaultOptions())
 
 	absPath := fmt.Sprintf("%s/deployment.yaml", t.TempDir())
 	err := copyFile(absPath, "testdata/artifact/deployment.yaml")
