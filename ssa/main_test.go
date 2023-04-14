@@ -26,6 +26,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/polling"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -42,7 +43,11 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	restMapper, err := apiutil.NewDynamicRESTMapper(cfg)
+	httpClient, err := rest.HTTPClientFor(cfg)
+	if err != nil {
+		panic(err)
+	}
+	restMapper, err := apiutil.NewDynamicRESTMapper(cfg, httpClient)
 	if err != nil {
 		panic(err)
 	}

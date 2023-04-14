@@ -132,7 +132,11 @@ func (i *Impersonator) clientForServiceAccountOrDefault() (rc.Client, *polling.S
 	}
 	i.setImpersonationConfig(restConfig)
 
-	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig)
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,7 +168,11 @@ func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *pol
 	restConfig = KubeConfig(restConfig, i.kubeConfigOpts)
 	i.setImpersonationConfig(restConfig)
 
-	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig)
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
 	if err != nil {
 		return nil, nil, err
 	}
