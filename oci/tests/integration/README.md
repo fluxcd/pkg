@@ -31,7 +31,7 @@ $ kubectl logs test-job-93tbl-4jp2r
 
 - AWS account with access key ID and secret access key with permissions to
     create EKS cluster and ECR repository.
-- AWS CLI, does not need to be configured with the AWS account.
+- AWS CLI v2.x, does not need to be configured with the AWS account.
 - Docker CLI for registry login.
 - kubectl for applying certain install manifests.
 
@@ -60,7 +60,9 @@ $ kubectl logs test-job-93tbl-4jp2r
 
 - GCP account with project and GKE, GCR and Artifact Registry services enabled
     in the project.
-- gcloud CLI, need to be logged in using `gcloud auth login`.
+- gcloud CLI, need to be logged in using `gcloud auth login`, configure
+  application default credentials with `gcloud auth application-default login`
+  and docker credential helper with `gcloud auth configure-docker`.
 - Docker CLI for registry login.
 - kubectl for applying certain install manifests.
 
