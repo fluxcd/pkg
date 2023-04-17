@@ -6,7 +6,7 @@ replace github.com/fluxcd/pkg/oci => ../../
 
 require (
 	github.com/fluxcd/pkg/oci v0.21.1
-	github.com/fluxcd/test-infra/tftestenv v0.0.0-20230214200258-f19d6aa97a3f
+	github.com/fluxcd/test-infra/tftestenv v0.0.0-20230504154617-1a3532dc8d34
 	github.com/google/go-containerregistry v0.14.0
 	github.com/hashicorp/terraform-json v0.16.0
 	github.com/onsi/gomega v1.27.4
@@ -62,8 +62,8 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-version v1.6.0 // indirect
-	github.com/hashicorp/hc-install v0.3.2 // indirect
-	github.com/hashicorp/terraform-exec v0.16.1 // indirect
+	github.com/hashicorp/hc-install v0.5.1 // indirect
+	github.com/hashicorp/terraform-exec v0.18.1 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -87,11 +87,12 @@ require (
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/vbatts/tar-split v0.11.2 // indirect
-	github.com/zclconf/go-cty v1.13.0 // indirect
+	github.com/zclconf/go-cty v1.13.1 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
-	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.6.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect

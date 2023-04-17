@@ -168,6 +168,10 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
+	// Initialize with non-zero exit code to indicate failure by default unless
+	// set by a successful test run.
+	exitCode := 1
+
 	// Create environment.
 	envOpts := []tftestenv.EnvironmentOption{
 		tftestenv.WithVerbose(*verbose),
@@ -175,11 +179,26 @@ func TestMain(m *testing.M) {
 		tftestenv.WithExisting(*existing),
 		tftestenv.WithCreateKubeconfig(providerCfg.createKubeconfig),
 	}
-	// var err error
 	testEnv, err = tftestenv.New(ctx, scheme, providerCfg.terraformPath, kubeconfigPath, envOpts...)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to provision the test infrastructure: %v", err))
 	}
+
+	// Stop the environment before exit.
+	defer func() {
+		if err := testEnv.Stop(ctx); err != nil {
+			log.Printf("Failed to stop environment: %v", err)
+		}
+
+		// Calling exit on panic prevents logging of panic error.
+		// Exit only on normal return. Explicitly detect panic and log the error
+		// on panic.
+		if err := recover(); err == nil {
+			os.Exit(exitCode)
+		} else {
+			log.Printf("panic: %v", err)
+		}
+	}()
 
 	// Get terraform state output.
 	output, err := testEnv.StateOutput(ctx)
@@ -212,12 +231,7 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("Failed to create and push images: %v", err))
 	}
 
-	code := m.Run()
-
-	if err := testEnv.Stop(ctx); err != nil {
-		log.Printf("Failed to stop environment: %v", err)
-	}
-	os.Exit(code)
+	exitCode = m.Run()
 }
 
 // getProviderConfig returns the test configuration of supported providers.
