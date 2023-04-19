@@ -120,73 +120,9 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 }
 
 func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneOptions) (*git.Commit, error) {
-	if g.authOpts == nil {
-		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
-	}
-
-	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
-	if err != nil {
-		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
-	}
-
 	ref := plumbing.NewTagReferenceName(tag)
-	// check if previous revision has changed before attempting to clone
-	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
-		head, err := getRemoteHEAD(ctx, url, ref, g.authOpts, authMethod)
-		if err != nil {
-			return nil, err
-		}
-		hash := git.ExtractHashFromRevision(head)
-		shortRef := fmt.Sprintf("%s@%s", tag, hash.Digest())
-		if head != "" && shortRef == lastObserved {
-			// Construct a non-concrete commit with the existing information.
-			c := &git.Commit{
-				Hash:      hash,
-				Reference: ref.String(),
-			}
-			return c, nil
-		}
-	}
 
-	var depth int
-	if opts.ShallowClone {
-		depth = 1
-	}
-	cloneOpts := &extgogit.CloneOptions{
-		URL:               url,
-		Auth:              authMethod,
-		RemoteName:        git.DefaultRemote,
-		ReferenceName:     plumbing.NewTagReferenceName(tag),
-		SingleBranch:      g.singleBranch,
-		NoCheckout:        false,
-		Depth:             depth,
-		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
-		Progress:          nil,
-		Tags:              extgogit.NoTags,
-		CABundle:          caBundle(g.authOpts),
-	}
-
-	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
-	if err != nil {
-		if err == transport.ErrEmptyRemoteRepository || err == transport.ErrRepositoryNotFound || isRemoteBranchNotFoundErr(err, ref.String()) {
-			return nil, git.ErrRepositoryNotFound{
-				Message: fmt.Sprintf("unable to clone: %s", err),
-				URL:     url,
-			}
-		}
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
-	}
-
-	head, err := repo.Head()
-	if err != nil {
-		return nil, fmt.Errorf("unable to resolve HEAD of tag '%s': %w", tag, err)
-	}
-	cc, err := repo.CommitObject(head.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
-	}
-	g.repository = repo
-	return buildCommitWithRef(cc, ref)
+	return g.cloneRefName(ctx, url, ref.String(), opts)
 }
 
 func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneOptions) (*git.Commit, error) {
@@ -363,36 +299,77 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 	return buildCommitWithRef(cc, ref)
 }
 
-func (g *Client) cloneRefName(ctx context.Context, url string, refName string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneRefName(ctx context.Context, url string, refName string, opts repository.CloneOptions) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
+
 	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
 	}
-	head, err := getRemoteHEAD(ctx, url, plumbing.ReferenceName(refName), g.authOpts, authMethod)
-	if err != nil {
-		return nil, err
-	}
-	if head == "" {
-		return nil, fmt.Errorf("unable to resolve ref '%s' to a specific commit", refName)
-	}
 
-	hash := git.ExtractHashFromRevision(head)
 	// check if previous revision has changed before attempting to clone
-	if lastObserved := git.TransformRevision(cloneOpts.LastObservedCommit); lastObserved != "" {
-		if head != "" && head == lastObserved {
+	ref := plumbing.ReferenceName(refName)
+	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
+		head, err := getRemoteHEAD(ctx, url, ref, g.authOpts, authMethod)
+		if err != nil {
+			return nil, err
+		}
+		hash := git.ExtractHashFromRevision(head)
+		shortRef := fmt.Sprintf("%s@%s", refName, hash.Digest())
+		if head != "" && shortRef == lastObserved {
 			// Construct a non-concrete commit with the existing information.
 			c := &git.Commit{
-				Reference: refName,
 				Hash:      hash,
+				Reference: ref.String(),
 			}
 			return c, nil
 		}
 	}
 
-	return g.cloneCommit(ctx, url, hash.String(), cloneOpts)
+	var depth int
+	if opts.ShallowClone {
+		depth = 1
+	}
+	cloneOpts := &extgogit.CloneOptions{
+		URL:           url,
+		Auth:          authMethod,
+		RemoteName:    git.DefaultRemote,
+		ReferenceName: ref,
+		// TODO: go-git cloneRefSpec() doesn't handle SingleBranch == True with a ref like refs/pull/1/head because it calls .Short on the ref, and this cannot be converted to a short ref (no matching RefRevParseRules)
+		// I'm not quite sure how this works with SingleBranch == False either, because DefaultFetchRefSpec is "+refs/heads/*:refs/remotes/%s/*" which doesn't refs/pull/1/head either
+		// https://github.com/src-d/go-git/blob/v4.13.1/repository.go#L815-L835
+		// SingleBranch:      g.singleBranch,
+		NoCheckout:        false,
+		Depth:             depth,
+		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
+		Progress:          nil,
+		Tags:              extgogit.NoTags,
+		CABundle:          caBundle(g.authOpts),
+	}
+
+	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
+	if err != nil {
+		if err == transport.ErrEmptyRemoteRepository || err == transport.ErrRepositoryNotFound || isRemoteBranchNotFoundErr(err, ref.String()) {
+			return nil, git.ErrRepositoryNotFound{
+				Message: fmt.Sprintf("unable to clone: %s", err),
+				URL:     url,
+			}
+		}
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
+	}
+
+	head, err := repo.Head()
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve HEAD of ref '%s': %w", refName, err)
+	}
+	cc, err := repo.CommitObject(head.Hash())
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
+	}
+	g.repository = repo
+	return buildCommitWithRef(cc, ref)
 }
 
 func recurseSubmodules(recurse bool) extgogit.SubmoduleRescursivity {

@@ -225,7 +225,7 @@ func TestClone_cloneTag(t *testing.T) {
 			tagsInRepo:           []testTag{{"tag-1", false}},
 			checkoutTag:          "tag-1",
 			lastRevTag:           "tag-1",
-			expectConcreteCommit: false,
+			expectConcreteCommit: true,
 		},
 		{
 			name:                 "Last revision changed",
@@ -531,9 +531,12 @@ func TestClone_cloneRefName(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	_, err = tag(repo, hash, false, "v0.1.0", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
+	_, err = tag(repo, hash, true, "annotated", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
 	err = repo.Push(&extgogit.PushOptions{
 		RefSpecs: []config.RefSpec{
 			config.RefSpec("+refs/tags/v0.1.0" + ":refs/tags/v0.1.0"),
+			config.RefSpec("+refs/tags/annotated" + ":refs/tags/annotated"),
 		},
 	})
 	g.Expect(err).ToNot(HaveOccurred())
@@ -587,6 +590,14 @@ func TestClone_cloneRefName(t *testing.T) {
 			expectedConcreteCommit: true,
 		},
 		{
+			name:                   "ref name pointing to an annotated tag",
+			refName:                "refs/tags/annotated",
+			filesCreated:           map[string]string{"bar.txt": "this is the way"},
+			lastRevision:           "refs/heads/test" + "@" + git.HashTypeSHA1 + ":" + head.Hash().String(),
+			expectedCommit:         hash.String(),
+			expectedConcreteCommit: true,
+		},
+		{
 			name:                   "ref name pointing to a pull request",
 			refName:                "refs/pull/1/head",
 			filesCreated:           map[string]string{"bar.txt": "this is the way"},
@@ -596,7 +607,7 @@ func TestClone_cloneRefName(t *testing.T) {
 		{
 			name:        "non existing ref",
 			refName:     "refs/tags/v0.2.0",
-			expectedErr: "unable to resolve ref 'refs/tags/v0.2.0' to a specific commit",
+			expectedErr: "couldn't find remote ref \"refs/tags/v0.2.0\"",
 		},
 	}
 
