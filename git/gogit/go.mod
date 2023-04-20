@@ -11,6 +11,7 @@ replace (
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.0
+	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
@@ -28,7 +29,6 @@ require (
 
 require (
 	github.com/Microsoft/go-winio v0.6.0 // indirect
-	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
 	github.com/acomagu/bufpipe v1.0.3 // indirect
 	github.com/cloudflare/circl v1.3.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect

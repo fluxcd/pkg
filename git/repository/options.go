@@ -80,6 +80,10 @@ type CheckoutStrategy struct {
 type CommitOptions struct {
 	// Signer can be used to sign a commit using OpenPGP.
 	Signer *openpgp.Entity
+	// SignerPassphrase is the passphrase to be used for decrypting
+	// the private key of the Signer. It's required if the private key
+	// is encrypted.
+	SignerPassphrase string
 	// Files contains file names mapped to the file's content.
 	// Its used to write files which are then included in the commit.
 	Files map[string]io.Reader
@@ -89,10 +93,19 @@ type CommitOptions struct {
 type CommitOption func(*CommitOptions)
 
 // WithSigner allows for the commit to be signed using the provided
-// OpenPGP signer.
+// OpenPGP signer. To specify the passphrase for the private key, please
+// see WithSignerPassphrase.
 func WithSigner(signer *openpgp.Entity) CommitOption {
 	return func(co *CommitOptions) {
 		co.Signer = signer
+	}
+}
+
+// WithSignerPassphrase is used in conjunction with WithSigner in order
+// to be able to decrypt the private key that will be used for sigining commits.
+func WithSignerPassphrase(passphrase string) CommitOption {
+	return func(co *CommitOptions) {
+		co.SignerPassphrase = passphrase
 	}
 }
 

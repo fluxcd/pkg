@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
 	extgogit "github.com/fluxcd/go-git/v5"
 	"github.com/fluxcd/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
@@ -156,6 +157,13 @@ func TestCommit(t *testing.T) {
 	g.Expect(err).To(Equal(git.ErrNoStagedFiles))
 	g.Expect(hash).To(Equal(cc))
 
+	entity, err := openpgp.NewEntity("Test User", "git-testing", "test@example.com", nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	keyPassphrase := "abcdef0123456789"
+	err = entity.PrivateKey.Encrypt([]byte(keyPassphrase))
+	g.Expect(err).ToNot(HaveOccurred())
+
 	cc, err = ggc.Commit(
 		git.Commit{
 			Author: git.Signature{
@@ -167,10 +175,19 @@ func TestCommit(t *testing.T) {
 		repository.WithFiles(map[string]io.Reader{
 			"test": strings.NewReader("testing gogit commit"),
 		}),
+		repository.WithSigner(entity),
+		repository.WithSignerPassphrase(keyPassphrase),
 	)
+
 	g.Expect(err).ToNot(HaveOccurred())
 	// New commit should not match the old one.
 	g.Expect(cc).ToNot(Equal(hash))
+
+	ref, err = ggc.repository.Head()
+	g.Expect(err).ToNot(HaveOccurred())
+	obj, err := ggc.repository.CommitObject(ref.Hash())
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(obj.PGPSignature).ToNot(BeEmpty())
 }
 
 func TestPush(t *testing.T) {

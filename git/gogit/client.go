@@ -341,6 +341,12 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 	}
 
 	if options.Signer != nil {
+		if options.SignerPassphrase != "" {
+			err = options.Signer.PrivateKey.Decrypt([]byte(options.SignerPassphrase))
+			if err != nil {
+				return "", fmt.Errorf("failed to decrypt PGP private key: %w", err)
+			}
+		}
 		opts.SignKey = options.Signer
 	}
 
