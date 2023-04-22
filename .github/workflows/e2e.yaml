@@ -24,7 +24,7 @@ jobs:
           - bitbucket-server
     steps:
       - name: Checkout
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
 
       # Since this is a monorepo, changes in other packages will also trigger these e2e tests
       # meant only for the git package. This detects us whether the changed files are part of the
