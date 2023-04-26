@@ -56,6 +56,16 @@ $ kubectl logs test-job-93tbl-4jp2r
 - Docker CLI for registry login.
 - kubectl for applying certain install manifests.
 
+#### Permissions
+
+Following permissions are needed for provisioning the infrastructure and running
+the tests:
+- `Microsoft.Kubernetes/*`
+- `Microsoft.Resources/*`
+- `Microsoft.Authorization/roleAssignments/{Read,Write,Delete}`
+- `Microsoft.ContainerRegistry/*`
+- `Microsoft.ContainerService/*`
+
 ### Google Cloud Platform
 
 - GCP account with project and GKE, GCR and Artifact Registry services enabled
