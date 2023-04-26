@@ -60,9 +60,34 @@ $ kubectl logs test-job-93tbl-4jp2r
 
 - GCP account with project and GKE, GCR and Artifact Registry services enabled
     in the project.
-- gcloud CLI, need to be logged in using `gcloud auth login`, configure
-  application default credentials with `gcloud auth application-default login`
-  and docker credential helper with `gcloud auth configure-docker`.
+- gcloud CLI, need to be logged in using `gcloud auth login` as a User (not a
+  Service Account), configure application default credentials with `gcloud auth
+  application-default login` and docker credential helper with `gcloud auth configure-docker`.
+
+  **NOTE:** To use Service Account (for example in CI environment), set
+  `GOOGLE_APPLICATION_CREDENTIALS` variable in `.env` with the path to the JSON
+  key file, source it and authenticate gcloud CLI with:
+  ```console
+  $ gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+  ```
+  Depending on the Container/Artifact Registry host used in the test, authenticate
+  docker accordingly
+  ```console
+  $ gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://us-central1-docker.pkg.dev
+  $ gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
+  ```
+  In this case, the GCP client in terraform uses the Service Account to
+  authenticate and the gcloud CLI is used only to authenticate with Google
+  Container Registry and Google Artifact Registry.
+
+  **NOTE FOR CI USAGE:** When saving the JSON key file as a CI secret, compress
+  the file content with
+  ```console
+  $ cat key.json | jq -r tostring
+  ```
+  to prevent aggressive masking in the logs. Refer
+  [aggressive replacement in logs](https://github.com/google-github-actions/auth/blob/v1.1.0/docs/TROUBLESHOOTING.md#aggressive--replacement-in-logs)
+  for more details.
 - Docker CLI for registry login.
 - kubectl for applying certain install manifests.
 
@@ -71,6 +96,19 @@ Registry tests don't create a new registry. It pushes to an existing registry
 host in a project, for example `gcr.io`. Due to this, the test images pushed to
 GCR aren't cleaned up automatically at the end of the test and have to be
 deleted manually.
+
+#### Permissions
+
+Following roles are needed for provisioning the infrastructure and running the
+tests:
+- `Artifact Registry Administrator`
+- `Compute Instance Admin (v1)`
+- `Compute Storage Admin`
+- `Kubernetes Engine Admin`
+- `Service Account Admin`
+- `Service Account Token Creator`
+- `Service Account User`
+- `Storage Admin`
 
 ## Test setup
 
