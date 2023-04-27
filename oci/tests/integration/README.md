@@ -105,7 +105,11 @@ the tests:
 Registry tests don't create a new registry. It pushes to an existing registry
 host in a project, for example `gcr.io`. Due to this, the test images pushed to
 GCR aren't cleaned up automatically at the end of the test and have to be
-deleted manually.
+deleted manually. [`gcrgc`](https://github.com/graillus/gcrgc) can be used to
+automatically delete all the GCR images.
+```console
+$ gcrgc gcr.io/<project-name>
+```
 
 #### Permissions
 
