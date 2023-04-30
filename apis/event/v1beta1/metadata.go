@@ -25,6 +25,13 @@ const (
 	MetaChecksumKey string = "checksum"
 	// MetaDigestKey is the key used to hold the source artifact digest.
 	MetaDigestKey string = "digest"
+	// MetaTokenKey is the key used to hold an arbitrary token whose contents
+	// are defined on a per-event-emitter basis for uniquely identifying the
+	// contents of the event payload. For example, it could be the generation
+	// of an object, or the hash of a set of configurations, or even a
+	// base64-encoded set of configurations. This is useful for example for
+	// rate limiting the events.
+	MetaTokenKey string = "token"
 	// MetaCommitStatusKey is the key used to signal a Git commit status event.
 	MetaCommitStatusKey string = "commit_status"
 	// MetaCommitStatusUpdateValue is the value of MetaCommitStatusKey
