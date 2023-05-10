@@ -176,20 +176,12 @@ func TestCommit(t *testing.T) {
 func TestPush(t *testing.T) {
 	g := NewWithT(t)
 
-	server, err := gittestserver.NewTempGitServer()
+	server, repoURL, err := setupGitServer(true)
 	g.Expect(err).ToNot(HaveOccurred())
 	defer os.RemoveAll(server.Root())
-	server.Auth("test-user", "test-pass")
-
-	err = server.InitRepo("../testdata/git/repo", git.DefaultBranch, "test.git")
-	g.Expect(err).ToNot(HaveOccurred())
-
-	err = server.StartHTTP()
-	g.Expect(err).ToNot(HaveOccurred())
 	defer server.StopHTTP()
 
 	tmp := t.TempDir()
-	repoURL := server.HTTPAddressWithCredentials() + "/" + "test.git"
 	auth, err := transportAuth(&git.AuthOptions{
 		Transport: git.HTTP,
 		Username:  "test-user",
@@ -209,10 +201,29 @@ func TestPush(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	ggc.repository = repo
 
+	// make a commit on master and push it.
 	cc, err := commitFile(repo, "test", "testing gogit push", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
+	err = ggc.Push(context.TODO(), repository.PushConfig{})
+	g.Expect(err).ToNot(HaveOccurred())
 
-	err = ggc.Push(context.TODO())
+	// make a dummy commit on master. this helps us make sure we don't push all
+	// refs and push only the ref HEAD points to.
+	dummyCC, err := commitFile(repo, "test", "dummy commit", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// switch HEAD to a different branch
+	wt, err := repo.Worktree()
+	g.Expect(err).ToNot(HaveOccurred())
+	err = wt.Checkout(&extgogit.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName("test"),
+		Create: true,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	testCC, err := commitFile(repo, "test", "testing gogit push on test branch", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+	err = ggc.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	repo, err = extgogit.PlainClone(t.TempDir(), false, &extgogit.CloneOptions{
@@ -223,35 +234,109 @@ func TestPush(t *testing.T) {
 	ref, err := repo.Head()
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(ref.Hash().String()).To(Equal(cc.String()))
+	// this assertion is not required but highlights the fact that we
+	// indeed only push the ref HEAD points to.
+	g.Expect(ref.Hash().String()).ToNot(Equal(dummyCC.String()))
+
+	ref, err = repo.Reference(plumbing.NewRemoteReferenceName(git.DefaultRemote, "test"), true)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(ref.Hash().String()).To(Equal(testCC.String()))
+}
+
+func TestPush_pushConfig_refspecs(t *testing.T) {
+	g := NewWithT(t)
+
+	server, repoURL, err := setupGitServer(false)
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(server.Root())
+	defer server.StopHTTP()
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tmp := t.TempDir()
+	repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+		URL:        repoURL,
+		RemoteName: git.DefaultRemote,
+		Tags:       extgogit.NoTags,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	ggc, err := NewClient(tmp, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+	ggc.repository = repo
+
+	head, err := repo.Head()
+	g.Expect(err).ToNot(HaveOccurred())
+	_, err = tag(repo, head.Hash(), false, "v0.1.0", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	wt, err := repo.Worktree()
+	g.Expect(err).ToNot(HaveOccurred())
+	err = wt.Checkout(&extgogit.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName("feature/refspecs"),
+		Create: true,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	headOnFeature, err := commitFile(repo, "test", "testing it on feature/refspecs", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Create an extra tag to check later that we push only using the provided refspec,
+	_, err = tag(repo, headOnFeature, false, "v0.2.0", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = ggc.Push(context.TODO(), repository.PushConfig{
+		Refspecs: []string{
+			"refs/heads/feature/refspecs:refs/heads/feature/refspecs",
+		},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = ggc.Push(context.TODO(), repository.PushConfig{
+		Refspecs: []string{
+			"refs/heads/feature/refspecs:refs/heads/prod/refspecs",
+		},
+	})
+
+	err = ggc.Push(context.TODO(), repository.PushConfig{
+		Refspecs: []string{
+			"refs/tags/v0.1.0:refs/tags/v0.1.0",
+		},
+	})
+
+	repo, err = extgogit.PlainClone(t.TempDir(), false, &extgogit.CloneOptions{
+		URL: repoURL,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	remRefName := plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, "feature/refspecs")
+	remRef, err := repo.Reference(remRefName, true)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(remRef.Hash().String()).To(Equal(headOnFeature.String()))
+
+	remRefName = plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, "prod/refspecs")
+	remRef, err = repo.Reference(remRefName, true)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(remRef.Hash().String()).To(Equal(headOnFeature.String()))
+
+	tagRef, err := repo.Reference(plumbing.NewTagReferenceName("v0.1.0"), true)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(tagRef.Hash().String()).To(Equal(head.Hash().String()))
+
+	tagRef, err = repo.Reference(plumbing.NewTagReferenceName("v0.2.0"), true)
+	g.Expect(err).To(HaveOccurred())
 }
 
 func TestForcePush(t *testing.T) {
 	g := NewWithT(t)
 
-	server, err := gittestserver.NewTempGitServer()
+	server, repoURL, err := setupGitServer(false)
 	g.Expect(err).ToNot(HaveOccurred())
 	defer os.RemoveAll(server.Root())
-	server.Auth("test-user", "test-pass")
-
-	err = server.InitRepo("../testdata/git/repo", git.DefaultBranch, "test.git")
-	g.Expect(err).ToNot(HaveOccurred())
-
-	err = server.StartHTTP()
-	g.Expect(err).ToNot(HaveOccurred())
 	defer server.StopHTTP()
-
-	repoURL := server.HTTPAddressWithCredentials() + "/" + "test.git"
-	auth, err := transportAuth(&git.AuthOptions{
-		Transport: git.HTTP,
-		Username:  "test-user",
-		Password:  "test-pass",
-	}, false)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	tmp1 := t.TempDir()
 	repo1, err := extgogit.PlainClone(tmp1, false, &extgogit.CloneOptions{
 		URL:        repoURL,
-		Auth:       auth,
 		RemoteName: git.DefaultRemote,
 		Tags:       extgogit.NoTags,
 	})
@@ -267,7 +352,6 @@ func TestForcePush(t *testing.T) {
 	tmp2 := t.TempDir()
 	repo2, err := extgogit.PlainClone(tmp2, false, &extgogit.CloneOptions{
 		URL:        repoURL,
-		Auth:       auth,
 		RemoteName: git.DefaultRemote,
 		Tags:       extgogit.NoTags,
 	})
@@ -281,23 +365,22 @@ func TestForcePush(t *testing.T) {
 	ggc2.repository = repo2
 
 	// First push from ggc1 should work.
-	err = ggc1.Push(context.TODO())
+	err = ggc1.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Force push from ggc2 should override ggc1.
-	err = ggc2.Push(context.TODO())
+	err = ggc2.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Follow-up push from ggc1 errors.
 	_, err = commitFile(repo1, "test", "amend file again", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 
-	err = ggc1.Push(context.TODO())
+	err = ggc1.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).To(HaveOccurred())
 
 	repo, err := extgogit.PlainClone(t.TempDir(), false, &extgogit.CloneOptions{
-		URL:  repoURL,
-		Auth: auth,
+		URL: repoURL,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	ref, err := repo.Head()
@@ -554,15 +637,9 @@ func TestSwitchBranch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			server, err := gittestserver.NewTempGitServer()
+			server, repoURL, err := setupGitServer(false)
 			g.Expect(err).ToNot(HaveOccurred())
 			defer os.RemoveAll(server.Root())
-
-			err = server.InitRepo("../testdata/git/repo", git.DefaultBranch, "test.git")
-			g.Expect(err).ToNot(HaveOccurred())
-
-			err = server.StartHTTP()
-			g.Expect(err).ToNot(HaveOccurred())
 			defer server.StopHTTP()
 
 			var expectedHash string
@@ -570,7 +647,6 @@ func TestSwitchBranch(t *testing.T) {
 				expectedHash = tt.setupFunc(g, filepath.Join(server.Root(), "test.git"))
 			}
 
-			repoURL := server.HTTPAddressWithCredentials() + "/" + "test.git"
 			tmp := t.TempDir()
 			repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
 				URL:           repoURL,
@@ -755,4 +831,31 @@ func TestValidateUrl(t *testing.T) {
 			}
 		})
 	}
+}
+
+// setupGitServer sets up, starts an HTTP Git server. It initialzes
+// a repo on the server and then returns the server and the URL of the
+// initialized repository. The auth argument can be set to true to enable
+// basic auth.
+func setupGitServer(auth bool) (*gittestserver.GitServer, string, error) {
+	server, err := gittestserver.NewTempGitServer()
+	if err != nil {
+		return nil, "", err
+	}
+	if auth {
+		server.Auth("test-user", "test-pass")
+	}
+
+	err = server.InitRepo("../testdata/git/repo", git.DefaultBranch, "test.git")
+	if err != nil {
+		return nil, "", err
+	}
+
+	err = server.StartHTTP()
+	if err != nil {
+		return nil, "", err
+	}
+
+	repoURL := server.HTTPAddressWithCredentials() + "/" + "test.git"
+	return server, repoURL, nil
 }

@@ -44,8 +44,10 @@ type Writer interface {
 	// Init initializes a repository at the configured path with the remote
 	// origin set to url on the provided branch.
 	Init(ctx context.Context, url, branch string) error
-	// Push pushes the current branch of the repository to origin.
-	Push(ctx context.Context) error
+	// Push performs a Git push to origin. By default, it pushes the
+	// reference pointed to by the HEAD, to its equivalent destination at
+	// the origin, but this is configurable via PushConfig.
+	Push(ctx context.Context, cfg PushConfig) error
 	// SwitchBranch switches from the current branch of the repository to the
 	// provided branch. If the branch doesn't exist, it is created.
 	SwitchBranch(ctx context.Context, branch string) error

@@ -351,7 +351,7 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 	return commit.String(), nil
 }
 
-func (g *Client) Push(ctx context.Context) error {
+func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
 	}
@@ -361,7 +361,26 @@ func (g *Client) Push(ctx context.Context) error {
 		return fmt.Errorf("failed to construct auth method with options: %w", err)
 	}
 
+	var refspecs []config.RefSpec
+	for _, ref := range cfg.Refspecs {
+		refspecs = append(refspecs, config.RefSpec(ref))
+	}
+
+	// If no refspecs were provided, we need to push the current ref HEAD points to.
+	// The format of a refspec for a Git push is generally something like
+	// "refs/heads/branch:refs/heads/branch".
+	if len(refspecs) == 0 {
+		head, err := g.repository.Head()
+		if err != nil {
+			return err
+		}
+
+		headRefspec := config.RefSpec(fmt.Sprintf("%s:%[1]s", head.Name()))
+		refspecs = append(refspecs, headRefspec)
+	}
+
 	return g.repository.PushContext(ctx, &extgogit.PushOptions{
+		RefSpecs:   refspecs,
 		Force:      g.forcePush,
 		RemoteName: extgogit.DefaultRemoteName,
 		Auth:       authMethod,

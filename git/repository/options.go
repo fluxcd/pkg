@@ -53,6 +53,14 @@ type CloneOptions struct {
 	ShallowClone bool
 }
 
+// PushConfig provides configuration options for a Git push.
+type PushConfig struct {
+	// Refspecs is a list of refspecs to use for the push operation.
+	// For details about Git Refspecs, please see:
+	// https://git-scm.com/book/en/v2/Git-Internals-The-Refspec
+	Refspecs []string
+}
+
 // CheckoutStrategy provides options to checkout a repository to a target.
 type CheckoutStrategy struct {
 	// Branch to checkout. If supported by the client, it can be combined
