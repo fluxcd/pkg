@@ -86,6 +86,14 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 			wantErr:         true,
 		},
 		{
+			name:            "fails with empty digest error",
+			url:             artifactURL,
+			digest:          "",
+			maxDownloadSize: -1,
+			maxUntarSize:    -1,
+			wantErr:         true,
+		},
+		{
 			name:            "fails with digest parsing error",
 			url:             artifactURL,
 			digest:          "sha1:4c624b40731c876b23d36fe732833ea8261f7f00",
