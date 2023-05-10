@@ -91,7 +91,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
 			if err := m.client.Delete(ctx, existingObject); err != nil {
-				return nil, fmt.Errorf("%s immutable field detected, failed to delete object, error: %w",
+				return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
 					FmtUnstructured(dryRunObject), err)
 			}
 			return m.Apply(ctx, object, opts)
@@ -102,7 +102,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 
 	patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
 	if err != nil {
-		return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
+		return nil, fmt.Errorf("%s metadata.managedFields cleanup failed: %w",
 			FmtUnstructured(existingObject), err)
 	}
 
@@ -113,7 +113,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 
 	appliedObject := object.DeepCopy()
 	if err := m.apply(ctx, appliedObject); err != nil {
-		return nil, fmt.Errorf("%s apply failed, error: %w", FmtUnstructured(appliedObject), err)
+		return nil, fmt.Errorf("%s apply failed: %w", FmtUnstructured(appliedObject), err)
 	}
 
 	if dryRunObject.GetResourceVersion() == "" {
@@ -145,7 +145,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 			// it when ApplyAll was called the last time (the check for ImmutableError returns false positives)
 			if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
 				if err := m.client.Delete(ctx, existingObject); err != nil {
-					return nil, fmt.Errorf("%s immutable field detected, failed to delete object, error: %w",
+					return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
 						FmtUnstructured(dryRunObject), err)
 				}
 				return m.ApplyAll(ctx, objects, opts)
@@ -156,7 +156,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 
 		patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
 		if err != nil {
-			return nil, fmt.Errorf("%s metadata.managedFields cleanup failed, error: %w",
+			return nil, fmt.Errorf("%s metadata.managedFields cleanup failed: %w",
 				FmtUnstructured(existingObject), err)
 		}
 
@@ -175,7 +175,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 	for _, object := range toApply {
 		appliedObject := object.DeepCopy()
 		if err := m.apply(ctx, appliedObject); err != nil {
-			return nil, fmt.Errorf("%s apply failed, error: %w", FmtUnstructured(appliedObject), err)
+			return nil, fmt.Errorf("%s apply failed: %w", FmtUnstructured(appliedObject), err)
 		}
 	}
 

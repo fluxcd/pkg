@@ -99,26 +99,26 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 func (m *ResourceManager) sanitizeDriftedSecrets(existingObject, dryRunObject *unstructured.Unstructured) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
 	dryRunData, foundDryRun, err := getNestedMap(dryRunObject)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to get data from dry run object, error: %w", err)
+		return nil, nil, fmt.Errorf("unable to get data from dry run object: %w", err)
 	}
 
 	existingData, foundExisting, err := getNestedMap(existingObject)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to get data from existing object, error: %w", err)
+		return nil, nil, fmt.Errorf("unable to get data from existing object: %w", err)
 	}
 
 	if !foundDryRun || !foundExisting {
 		if foundDryRun {
 			d, err := maskSecret(dryRunData, dryRunObject, diffMask)
 			if err != nil {
-				return nil, nil, fmt.Errorf("masking secret data failed, error: %w", err)
+				return nil, nil, fmt.Errorf("masking secret data failed: %w", err)
 			}
 			return d, existingObject, nil
 		}
 
 		e, err := maskSecret(existingData, existingObject, diffMask)
 		if err != nil {
-			return nil, nil, fmt.Errorf("masking secret data failed, error: %w", err)
+			return nil, nil, fmt.Errorf("masking secret data failed: %w", err)
 		}
 		return dryRunObject, e, nil
 	}
@@ -128,12 +128,12 @@ func (m *ResourceManager) sanitizeDriftedSecrets(existingObject, dryRunObject *u
 
 		err := setNestedMap(dryRunObject, d)
 		if err != nil {
-			return nil, nil, fmt.Errorf("masking secret data failed, error: %w", err)
+			return nil, nil, fmt.Errorf("masking secret data failed: %w", err)
 		}
 
 		err = setNestedMap(existingObject, ex)
 		if err != nil {
-			return nil, nil, fmt.Errorf("masking secret data failed, error: %w", err)
+			return nil, nil, fmt.Errorf("masking secret data failed: %w", err)
 		}
 
 	}
@@ -182,7 +182,7 @@ func prepareObjectForDiff(object *unstructured.Unstructured) *unstructured.Unstr
 // if the error was caused by an invalid Kubernetes secrets.
 func (m *ResourceManager) validationError(object *unstructured.Unstructured, err error) error {
 	if apierrors.IsNotFound(err) {
-		return fmt.Errorf("%s namespace not specified, error: %w", FmtUnstructured(object), err)
+		return fmt.Errorf("%s namespace not specified: %w", FmtUnstructured(object), err)
 	}
 
 	reason := fmt.Sprintf("%v", apierrors.ReasonForError(err))
@@ -204,7 +204,7 @@ func (m *ResourceManager) validationError(object *unstructured.Unstructured, err
 		reason = fmt.Sprintf(", reason: %s", reason)
 	}
 
-	return fmt.Errorf("%s dry-run failed%s, error: %w",
+	return fmt.Errorf("%s dry-run failed%s: %w",
 		FmtUnstructured(object), reason, err)
 
 }
