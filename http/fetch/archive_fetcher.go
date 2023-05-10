@@ -84,7 +84,7 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to download archive, error: %w", err)
+		return fmt.Errorf("failed to download archive: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -92,7 +92,7 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 		if code == http.StatusNotFound {
 			return FileNotFoundError
 		}
-		return fmt.Errorf("failed to download archive from %s, status: %s", archiveURL, resp.Status)
+		return fmt.Errorf("failed to download archive from %s (status: %s)", archiveURL, resp.Status)
 	}
 
 	f, err := os.CreateTemp("", "fetch.*.tmp")
@@ -130,7 +130,7 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 	// Ensure that the digest of the downloaded file matches the
 	// known digest.
 	if err := r.verifyDigest(digest, f); err != nil {
-		return err
+		return fmt.Errorf("failed to verify archive: %w", err)
 	}
 
 	// Jump back at the beginning of the file stream again.
@@ -148,15 +148,19 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 }
 
 // verifyDigest verifies the digest of the reader, and returns an error if it
-// doesn't match.
+// doesn't match, fails to parse, or is empty.
 func (r *ArchiveFetcher) verifyDigest(dig string, reader io.Reader) error {
+	if dig == "" {
+		return fmt.Errorf("empty digest")
+	}
+
 	if !strings.Contains(dig, ":") {
 		dig = "sha256:" + dig
 	}
 
 	d, err := digest.Parse(dig)
 	if err != nil {
-		return fmt.Errorf("failed to parse digest: %w", err)
+		return fmt.Errorf("failed to parse digest '%s': %w", dig, err)
 	}
 
 	// Verify reader's data.
@@ -165,7 +169,7 @@ func (r *ArchiveFetcher) verifyDigest(dig string, reader io.Reader) error {
 		return err
 	}
 	if !verifier.Verified() {
-		return fmt.Errorf("failed to verify archive: computed digest doesn't match provided '%s' (check whether file size exceeds max download size)", dig)
+		return fmt.Errorf("computed digest doesn't match provided '%s' (check whether file size exceeds max download size)", dig)
 	}
 	return nil
 }
