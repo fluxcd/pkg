@@ -142,7 +142,7 @@ func (m *ResourceManager) WaitForTermination(objects []*unstructured.Unstructure
 
 	for _, object := range objects {
 		if err := wait.PollImmediate(opts.Interval, opts.Timeout, m.isDeleted(ctx, object)); err != nil {
-			return fmt.Errorf("%s termination timeout, error: %w", FmtUnstructured(object), err)
+			return fmt.Errorf("%s termination timeout: %w", FmtUnstructured(object), err)
 		}
 	}
 	return nil

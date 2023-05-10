@@ -66,7 +66,7 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return m.changeSetEntry(object, UnknownAction),
-				fmt.Errorf("%s query failed, error: %w", FmtUnstructured(object), err)
+				fmt.Errorf("%s query failed: %w", FmtUnstructured(object), err)
 		}
 		return m.changeSetEntry(object, DeletedAction), nil
 	}
@@ -74,7 +74,7 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 	sel, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: opts.Inclusions})
 	if err != nil {
 		return m.changeSetEntry(object, UnknownAction),
-			fmt.Errorf("%s label selector failed, error: %w", FmtUnstructured(object), err)
+			fmt.Errorf("%s label selector failed: %w", FmtUnstructured(object), err)
 	}
 
 	if !sel.Matches(labels.Set(existingObject.GetLabels())) {
@@ -87,7 +87,7 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 
 	if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(opts.PropagationPolicy)); err != nil {
 		return m.changeSetEntry(object, UnknownAction),
-			fmt.Errorf("%s delete failed, error: %w", FmtUnstructured(object), err)
+			fmt.Errorf("%s delete failed: %w", FmtUnstructured(object), err)
 	}
 
 	return m.changeSetEntry(object, DeletedAction), nil
