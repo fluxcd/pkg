@@ -38,7 +38,7 @@ import (
 	"github.com/fluxcd/pkg/version"
 )
 
-func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repository.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repository.CloneConfig) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
@@ -119,7 +119,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 	return buildCommitWithRef(cc, ref)
 }
 
-func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneConfig) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}
@@ -189,7 +189,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 	return buildCommitWithRef(cc, ref)
 }
 
-func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneConfig) (*git.Commit, error) {
 	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
@@ -244,7 +244,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 	return buildCommitWithRef(cc, cloneOpts.ReferenceName)
 }
 
-func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneConfig) (*git.Commit, error) {
 	verConstraint, err := semver.NewConstraint(semverTag)
 	if err != nil {
 		return nil, fmt.Errorf("semver parse error: %w", err)
@@ -363,7 +363,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 	return buildCommitWithRef(cc, ref)
 }
 
-func (g *Client) cloneRefName(ctx context.Context, url string, refName string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
+func (g *Client) cloneRefName(ctx context.Context, url string, refName string, cloneOpts repository.CloneConfig) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
 	}

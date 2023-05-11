@@ -217,27 +217,27 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *Client) Clone(ctx context.Context, url string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
 	if err := g.validateUrl(url); err != nil {
 		return nil, err
 	}
 
-	checkoutStrat := cloneOpts.CheckoutStrategy
+	checkoutStrat := cfg.CheckoutStrategy
 	switch {
 	case checkoutStrat.Commit != "":
-		return g.cloneCommit(ctx, url, checkoutStrat.Commit, cloneOpts)
+		return g.cloneCommit(ctx, url, checkoutStrat.Commit, cfg)
 	case checkoutStrat.RefName != "":
-		return g.cloneRefName(ctx, url, checkoutStrat.RefName, cloneOpts)
+		return g.cloneRefName(ctx, url, checkoutStrat.RefName, cfg)
 	case checkoutStrat.Tag != "":
-		return g.cloneTag(ctx, url, checkoutStrat.Tag, cloneOpts)
+		return g.cloneTag(ctx, url, checkoutStrat.Tag, cfg)
 	case checkoutStrat.SemVer != "":
-		return g.cloneSemVer(ctx, url, checkoutStrat.SemVer, cloneOpts)
+		return g.cloneSemVer(ctx, url, checkoutStrat.SemVer, cfg)
 	default:
 		branch := checkoutStrat.Branch
 		if branch == "" {
 			branch = git.DefaultBranch
 		}
-		return g.cloneBranch(ctx, url, branch, cloneOpts)
+		return g.cloneBranch(ctx, url, branch, cfg)
 	}
 }
 

@@ -152,7 +152,7 @@ func TestClone_cloneBranch(t *testing.T) {
 				upstreamPath = repoPath
 			}
 
-			cc, err := ggc.Clone(context.TODO(), upstreamPath, repository.CloneOptions{
+			cc, err := ggc.Clone(context.TODO(), upstreamPath, repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: tt.branch,
 				},
@@ -265,7 +265,7 @@ func TestClone_cloneTag(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			opts := repository.CloneOptions{
+			opts := repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					Tag: tt.checkoutTag,
 				},
@@ -358,7 +358,7 @@ func TestClone_cloneCommit(t *testing.T) {
 			g := NewWithT(t)
 
 			tmpDir := t.TempDir()
-			opts := repository.CloneOptions{
+			opts := repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: tt.branch,
 					Commit: tt.commit,
@@ -472,7 +472,7 @@ func TestClone_cloneSemVer(t *testing.T) {
 			ggc, err := NewClient(tmpDir, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			opts := repository.CloneOptions{
+			opts := repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					SemVer: tt.constraint,
 				},
@@ -607,7 +607,7 @@ func TestClone_cloneRefName(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
 			g.Expect(err).ToNot(HaveOccurred())
 
-			cc, err := ggc.Clone(context.TODO(), repoURL, repository.CloneOptions{
+			cc, err := ggc.Clone(context.TODO(), repoURL, repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					RefName: tt.refName,
 				},
@@ -686,7 +686,7 @@ func Test_cloneSubmodule(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	_, err = ggc.Clone(context.TODO(), server.HTTPAddress()+"/"+icingRepoPath, repository.CloneOptions{
+	_, err = ggc.Clone(context.TODO(), server.HTTPAddress()+"/"+icingRepoPath, repository.CloneConfig{
 		CheckoutStrategy: repository.CheckoutStrategy{
 			Branch: "master",
 		},
@@ -802,7 +802,7 @@ func Test_ssh_KeyTypes(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			cc, err := ggc.Clone(ctx, repoURL, repository.CloneOptions{
+			cc, err := ggc.Clone(ctx, repoURL, repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
@@ -933,7 +933,7 @@ func Test_ssh_KeyExchangeAlgos(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(ctx, repoURL, repository.CloneOptions{
+			_, err = ggc.Clone(ctx, repoURL, repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
@@ -1105,7 +1105,7 @@ func Test_ssh_HostKeyAlgos(t *testing.T) {
 			ggc, err := NewClient(tmpDir, &authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(ctx, repoURL, repository.CloneOptions{
+			_, err = ggc.Clone(ctx, repoURL, repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: git.DefaultBranch,
 				},
@@ -1323,7 +1323,7 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 				repoURL = tt.transformURL(ts.URL)
 			}
 
-			_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneOptions{})
+			_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneConfig{})
 
 			if tt.expectCloneErr != "" {
 				g.Expect(err).To(HaveOccurred())

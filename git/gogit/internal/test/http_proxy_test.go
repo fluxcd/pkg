@@ -189,7 +189,7 @@ func Test_HTTP_proxy(t *testing.T) {
 			ggc, err := gogit.NewClient(tmpDir, authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			_, err = ggc.Clone(context.TODO(), tt.url, repository.CloneOptions{
+			_, err = ggc.Clone(context.TODO(), tt.url, repository.CloneConfig{
 				CheckoutStrategy: repository.CheckoutStrategy{
 					Branch: "main",
 				},

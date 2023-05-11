@@ -25,10 +25,10 @@ import (
 // Reader knows how to perform local and remote read operations
 // on a Git repository.
 type Reader interface {
-	// Clone clones a repository from the provided url using the options provided.
+	// Clone clones a repository from the provided url using the config provided.
 	// It returns a Commit object describing the Git commit that the repository
 	// HEAD points to. If the repository is empty, it returns a nil Commit.
-	Clone(ctx context.Context, url string, cloneOpts CloneOptions) (*git.Commit, error)
+	Clone(ctx context.Context, url string, cfg CloneConfig) (*git.Commit, error)
 	// IsClean returns whether the working tree is clean.
 	IsClean() (bool, error)
 	// Head returns the hash of the current HEAD of the repo.

@@ -28,8 +28,8 @@ const (
 	DefaultPublicKeyAuthUser = "git"
 )
 
-// CloneOptions are the options used for a Git clone.
-type CloneOptions struct {
+// CloneConfig provides configuration options for a Git clone.
+type CloneConfig struct {
 	// CheckoutStrategy defines a strategy to use while checking out
 	// the cloned repository to a specific target.
 	CheckoutStrategy
