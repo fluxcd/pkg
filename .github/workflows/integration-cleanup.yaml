@@ -1,0 +1,60 @@
+name: integration-cleanup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions: {}
+
+env:
+  GCRGC_VERSION: 0.4.8
+
+jobs:
+  gcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./tools/reaper
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+        with:
+          repository: fluxcd/test-infra
+      - name: Setup Go
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
+        with:
+          go-version: 1.20.x
+          cache-dependency-path: ./tools/reaper/go.sum
+      - name: Setup bin dir
+        run: mkdir -p ~/.local/bin
+      - name: Populate local env
+        # This is needed to be able to use the global env as local env in cache
+        # key.
+        run: echo "GCRGC_VERSION=${GCRGC_VERSION}" >> $GITHUB_ENV
+      - name: Cache gcrgc
+        id: cache-gcrgc
+        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        with:
+          path: ~/.local/bin/gcrgc
+          key: gcrgc-${{ env.GCRGC_VERSION }}
+      - name: Install gcrgc
+        if: steps.cache-gcrgc.outputs.cache-hit != 'true'
+        run: |
+          cd $(mktemp -d)
+          wget https://github.com/graillus/gcrgc/releases/download/v${GCRGC_VERSION}/gcrgc_${GCRGC_VERSION}_linux_amd64.tar.gz -O - | tar xz
+          mv gcrgc ~/.local/bin/
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@e8df18b60c5dd38ba618c121b779307266153fbf # v1.1.0
+        with:
+          credentials_json: '${{ secrets.CLEANUP_E2E_GOOGLE_CREDENTIALS }}'
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@62d4898025f6041e16b1068643bfc5a696863587 # v1.1.0
+      - name: Run gcrgc
+        # Cleanup all the GCR repositories in the project. They are not tracked
+        # by terraform used to provision test infra and are left behind.
+        run: gcrgc gcr.io/${{ vars.TF_VAR_gcp_project_id }}
+      - name: Run reaper
+        # NOTE: This is in dry-run mode by default. Pass `-delete` to allow it
+        # to delete.
+        run: go run ./ -provider gcp -gcpproject ${{ vars.TF_VAR_gcp_project_id }} -retention-period 1d -tags 'ci=true'
