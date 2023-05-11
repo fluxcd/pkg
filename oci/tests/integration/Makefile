@@ -9,7 +9,7 @@ app:
 	CGO_ENABLED=0 go build -v -o app ./testapp
 
 docker-build: app
-	docker build -t $(TEST_IMG) --load .
+	docker buildx build -t $(TEST_IMG) --load .
 
 test:
 	docker image inspect $(TEST_IMG) >/dev/null
