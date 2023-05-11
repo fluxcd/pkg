@@ -26,7 +26,7 @@ jobs:
       - name: Authenticate to Azure
         uses: Azure/login@92a5484dfaf04ca78a94597f4f19fea633851fa2 # v1.4.6
         with:
-          creds: '{"clientId":"${{ secrets.AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZ_ARM_TENANT_ID }}"}'
+          creds: '{"clientId":"${{ secrets.OCI_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.OCI_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.OCI_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.OCI_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Setup QEMU
         uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
       - name: Setup Docker Buildx
@@ -34,7 +34,7 @@ jobs:
       - name: Set dynamic variables in .env
         run: |
           cat > .env <<EOF
-          export TF_VAR_tags='{"environment"="github", "ci"="true", "createdat"="$(date -u +x%Y-%m-%d_%Hh%Mm%Ss)"}'
+          export TF_VAR_tags='{"environment"="github", "ci"="true", "repo"="pkg", "createdat"="$(date -u +x%Y-%m-%d_%Hh%Mm%Ss)"}'
           EOF
       - name: Print .env for dynamic tag value reference
         run: cat .env
@@ -43,8 +43,8 @@ jobs:
       - name: Run tests
         run: . .env && make test-azure
         env:
-          ARM_CLIENT_ID: ${{ secrets.AZ_ARM_CLIENT_ID }}
-          ARM_CLIENT_SECRET: ${{ secrets.AZ_ARM_CLIENT_SECRET }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZ_ARM_SUBSCRIPTION_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZ_ARM_TENANT_ID }}
+          ARM_CLIENT_ID: ${{ secrets.OCI_E2E_AZ_ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.OCI_E2E_AZ_ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.OCI_E2E_AZ_ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.OCI_E2E_AZ_ARM_TENANT_ID }}
           TF_VAR_azure_location: ${{ vars.TF_VAR_azure_location }}

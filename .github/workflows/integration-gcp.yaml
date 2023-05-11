@@ -27,7 +27,7 @@ jobs:
         uses: google-github-actions/auth@e8df18b60c5dd38ba618c121b779307266153fbf # v1.1.0
         id: 'auth'
         with:
-          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+          credentials_json: '${{ secrets.OCI_E2E_GOOGLE_CREDENTIALS }}'
           token_format: 'access_token'
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@62d4898025f6041e16b1068643bfc5a696863587 # v1.1.0
@@ -50,7 +50,7 @@ jobs:
       - name: Set dynamic variables in .env
         run: |
           cat > .env <<EOF
-          export TF_VAR_tags='{"environment"="github", "ci"="true", "createdat"="$(date -u +x%Y-%m-%d_%Hh%Mm%Ss)"}'
+          export TF_VAR_tags='{"environment"="github", "ci"="true", "repo"="pkg", "createdat"="$(date -u +x%Y-%m-%d_%Hh%Mm%Ss)"}'
           EOF
       - name: Print .env for dynamic tag value reference
         run: cat .env
