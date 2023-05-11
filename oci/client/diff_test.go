@@ -30,7 +30,7 @@ import (
 func TestClient_Diff(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
-	c := NewLocalClient()
+	c := NewClient(DefaultOptions())
 	tag := "v0.0.1"
 	repo := "test-push" + randStringRunes(5)
 

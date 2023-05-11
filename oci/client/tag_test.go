@@ -29,7 +29,7 @@ import (
 func Test_Tag(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
-	c := NewLocalClient()
+	c := NewClient(DefaultOptions())
 	testRepo := "test-tag"
 	url := fmt.Sprintf("%s/%s:v0.0.1", dockerReg, testRepo)
 	img, err := random.Image(1024, 1)

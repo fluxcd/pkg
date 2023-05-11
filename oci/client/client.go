@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/fluxcd/pkg/oci"
 )
@@ -40,17 +41,16 @@ func NewClient(opts []crane.Option) *Client {
 	return &Client{options: options}
 }
 
-// NewLocalClient returns an OCI client configured with the Docker keychain helpers.
-func NewLocalClient() *Client {
-	options := []crane.Option{
-		crane.WithUserAgent(oci.UserAgent),
+// DefaultOptions returns an array containing crane.WithPlatform
+// to set the platform to flux.
+func DefaultOptions() []crane.Option {
+	return []crane.Option{
 		crane.WithPlatform(&gcrv1.Platform{
 			Architecture: "flux",
 			OS:           "flux",
 			OSVersion:    "v2",
 		}),
 	}
-	return &Client{options: options}
 }
 
 // GetOptions returns the list of crane.Option used by this Client.
@@ -64,4 +64,11 @@ func (c *Client) optionsWithContext(ctx context.Context) []crane.Option {
 		crane.WithContext(ctx),
 	}
 	return append(options, c.options...)
+}
+
+// WithRetryBackOff returns a function for setting the given backoff on crane.Option.
+func WithRetryBackOff(backoff remote.Backoff) crane.Option {
+	return func(options *crane.Options) {
+		options.Remote = append(options.Remote, remote.WithRetryBackoff(backoff))
+	}
 }

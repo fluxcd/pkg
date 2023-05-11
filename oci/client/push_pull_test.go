@@ -35,7 +35,7 @@ import (
 func Test_Push_Pull(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
-	c := NewLocalClient()
+	c := NewClient(DefaultOptions())
 	testDir := "testdata/artifact"
 	tag := "v0.0.1"
 	source := "github.com/fluxcd/flux2"
