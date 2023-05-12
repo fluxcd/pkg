@@ -52,7 +52,6 @@ type Client struct {
 	authOpts             *git.AuthOptions
 	storer               storage.Storer
 	worktreeFS           billy.Filesystem
-	forcePush            bool
 	credentialsOverHTTP  bool
 	useDefaultKnownHosts bool
 	singleBranch         bool
@@ -144,16 +143,6 @@ func WithMemoryStorage() ClientOption {
 	return func(c *Client) error {
 		c.storer = memory.NewStorage()
 		c.worktreeFS = memfs.New()
-		return nil
-	}
-}
-
-// WithForcePush enables the use of force push for all push operations
-// back to the Git repository.
-// By default this is disabled.
-func WithForcePush() ClientOption {
-	return func(c *Client) error {
-		c.forcePush = true
 		return nil
 	}
 }
@@ -381,7 +370,7 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 
 	return g.repository.PushContext(ctx, &extgogit.PushOptions{
 		RefSpecs:   refspecs,
-		Force:      g.forcePush,
+		Force:      cfg.Force,
 		RemoteName: extgogit.DefaultRemoteName,
 		Auth:       authMethod,
 		Progress:   nil,

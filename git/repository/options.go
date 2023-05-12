@@ -59,6 +59,9 @@ type PushConfig struct {
 	// For details about Git Refspecs, please see:
 	// https://git-scm.com/book/en/v2/Git-Internals-The-Refspec
 	Refspecs []string
+
+	// Force, if set to true, will result in a force push.
+	Force bool
 }
 
 // CheckoutStrategy provides options to checkout a repository to a target.

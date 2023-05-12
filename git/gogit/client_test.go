@@ -360,7 +360,7 @@ func TestForcePush(t *testing.T) {
 	cc2, err := commitFile(repo2, "test", "first push from second clone", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ggc2, err := NewClient(tmp2, nil, WithDiskStorage(), WithForcePush())
+	ggc2, err := NewClient(tmp2, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	ggc2.repository = repo2
 
@@ -369,7 +369,9 @@ func TestForcePush(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Force push from ggc2 should override ggc1.
-	err = ggc2.Push(context.TODO(), repository.PushConfig{})
+	err = ggc2.Push(context.TODO(), repository.PushConfig{
+		Force: true,
+	})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Follow-up push from ggc1 errors.
@@ -394,7 +396,6 @@ func TestSwitchBranch(t *testing.T) {
 		setupFunc    func(g *WithT, path string) string
 		changeRepo   func(g *WithT, c *Client) string
 		branch       string
-		forcePush    bool
 		singleBranch bool
 	}{
 		{
@@ -534,103 +535,6 @@ func TestSwitchBranch(t *testing.T) {
 			setupFunc: nil,
 			branch:    "new",
 		},
-		{
-			name: "force push: switch to a branch ahead of the current branch",
-			setupFunc: func(g *WithT, repoURL string) string {
-				tmp := t.TempDir()
-				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
-					URL:           repoURL,
-					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
-					RemoteName:    git.DefaultRemote,
-				})
-				g.Expect(err).ToNot(HaveOccurred())
-
-				err = createBranch(repo, "ahead")
-				g.Expect(err).ToNot(HaveOccurred())
-
-				cc, err := commitFile(repo, "test", "testing gogit switch ahead branch", time.Now())
-				g.Expect(err).ToNot(HaveOccurred())
-				err = repo.Push(&extgogit.PushOptions{
-					RemoteName: git.DefaultRemote,
-				})
-				g.Expect(err).ToNot(HaveOccurred())
-				return cc.String()
-			},
-			branch:    "ahead",
-			forcePush: true,
-		},
-		{
-			name: "force push: switch to a branch behind the current branch",
-			setupFunc: func(g *WithT, repoURL string) string {
-				tmp := t.TempDir()
-				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
-					URL:           repoURL,
-					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
-					RemoteName:    git.DefaultRemote,
-				})
-				g.Expect(err).ToNot(HaveOccurred())
-
-				err = createBranch(repo, "behind")
-				g.Expect(err).ToNot(HaveOccurred())
-				ref, err := repo.Head()
-				g.Expect(err).ToNot(HaveOccurred())
-				hash := ref.Hash().String()
-
-				wt, err := repo.Worktree()
-				g.Expect(err).ToNot(HaveOccurred())
-				err = wt.Checkout(&extgogit.CheckoutOptions{
-					Branch: plumbing.ReferenceName("refs/heads/" + git.DefaultBranch),
-				})
-				g.Expect(err).ToNot(HaveOccurred())
-
-				_, err = commitFile(repo, "test", "testing gogit switch behind branch", time.Now())
-				g.Expect(err).ToNot(HaveOccurred())
-				err = repo.Push(&extgogit.PushOptions{
-					RemoteName: git.DefaultRemote,
-				})
-				g.Expect(err).ToNot(HaveOccurred())
-
-				return hash
-			},
-			branch:    "behind",
-			forcePush: true,
-		},
-		{
-			name:      "force push: switch to a branch that doesn't exist on remote",
-			setupFunc: nil,
-			branch:    "new",
-			forcePush: true,
-		},
-		{
-			name: "force: ignore a branch that exists in the remote",
-			setupFunc: func(g *WithT, repoURL string) string {
-				tmp := t.TempDir()
-				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
-					URL:           repoURL,
-					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
-					RemoteName:    git.DefaultRemote,
-				})
-				g.Expect(err).ToNot(HaveOccurred())
-
-				head, err := repo.Head()
-				g.Expect(err).ToNot(HaveOccurred())
-
-				err = createBranch(repo, "singlebranch-ahead")
-				g.Expect(err).ToNot(HaveOccurred())
-
-				_, err = commitFile(repo, "test", "remote change that will be overwritten", time.Now())
-				g.Expect(err).ToNot(HaveOccurred())
-				err = repo.Push(&extgogit.PushOptions{
-					RemoteName: git.DefaultRemote,
-				})
-				g.Expect(err).ToNot(HaveOccurred())
-
-				return head.Hash().String()
-			},
-			branch:       "singlebranch-ahead",
-			singleBranch: true,
-			forcePush:    true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -665,7 +569,6 @@ func TestSwitchBranch(t *testing.T) {
 			ggc, err := NewClient(tmp, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 			ggc.repository = repo
-			ggc.forcePush = tt.forcePush
 
 			if tt.changeRepo != nil {
 				expectedHash = tt.changeRepo(g, ggc)
