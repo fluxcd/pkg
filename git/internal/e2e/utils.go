@@ -46,7 +46,7 @@ var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
 func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
 	// clone repo
-	_, err := client.Clone(context.TODO(), repoURL.String(), repository.CloneOptions{
+	_, err := client.Clone(context.TODO(), repoURL.String(), repository.CloneConfig{
 		CheckoutStrategy: repository.CheckoutStrategy{
 			Branch: "main",
 		},
@@ -62,7 +62,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "first commit")
 
-	err = client.Push(context.TODO())
+	err = client.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	headCommit, _, err := headCommitWithBranch(upstreamRepo.url, "main", upstreamRepo.username, upstreamRepo.password)
@@ -82,7 +82,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "second commit")
 
-	err = client.Push(context.TODO())
+	err = client.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, branch, err := headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -100,7 +100,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 		}),
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "third commit")
-	err = client.Push(context.TODO())
+	err = client.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, _, err = headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -120,7 +120,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "first commit")
 
-	err = client.Push(context.TODO())
+	err = client.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	headCommit, _, err := headCommitWithBranch(upstreamRepo.url, "main", upstreamRepo.username, upstreamRepo.password)
@@ -138,7 +138,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "second commit")
 
-	err = client.Push(context.TODO())
+	err = client.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, branch, err := headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -155,7 +155,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 		}),
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "third commit")
-	err = client.Push(context.TODO())
+	err = client.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, _, err = headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())

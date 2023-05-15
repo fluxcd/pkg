@@ -52,7 +52,6 @@ type Client struct {
 	authOpts             *git.AuthOptions
 	storer               storage.Storer
 	worktreeFS           billy.Filesystem
-	forcePush            bool
 	credentialsOverHTTP  bool
 	useDefaultKnownHosts bool
 	singleBranch         bool
@@ -148,16 +147,6 @@ func WithMemoryStorage() ClientOption {
 	}
 }
 
-// WithForcePush enables the use of force push for all push operations
-// back to the Git repository.
-// By default this is disabled.
-func WithForcePush() ClientOption {
-	return func(c *Client) error {
-		c.forcePush = true
-		return nil
-	}
-}
-
 // WithInsecureCredentialsOverHTTP enables credentials being used over
 // HTTP. This is not recommended for production environments.
 func WithInsecureCredentialsOverHTTP() ClientOption {
@@ -217,27 +206,27 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *Client) Clone(ctx context.Context, url string, cloneOpts repository.CloneOptions) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
 	if err := g.validateUrl(url); err != nil {
 		return nil, err
 	}
 
-	checkoutStrat := cloneOpts.CheckoutStrategy
+	checkoutStrat := cfg.CheckoutStrategy
 	switch {
 	case checkoutStrat.Commit != "":
-		return g.cloneCommit(ctx, url, checkoutStrat.Commit, cloneOpts)
+		return g.cloneCommit(ctx, url, checkoutStrat.Commit, cfg)
 	case checkoutStrat.RefName != "":
-		return g.cloneRefName(ctx, url, checkoutStrat.RefName, cloneOpts)
+		return g.cloneRefName(ctx, url, checkoutStrat.RefName, cfg)
 	case checkoutStrat.Tag != "":
-		return g.cloneTag(ctx, url, checkoutStrat.Tag, cloneOpts)
+		return g.cloneTag(ctx, url, checkoutStrat.Tag, cfg)
 	case checkoutStrat.SemVer != "":
-		return g.cloneSemVer(ctx, url, checkoutStrat.SemVer, cloneOpts)
+		return g.cloneSemVer(ctx, url, checkoutStrat.SemVer, cfg)
 	default:
 		branch := checkoutStrat.Branch
 		if branch == "" {
 			branch = git.DefaultBranch
 		}
-		return g.cloneBranch(ctx, url, branch, cloneOpts)
+		return g.cloneBranch(ctx, url, branch, cfg)
 	}
 }
 
@@ -351,7 +340,7 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 	return commit.String(), nil
 }
 
-func (g *Client) Push(ctx context.Context) error {
+func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
 	}
@@ -361,8 +350,27 @@ func (g *Client) Push(ctx context.Context) error {
 		return fmt.Errorf("failed to construct auth method with options: %w", err)
 	}
 
+	var refspecs []config.RefSpec
+	for _, ref := range cfg.Refspecs {
+		refspecs = append(refspecs, config.RefSpec(ref))
+	}
+
+	// If no refspecs were provided, we need to push the current ref HEAD points to.
+	// The format of a refspec for a Git push is generally something like
+	// "refs/heads/branch:refs/heads/branch".
+	if len(refspecs) == 0 {
+		head, err := g.repository.Head()
+		if err != nil {
+			return err
+		}
+
+		headRefspec := config.RefSpec(fmt.Sprintf("%s:%[1]s", head.Name()))
+		refspecs = append(refspecs, headRefspec)
+	}
+
 	return g.repository.PushContext(ctx, &extgogit.PushOptions{
-		Force:      g.forcePush,
+		RefSpecs:   refspecs,
+		Force:      cfg.Force,
 		RemoteName: extgogit.DefaultRemoteName,
 		Auth:       authMethod,
 		Progress:   nil,

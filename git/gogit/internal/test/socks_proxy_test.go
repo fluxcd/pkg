@@ -96,7 +96,7 @@ func Test_SOCKS5_proxy(t *testing.T) {
 	ggc, err := gogit.NewClient(tmpDir, authOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneOptions{
+	_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneConfig{
 		CheckoutStrategy: repository.CheckoutStrategy{
 			Branch: "main",
 		},

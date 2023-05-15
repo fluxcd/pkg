@@ -28,8 +28,8 @@ const (
 	DefaultPublicKeyAuthUser = "git"
 )
 
-// CloneOptions are the options used for a Git clone.
-type CloneOptions struct {
+// CloneConfig provides configuration options for a Git clone.
+type CloneConfig struct {
 	// CheckoutStrategy defines a strategy to use while checking out
 	// the cloned repository to a specific target.
 	CheckoutStrategy
@@ -51,6 +51,17 @@ type CloneOptions struct {
 	// ShallowClone defines if the repository should be shallow cloned,
 	// not supported by all implementations
 	ShallowClone bool
+}
+
+// PushConfig provides configuration options for a Git push.
+type PushConfig struct {
+	// Refspecs is a list of refspecs to use for the push operation.
+	// For details about Git Refspecs, please see:
+	// https://git-scm.com/book/en/v2/Git-Internals-The-Refspec
+	Refspecs []string
+
+	// Force, if set to true, will result in a force push.
+	Force bool
 }
 
 // CheckoutStrategy provides options to checkout a repository to a target.
