@@ -34,10 +34,22 @@ import (
 // LoginWithCredentials configures the client with static credentials, accepts a single token
 // or a user:password format.
 func (c *Client) LoginWithCredentials(credentials string) error {
+	auth, err := GetAuthFromCredentials(credentials)
+	if err != nil {
+		return err
+	}
+
+	c.options = append(c.options, crane.WithAuth(auth))
+	return nil
+}
+
+// GetAuthFromCredentials returns an authn.Authenticator for the static credentials, accepts a single token
+// or a user:password format.
+func GetAuthFromCredentials(credentials string) (authn.Authenticator, error) {
 	var authConfig authn.AuthConfig
 
 	if credentials == "" {
-		return errors.New("credentials cannot be empty")
+		return nil, errors.New("credentials cannot be empty")
 	}
 
 	parts := strings.SplitN(credentials, ":", 2)
@@ -48,8 +60,7 @@ func (c *Client) LoginWithCredentials(credentials string) error {
 		authConfig = authn.AuthConfig{Username: parts[0], Password: parts[1]}
 	}
 
-	c.options = append(c.options, crane.WithAuth(authn.FromConfig(authConfig)))
-	return nil
+	return authn.FromConfig(authConfig), nil
 }
 
 // LoginWithProvider configures the client to log in to the specified provider
