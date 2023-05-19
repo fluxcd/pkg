@@ -176,6 +176,7 @@ func TestLogin(t *testing.T) {
 		autoLogin  bool
 		image      string
 		statusCode int
+		testOIDC   bool
 		wantErr    bool
 	}{
 		{
@@ -190,12 +191,14 @@ func TestLogin(t *testing.T) {
 			autoLogin:  true,
 			image:      testValidECRImage,
 			statusCode: http.StatusOK,
+			testOIDC:   true,
 		},
 		{
 			name:       "login failure",
 			autoLogin:  true,
 			image:      testValidECRImage,
 			statusCode: http.StatusInternalServerError,
+			testOIDC:   true,
 			wantErr:    true,
 		},
 	}
@@ -224,6 +227,11 @@ func TestLogin(t *testing.T) {
 
 			_, err := ecrClient.Login(context.TODO(), tt.autoLogin, tt.image)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+
+			if tt.testOIDC {
+				_, err = ecrClient.OIDCLogin(context.TODO())
+				g.Expect(err != nil).To(Equal(tt.wantErr))
+			}
 		})
 	}
 }

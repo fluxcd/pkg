@@ -156,3 +156,14 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn
 	}
 	return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }
+
+// OIDCLogin attempts to get the authentication material for ECR.
+func (c *Client) OIDCLogin(ctx context.Context) (authn.Authenticator, error) {
+	authConfig, err := c.getLoginAuth(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	auth := authn.FromConfig(authConfig)
+	return auth, nil
+}
