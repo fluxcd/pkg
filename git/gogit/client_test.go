@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	extgogit "github.com/fluxcd/go-git/v5"
-	"github.com/fluxcd/go-git/v5/plumbing"
+	extgogit "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/git"

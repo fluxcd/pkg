@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fluxcd/go-git/v5/plumbing/transport"
-	"github.com/fluxcd/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	. "github.com/onsi/gomega"
 	"golang.org/x/crypto/ssh/agent"
 
