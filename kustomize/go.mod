@@ -12,8 +12,8 @@ require (
 	github.com/fluxcd/pkg/apis/kustomize v1.0.0
 	github.com/fluxcd/pkg/sourceignore v0.3.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/onsi/gomega v1.27.6
-	github.com/otiai10/copy v1.9.0
+	github.com/onsi/gomega v1.27.7
+	github.com/otiai10/copy v1.11.0
 	k8s.io/api v0.27.2
 	k8s.io/apiextensions-apiserver v0.27.2
 	k8s.io/apimachinery v0.27.2
