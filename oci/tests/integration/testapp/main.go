@@ -20,8 +20,10 @@ import (
 	"context"
 	"flag"
 	"log"
+	"strings"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,7 +32,15 @@ import (
 	"github.com/fluxcd/pkg/oci/auth/login"
 )
 
-var repo = flag.String("repo", "", "repository to list")
+// registry and repo flags are to facilitate testing of two login scenarios:
+//   - when the repository contains the full address, including registry host,
+//     e.g. foo.azurecr.io/bar.
+//   - when the repository contains only the repository name and registry name
+//     is provided separately, e.g. registry: foo.azurecr.io, repo: bar.
+var (
+	registry = flag.String("registry", "", "registry of the repository")
+	repo     = flag.String("repo", "", "repository to list")
+)
 
 func main() {
 	flag.Parse()
@@ -43,14 +53,31 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	log.Println("repo:", *repo)
+	if *repo == "" {
+		panic("must provide -repo value")
+	}
 
-	ref, err := name.ParseReference(*repo)
+	var loginURL string
+	var auth authn.Authenticator
+	var ref name.Reference
+	var err error
+
+	if *registry != "" {
+		// Registry and repository are separate.
+		log.Printf("registry: %s, repo: %s\n", *registry, *repo)
+		loginURL = *registry
+		ref, err = name.ParseReference(strings.Join([]string{*registry, *repo}, "/"))
+	} else {
+		// Repository contains the registry host address.
+		log.Println("repo:", *repo)
+		loginURL = *repo
+		ref, err = name.ParseReference(*repo)
+	}
 	if err != nil {
 		panic(err)
 	}
 
-	auth, err := login.NewManager().Login(ctx, *repo, ref, opts)
+	auth, err = login.NewManager().Login(ctx, loginURL, ref, opts)
 	if err != nil {
 		panic(err)
 	}

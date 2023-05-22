@@ -22,6 +22,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -33,12 +34,26 @@ import (
 func TestImageRepositoryListTags(t *testing.T) {
 	for name, repo := range testRepos {
 		t.Run(name, func(t *testing.T) {
-			testImageRepositoryListTags(t, repo)
+			args := []string{fmt.Sprintf("-repo=%s", repo)}
+			testImageRepositoryListTags(t, args)
 		})
 	}
 }
 
-func testImageRepositoryListTags(t *testing.T, repoURL string) {
+func TestRepositoryRootLoginListTags(t *testing.T) {
+	for name, repo := range testRepos {
+		t.Run(name, func(t *testing.T) {
+			parts := strings.SplitN(repo, "/", 2)
+			args := []string{
+				fmt.Sprintf("-registry=%s", parts[0]),
+				fmt.Sprintf("-repo=%s", parts[1]),
+			}
+			testImageRepositoryListTags(t, args)
+		})
+	}
+}
+
+func testImageRepositoryListTags(t *testing.T, args []string) {
 	g := NewWithT(t)
 	ctx := context.TODO()
 
@@ -49,7 +64,7 @@ func testImageRepositoryListTags(t *testing.T, repoURL string) {
 		{
 			Name:            "test-app",
 			Image:           testAppImage,
-			Args:            []string{fmt.Sprintf("-repo=%s", repoURL)},
+			Args:            args,
 			ImagePullPolicy: corev1.PullAlways,
 		},
 	}
