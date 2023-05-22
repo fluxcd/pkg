@@ -19,7 +19,7 @@ require (
 	github.com/distribution/distribution/v3 v3.0.0-20230519140516-983358f8e250
 	github.com/fluxcd/pkg/sourceignore v0.3.3
 	github.com/fluxcd/pkg/tar v0.2.0
-	github.com/fluxcd/pkg/version v0.2.1
+	github.com/fluxcd/pkg/version v0.2.2
 	github.com/google/go-containerregistry v0.15.2
 	github.com/onsi/gomega v1.27.7
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5

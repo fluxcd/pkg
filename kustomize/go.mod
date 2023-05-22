@@ -9,7 +9,7 @@ replace github.com/fluxcd/pkg/sourceignore => ../sourceignore
 require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/go-git/v5 v5.0.0-20221219190809-2e5c9d01cfc4
-	github.com/fluxcd/pkg/apis/kustomize v1.0.0
+	github.com/fluxcd/pkg/apis/kustomize v1.1.0
 	github.com/fluxcd/pkg/sourceignore v0.3.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/gomega v1.27.7
