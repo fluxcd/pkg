@@ -20,9 +20,11 @@ import (
 	"context"
 
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/cli-utils/pkg/flowcontrol"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 const (
@@ -81,4 +83,20 @@ func GetConfigOrDie(opts Options) *rest.Config {
 	config.QPS = opts.QPS
 	config.Burst = opts.Burst
 	return config
+}
+
+// NewDynamicRESTMapper creates a new HTTP client using the provided config.
+// It then returns a dynamic RESTMapper created using the HTTP client and
+// the config. The returned RESTMapper dynamically discovers resource types
+// at runtime.
+func NewDynamicRESTMapper(restConfig *rest.Config) (meta.RESTMapper, error) {
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	if err != nil {
+		return nil, err
+	}
+	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
+	if err != nil {
+		return nil, err
+	}
+	return restMapper, nil
 }

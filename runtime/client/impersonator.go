@@ -28,7 +28,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/polling"
 	rc "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/fluxcd/pkg/apis/meta"
@@ -132,7 +131,7 @@ func (i *Impersonator) clientForServiceAccountOrDefault() (rc.Client, *polling.S
 	}
 	i.setImpersonationConfig(restConfig)
 
-	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig)
+	restMapper, err := NewDynamicRESTMapper(restConfig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,7 +163,7 @@ func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *pol
 	restConfig = KubeConfig(restConfig, i.kubeConfigOpts)
 	i.setImpersonationConfig(restConfig)
 
-	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig)
+	restMapper, err := NewDynamicRESTMapper(restConfig)
 	if err != nil {
 		return nil, nil, err
 	}
