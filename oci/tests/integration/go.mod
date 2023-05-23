@@ -12,9 +12,7 @@ require (
 	github.com/onsi/gomega v1.27.7
 	k8s.io/api v0.27.2
 	k8s.io/apimachinery v0.27.2
-	// We are using a beta tag for now but we should bump this to
-	// v0.15.0, when that comes out.
-	sigs.k8s.io/controller-runtime v0.15.0-beta.0
+	sigs.k8s.io/controller-runtime v0.15.0
 )
 
 require (
@@ -102,7 +100,7 @@ require (
 	golang.org/x/term v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
