@@ -13,7 +13,7 @@ require (
 )
 
 require (
-	github.com/cloudflare/circl v1.3.2 // indirect
+	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/net v0.10.0 // indirect

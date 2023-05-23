@@ -9,9 +9,7 @@ require (
 	k8s.io/apimachinery v0.27.2
 	k8s.io/client-go v0.27.2
 	sigs.k8s.io/cli-utils v0.34.0
-	// We are using a beta tag for now but we should bump this to
-	// v0.15.0, when that comes out.
-	sigs.k8s.io/controller-runtime v0.15.0-beta.0
+	sigs.k8s.io/controller-runtime v0.15.0
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3
 	sigs.k8s.io/yaml v1.3.0
 )
