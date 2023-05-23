@@ -49,6 +49,7 @@ func TestMain(m *testing.M) {
 	env = testenv.New(
 		testenv.WithScheme(scheme),
 		testenv.WithCRDPath("../conditions/testdata/crds"),
+		testenv.WithMaxConcurrentReconciles(4),
 	)
 
 	go func() {

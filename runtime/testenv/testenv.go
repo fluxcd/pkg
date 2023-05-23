@@ -41,6 +41,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -78,14 +79,18 @@ type Environment struct {
 
 // options holds the configuration options for the Environment.
 type options struct {
-	scheme            *runtime.Scheme
-	crdDirectoryPaths []string
+	scheme                  *runtime.Scheme
+	crdDirectoryPaths       []string
+	maxConcurrentReconciles int
 }
 
 // withDefaults sets the default configuration for missing values.
 func (o *options) withDefaults() {
 	if o.scheme == nil {
 		o.scheme = scheme.Scheme
+	}
+	if o.maxConcurrentReconciles == 0 {
+		o.maxConcurrentReconciles = 2
 	}
 }
 
@@ -104,6 +109,13 @@ func WithScheme(scheme *runtime.Scheme) Option {
 func WithCRDPath(path ...string) Option {
 	return func(o *options) {
 		o.crdDirectoryPaths = append(o.crdDirectoryPaths, path...)
+	}
+}
+
+// WithMaxConcurrentReconciles configures the maximum number of concurrent Reconciles which can be run.
+func WithMaxConcurrentReconciles(max int) Option {
+	return func(o *options) {
+		o.maxConcurrentReconciles = max
 	}
 }
 
@@ -155,8 +167,9 @@ func New(o ...Option) *Environment {
 	mgr, err := ctrl.NewManager(env.Config, manager.Options{
 		Scheme:             opts.scheme,
 		MetricsBindAddress: "0",
-		CertDir:            env.WebhookInstallOptions.LocalServingCertDir,
-		Port:               env.WebhookInstallOptions.LocalServingPort,
+		Controller: config.Controller{
+			MaxConcurrentReconciles: opts.maxConcurrentReconciles,
+		},
 	})
 	if err != nil {
 		klog.Fatalf("Failed to start testenv manager: %v", err)
