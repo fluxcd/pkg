@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fluxcd/go-git/v5/plumbing/format/gitignore"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"gotest.tools/assert"
 )
 
