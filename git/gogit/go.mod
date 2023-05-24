@@ -15,7 +15,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/elazarl/goproxy v0.0.0-20221015165544-a0805db90819
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/git v0.12.1
+	github.com/fluxcd/pkg/git v0.12.2
 	github.com/fluxcd/pkg/gittestserver v0.8.3
 	github.com/fluxcd/pkg/ssh v0.7.4
 	github.com/fluxcd/pkg/version v0.2.2

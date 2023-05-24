@@ -13,7 +13,7 @@ replace (
 
 require (
 	github.com/fluxcd/go-git-providers v0.15.3
-	github.com/fluxcd/pkg/git v0.12.1
+	github.com/fluxcd/pkg/git v0.12.2
 	github.com/fluxcd/pkg/git/gogit v0.9.0
 	github.com/fluxcd/pkg/gittestserver v0.8.3
 	github.com/fluxcd/pkg/ssh v0.7.4
