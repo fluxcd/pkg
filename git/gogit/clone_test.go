@@ -529,7 +529,7 @@ func TestClone_cloneRefName(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	err = repo.Push(&extgogit.PushOptions{})
 	g.Expect(err).ToNot(HaveOccurred())
-	_, err = tag(repo, hash, false, "v0.1.0", time.Now())
+	_, err = tag(repo, hash, true, "v0.1.0", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 	err = repo.Push(&extgogit.PushOptions{
 		RefSpecs: []config.RefSpec{
@@ -581,6 +581,14 @@ func TestClone_cloneRefName(t *testing.T) {
 		{
 			name:                   "ref name pointing to a tag",
 			refName:                "refs/tags/v0.1.0",
+			filesCreated:           map[string]string{"bar.txt": "this is the way"},
+			lastRevision:           "refs/heads/test" + "@" + git.HashTypeSHA1 + ":" + head.Hash().String(),
+			expectedCommit:         hash.String(),
+			expectedConcreteCommit: true,
+		},
+		{
+			name:                   "ref name with dereference suffix pointing to a tag",
+			refName:                "refs/tags/v0.1.0" + tagDereferenceSuffix,
 			filesCreated:           map[string]string{"bar.txt": "this is the way"},
 			lastRevision:           "refs/heads/test" + "@" + git.HashTypeSHA1 + ":" + head.Hash().String(),
 			expectedCommit:         hash.String(),
@@ -1132,13 +1140,18 @@ func Test_getRemoteHEAD(t *testing.T) {
 
 	cc, err = commitFile(repo, "test", "testing current head tag", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
-	_, err = tag(repo, cc, false, "v0.1.0", time.Now())
+	_, err = tag(repo, cc, true, "v0.1.0", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 
 	ref = plumbing.NewTagReferenceName("v0.1.0")
 	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(head).To(Equal(fmt.Sprintf("refs/tags/%s@%s", "v0.1.0", git.Hash(cc.String()).Digest())))
+
+	ref = plumbing.NewTagReferenceName("v0.1.0" + tagDereferenceSuffix)
+	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(head).To(Equal(fmt.Sprintf("refs/tags/%s@%s", "v0.1.0"+tagDereferenceSuffix, git.Hash(cc.String()).Digest())))
 
 	ref = plumbing.ReferenceName("/refs/heads/main")
 	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
@@ -1149,6 +1162,61 @@ func Test_getRemoteHEAD(t *testing.T) {
 	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(Equal(fmt.Sprintf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())))
+}
+
+func Test_filterRefs(t *testing.T) {
+
+	refStrings := []string{"refs/heads/main", "refs/tags/v1.0.0", "refs/pull/1/head", "refs/tags/v1.1.0", "refs/tags/v1.0.0" + tagDereferenceSuffix}
+	dummyHash := "84d9be20ca15d29bebc629e5b6f29dab78cc69ba"
+	annotatedTagHash := "9000be6daa3323cb7009075259bb7bd62498d32f"
+	var refs []*plumbing.Reference
+	for _, refString := range refStrings {
+		if strings.HasSuffix(refString, tagDereferenceSuffix) {
+			refs = append(refs, plumbing.NewReferenceFromStrings(refString, annotatedTagHash))
+		} else {
+			refs = append(refs, plumbing.NewReferenceFromStrings(refString, dummyHash))
+		}
+	}
+	tests := []struct {
+		name     string
+		ref      string
+		expected string
+	}{
+		{
+			name:     "branch ref",
+			ref:      "refs/heads/main",
+			expected: "refs/heads/main@sha1:" + dummyHash,
+		},
+		{
+			name:     "pull request ref",
+			ref:      "refs/pull/1/head",
+			expected: "refs/pull/1/head@sha1:" + dummyHash,
+		},
+		{
+			name:     "tag ref",
+			ref:      "refs/tags/v1.1.0",
+			expected: "refs/tags/v1.1.0@sha1:" + dummyHash,
+		},
+		{
+			name:     "annotated tag ref",
+			ref:      "refs/tags/v1.0.0" + tagDereferenceSuffix,
+			expected: fmt.Sprintf("refs/tags/v1.0.0%s@sha1:%s", tagDereferenceSuffix, annotatedTagHash),
+		},
+		{
+			name:     "tag ref but is resolved to its commit",
+			ref:      "refs/tags/v1.0.0",
+			expected: "refs/tags/v1.0.0@sha1:" + annotatedTagHash,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			got := filterRefs(refs, plumbing.ReferenceName(tt.ref))
+			g.Expect(got).To(Equal(tt.expected))
+		})
+	}
 }
 
 func TestClone_CredentialsOverHttp(t *testing.T) {
