@@ -6,9 +6,9 @@ branding:
   icon: command
 inputs:
   version:
-    description: "Strict SemVer of the kustomize CLI. Defaults to 4.5.7. Use 'latest' to get the latest release."
+    description: "Strict SemVer of the kustomize CLI. Defaults to 5.0.3. Use 'latest' to get the latest release."
     required: false
-    default: "4.5.7"
+    default: "5.0.3"
 runs:
   using: composite
   steps:
