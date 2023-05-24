@@ -114,14 +114,15 @@ func (a *CustomPublicKeys) String() string {
 }
 
 func (a *CustomPublicKeys) ClientConfig() (*gossh.ClientConfig, error) {
+	if a.callback != nil {
+		a.pk.HostKeyCallback = a.callback
+	}
+
 	config, err := a.pk.ClientConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if a.callback != nil {
-		config.HostKeyCallback = a.callback
-	}
 	if len(git.KexAlgos) > 0 {
 		config.Config.KeyExchanges = git.KexAlgos
 	}
@@ -149,7 +150,6 @@ func (a *DefaultAuth) ClientConfig() (*gossh.ClientConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	config.HostKeyCallback, err = ssh.NewKnownHostsCallback()
 	if err != nil {
 		return nil, err
 	}
