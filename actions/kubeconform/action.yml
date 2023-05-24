@@ -61,7 +61,7 @@ runs:
 
           echo "Verifying checksum"
           sum=$(openssl sha1 -sha256 "$DL_DIR/$KUBECONFORM_TARGET_FILE" | awk '{print $2}')
-          expected_sum=$(grep "$KUBECONFORM_TARGET_FILE" "$DL_DIR/$KUBECONFORM_CHECKSUMS_FILE" | awk '{print $1}')
+          expected_sum=$(grep " $KUBECONFORM_TARGET_FILE\$" "$DL_DIR/$KUBECONFORM_CHECKSUMS_FILE" | awk '{print $1}')
           if [ "$sum" != "$expected_sum" ]; then
             echo "SHA sum of ${KUBECONFORM_TARGET_FILE} does not match. Aborting."
             exit 1
