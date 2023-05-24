@@ -38,6 +38,8 @@ import (
 	"github.com/fluxcd/pkg/version"
 )
 
+const tagDereferenceSuffix = "^{}"
+
 func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repository.CloneConfig) (*git.Commit, error) {
 	if g.authOpts == nil {
 		return nil, fmt.Errorf("unable to checkout repo with an empty set of auth options")
@@ -415,8 +417,9 @@ func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
 	}
 	remote := extgogit.NewRemote(memory.NewStorage(), remoteCfg)
 	listOpts := &extgogit.ListOptions{
-		Auth:     authMethod,
-		CABundle: authOpts.CAFile,
+		Auth:          authMethod,
+		CABundle:      authOpts.CAFile,
+		PeelingOption: extgogit.AppendPeeled,
 	}
 	refs, err := remote.ListContext(ctx, listOpts)
 	if err != nil {
@@ -427,12 +430,48 @@ func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
 	return head, nil
 }
 
+// filterRefs searches through the provided list of refs to find a matching ref
+// based on the currentRef parameter.
+// It returns the matching ref under the following conditions:
+// - If currentRef is not a tag, or
+// - If currentRef has the tag dereference suffix.
+//
+// If a matching ref is found in the list but doesn't satisfy the above
+// conditions, it attempts to find a ref that is the same as currentRef but
+// also has the tag dereference suffix.
+// This is necessary because when a tag is annotated, the ref without the
+// suffix points to a tag object with its own unique hash.
+// However, the goal is to obtain the hash of the commit object that the tag
+// points to, which requires dereferencing the tag using the dereference suffix.
+// For more information, refer to: https://stackoverflow.com/a/15472310/10745226
+//
+// If a ref meeting the above requirements cannot be found, it means currentRef
+// is a lightweight tag, so the initially found ref is returned.
+//
+// If it fails to find a matching ref, then an empty string is returned.
 func filterRefs(refs []*plumbing.Reference, currentRef plumbing.ReferenceName) string {
+	var (
+		currentRefStr = currentRef.String()
+		fallbackRef   *plumbing.Reference
+	)
+
 	for _, ref := range refs {
-		if ref.Name().String() == currentRef.String() {
-			return fmt.Sprintf("%s@%s", currentRef.String(), git.Hash(ref.Hash().String()).Digest())
+		if ref.Name().String() == currentRefStr {
+			if !currentRef.IsTag() || strings.HasSuffix(currentRefStr, tagDereferenceSuffix) {
+				return fmt.Sprintf("%s@%s", currentRefStr, git.Hash(ref.Hash().String()).Digest())
+			}
+			fallbackRef = ref
+		}
+
+		if ref.Name().String() == currentRefStr+tagDereferenceSuffix {
+			return fmt.Sprintf("%s@%s", currentRefStr, git.Hash(ref.Hash().String()).Digest())
 		}
 	}
+
+	if fallbackRef != nil {
+		return fmt.Sprintf("%s@%s", currentRefStr, git.Hash(fallbackRef.Hash().String()).Digest())
+	}
+
 	return ""
 }
 
