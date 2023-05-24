@@ -6,9 +6,9 @@ branding:
   icon: command
 inputs:
   version:
-    description: "Strict SemVer of the kustomize CLI. Defaults to 4.5.7. Use 'latest' to get the latest release."
+    description: "Strict SemVer of the kustomize CLI. Defaults to 5.0.3. Use 'latest' to get the latest release."
     required: false
-    default: "4.5.7"
+    default: "5.0.3"
 runs:
   using: composite
   steps:
@@ -58,7 +58,7 @@ runs:
 
           echo "Verifying checksum"
           sum=$(openssl sha1 -sha256 "$DL_DIR/$KUSTOMIZE_TARGET_FILE" | awk '{print $2}')
-          expected_sum=$(grep "$KUSTOMIZE_TARGET_FILE" "$DL_DIR/$KUSTOMIZE_CHECKSUMS_FILE" | awk '{print $1}')
+          expected_sum=$(grep " $KUSTOMIZE_TARGET_FILE\$" "$DL_DIR/$KUSTOMIZE_CHECKSUMS_FILE" | awk '{print $1}')
           if [ "$sum" != "$expected_sum" ]; then
             echo "SHA sum of ${KUSTOMIZE_TARGET_FILE} does not match. Aborting."
             exit 1
