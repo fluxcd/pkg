@@ -51,9 +51,24 @@ runs:
           if [[ "$OS" == "windows" ]]; then
             YQ_TARGET_FILE="yq.exe"
           fi
+        
+          YQ_CHECKSUMS_FILE="checksums"
 
           YQ_DOWNLOAD_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/"
+
           curl -fsSL -o "$DL_DIR/$YQ_TARGET_FILE" "$YQ_DOWNLOAD_URL/$YQ_EXEC_FILE"
+          curl -fsSL -o "$DL_DIR/$YQ_CHECKSUMS_FILE" "$YQ_DOWNLOAD_URL/$YQ_CHECKSUMS_FILE"
+
+          echo "Verifying checksum"
+          sum=$(openssl sha1 -sha256 "$DL_DIR/$YQ_TARGET_FILE" | awk '{print $2}')
+        
+          echo "Using $(grep "^$YQ_EXEC_FILE " "$DL_DIR/$YQ_CHECKSUMS_FILE")"
+        
+          expected_sum=$(grep "^$YQ_EXEC_FILE " "$DL_DIR/$YQ_CHECKSUMS_FILE" | awk '{print $19}')
+          if [ "$sum" != "$expected_sum" ]; then
+            echo "SHA sum of $DL_DIR/$YQ_TARGET_FILE and $YQ_EXEC_FILE does not match. Aborting."
+            exit 1
+          fi
 
           echo "Installing yq to ${YQ_TOOL_DIR}"
           mkdir -p "$YQ_TOOL_DIR"
