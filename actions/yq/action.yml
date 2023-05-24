@@ -1,0 +1,71 @@
+name: Setup yq CLI
+description: A GitHub Action for installing the yq CLI
+author: Flux project
+branding:
+  color: blue
+  icon: command
+inputs:
+  version:
+    description: Strict SemVer of the yq CLI to install. Defaults to the latest release.
+    required: false
+runs:
+  using: composite
+  steps:
+    - name: Download the binary to the runner's cache dir
+      shell: bash
+      run: |
+        VERSION=${{ inputs.version }}
+        if [[ -z "$VERSION" ]] || [[ "$VERSION" == "latest" ]]; then
+          VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" https://api.github.com/repos/mikefarah/yq/releases/latest | grep tag_name | cut -d '"' -f 4)
+        fi
+        if [[ -z "$VERSION" ]]; then
+          echo "Unable to determine yq version"
+        exit 1
+        fi
+        if [[ ! $VERSION = v* ]]; then
+          VERSION="v${VERSION}"
+        fi
+
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
+        if [[ "$OS" == "macos" ]]; then
+          OS="darwin"
+        fi
+
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
+        if [[ "$ARCH" == "x64" ]]; then
+          ARCH="amd64"
+        fi
+
+        YQ_EXEC_FILE="yq_${OS}_${ARCH}"
+        if [[ "$OS" == "windows" ]]; then
+            YQ_EXEC_FILE="${YQ_EXEC_FILE}.exe"
+        fi
+
+        YQ_TOOL_DIR="${RUNNER_TOOL_CACHE}/yq/${VERSION}/${OS}/${ARCH}"
+        if [[ ! -x "$YQ_TOOL_DIR/$YQ_EXEC_FILE" ]]; then
+          DL_DIR="$(mktemp -dt yq-XXXXXX)"
+          trap 'rm -rf $DL_DIR' EXIT
+
+          echo "Downloading yq ${VERSION} for ${OS}/${ARCH}"
+          YQ_TARGET_FILE="yq"
+          if [[ "$OS" == "windows" ]]; then
+            YQ_TARGET_FILE="yq.exe"
+          fi
+
+          YQ_DOWNLOAD_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/"
+          curl -fsSL -o "$DL_DIR/$YQ_TARGET_FILE" "$YQ_DOWNLOAD_URL/$YQ_EXEC_FILE"
+
+          echo "Installing yq to ${YQ_TOOL_DIR}"
+          mkdir -p "$YQ_TOOL_DIR"
+        
+          cp "$DL_DIR/$YQ_TARGET_FILE" "$YQ_TOOL_DIR/$YQ_TARGET_FILE"
+          chmod +x "$YQ_TOOL_DIR/$YQ_TARGET_FILE"
+        fi
+
+        echo "Adding yq to path"
+        echo "$YQ_TOOL_DIR" >> "$GITHUB_PATH"
+
+    - name: Print installed yq version
+      shell: bash
+      run: |
+        yq --version
