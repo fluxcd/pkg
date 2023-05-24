@@ -1,0 +1,88 @@
+name: Setup kubeconform CLI
+description: A GitHub Action for installing the kubeconform CLI
+author: Flux project
+branding:
+  color: blue
+  icon: command
+inputs:
+  version:
+    description: Strict SemVer of the kubeconform CLI to install. Defaults to the latest release.
+    required: false
+runs:
+  using: composite
+  steps:
+    - name: Download the binary to the runner's cache dir
+      shell: bash
+      run: |
+        VERSION=${{ inputs.version }}
+        if [[ -z "$VERSION" ]] || [[ "$VERSION" == "latest" ]]; then
+          VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" https://api.github.com/repos/yannh/kubeconform/releases/latest | grep tag_name | cut -d '"' -f 4)
+        fi
+        if [[ -z "$VERSION" ]]; then
+          echo "Unable to determine kubeconform version"
+        exit 1
+        fi
+        if [[ ! $VERSION = v* ]]; then
+          VERSION="v${VERSION}"
+        fi
+
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
+        if [[ "$OS" == "macos" ]]; then
+          OS="darwin"
+        fi
+
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
+        if [[ "$ARCH" == "x64" ]]; then
+          ARCH="amd64"
+        fi
+
+        KUBECONFORM_EXEC_FILE="kubeconform"
+        if [[ "$OS" == "windows" ]]; then
+            KUBECONFORM_EXEC_FILE="${KUBECONFORM_EXEC_FILE}.exe"
+        fi
+
+        KUBECONFORM_TOOL_DIR="${RUNNER_TOOL_CACHE}/kubeconform/${VERSION}/${OS}/${ARCH}"
+        if [[ ! -x "$KUBECONFORM_TOOL_DIR/$KUBECONFORM_EXEC_FILE" ]]; then
+          DL_DIR="$(mktemp -dt kubeconform-XXXXXX)"
+          trap 'rm -rf $DL_DIR' EXIT
+
+          echo "Downloading kubeconform ${VERSION} for ${OS}/${ARCH}"
+          KUBECONFORM_TARGET_FILE="kubeconform-${OS}-${ARCH}.tar.gz"
+          if [[ "$OS" == "windows" ]]; then
+            KUBECONFORM_TARGET_FILE="kubeconform-${OS}-${ARCH}.zip"
+          fi
+        
+          KUBECONFORM_CHECKSUMS_FILE="CHECKSUMS"
+
+          KUBECONFORM_DOWNLOAD_URL="https://github.com/yannh/kubeconform/releases/download/${VERSION}/"
+
+          curl -fsSL -o "$DL_DIR/$KUBECONFORM_TARGET_FILE" "$KUBECONFORM_DOWNLOAD_URL/$KUBECONFORM_TARGET_FILE"
+          curl -fsSL -o "$DL_DIR/$KUBECONFORM_CHECKSUMS_FILE" "$KUBECONFORM_DOWNLOAD_URL/$KUBECONFORM_CHECKSUMS_FILE"
+
+          echo "Verifying checksum"
+          sum=$(openssl sha1 -sha256 "$DL_DIR/$KUBECONFORM_TARGET_FILE" | awk '{print $2}')
+          expected_sum=$(grep "$KUBECONFORM_TARGET_FILE" "$DL_DIR/$KUBECONFORM_CHECKSUMS_FILE" | awk '{print $1}')
+          if [ "$sum" != "$expected_sum" ]; then
+            echo "SHA sum of ${KUBECONFORM_TARGET_FILE} does not match. Aborting."
+            exit 1
+          fi
+
+          echo "Installing kubeconform to ${KUBECONFORM_TOOL_DIR}"
+          mkdir -p "$KUBECONFORM_TOOL_DIR"
+        
+          if [[ "$OS" == "windows" ]]; then
+            unzip "$DL_DIR/$KUBECONFORM_TARGET_FILE" "$KUBECONFORM_EXEC_FILE" -d "$KUBECONFORM_TOOL_DIR"
+          else
+            tar xzf "$DL_DIR/$KUBECONFORM_TARGET_FILE" -C "$KUBECONFORM_TOOL_DIR" $KUBECONFORM_EXEC_FILE
+          fi
+
+          chmod +x "$KUBECONFORM_TOOL_DIR/$KUBECONFORM_EXEC_FILE"
+        fi
+
+        echo "Adding kubeconform to path"
+        echo "$KUBECONFORM_TOOL_DIR" >> "$GITHUB_PATH"
+
+    - name: Print installed kubeconform version
+      shell: bash
+      run: |
+        kubeconform -v
