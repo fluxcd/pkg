@@ -25,7 +25,9 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	. "github.com/onsi/gomega"
+	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/fluxcd/pkg/git"
@@ -282,6 +284,29 @@ func Test_transportAuth(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCustomPublicKeys_ClientConfig(t *testing.T) {
+	g := NewWithT(t)
+	pk, err := ssh.NewPublicKeys("user", []byte(privateKeyFixture), "password")
+	g.Expect(err).ToNot(HaveOccurred())
+
+	var count int
+	customCallback := func(hostname string, remote net.Addr, key gossh.PublicKey) error {
+		count += 1
+		return nil
+	}
+	customPK := CustomPublicKeys{
+		pk:       pk,
+		callback: customCallback,
+	}
+	cfg, err := customPK.ClientConfig()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cfg.HostKeyCallback).ToNot(BeNil())
+
+	err = cfg.HostKeyCallback("", nil, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(count).To(Equal(1))
 }
 
 func Test_defaultKnownHosts(t *testing.T) {
