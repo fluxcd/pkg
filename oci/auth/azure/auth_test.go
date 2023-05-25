@@ -78,19 +78,12 @@ func TestGetAzureLoginAuth(t *testing.T) {
 				srv.Close()
 			})
 
-			// Construct an image repo name against the test server.
-			u, err := url.Parse(srv.URL)
-			g.Expect(err).ToNot(HaveOccurred())
-			image := path.Join(u.Host, "foo/bar:v1")
-			ref, err := name.ParseReference(image)
-			g.Expect(err).ToNot(HaveOccurred())
-
 			// Configure new client with test token credential.
 			c := NewClient().
 				WithTokenCredential(tt.tokenCredential).
 				WithScheme("http")
 
-			auth, err := c.getLoginAuth(context.TODO(), ref)
+			auth, err := c.getLoginAuth(context.TODO(), srv.URL)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
 				g.Expect(auth).To(Equal(tt.wantAuthConfig))
@@ -125,6 +118,7 @@ func TestLogin(t *testing.T) {
 		name       string
 		autoLogin  bool
 		statusCode int
+		testOIDC   bool
 		wantErr    bool
 	}{
 		{
@@ -136,12 +130,14 @@ func TestLogin(t *testing.T) {
 		{
 			name:       "with auto login",
 			autoLogin:  true,
+			testOIDC:   true,
 			statusCode: http.StatusOK,
 		},
 		{
 			name:       "login failure",
 			autoLogin:  true,
 			statusCode: http.StatusInternalServerError,
+			testOIDC:   true,
 			wantErr:    true,
 		},
 	}
@@ -171,8 +167,13 @@ func TestLogin(t *testing.T) {
 				WithTokenCredential(&FakeTokenCredential{Token: "foo"}).
 				WithScheme("http")
 
-			_, err = ac.Login(context.TODO(), tt.autoLogin, image, ref)
+			_, err = ac.Login(context.TODO(), tt.autoLogin, u.Host, ref)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+
+			if tt.testOIDC {
+				_, err = ac.OIDCLogin(context.TODO(), srv.URL)
+				g.Expect(err != nil).To(Equal(tt.wantErr))
+			}
 		})
 	}
 }

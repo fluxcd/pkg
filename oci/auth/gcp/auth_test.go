@@ -111,6 +111,7 @@ func TestLogin(t *testing.T) {
 		autoLogin  bool
 		image      string
 		statusCode int
+		testOIDC   bool
 		wantErr    bool
 	}{
 		{
@@ -124,6 +125,7 @@ func TestLogin(t *testing.T) {
 			name:       "with auto login",
 			autoLogin:  true,
 			image:      testValidGCRImage,
+			testOIDC:   true,
 			statusCode: http.StatusOK,
 		},
 		{
@@ -131,6 +133,7 @@ func TestLogin(t *testing.T) {
 			autoLogin:  true,
 			image:      testValidGCRImage,
 			statusCode: http.StatusInternalServerError,
+			testOIDC:   true,
 			wantErr:    true,
 		},
 		{
@@ -161,6 +164,11 @@ func TestLogin(t *testing.T) {
 
 			_, err = gc.Login(context.TODO(), tt.autoLogin, tt.image, ref)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+
+			if tt.testOIDC {
+				_, err = gc.OIDCLogin(context.TODO())
+				g.Expect(err != nil).To(Equal(tt.wantErr))
+			}
 		})
 	}
 }

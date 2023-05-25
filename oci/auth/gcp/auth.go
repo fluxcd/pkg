@@ -117,3 +117,15 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 	}
 	return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }
+
+// OIDCLogin attempts to get the authentication material for GCR from the token url set in the client.
+func (c *Client) OIDCLogin(ctx context.Context) (authn.Authenticator, error) {
+	authConfig, err := c.getLoginAuth(ctx)
+	if err != nil {
+		ctrl.LoggerFrom(ctx).Info("error logging into GCP " + err.Error())
+		return nil, err
+	}
+
+	auth := authn.FromConfig(authConfig)
+	return auth, nil
+}

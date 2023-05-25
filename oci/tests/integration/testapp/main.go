@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -38,8 +39,9 @@ import (
 //   - when the repository contains only the repository name and registry name
 //     is provided separately, e.g. registry: foo.azurecr.io, repo: bar.
 var (
-	registry = flag.String("registry", "", "registry of the repository")
-	repo     = flag.String("repo", "", "repository to list")
+	registry  = flag.String("registry", "", "registry of the repository")
+	repo      = flag.String("repo", "", "repository to list")
+	oidcLogin = flag.Bool("oidc-login", false, "login with OIDCLogin function")
 )
 
 func main() {
@@ -77,7 +79,12 @@ func main() {
 		panic(err)
 	}
 
-	auth, err = login.NewManager().Login(ctx, loginURL, ref, opts)
+	if *oidcLogin {
+		auth, err = login.NewManager().OIDCLogin(ctx, fmt.Sprintf("https://%s", loginURL), opts)
+	} else {
+		auth, err = login.NewManager().Login(ctx, loginURL, ref, opts)
+	}
+
 	if err != nil {
 		panic(err)
 	}

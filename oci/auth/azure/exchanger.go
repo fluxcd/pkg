@@ -47,6 +47,7 @@ package azure
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -95,24 +96,28 @@ func (e *exchanger) ExchangeACRAccessToken(armToken string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to send token exchange request: %w", err)
 	}
+	defer resp.Body.Close()
 
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read the body of the response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		// Parse the error response.
 		var errors []acrError
-		decoder := json.NewDecoder(resp.Body)
-		if err = decoder.Decode(&errors); err == nil {
+		if err = json.Unmarshal(b, &errors); err == nil {
 			return "", fmt.Errorf("unexpected status code %d from exchange request: %s",
 				resp.StatusCode, errors)
 		}
 
 		// Error response could not be parsed, return a generic error.
-		return "", fmt.Errorf("unexpected status code %d from exchange request", resp.StatusCode)
+		return "", fmt.Errorf("unexpected status code %d from exchange request, response body: %s",
+			resp.StatusCode, string(b))
 	}
 
 	var tokenResp tokenResponse
-	decoder := json.NewDecoder(resp.Body)
-	if err = decoder.Decode(&tokenResp); err != nil {
-		return "", fmt.Errorf("failed to decode the response: %w", err)
+	if err = json.Unmarshal(b, &tokenResp); err != nil {
+		return "", fmt.Errorf("failed to decode the response: %w, response body: %s", err, string(b))
 	}
 	return tokenResp.RefreshToken, nil
 }

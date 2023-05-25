@@ -53,6 +53,28 @@ func TestRepositoryRootLoginListTags(t *testing.T) {
 	}
 }
 
+func TestOIDCLoginListTags(t *testing.T) {
+	for name, repo := range testRepos {
+		t.Run(name, func(t *testing.T) {
+			// Registry only.
+			parts := strings.SplitN(repo, "/", 2)
+			args := []string{
+				"-oidc-login=true",
+				fmt.Sprintf("-registry=%s", parts[0]),
+				fmt.Sprintf("-repo=%s", parts[1]),
+			}
+			testImageRepositoryListTags(t, args)
+
+			// Registry + repo.
+			args = []string{
+				"-oidc-login=true",
+				fmt.Sprintf("-repo=%s", repo),
+			}
+			testImageRepositoryListTags(t, args)
+		})
+	}
+}
+
 func testImageRepositoryListTags(t *testing.T, args []string) {
 	g := NewWithT(t)
 	ctx := context.TODO()

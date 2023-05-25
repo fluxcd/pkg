@@ -58,8 +58,9 @@ func (c *Client) WithScheme(scheme string) *Client {
 }
 
 // getLoginAuth returns authentication for ACR. The details needed for authentication
-// are gotten from environment variable so there is not need to mount a host path.
-func (c *Client) getLoginAuth(ctx context.Context, ref name.Reference) (authn.AuthConfig, error) {
+// are gotten from environment variable so there is no need to mount a host path.
+// The endpoint is the registry server and will be queried for OAuth authorization token.
+func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.AuthConfig, error) {
 	var authConfig authn.AuthConfig
 
 	// Use default credentials if no token credential is provided.
@@ -83,8 +84,7 @@ func (c *Client) getLoginAuth(ctx context.Context, ref name.Reference) (authn.Au
 	}
 
 	// Obtain ACR access token using exchanger.
-	endpoint := fmt.Sprintf("%s://%s", c.scheme, ref.Context().RegistryStr())
-	ex := newExchanger(endpoint)
+	ex := newExchanger(registryURL)
 	accessToken, err := ex.ExchangeACRAccessToken(string(armToken.Token))
 	if err != nil {
 		return authConfig, fmt.Errorf("error exchanging token: %w", err)
@@ -114,7 +114,10 @@ func ValidHost(host string) bool {
 func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref name.Reference) (authn.Authenticator, error) {
 	if autoLogin {
 		ctrl.LoggerFrom(ctx).Info("logging in to Azure ACR for " + image)
-		authConfig, err := c.getLoginAuth(ctx, ref)
+		// get registry host from image
+		strArr := strings.SplitN(image, "/", 2)
+		endpoint := fmt.Sprintf("%s://%s", c.scheme, strArr[0])
+		authConfig, err := c.getLoginAuth(ctx, endpoint)
 		if err != nil {
 			ctrl.LoggerFrom(ctx).Info("error logging into ACR " + err.Error())
 			return nil, err
@@ -124,4 +127,19 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 		return auth, nil
 	}
 	return nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
+}
+
+// OIDCLogin attempts to get an Authenticator for the provided ACR registry URL endpoint.
+//
+// If you want to construct an Authenticator based on an image reference,
+// you may want to use Login instead.
+func (c *Client) OIDCLogin(ctx context.Context, registryUrl string) (authn.Authenticator, error) {
+	authConfig, err := c.getLoginAuth(ctx, registryUrl)
+	if err != nil {
+		ctrl.LoggerFrom(ctx).Info("error logging into ACR " + err.Error())
+		return nil, err
+	}
+
+	auth := authn.FromConfig(authConfig)
+	return auth, nil
 }

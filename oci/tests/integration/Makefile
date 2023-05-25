@@ -1,12 +1,14 @@
 GO_TEST_ARGS ?=
 PROVIDER_ARG ?=
 TEST_TIMEOUT ?= 30m
+GOARCH ?= amd64
+GOOS ?= linux
 
 TEST_IMG ?= fluxcd/testapp:test
 
 .PHONY: app
 app:
-	CGO_ENABLED=0 go build -v -o app ./testapp
+	CGO_ENABLED=0 GOARCH=$(GOARCH) GOOS=$(GOOS) go build -v -o app ./testapp
 
 docker-build: app
 	docker buildx build -t $(TEST_IMG) --load .

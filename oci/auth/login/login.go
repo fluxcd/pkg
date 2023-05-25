@@ -18,10 +18,13 @@ package login
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/fluxcd/pkg/oci"
 	"github.com/fluxcd/pkg/oci/auth/aws"
@@ -103,8 +106,8 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 	return m
 }
 
-// Login performs authentication against a registry and returns the
-// authentication material. For generic registry provider, it is no-op.
+// Login performs authentication against a registry and returns the Authenticator.
+// For generic registry provider, it is no-op.
 func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
 	switch ImageRegistryProvider(url, ref) {
 	case oci.ProviderAWS:
@@ -113,6 +116,44 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 		return m.gcr.Login(ctx, opts.GcpAutoLogin, url, ref)
 	case oci.ProviderAzure:
 		return m.acr.Login(ctx, opts.AzureAutoLogin, url, ref)
+	}
+	return nil, nil
+}
+
+// OIDCLogin attempts to get an Authenticator for the provided URL endpoint.
+//
+// If you want to construct an Authenticator based on an image reference,
+// you may want to use Login instead.
+func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts ProviderOptions) (authn.Authenticator, error) {
+	u, err := url.Parse(registryURL)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse registry url: %w", err)
+	}
+
+	provider := ImageRegistryProvider(u.Host, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to set up provider: %w", err)
+	}
+
+	switch provider {
+	case oci.ProviderAWS:
+		if !opts.AwsAutoLogin {
+			return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
+		}
+		ctrl.LoggerFrom(ctx).Info("logging in to AWS ECR for " + u.Host)
+		return m.ecr.OIDCLogin(ctx)
+	case oci.ProviderGCP:
+		if !opts.GcpAutoLogin {
+			return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
+		}
+		ctrl.LoggerFrom(ctx).Info("logging in to GCP GCR for " + u.Host)
+		return m.gcr.OIDCLogin(ctx)
+	case oci.ProviderAzure:
+		if !opts.AzureAutoLogin {
+			return nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
+		}
+		ctrl.LoggerFrom(ctx).Info("logging in to Azure ACR for " + u.Host)
+		return m.acr.OIDCLogin(ctx, fmt.Sprintf("%s://%s", u.Scheme, u.Host))
 	}
 	return nil, nil
 }

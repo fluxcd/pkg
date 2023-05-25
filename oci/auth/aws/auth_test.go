@@ -155,10 +155,13 @@ func TestGetLoginAuth(t *testing.T) {
 			cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 				return aws.Endpoint{URL: srv.URL}, nil
 			})
+			// set the region in the config since we are not using the `LoadDefaultConfig` function that sets the region
+			// by querying the instance metadata service(IMDS)
+			cfg.Region = "us-east-1"
 			cfg.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
 			ec.WithConfig(cfg)
 
-			a, err := ec.getLoginAuth(context.TODO(), "us-east-1")
+			a, err := ec.getLoginAuth(context.TODO())
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
 				g.Expect(a).To(Equal(tt.wantAuthConfig))
@@ -173,6 +176,7 @@ func TestLogin(t *testing.T) {
 		autoLogin  bool
 		image      string
 		statusCode int
+		testOIDC   bool
 		wantErr    bool
 	}{
 		{
@@ -187,19 +191,14 @@ func TestLogin(t *testing.T) {
 			autoLogin:  true,
 			image:      testValidECRImage,
 			statusCode: http.StatusOK,
+			testOIDC:   true,
 		},
 		{
 			name:       "login failure",
 			autoLogin:  true,
 			image:      testValidECRImage,
 			statusCode: http.StatusInternalServerError,
-			wantErr:    true,
-		},
-		{
-			name:       "non ECR image",
-			autoLogin:  true,
-			image:      "gcr.io/foo/bar:v1",
-			statusCode: http.StatusOK,
+			testOIDC:   true,
 			wantErr:    true,
 		},
 	}
@@ -228,6 +227,11 @@ func TestLogin(t *testing.T) {
 
 			_, err := ecrClient.Login(context.TODO(), tt.autoLogin, tt.image)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+
+			if tt.testOIDC {
+				_, err = ecrClient.OIDCLogin(context.TODO())
+				g.Expect(err != nil).To(Equal(tt.wantErr))
+			}
 		})
 	}
 }
