@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -31,12 +32,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/elazarl/goproxy"
 	"github.com/go-git/go-billy/v5/memfs"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	. "github.com/onsi/gomega"
 	cryptossh "golang.org/x/crypto/ssh"
@@ -1125,6 +1128,58 @@ func Test_ssh_HostKeyAlgos(t *testing.T) {
 	}
 }
 
+func TestClone_WithProxy(t *testing.T) {
+	g := NewWithT(t)
+
+	server, err := gittestserver.NewTempGitServer()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(server.Root())
+
+	err = server.StartHTTP()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer server.StopHTTP()
+
+	repoPath := "proxy.git"
+	err = server.InitRepo("../testdata/git/repo", git.DefaultBranch, repoPath)
+	g.Expect(err).ToNot(HaveOccurred())
+	repoURL := server.HTTPAddress() + "/" + repoPath
+
+	proxy := goproxy.NewProxyHttpServer()
+	proxy.Verbose = true
+	var proxiedRequests int32
+	setupHTTPProxy(proxy, &proxiedRequests)
+
+	httpListener, err := net.Listen("tcp", ":0")
+	g.Expect(err).ToNot(HaveOccurred())
+	defer httpListener.Close()
+
+	httpProxyAddr := fmt.Sprintf("http://localhost:%d", httpListener.Addr().(*net.TCPAddr).Port)
+	proxyServer := http.Server{
+		Addr:    httpProxyAddr,
+		Handler: proxy,
+	}
+	go proxyServer.Serve(httpListener)
+	defer proxyServer.Close()
+
+	proxyOpts := transport.ProxyOptions{
+		URL: httpProxyAddr,
+	}
+	authOpts := &git.AuthOptions{
+		Transport: git.HTTP,
+	}
+	ggc, err := NewClient(t.TempDir(), authOpts, WithDiskStorage(), WithProxy(proxyOpts))
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(ggc.proxy.URL).ToNot(BeEmpty())
+
+	_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneConfig{
+		CheckoutStrategy: repository.CheckoutStrategy{
+			Branch: git.DefaultBranch,
+		},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(proxiedRequests).To(BeNumerically(">", 0))
+}
+
 func Test_getRemoteHEAD(t *testing.T) {
 	g := NewWithT(t)
 	repo, path, err := initRepo(t.TempDir())
@@ -1134,7 +1189,10 @@ func Test_getRemoteHEAD(t *testing.T) {
 	cc, err := commitFile(repo, "test", "testing current head branch", time.Now())
 	g.Expect(err).ToNot(HaveOccurred())
 	ref := plumbing.NewBranchReferenceName(git.DefaultBranch)
-	head, err := getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	ggc, err := NewClient("", nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	head, err := ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(head).To(Equal(fmt.Sprintf("refs/heads/%s@%s", git.DefaultBranch, git.Hash(cc.String()).Digest())))
 
@@ -1144,22 +1202,22 @@ func Test_getRemoteHEAD(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	ref = plumbing.NewTagReferenceName("v0.1.0")
-	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	head, err = ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(head).To(Equal(fmt.Sprintf("refs/tags/%s@%s", "v0.1.0", git.Hash(cc.String()).Digest())))
 
 	ref = plumbing.NewTagReferenceName("v0.1.0" + tagDereferenceSuffix)
-	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	head, err = ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(head).To(Equal(fmt.Sprintf("refs/tags/%s@%s", "v0.1.0"+tagDereferenceSuffix, git.Hash(cc.String()).Digest())))
 
 	ref = plumbing.ReferenceName("/refs/heads/main")
-	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	head, err = ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(Equal(fmt.Sprintf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())))
 
 	ref = plumbing.ReferenceName("refs/heads/main/")
-	head, err = getRemoteHEAD(context.TODO(), path, ref, &git.AuthOptions{}, nil)
+	head, err = ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(Equal(fmt.Sprintf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())))
 }
@@ -1517,4 +1575,16 @@ func mockSignature(time time.Time) *object.Signature {
 		Email: "jane@example.com",
 		When:  time,
 	}
+}
+
+func setupHTTPProxy(proxy *goproxy.ProxyHttpServer, proxiedRequests *int32) {
+	var proxyHandler goproxy.FuncReqHandler = func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+		if strings.Contains(req.Host, "127.0.0.1") {
+			*proxiedRequests++
+			return req, nil
+		}
+		// Reject if it isn't our request.
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusForbidden, "")
+	}
+	proxy.OnRequest().Do(proxyHandler)
 }
