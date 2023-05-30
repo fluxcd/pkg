@@ -32,6 +32,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
@@ -55,6 +56,7 @@ type Client struct {
 	credentialsOverHTTP  bool
 	useDefaultKnownHosts bool
 	singleBranch         bool
+	proxy                transport.ProxyOptions
 }
 
 var _ repository.Client = &Client{}
@@ -95,6 +97,8 @@ func NewClient(path string, authOpts *git.AuthOptions, clientOpts ...ClientOptio
 	return g, nil
 }
 
+// WithStorer configures the client to use the provided Storer for
+// storing all Git related objects.
 func WithStorer(s storage.Storer) ClientOption {
 	return func(c *Client) error {
 		c.storer = s
@@ -102,6 +106,8 @@ func WithStorer(s storage.Storer) ClientOption {
 	}
 }
 
+// WithWorkTreeFS configures the client to use the provided filesystem
+// for storing the worktree.
 func WithWorkTreeFS(wt billy.Filesystem) ClientOption {
 	return func(c *Client) error {
 		c.worktreeFS = wt
@@ -128,6 +134,8 @@ func WithSingleBranch(singleBranch bool) ClientOption {
 	}
 }
 
+// WithDiskStorage configures the client to store the worktree and all
+// Git related objects on disk.
 func WithDiskStorage() ClientOption {
 	return func(c *Client) error {
 		wt := fs.New(c.path)
@@ -139,6 +147,8 @@ func WithDiskStorage() ClientOption {
 	}
 }
 
+// WithMemoryStorage configures the client to store the worktree and
+// all Git related objects in memory.
 func WithMemoryStorage() ClientOption {
 	return func(c *Client) error {
 		c.storer = memory.NewStorage()
@@ -161,6 +171,15 @@ func WithInsecureCredentialsOverHTTP() ClientOption {
 func WithFallbackToDefaultKnownHosts() ClientOption {
 	return func(c *Client) error {
 		c.useDefaultKnownHosts = true
+		return nil
+	}
+}
+
+// WithProxy configures the proxy settings to be used for all
+// remote operations.
+func WithProxy(opts transport.ProxyOptions) ClientOption {
+	return func(c *Client) error {
+		c.proxy = opts
 		return nil
 	}
 }

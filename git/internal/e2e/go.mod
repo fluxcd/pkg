@@ -12,10 +12,10 @@ replace (
 )
 
 require (
-	github.com/fluxcd/go-git-providers v0.15.3
+	github.com/fluxcd/go-git-providers v0.16.0
 	github.com/fluxcd/pkg/git v0.12.2
-	github.com/fluxcd/pkg/git/gogit v0.9.0
-	github.com/fluxcd/pkg/gittestserver v0.8.3
+	github.com/fluxcd/pkg/git/gogit v0.11.1
+	github.com/fluxcd/pkg/gittestserver v0.8.4
 	github.com/fluxcd/pkg/ssh v0.7.4
 	github.com/go-git/go-git/v5 v5.7.0
 	github.com/go-logr/logr v1.2.4
@@ -40,7 +40,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
-	github.com/google/go-github/v49 v49.1.0 // indirect
+	github.com/google/go-github/v52 v52.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect

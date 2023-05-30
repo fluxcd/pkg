@@ -52,7 +52,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 	ref := plumbing.NewBranchReferenceName(branch)
 	// check if previous revision has changed before attempting to clone
 	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
-		head, err := getRemoteHEAD(ctx, url, ref, g.authOpts, authMethod)
+		head, err := g.getRemoteHEAD(ctx, url, ref, authMethod)
 		if err != nil {
 			return nil, err
 		}
@@ -84,6 +84,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		Progress:          nil,
 		Tags:              extgogit.NoTags,
 		CABundle:          caBundle(g.authOpts),
+		ProxyOptions:      g.proxy,
 	}
 
 	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
@@ -134,7 +135,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 	ref := plumbing.NewTagReferenceName(tag)
 	// check if previous revision has changed before attempting to clone
 	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
-		head, err := getRemoteHEAD(ctx, url, ref, g.authOpts, authMethod)
+		head, err := g.getRemoteHEAD(ctx, url, ref, authMethod)
 		if err != nil {
 			return nil, err
 		}
@@ -166,6 +167,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		Progress:          nil,
 		Tags:              extgogit.NoTags,
 		CABundle:          caBundle(g.authOpts),
+		ProxyOptions:      g.proxy,
 	}
 
 	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
@@ -206,6 +208,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		Progress:          nil,
 		Tags:              extgogit.NoTags,
 		CABundle:          caBundle(g.authOpts),
+		ProxyOptions:      g.proxy,
 	}
 	if opts.Branch != "" {
 		cloneOpts.SingleBranch = g.singleBranch
@@ -270,6 +273,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 		Progress:          nil,
 		Tags:              extgogit.AllTags,
 		CABundle:          caBundle(g.authOpts),
+		ProxyOptions:      g.proxy,
 	}
 
 	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
@@ -373,7 +377,7 @@ func (g *Client) cloneRefName(ctx context.Context, url string, refName string, c
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
 	}
-	head, err := getRemoteHEAD(ctx, url, plumbing.ReferenceName(refName), g.authOpts, authMethod)
+	head, err := g.getRemoteHEAD(ctx, url, plumbing.ReferenceName(refName), authMethod)
 	if err != nil {
 		return nil, err
 	}
@@ -404,8 +408,8 @@ func recurseSubmodules(recurse bool) extgogit.SubmoduleRescursivity {
 	return extgogit.NoRecurseSubmodules
 }
 
-func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
-	authOpts *git.AuthOptions, authMethod transport.AuthMethod) (string, error) {
+func (g *Client) getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
+	authMethod transport.AuthMethod) (string, error) {
 	// ref: https://git-scm.com/docs/git-check-ref-format#_description; point no. 6
 	if strings.HasPrefix(ref.String(), "/") || strings.HasSuffix(ref.String(), "/") {
 		return "", fmt.Errorf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())
@@ -418,8 +422,9 @@ func getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
 	remote := extgogit.NewRemote(memory.NewStorage(), remoteCfg)
 	listOpts := &extgogit.ListOptions{
 		Auth:          authMethod,
-		CABundle:      authOpts.CAFile,
+		CABundle:      caBundle(g.authOpts),
 		PeelingOption: extgogit.AppendPeeled,
+		ProxyOptions:  g.proxy,
 	}
 	refs, err := remote.ListContext(ctx, listOpts)
 	if err != nil {
