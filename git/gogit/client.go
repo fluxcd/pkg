@@ -32,6 +32,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage"
 	"github.com/go-git/go-git/v5/storage/filesystem"
@@ -41,6 +42,26 @@ import (
 	"github.com/fluxcd/pkg/git/gogit/fs"
 	"github.com/fluxcd/pkg/git/repository"
 )
+
+func init() {
+	// Git servers that exclusively use the v2 wire protocol, such as Azure
+	// Devops and AWS CodeCommit require the capabilities multi_ack
+	// and multi_ack_detailed, which are not fully implemented by go-git.
+	// Hence, by default they are included in transport.UnsupportedCapabilities.
+	//
+	// The initial clone operations require a full download of the repository,
+	// and therefore those unsupported capabilities are not as crucial, so
+	// by removing them from that list allows for the first clone to work
+	// successfully.
+	//
+	// Additional fetches will yield issues, therefore work always from a clean
+	// clone until those capabilities are fully supported.
+	//
+	// New commits and pushes against a remote worked without any issues.
+	transport.UnsupportedCapabilities = []capability.Capability{
+		capability.ThinPack,
+	}
+}
 
 // ClientName is the string representation of Client.
 const ClientName = "go-git"
