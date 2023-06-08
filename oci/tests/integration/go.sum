@@ -87,8 +87,8 @@ github.com/evanphx/json-patch v4.12.0+incompatible h1:4onqiflcdA9EOZ4RxV643DvftH
 github.com/evanphx/json-patch/v5 v5.6.0 h1:b91NhWfaz02IuVxO9faSllyAtNXHMPkC5J8sJCLunww=
 github.com/evanphx/json-patch/v5 v5.6.0/go.mod h1:G79N1coSVB93tBe7j6PhzjmR3/2VvlbKOFpnXhI9Bw4=
 github.com/flowstack/go-jsonschema v0.1.1/go.mod h1:yL7fNggx1o8rm9RlgXv7hTBWxdBM0rVwpMwimd3F3N0=
-github.com/fluxcd/test-infra/tftestenv v0.0.0-20230515143943-6c7866f3cd1a h1:OtQh8K1k+mMszAdVtLwQ1boZy2yCYth6gMxdHwhq0j8=
-github.com/fluxcd/test-infra/tftestenv v0.0.0-20230515143943-6c7866f3cd1a/go.mod h1:qHDD5ySvRIL/+udtxYxWNMWS1OdG7SrjCvO3Ycjs7NE=
+github.com/fluxcd/test-infra/tftestenv v0.0.0-20230531151340-931581bd0a3e h1:71jXb0t9pQAGleqRklVtdW38nXVTZ/KqeLSENnBldNk=
+github.com/fluxcd/test-infra/tftestenv v0.0.0-20230531151340-931581bd0a3e/go.mod h1:liFlLEXgambGVdWSJ4JzbIHf1Vjpp1HwUyPazPIVZug=
 github.com/fsnotify/fsnotify v1.6.0 h1:n+5WquG0fcWoWp6xPWfHdbskMCQaFnG6PfBrh1Ky4HY=
 github.com/fsnotify/fsnotify v1.6.0/go.mod h1:sl3t1tCWJFWoRz9R8WJCbQihKKwmorjAbSClcnxKAGw=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
