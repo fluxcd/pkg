@@ -90,7 +90,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
-			if err := m.client.Delete(ctx, existingObject); err != nil {
+			if err := m.client.Delete(ctx, existingObject); err != nil && !errors.IsNotFound(err) {
 				return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
 					FmtUnstructured(dryRunObject), err)
 			}
@@ -144,7 +144,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 			// on the cluster. Note that resource might not exist because we wrongly identified an error as immutable and deleted
 			// it when ApplyAll was called the last time (the check for ImmutableError returns false positives)
 			if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
-				if err := m.client.Delete(ctx, existingObject); err != nil {
+				if err := m.client.Delete(ctx, existingObject); err != nil && !errors.IsNotFound(err) {
 					return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
 						FmtUnstructured(dryRunObject), err)
 				}
