@@ -6,7 +6,7 @@ replace github.com/fluxcd/pkg/oci => ../../
 
 require (
 	github.com/fluxcd/pkg/oci v0.24.0
-	github.com/fluxcd/test-infra/tftestenv v0.0.0-20230515143943-6c7866f3cd1a
+	github.com/fluxcd/test-infra/tftestenv v0.0.0-20230531151340-931581bd0a3e
 	github.com/google/go-containerregistry v0.15.2
 	github.com/hashicorp/terraform-json v0.16.0
 	github.com/onsi/gomega v1.27.7
