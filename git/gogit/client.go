@@ -408,7 +408,7 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 		refspecs = append(refspecs, headRefspec)
 	}
 
-	return g.repository.PushContext(ctx, &extgogit.PushOptions{
+	err = g.repository.PushContext(ctx, &extgogit.PushOptions{
 		RefSpecs:   refspecs,
 		Force:      cfg.Force,
 		RemoteName: extgogit.DefaultRemoteName,
@@ -416,6 +416,7 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 		Progress:   nil,
 		CABundle:   caBundle(g.authOpts),
 	})
+	return goGitError(err)
 }
 
 // SwitchBranch switches the current branch to the given branch name.
