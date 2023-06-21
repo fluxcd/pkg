@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/v1/types"
@@ -41,11 +42,14 @@ func Test_Push_Pull(t *testing.T) {
 	source := "github.com/fluxcd/flux2"
 	revision := "rev"
 	repo := "test-push" + randStringRunes(5)
+	ct := time.Now().UTC()
+	created := ct.Format(time.RFC3339)
 
 	url := fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag)
 	metadata := Metadata{
 		Source:   source,
 		Revision: revision,
+		Created:  created,
 		Annotations: map[string]string{
 			"org.opencontainers.image.documentation": "https://my/readme.md",
 			"org.opencontainers.image.licenses":      "Apache-2.0",
@@ -71,7 +75,7 @@ func Test_Push_Pull(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Verify that annotations exist in manifest
-	g.Expect(manifest.Annotations[oci.CreatedAnnotation]).ToNot(BeEmpty())
+	g.Expect(manifest.Annotations[oci.CreatedAnnotation]).To(BeEquivalentTo(created))
 	g.Expect(manifest.Annotations[oci.SourceAnnotation]).To(BeEquivalentTo(source))
 	g.Expect(manifest.Annotations[oci.RevisionAnnotation]).To(BeEquivalentTo(revision))
 

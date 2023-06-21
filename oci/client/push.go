@@ -54,8 +54,10 @@ func (c *Client) Push(ctx context.Context, url, sourceDir string, meta Metadata,
 		return "", err
 	}
 
-	ct := time.Now().UTC()
-	meta.Created = ct.Format(time.RFC3339)
+	if meta.Created == "" {
+		ct := time.Now().UTC()
+		meta.Created = ct.Format(time.RFC3339)
+	}
 
 	img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
 	img = mutate.ConfigMediaType(img, oci.CanonicalConfigMediaType)
