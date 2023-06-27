@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/git
 
-go 1.19
+go 1.20
 
 require (
 	// github.com/ProtonMail/go-crypto is a fork of golang.org/x/crypto

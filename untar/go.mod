@@ -1,7 +1,7 @@
 // Deprecated: use github.com/fluxcd/pkg/tar instead.
 module github.com/fluxcd/pkg/untar
 
-go 1.18
+go 1.20
 
 require github.com/fluxcd/pkg/tar v0.2.0
 

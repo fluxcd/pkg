@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/kustomize
 
-go 1.18
+go 1.20
 
 replace github.com/fluxcd/pkg/apis/kustomize => ../apis/kustomize
 
