@@ -290,6 +290,16 @@ func TestClone_cloneTag(t *testing.T) {
 				return
 			}
 
+			// Check if commit has a parent if the tag was annotated.
+			for _, tagInRepo := range tt.tagsInRepo {
+				if tagInRepo.annotated {
+					g.Expect(cc.ReferencingTag).ToNot(BeNil())
+					g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tagInRepo.name)))
+				} else {
+					g.Expect(cc.ReferencingTag).To(BeNil())
+				}
+			}
+
 			// Check successful checkout results.
 			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectConcreteCommit))
 			targetTagHash := tagCommits[tt.checkoutTag]

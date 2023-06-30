@@ -165,9 +165,10 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		Depth:             depth,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
-		Tags:              extgogit.NoTags,
-		CABundle:          caBundle(g.authOpts),
-		ProxyOptions:      g.proxy,
+		// Ask for the tag object that points to the commit to be sent as well.
+		Tags:         extgogit.TagFollowing,
+		CABundle:     caBundle(g.authOpts),
+		ProxyOptions: g.proxy,
 	}
 
 	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
@@ -189,8 +190,39 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
 	}
+	commit, err := buildCommitWithRef(cc, ref)
+	if err != nil {
+		return nil, err
+	}
+
+	tagRef, err := repo.Tag(tag)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find reference for tag '%s': %w", tag, err)
+	}
+
+	annotated := true
+	tagObj, err := repo.TagObject(tagRef.Hash())
+	if err != nil {
+		// If the tag ref exists but a tag object for the ref does not exist,
+		// treat the tag as a lightweight tag.
+		if err == plumbing.ErrObjectNotFound {
+			annotated = false
+		} else {
+			return nil, fmt.Errorf("unable to resolve tag object for tag '%s' with hash '%s': %w", tag, tagRef.Hash(), err)
+		}
+	}
+	// The commit is considered to have a parent only if the tag is annotated,
+	// as lightweight tags are essentially named pointers.
+	if annotated {
+		annotatedTag, err := buildTag(tagObj)
+		if err != nil {
+			return nil, err
+		}
+		commit.ReferencingTag = annotatedTag
+	}
+
 	g.repository = repo
-	return buildCommitWithRef(cc, ref)
+	return commit, nil
 }
 
 func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -486,6 +518,34 @@ func buildSignature(s object.Signature) git.Signature {
 		Email: s.Email,
 		When:  s.When,
 	}
+}
+
+func buildTag(t *object.Tag) (*git.AnnotatedTag, error) {
+	if t == nil {
+		return nil, fmt.Errorf("unable to contruct tag: no object")
+	}
+
+	encoded := &plumbing.MemoryObject{}
+	if err := t.EncodeWithoutSignature(encoded); err != nil {
+		return nil, fmt.Errorf("unable to encode tag '%s': %w", t.Name, err)
+	}
+	reader, err := encoded.Reader()
+	if err != nil {
+		return nil, fmt.Errorf("unable to encode tag '%s': %w", t.Name, err)
+	}
+	b, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read encoded tag '%s': %w", t.Name, err)
+	}
+
+	return &git.AnnotatedTag{
+		Hash:      []byte(t.Hash.String()),
+		Name:      t.Name,
+		Author:    buildSignature(t.Tagger),
+		Signature: t.PGPSignature,
+		Encoded:   b,
+		Message:   t.Message,
+	}, nil
 }
 
 func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Commit, error) {
