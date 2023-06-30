@@ -16,12 +16,21 @@ limitations under the License.
 
 package controller
 
-import "github.com/spf13/pflag"
+import (
+	"fmt"
+	"net/url"
 
-const flagInsecureAllowHTTP = "insecure-allow-http"
+	"github.com/spf13/pflag"
+	"golang.org/x/net/http/httpproxy"
+)
+
+const (
+	flagInsecureAllowHTTP = "insecure-allow-http"
+)
 
 // ConnectionOptions defines the configurable options for outbound connections
-// opened by reconcilers.
+// opened by reconcilers. Consumers are expected to check for compatibility via
+// `CheckEnvironmentCompatibility()` before using its values.
 type ConnectionOptions struct {
 	// AllowHTTP, if set to true allows the controller to make plain HTTP
 	// connections to external services.
@@ -33,4 +42,27 @@ type ConnectionOptions struct {
 func (o *ConnectionOptions) BindFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&o.AllowHTTP, flagInsecureAllowHTTP, true,
 		"Allow the controller to make HTTP requests to external services like insecure Git servers, container registries, etc.")
+}
+
+// CheckEnvironmentCompatibility checks if the enviornment is compatible with
+// the configured connection options.
+func (o *ConnectionOptions) CheckEnvironmentCompatibility() error {
+	if !o.AllowHTTP {
+		config := httpproxy.FromEnvironment()
+		if config.HTTPProxy != "" {
+			return fmt.Errorf("usage of HTTP requests is blocked but found a HTTP proxy set in enviornment")
+		}
+
+		if config.HTTPSProxy != "" {
+			proxy, err := url.Parse(config.HTTPSProxy)
+			if err != nil {
+				return fmt.Errorf("unable to parse address specified in the HTTPS proxy enviornment setting: %w", err)
+			}
+
+			if proxy.Scheme != "https" {
+				return fmt.Errorf("usage of HTTP requests is blocked but found a non-https address in the HTTPS proxy enviornment setting")
+			}
+		}
+	}
+	return nil
 }
