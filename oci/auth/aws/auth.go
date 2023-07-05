@@ -27,7 +27,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -79,7 +78,7 @@ func (c *Client) WithConfig(cfg *aws.Config) {
 // be the case if it's running in EKS, and may need additional setup
 // otherwise (visit https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
 // as a starting point).
-func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, error) {
+func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.AuthConfig, error) {
 	// No caching of tokens is attempted; the quota for getting an
 	// auth token is high enough that getting a token every time you
 	// scan an image is viable for O(500) images per region. See
@@ -92,19 +91,10 @@ func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, error) {
 		cfg = c.config.Copy()
 	} else {
 		var err error
-		cfg, err = config.LoadDefaultConfig(ctx)
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(awsEcrRegion))
 		if err != nil {
 			c.mu.Unlock()
 			return authConfig, fmt.Errorf("failed to load default configuration: %w", err)
-		}
-		// Query the current region from IMDS if it's not set yet.
-		if cfg.Region == "" {
-			client := imds.NewFromConfig(cfg)
-			resp, err := client.GetRegion(ctx, &imds.GetRegionInput{})
-			if err != nil {
-				return authConfig, err
-			}
-			cfg.Region = resp.Region
 		}
 		c.config = &cfg
 	}
@@ -146,7 +136,12 @@ func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, error) {
 func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn.Authenticator, error) {
 	if autoLogin {
 		ctrl.LoggerFrom(ctx).Info("logging in to AWS ECR for " + image)
-		authConfig, err := c.getLoginAuth(ctx)
+		_, awsEcrRegion, ok := ParseRegistry(image)
+		if !ok {
+			return nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
+		}
+
+		authConfig, err := c.getLoginAuth(ctx, awsEcrRegion)
 		if err != nil {
 			return nil, err
 		}
@@ -158,8 +153,13 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn
 }
 
 // OIDCLogin attempts to get the authentication material for ECR.
-func (c *Client) OIDCLogin(ctx context.Context) (authn.Authenticator, error) {
-	authConfig, err := c.getLoginAuth(ctx)
+func (c *Client) OIDCLogin(ctx context.Context, registryURL string) (authn.Authenticator, error) {
+	_, awsEcrRegion, ok := ParseRegistry(registryURL)
+	if !ok {
+		return nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
+	}
+
+	authConfig, err := c.getLoginAuth(ctx, awsEcrRegion)
 	if err != nil {
 		return nil, err
 	}
