@@ -42,6 +42,10 @@ spec:
             - name: grpc
               containerPort: 9999
               #protocol: TCP
+            - containerPort: 9125
+              protocol: UDP
+            - containerPort: 9125
+              protocol: TCP
           command:
             - ./podinfo
             - --port=9898
