@@ -323,6 +323,20 @@ func TestApply_SetNativeKindsDefaults(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+
+	// re-apply objects
+	changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// verify that the change set contains no changed objects
+	for _, entry := range changeSet.Entries {
+		if diff := cmp.Diff(UnchangedAction, entry.Action); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+	}
+
 }
 
 func TestApply_NoOp(t *testing.T) {
