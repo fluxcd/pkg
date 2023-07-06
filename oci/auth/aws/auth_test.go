@@ -157,11 +157,10 @@ func TestGetLoginAuth(t *testing.T) {
 			})
 			// set the region in the config since we are not using the `LoadDefaultConfig` function that sets the region
 			// by querying the instance metadata service(IMDS)
-			cfg.Region = "us-east-1"
 			cfg.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
 			ec.WithConfig(cfg)
 
-			a, err := ec.getLoginAuth(context.TODO())
+			a, err := ec.getLoginAuth(context.TODO(), "us-east-1")
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
 				g.Expect(a).To(Equal(tt.wantAuthConfig))
@@ -229,7 +228,7 @@ func TestLogin(t *testing.T) {
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 
 			if tt.testOIDC {
-				_, err = ecrClient.OIDCLogin(context.TODO())
+				_, err = ecrClient.OIDCLogin(context.TODO(), tt.image)
 				g.Expect(err != nil).To(Equal(tt.wantErr))
 			}
 		})

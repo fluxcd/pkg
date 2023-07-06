@@ -141,7 +141,7 @@ func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts Provid
 			return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
 		ctrl.LoggerFrom(ctx).Info("logging in to AWS ECR for " + u.Host)
-		return m.ecr.OIDCLogin(ctx)
+		return m.ecr.OIDCLogin(ctx, u.Host)
 	case oci.ProviderGCP:
 		if !opts.GcpAutoLogin {
 			return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
