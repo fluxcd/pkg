@@ -19,8 +19,17 @@ output "region" {
   value = module.eks.region
 }
 
+output "cross_region" {
+  value = var.cross_region
+}
+
+
 output "ecr_repository_url" {
   value = module.test_ecr.repository_url
+}
+
+output "ecr_cross_region_repository_url" {
+  value = module.test_ecr_cross_reg.repository_url
 }
 
 output "ecr_registry_id" {
