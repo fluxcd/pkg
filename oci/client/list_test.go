@@ -35,7 +35,18 @@ func Test_List(t *testing.T) {
 	ctx := context.Background()
 	c := NewClient(DefaultOptions())
 	repo := "test-list" + randStringRunes(5)
-	tags := []string{"v0.0.1", "v0.0.2", "v0.0.3", "v6.0.0", "v6.0.1", "v6.0.2", "v6.0.2-rc.1", "v6.0.2-alpha", "staging-fb3355b"}
+	appTags := []string{
+		"v0.0.1", "v0.0.2", "v0.0.3", "v6.0.0", "v6.0.1", "v6.0.2", "v6.0.2-rc.1", "v6.0.2-alpha",
+		"staging-fb3355b",
+	}
+	cosignTags := []string{
+		"sha256-e2688bb75ee43df49c9bfb2aa30dd98173649db53955e87c347024ba71bc1c80.sig",
+		"sha256-e2688bb75ee43df49c9bfb2aa30dd98173649db53955e87c347024ba71bc1c80.sbom",
+		"sha256-e2688bb75ee43df49c9bfb2aa30dd98173649db53955e87c347024ba71bc1c80.att",
+	}
+	allTags := append([]string{}, cosignTags...)
+	allTags = append(allTags, appTags...)
+
 	source := "github.com/fluxcd/fluxv2"
 	rev := "rev"
 	ct := time.Now()
@@ -45,7 +56,7 @@ func Test_List(t *testing.T) {
 		Created:  ct.Format(time.RFC3339),
 	}
 
-	for _, tag := range tags {
+	for _, tag := range allTags {
 		dst := fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag)
 		img, err := random.Image(1024, 1)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -55,14 +66,20 @@ func Test_List(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		regexFilter  string
-		semverFilter string
-		expectedTags []string
+		name                   string
+		regexFilter            string
+		semverFilter           string
+		expectedTags           []string
+		includeCosignArtifacts bool
 	}{
 		{
-			name:         "list all tags",
-			expectedTags: tags,
+			name:         "list all app tags",
+			expectedTags: appTags,
+		},
+		{
+			name:                   "list all tags (including cosign)",
+			includeCosignArtifacts: true,
+			expectedTags:           allTags,
 		},
 		{
 			name:         "list 6.0.x tags",
@@ -80,14 +97,33 @@ func Test_List(t *testing.T) {
 			regexFilter:  "alpha",
 			expectedTags: []string{"v6.0.2-alpha"},
 		},
+		{
+			name:                   "list cosign tags",
+			regexFilter:            "sha256-.*..*",
+			includeCosignArtifacts: true,
+			expectedTags: []string{
+				"sha256-e2688bb75ee43df49c9bfb2aa30dd98173649db53955e87c347024ba71bc1c80.sig",
+				"sha256-e2688bb75ee43df49c9bfb2aa30dd98173649db53955e87c347024ba71bc1c80.sbom",
+				"sha256-e2688bb75ee43df49c9bfb2aa30dd98173649db53955e87c347024ba71bc1c80.att",
+			},
+		},
+		{
+			name:                   "list cosign signature",
+			regexFilter:            "sha256-.*.sig",
+			includeCosignArtifacts: true,
+			expectedTags: []string{
+				"sha256-e2688bb75ee43df49c9bfb2aa30dd98173649db53955e87c347024ba71bc1c80.sig",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			metadata, err := c.List(ctx, fmt.Sprintf("%s/%s", dockerReg, repo), ListOptions{
-				SemverFilter: tt.semverFilter,
-				RegexFilter:  tt.regexFilter,
+				SemverFilter:           tt.semverFilter,
+				RegexFilter:            tt.regexFilter,
+				IncludeCosignArtifacts: tt.includeCosignArtifacts,
 			})
 			g.Expect(err).ToNot(HaveOccurred())
 

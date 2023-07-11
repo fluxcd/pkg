@@ -37,6 +37,9 @@ type ListOptions struct {
 	SemverFilter string
 	// RegexFilter contains a regex that tags will be filtered by.
 	RegexFilter string
+	// IncludeCosignArtifacts can be used to include cosign attestation,
+	// signature and SBOM tags in the list, as these are excluded by default.
+	IncludeCosignArtifacts bool
 }
 
 // List fetches the tags and their manifests for a given OCI repository.
@@ -66,8 +69,8 @@ func (c *Client) List(ctx context.Context, url string, opts ListOptions) ([]Meta
 	}
 
 	for _, tag := range tags {
-		// exclude cosign signatures
-		if strings.HasSuffix(tag, ".sig") {
+		// ignore cosign artifacts by default
+		if !opts.IncludeCosignArtifacts && IsCosignArtifact(tag) {
 			continue
 		}
 
@@ -117,4 +120,16 @@ func (c *Client) List(ctx context.Context, url string, opts ListOptions) ([]Meta
 	}
 
 	return metas, nil
+}
+
+// IsCosignArtifact will return true if the tag has one of the following suffices:
+// ".att", ".sbom", or ".sig". These are the suffices used by cosign to store the
+// attestations, SBOMs, and signatures respectively.
+func IsCosignArtifact(tag string) bool {
+	for _, suffix := range []string{".att", ".sbom", ".sig"} {
+		if strings.HasSuffix(tag, suffix) {
+			return true
+		}
+	}
+	return false
 }
