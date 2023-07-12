@@ -52,6 +52,14 @@ func registryLoginECR(ctx context.Context, output map[string]*tfjson.StateOutput
 	}
 	testRepos["ecr"] = testRepoURL
 
+	// test the cross-region repository
+	cross_region := output["cross_region"].Value.(string)
+	testCrossRepo := output["ecr_cross_region_repository_url"].Value.(string)
+	if err := tftestenv.RegistryLoginECR(ctx, cross_region, testCrossRepo); err != nil {
+		return nil, err
+	}
+	testRepos["ecr_cross_region"] = testCrossRepo
+
 	// Log into the test app repository to be able to push to it.
 	// This image is not used in testing and need not be included in
 	// testRepos.
