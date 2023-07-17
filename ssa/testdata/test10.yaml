@@ -1,0 +1,52 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "%[1]s"
+---
+apiVersion: v1
+data:
+  foo: bar
+kind: ConfigMap
+metadata:
+  labels:
+  name: "%[1]s"
+  namespace: "%[1]s"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: "%[1]s"
+  name: "%[1]s"
+  namespace: "%[1]s"
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 60
+  selector:
+    matchLabels:
+      app: podinfo
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: podinfo
+    spec:
+      containers:
+        - image: nginxx
+          name: nginx
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "%[1]s"
+  namespace: "%[1]s"
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
