@@ -43,6 +43,9 @@ type WaitOptions struct {
 	// Timeout defines after which interval should the engine give up on waiting for resources
 	// to become ready.
 	Timeout time.Duration
+
+	// FailFast makes the Wait function return an error as soon as a resource reaches the failed state.
+	FailFast bool
 }
 
 // DefaultWaitOptions returns the default wait options where the poll interval is set to
@@ -77,10 +80,12 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 	eventsChan := m.poller.Poll(ctx, set, pollingOpts)
 
 	lastStatus := make(map[object.ObjMetadata]*event.ResourceStatus)
+	var failedResources int
 
 	done := statusCollector.ListenWithObserver(eventsChan, collector.ObserverFunc(
 		func(statusCollector *collector.ResourceStatusCollector, e event.Event) {
 			var rss []*event.ResourceStatus
+			var countFailed int
 			for _, rs := range statusCollector.ResourceStatuses {
 				if rs == nil {
 					continue
@@ -91,12 +96,17 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 				if rs.Error != context.DeadlineExceeded {
 					lastStatus[rs.Identifier] = rs
 				}
+
+				if rs.Status == status.FailedStatus {
+					countFailed++
+				}
 				rss = append(rss, rs)
 			}
+			failedResources = countFailed
 
 			desired := status.CurrentStatus
 			aggStatus := aggregator.AggregateStatus(rss, desired)
-			if aggStatus == desired {
+			if aggStatus == desired || (opts.FailFast && countFailed > 0) {
 				cancel()
 				return
 			}
@@ -109,7 +119,12 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 		return statusCollector.Error
 	}
 
-	if ctx.Err() == context.DeadlineExceeded {
+	if ctx.Err() == context.DeadlineExceeded || (opts.FailFast && failedResources > 0) {
+		msg := "failed early due to stalled resources"
+		if ctx.Err() == context.DeadlineExceeded {
+			msg = "timeout waiting for"
+		}
+
 		var errors = []string{}
 		for id, rs := range statusCollector.ResourceStatuses {
 			if rs == nil {
@@ -129,7 +144,7 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 				errors = append(errors, builder.String())
 			}
 		}
-		return fmt.Errorf("timeout waiting for: [%s]", strings.Join(errors, ", "))
+		return fmt.Errorf("%s: [%s]", msg, strings.Join(errors, ", "))
 	}
 
 	return nil
