@@ -239,3 +239,35 @@ stringData:
 		})
 	}
 }
+
+func TestIsImmutableError(t *testing.T) {
+	testCases := []struct {
+		name  string
+		err   error
+		match bool
+	}{
+		{
+			name:  "CEL immutable error",
+			err:   fmt.Errorf(`the ImmutableSinceFirstWrite "test1" is invalid: value: Invalid value: "string": Value is immutable`),
+			match: true,
+		},
+		{
+			name:  "Custom admission immutable error",
+			err:   fmt.Errorf(`the IAMPolicyMember's spec is immutable: admission webhook "deny-immutable-field-updates.cnrm.cloud.google.com" denied the request: the IAMPolicyMember's spec is immutable`),
+			match: true,
+		},
+		{
+			name:  "Not immutable error",
+			err:   fmt.Errorf(`is not immutable`),
+			match: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			g.Expect(IsImmutableError(tc.err)).To(BeIdenticalTo(tc.match))
+		})
+	}
+}

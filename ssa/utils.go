@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
@@ -284,6 +285,8 @@ func IsKustomization(object *unstructured.Unstructured) bool {
 	return false
 }
 
+var matchImmutableFieldErr = regexp.MustCompile(`.*is\simmutable.*`)
+
 // IsImmutableError checks if the given error is an immutable error.
 func IsImmutableError(err error) bool {
 	// Detect immutability like kubectl does
@@ -291,6 +294,13 @@ func IsImmutableError(err error) bool {
 	if errors.IsConflict(err) || errors.IsInvalid(err) {
 		return true
 	}
+
+	// Detect immutable errors returned by custom admission webhooks and Kubernetes CEL
+	// https://kubernetes.io/blog/2022/09/29/enforce-immutability-using-cel/#immutablility-after-first-modification
+	if matchImmutableFieldErr.MatchString(err.Error()) {
+		return true
+	}
+
 	return false
 }
 
