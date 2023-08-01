@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -165,7 +166,31 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 								FmtUnstructured(dryRunObject), err)
 						}
 
-						// retry dry run
+						// 1s, 2s, 4, 8, 16, 32, 1m, 1m, 1m, 1m, 1m, 1m, 1m, 1m, 1m
+						backoff := wait.Backoff{
+							Duration: 1 * time.Second,
+							Factor:   2,
+							Steps:    15,
+							Cap:      1 * time.Minute,
+						}
+
+						// wait until deleted (in case of any finalizers)
+						err = wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
+							err := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
+							switch {
+							case err == nil:
+								return false, nil // object still exists
+							case errors.IsNotFound(err):
+								return true, nil // done
+							default:
+								return false, err // other error
+							}
+						})
+						if err != nil {
+							return fmt.Errorf("%s immutable field detected, failed to wait for object to be deleted: %w",
+								FmtUnstructured(dryRunObject), err)
+						}
+
 						err = m.dryRunApply(ctx, dryRunObject)
 					}
 
