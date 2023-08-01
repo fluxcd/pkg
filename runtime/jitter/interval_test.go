@@ -17,16 +17,16 @@ limitations under the License.
 package jitter
 
 import (
-	"github.com/spf13/pflag"
 	"math/rand"
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
+	"github.com/spf13/pflag"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-func TestRequeueAfterResult(t *testing.T) {
+func TestJitteredRequeueInterval(t *testing.T) {
 	r := rand.New(rand.NewSource(int64(12345)))
 	p := 0.2
 	SetGlobalIntervalJitter(p, r)
@@ -50,21 +50,20 @@ func TestRequeueAfterResult(t *testing.T) {
 				upperBound := float64(tt.res.RequeueAfter) * (1 + p)
 
 				for i := 0; i < 100; i++ {
-					res := RequeueAfterResult(tt.res)
+					res := JitteredRequeueInterval(tt.res)
 
 					g.Expect(res.RequeueAfter).To(BeNumerically(">=", lowerBound))
 					g.Expect(res.RequeueAfter).To(BeNumerically("<=", upperBound))
 					g.Expect(res.RequeueAfter).ToNot(Equal(tt.res.RequeueAfter))
 				}
 			} else {
-				res := RequeueAfterResult(tt.res)
-				g.Expect(res).To(Equal(tt.res))
+				g.Expect(JitteredRequeueInterval(tt.res)).To(Equal(tt.res))
 			}
 		})
 	}
 }
 
-func TestIntervalDuration(t *testing.T) {
+func TestJitteredIntervalDuration(t *testing.T) {
 	g := NewWithT(t)
 
 	r := rand.New(rand.NewSource(int64(12345)))
@@ -76,7 +75,7 @@ func TestIntervalDuration(t *testing.T) {
 	upperBound := float64(interval) * (1 + p)
 
 	for i := 0; i < 100; i++ {
-		d := IntervalDuration(interval)
+		d := JitteredIntervalDuration(interval)
 
 		g.Expect(d).To(BeNumerically(">=", lowerBound))
 		g.Expect(d).To(BeNumerically("<=", upperBound))
@@ -84,10 +83,10 @@ func TestIntervalDuration(t *testing.T) {
 	}
 }
 
-func TestInterval_BindFlags(t *testing.T) {
+func TestIntervalOptions_BindFlags(t *testing.T) {
 	g := NewWithT(t)
 
-	interval := &Interval{}
+	interval := &IntervalOptions{}
 
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	interval.BindFlags(fs)
@@ -95,11 +94,11 @@ func TestInterval_BindFlags(t *testing.T) {
 	g.Expect(interval.Percentage).To(Equal(uint8(defaultIntervalJitterPercentage)))
 }
 
-func TestInterval_BindFlagsWithDefault(t *testing.T) {
+func TestIntervalOptions_BindFlagsWithDefault(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("with default fallback", func(t *testing.T) {
-		interval := &Interval{}
+		interval := &IntervalOptions{}
 
 		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 		interval.BindFlagsWithDefault(fs, -1)
@@ -108,7 +107,7 @@ func TestInterval_BindFlagsWithDefault(t *testing.T) {
 	})
 
 	t.Run("with custom default", func(t *testing.T) {
-		interval := &Interval{}
+		interval := &IntervalOptions{}
 
 		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 		interval.BindFlagsWithDefault(fs, 50)
@@ -117,7 +116,7 @@ func TestInterval_BindFlagsWithDefault(t *testing.T) {
 	})
 
 	t.Run("with flag override", func(t *testing.T) {
-		interval := &Interval{}
+		interval := &IntervalOptions{}
 
 		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 		interval.BindFlagsWithDefault(fs, 0)
@@ -128,11 +127,11 @@ func TestInterval_BindFlagsWithDefault(t *testing.T) {
 	})
 }
 
-func TestInterval_SetGlobalJitter(t *testing.T) {
+func TestIntervalOptions_SetGlobalJitter(t *testing.T) {
 	t.Run("invalid percentage >=100", func(t *testing.T) {
 		g := NewWithT(t)
 
-		interval := &Interval{Percentage: uint8(100)}
+		interval := &IntervalOptions{Percentage: uint8(100)}
 		err := interval.SetGlobalJitter(nil)
 		g.Expect(err).To(MatchError(errInvalidIntervalJitter))
 	})

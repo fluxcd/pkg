@@ -18,11 +18,11 @@ package jitter
 
 import (
 	"errors"
-	"github.com/spf13/pflag"
 	"math/rand"
 	"sync"
 	"time"
 
+	"github.com/spf13/pflag"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -46,33 +46,32 @@ func SetGlobalIntervalJitter(p float64, rand *rand.Rand) {
 	})
 }
 
-// RequeueAfterResult returns a result with a requeue-after interval that has
+// JitteredRequeueInterval returns a result with a requeue-after interval that has
 // been jittered. It will not modify the result if it is zero or is marked
 // to requeue immediately.
 //
 // To use this function, you must first initialize the global jitter with
 // SetGlobalIntervalJitter.
-func RequeueAfterResult(res ctrl.Result) ctrl.Result {
-	if res.IsZero() || res.Requeue == true {
-		return res
-	}
-	if after := res.RequeueAfter; after > 0 {
-		res.RequeueAfter = globalIntervalJitter(after)
+func JitteredRequeueInterval(res ctrl.Result) ctrl.Result {
+	if !res.IsZero() && res.RequeueAfter > 0 {
+		res.RequeueAfter = globalIntervalJitter(res.RequeueAfter)
 	}
 	return res
 }
 
-// IntervalDuration returns a jittered duration based on the given interval.
+// JitteredIntervalDuration returns a jittered duration based on the given
+// duration.
 //
 // To use this function, you must first initialize the global jitter with
 // SetGlobalIntervalJitter.
-func IntervalDuration(d time.Duration) time.Duration {
+func JitteredIntervalDuration(d time.Duration) time.Duration {
 	return globalIntervalJitter(d)
 }
 
-// Interval is used to configure the interval jitter for a controller using
-// command line flags. To use it, create an Interval and call BindFlags, then
-// call SetGlobalJitter with a rand.Rand (or nil to use the default).
+// IntervalOptions is used to configure the interval jitter for a controller
+// using command line flags. To use it, create an IntervalOptions and call
+// BindFlags, then call SetGlobalJitter with a rand.Rand (or nil to use the
+// default).
 //
 // Applying jitter to the interval duration can be useful to mitigate spikes in
 // memory and CPU usage caused by many resources being configured with the same
@@ -95,7 +94,7 @@ func IntervalDuration(d time.Duration) time.Duration {
 // distribution also translates into benefits for the Go garbage collector.
 // Notably, the garbage collector experiences reduced GC bursts and more
 // frequent collections, leading to improved overall performance.
-type Interval struct {
+type IntervalOptions struct {
 	// Percentage of jitter to apply to interval durations. A value of 10
 	// will apply a jitter of +/-10% to the interval duration. It can not be negative,
 	// and must be less than 100.
@@ -104,7 +103,7 @@ type Interval struct {
 
 // BindFlags will parse the given pflag.FlagSet and load the interval jitter
 // with the default value of 10%.
-func (o *Interval) BindFlags(fs *pflag.FlagSet) {
+func (o *IntervalOptions) BindFlags(fs *pflag.FlagSet) {
 	o.BindFlagsWithDefault(fs, -1)
 }
 
@@ -112,7 +111,7 @@ func (o *Interval) BindFlags(fs *pflag.FlagSet) {
 // jitter. The defaultPercentage is used to set the default value for the
 // interval jitter percentage. If the defaultPercentage is negative, then the
 // default value (of 10%) will be used.
-func (o *Interval) BindFlagsWithDefault(fs *pflag.FlagSet, defaultPercentage int) {
+func (o *IntervalOptions) BindFlagsWithDefault(fs *pflag.FlagSet, defaultPercentage int) {
 	if defaultPercentage < 0 {
 		defaultPercentage = defaultIntervalJitterPercentage
 	}
@@ -124,7 +123,7 @@ func (o *Interval) BindFlagsWithDefault(fs *pflag.FlagSet, defaultPercentage int
 
 // SetGlobalJitter sets the global interval jitter. It is safe to call this
 // method multiple times, but only the first call will have an effect.
-func (o *Interval) SetGlobalJitter(rand *rand.Rand) error {
+func (o *IntervalOptions) SetGlobalJitter(rand *rand.Rand) error {
 	if o.Percentage >= 100 {
 		return errInvalidIntervalJitter
 	}

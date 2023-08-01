@@ -25,8 +25,8 @@ import (
 // with jitter added.
 type Duration func(time.Duration) time.Duration
 
-// NoJitter returns a Duration function that will return the given duration
-// without modification.
+// NoJitter is a Duration function that will return the given duration without
+// modification.
 func NoJitter(d time.Duration) time.Duration {
 	return d
 }
