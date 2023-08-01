@@ -92,9 +92,40 @@ func TestInterval_BindFlags(t *testing.T) {
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	interval.BindFlags(fs)
 
-	err := fs.Set(flagIntervalJitter, "20")
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(interval.Percentage).To(Equal(uint8(20)))
+	g.Expect(interval.Percentage).To(Equal(uint8(defaultIntervalJitterPercentage)))
+}
+
+func TestInterval_BindFlagsWithDefault(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("with default fallback", func(t *testing.T) {
+		interval := &Interval{}
+
+		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		interval.BindFlagsWithDefault(fs, -1)
+
+		g.Expect(interval.Percentage).To(Equal(uint8(defaultIntervalJitterPercentage)))
+	})
+
+	t.Run("with custom default", func(t *testing.T) {
+		interval := &Interval{}
+
+		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		interval.BindFlagsWithDefault(fs, 50)
+
+		g.Expect(interval.Percentage).To(Equal(uint8(50)))
+	})
+
+	t.Run("with flag override", func(t *testing.T) {
+		interval := &Interval{}
+
+		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		interval.BindFlagsWithDefault(fs, 0)
+
+		err := fs.Set(flagIntervalJitter, "25")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(interval.Percentage).To(Equal(uint8(25)))
+	})
 }
 
 func TestInterval_SetGlobalJitter(t *testing.T) {
