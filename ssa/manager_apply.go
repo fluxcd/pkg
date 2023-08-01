@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -131,57 +132,84 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 // it applies the objects that are new or modified.
 func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.Unstructured, opts ApplyOptions) (*ChangeSet, error) {
 	sort.Sort(SortableUnstructureds(objects))
-	changeSet := NewChangeSet()
-	var toApply []*unstructured.Unstructured
-	for _, object := range objects {
-		existingObject := object.DeepCopy()
-		getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-		if m.shouldSkipApply(object, existingObject, opts) {
-			changeSet.Add(*m.changeSetEntry(existingObject, SkippedAction))
-			continue
-		}
+	// Results are written to the following arrays from the concurrent goroutines. We use arrays
+	// to avoid complex synchronization. toApply is sparse, slots are only popuplated when there
+	// is an object to apply
+	toApply := make([]*unstructured.Unstructured, len(objects))
+	changes := make([]ChangeSetEntry, len(objects))
 
-		dryRunObject := object.DeepCopy()
-		if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-			// we cannot have an immutable error (and therefore shouldn't false apply) if the resource doesn't exist
-			// on the cluster. Note that resource might not exist because we wrongly identified an error as immutable and deleted
-			// it when ApplyAll was called the last time (the check for ImmutableError returns false positives)
-			if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
-				if err := m.client.Delete(ctx, existingObject); err != nil && !errors.IsNotFound(err) {
-					return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
-						FmtUnstructured(dryRunObject), err)
+	{
+		g, ctx := errgroup.WithContext(ctx)
+		g.SetLimit(m.concurrency)
+		for i, object := range objects {
+			i, object := i, object
+
+			g.Go(func() error {
+				existingObject := object.DeepCopy()
+				getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
+
+				if m.shouldSkipApply(object, existingObject, opts) {
+					changes[i] = *m.changeSetEntry(existingObject, SkippedAction)
+					return nil
 				}
-				return m.ApplyAll(ctx, objects, opts)
-			}
 
-			return nil, m.validationError(dryRunObject, err)
+				dryRunObject := object.DeepCopy()
+				if err := m.dryRunApply(ctx, dryRunObject); err != nil {
+					// we cannot have an immutable error (and therefore shouldn't false apply) if the resource doesn't exist
+					// on the cluster. Note that resource might not exist because we wrongly identified an error as immutable and deleted
+					// it when ApplyAll was called the last time (the check for ImmutableError returns false positives)
+					if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
+						if err := m.client.Delete(ctx, existingObject); err != nil && !errors.IsNotFound(err) {
+							return fmt.Errorf("%s immutable field detected, failed to delete object: %w",
+								FmtUnstructured(dryRunObject), err)
+						}
+
+						// retry dry run
+						err = m.dryRunApply(ctx, dryRunObject)
+					}
+
+					if err != nil {
+						return m.validationError(dryRunObject, err)
+					}
+				}
+
+				patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
+				if err != nil {
+					return fmt.Errorf("%s metadata.managedFields cleanup failed: %w",
+						FmtUnstructured(existingObject), err)
+				}
+
+				if patched || m.hasDrifted(existingObject, dryRunObject) {
+					toApply[i] = object
+					if dryRunObject.GetResourceVersion() == "" {
+						changes[i] = *m.changeSetEntry(dryRunObject, CreatedAction)
+					} else {
+						changes[i] = *m.changeSetEntry(dryRunObject, ConfiguredAction)
+					}
+				} else {
+					changes[i] = *m.changeSetEntry(dryRunObject, UnchangedAction)
+				}
+				return nil
+			})
 		}
 
-		patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
-		if err != nil {
-			return nil, fmt.Errorf("%s metadata.managedFields cleanup failed: %w",
-				FmtUnstructured(existingObject), err)
-		}
-
-		if patched || m.hasDrifted(existingObject, dryRunObject) {
-			toApply = append(toApply, object)
-			if dryRunObject.GetResourceVersion() == "" {
-				changeSet.Add(*m.changeSetEntry(dryRunObject, CreatedAction))
-			} else {
-				changeSet.Add(*m.changeSetEntry(dryRunObject, ConfiguredAction))
-			}
-		} else {
-			changeSet.Add(*m.changeSetEntry(dryRunObject, UnchangedAction))
+		if err := g.Wait(); err != nil {
+			return nil, err
 		}
 	}
 
 	for _, object := range toApply {
-		appliedObject := object.DeepCopy()
-		if err := m.apply(ctx, appliedObject); err != nil {
-			return nil, fmt.Errorf("%s apply failed: %w", FmtUnstructured(appliedObject), err)
+		if object != nil {
+			appliedObject := object.DeepCopy()
+			if err := m.apply(ctx, appliedObject); err != nil {
+				return nil, fmt.Errorf("%s apply failed: %w", FmtUnstructured(appliedObject), err)
+			}
 		}
 	}
+
+	changeSet := NewChangeSet()
+	changeSet.Append(changes)
 
 	return changeSet, nil
 }
