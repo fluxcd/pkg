@@ -104,18 +104,15 @@ type IntervalOptions struct {
 // BindFlags will parse the given pflag.FlagSet and load the interval jitter
 // with the default value of 10%.
 func (o *IntervalOptions) BindFlags(fs *pflag.FlagSet) {
-	o.BindFlagsWithDefault(fs, -1)
+	o.BindFlagsWithDefault(fs, defaultIntervalJitterPercentage)
 }
 
 // BindFlagsWithDefault will parse the given pflag.FlagSet and load the interval
 // jitter. The defaultPercentage is used to set the default value for the
 // interval jitter percentage. If the defaultPercentage is negative, then the
 // default value (of 10%) will be used.
-func (o *IntervalOptions) BindFlagsWithDefault(fs *pflag.FlagSet, defaultPercentage int) {
-	if defaultPercentage < 0 {
-		defaultPercentage = defaultIntervalJitterPercentage
-	}
-	fs.Uint8Var(&o.Percentage, flagIntervalJitter, uint8(defaultPercentage),
+func (o *IntervalOptions) BindFlagsWithDefault(fs *pflag.FlagSet, defaultPercentage uint8) {
+	fs.Uint8Var(&o.Percentage, flagIntervalJitter, defaultPercentage,
 		"Percentage of jitter to apply to interval durations. A value of 10 "+
 			"will apply a jitter of +/-10% to the interval duration. It cannot be "+
 			"negative, and must be less than 100.")

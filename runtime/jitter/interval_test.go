@@ -97,16 +97,7 @@ func TestIntervalOptions_BindFlags(t *testing.T) {
 func TestIntervalOptions_BindFlagsWithDefault(t *testing.T) {
 	g := NewWithT(t)
 
-	t.Run("with default fallback", func(t *testing.T) {
-		interval := &IntervalOptions{}
-
-		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-		interval.BindFlagsWithDefault(fs, -1)
-
-		g.Expect(interval.Percentage).To(Equal(uint8(defaultIntervalJitterPercentage)))
-	})
-
-	t.Run("with custom default", func(t *testing.T) {
+	t.Run("with default", func(t *testing.T) {
 		interval := &IntervalOptions{}
 
 		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
