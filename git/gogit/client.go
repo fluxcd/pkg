@@ -409,12 +409,13 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 	}
 
 	err = g.repository.PushContext(ctx, &extgogit.PushOptions{
-		RefSpecs:   refspecs,
-		Force:      cfg.Force,
-		RemoteName: extgogit.DefaultRemoteName,
-		Auth:       authMethod,
-		Progress:   nil,
-		CABundle:   caBundle(g.authOpts),
+		RefSpecs:     refspecs,
+		Force:        cfg.Force,
+		RemoteName:   extgogit.DefaultRemoteName,
+		Auth:         authMethod,
+		Progress:     nil,
+		CABundle:     caBundle(g.authOpts),
+		ProxyOptions: g.proxy,
 	})
 	return goGitError(err)
 }

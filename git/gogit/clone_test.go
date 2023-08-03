@@ -1128,7 +1128,7 @@ func Test_ssh_HostKeyAlgos(t *testing.T) {
 	}
 }
 
-func TestClone_WithProxy(t *testing.T) {
+func TestCloneAndPush_WithProxy(t *testing.T) {
 	g := NewWithT(t)
 
 	server, err := gittestserver.NewTempGitServer()
@@ -1178,6 +1178,27 @@ func TestClone_WithProxy(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(proxiedRequests).To(BeNumerically(">", 0))
+
+	// reset proxy requests counter
+	proxiedRequests = 0
+	// make a commit on master and push it.
+	cc1, err := commitFile(ggc.repository, "test", "testing gogit push", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+	err = ggc.Push(context.TODO(), repository.PushConfig{})
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(proxiedRequests).To(BeNumerically(">", 0))
+
+	// check if we indeed pushed the commit to remote.
+	ggc, err = NewClient(t.TempDir(), authOpts, WithDiskStorage(), WithProxy(proxyOpts))
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(ggc.proxy.URL).ToNot(BeEmpty())
+	cc2, err := ggc.Clone(context.TODO(), repoURL, repository.CloneConfig{
+		CheckoutStrategy: repository.CheckoutStrategy{
+			Branch: git.DefaultBranch,
+		},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cc1.String()).To(Equal(cc2.Hash.String()))
 }
 
 func Test_getRemoteHEAD(t *testing.T) {

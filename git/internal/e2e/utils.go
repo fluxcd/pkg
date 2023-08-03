@@ -44,6 +44,8 @@ import (
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
+const timeout = time.Second * 20
+
 func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
 	// clone repo
 	_, err := client.Clone(context.TODO(), repoURL.String(), repository.CloneConfig{
@@ -62,8 +64,16 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "first commit")
 
-	err = client.Push(context.TODO(), repository.PushConfig{})
-	g.Expect(err).ToNot(HaveOccurred())
+	// GitHub sometimes takes a long time to propogate its deploy key and this leads
+	// to mysterious push errors like "unknown error: ERROR: Unknown public SSH key".
+	// This helps us get around that by retrying for a fixed amount of time.
+	g.Eventually(func() bool {
+		err = client.Push(context.TODO(), repository.PushConfig{})
+		if err != nil {
+			return false
+		}
+		return true
+	}, timeout).Should(BeTrue())
 
 	headCommit, _, err := headCommitWithBranch(upstreamRepo.url, "main", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -120,8 +130,13 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "first commit")
 
-	err = client.Push(context.TODO(), repository.PushConfig{})
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Eventually(func() bool {
+		err = client.Push(context.TODO(), repository.PushConfig{})
+		if err != nil {
+			return false
+		}
+		return true
+	}, timeout).Should(BeTrue())
 
 	headCommit, _, err := headCommitWithBranch(upstreamRepo.url, "main", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -157,6 +172,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 	g.Expect(err).ToNot(HaveOccurred(), "third commit")
 	err = client.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
+
 	headCommit, _, err = headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(headCommit).To(Equal(cc))
