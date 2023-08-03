@@ -3,7 +3,7 @@ module github.com/fluxcd/pkg/sourceignore
 go 1.20
 
 require (
-	github.com/go-git/go-git/v5 v5.7.0
+	github.com/go-git/go-git/v5 v5.8.1
 	gotest.tools v2.2.0+incompatible
 )
 
@@ -14,6 +14,6 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	golang.org/x/net v0.10.0 // indirect
+	golang.org/x/net v0.12.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
