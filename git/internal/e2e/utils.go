@@ -44,18 +44,23 @@ import (
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
-const timeout = time.Second * 20
+const timeout = time.Second * 5
 
 func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
-	// clone repo
-	_, err := client.Clone(context.TODO(), repoURL.String(), repository.CloneConfig{
-		CheckoutStrategy: repository.CheckoutStrategy{
-			Branch: "main",
-		},
-	})
-	g.Expect(err).ToNot(HaveOccurred())
+	// Clone the upstream repository.
+	//
+	// NB: It may take some time for any deploy keys to be actually propagated
+	// to the backing Git provider, so we retry for a fixed amount of time.
+	g.Eventually(func() error {
+		_, err := client.Clone(context.TODO(), repoURL.String(), repository.CloneConfig{
+			CheckoutStrategy: repository.CheckoutStrategy{
+				Branch: "main",
+			},
+		})
+		return err
+	}, timeout).Should(Succeed())
 
-	// commit and push to origin
+	// Commit a change.
 	cc, err := client.Commit(
 		mockCommitInfo(),
 		repository.WithFiles(map[string]io.Reader{
@@ -64,26 +69,27 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "first commit")
 
-	// GitHub sometimes takes a long time to propogate its deploy key and this leads
-	// to mysterious push errors like "unknown error: ERROR: Unknown public SSH key".
-	// This helps us get around that by retrying for a fixed amount of time.
-	g.Eventually(func() bool {
-		err = client.Push(context.TODO(), repository.PushConfig{})
-		if err != nil {
-			return false
-		}
-		return true
-	}, timeout).Should(BeTrue())
+	// Push the commit to the upstream repository.
+	//
+	// NB: It may take some time for any deploy keys to be actually propagated
+	// to the backing Git provider, so we retry for a fixed amount of time.
+	// You may wonder why this is necessary if we already cloned the repository,
+	// which is because they may be served by a different Git server behind a
+	// load balancer, and the deploy key may not be propagated to the second
+	// server yet.
+	g.Eventually(func() error {
+		return client.Push(context.TODO(), repository.PushConfig{})
+	}, timeout).Should(Succeed())
 
 	headCommit, _, err := headCommitWithBranch(upstreamRepo.url, "main", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(headCommit).To(Equal(cc))
 
-	// switch to a new branch
+	// Switch to a new branch.
 	err = client.SwitchBranch(context.TODO(), "new")
 	g.Expect(err).ToNot(HaveOccurred())
 
-	// commit to and push new branch
+	// Commit to and push new branch.
 	cc, err = client.Commit(
 		mockCommitInfo(),
 		repository.WithFiles(map[string]io.Reader{
@@ -92,6 +98,8 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "second commit")
 
+	// NB: at this point, sufficient time should have passed to NOT have to
+	// retry the push.
 	err = client.Push(context.TODO(), repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, branch, err := headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
@@ -99,7 +107,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	g.Expect(headCommit).To(Equal(cc))
 	g.Expect(branch).To(Equal("new"))
 
-	// switch to a branch behind the current branch, commit and push
+	// Switch to a branch behind the current branch, commit and push.
 	err = client.SwitchBranch(context.TODO(), "main")
 	g.Expect(err).ToNot(HaveOccurred())
 
