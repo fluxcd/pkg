@@ -39,10 +39,6 @@ var (
 	dockerReg string
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 func setupRegistryServer(ctx context.Context) error {
 	// Registry config
 	config := &configuration.Configuration{}

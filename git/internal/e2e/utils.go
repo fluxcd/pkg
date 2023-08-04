@@ -237,7 +237,6 @@ func createSSHIdentitySecret(repoURL url.URL) (map[string][]byte, error) {
 }
 
 func randStringRunes(n int) string {
-	rand.Seed(time.Now().UnixNano())
 	b := make([]rune, n)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]

@@ -114,10 +114,6 @@ type ProviderConfig struct {
 	pushAppTestImages pushTestImages
 }
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
 func randStringRunes(n int) string {
