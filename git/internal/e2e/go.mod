@@ -13,10 +13,10 @@ replace (
 
 require (
 	github.com/fluxcd/go-git-providers v0.18.0
-	github.com/fluxcd/pkg/git v0.12.3
+	github.com/fluxcd/pkg/git v0.12.4
 	github.com/fluxcd/pkg/git/gogit v0.12.1
-	github.com/fluxcd/pkg/gittestserver v0.8.4
-	github.com/fluxcd/pkg/ssh v0.8.0
+	github.com/fluxcd/pkg/gittestserver v0.8.5
+	github.com/fluxcd/pkg/ssh v0.8.1
 	github.com/go-git/go-git/v5 v5.8.1
 	github.com/go-logr/logr v1.2.4
 	github.com/google/uuid v1.3.0
@@ -55,12 +55,12 @@ require (
 	github.com/skeema/knownhosts v1.2.0 // indirect
 	github.com/xanzy/go-gitlab v0.83.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	golang.org/x/crypto v0.11.0 // indirect
+	golang.org/x/crypto v0.12.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.12.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/text v0.12.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.9.3 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
