@@ -28,7 +28,7 @@ import (
 
 const (
 	flagIntervalJitter              = "interval-jitter-percentage"
-	defaultIntervalJitterPercentage = 10
+	defaultIntervalJitterPercentage = 5
 )
 
 var (
@@ -102,15 +102,14 @@ type IntervalOptions struct {
 }
 
 // BindFlags will parse the given pflag.FlagSet and load the interval jitter
-// with the default value of 10%.
+// with the default value of 5%.
 func (o *IntervalOptions) BindFlags(fs *pflag.FlagSet) {
 	o.BindFlagsWithDefault(fs, defaultIntervalJitterPercentage)
 }
 
 // BindFlagsWithDefault will parse the given pflag.FlagSet and load the interval
 // jitter. The defaultPercentage is used to set the default value for the
-// interval jitter percentage. If the defaultPercentage is negative, then the
-// default value (of 10%) will be used.
+// interval jitter percentage.
 func (o *IntervalOptions) BindFlagsWithDefault(fs *pflag.FlagSet, defaultPercentage uint8) {
 	fs.Uint8Var(&o.Percentage, flagIntervalJitter, defaultPercentage,
 		"Percentage of jitter to apply to interval durations. A value of 10 "+
