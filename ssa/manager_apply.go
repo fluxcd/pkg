@@ -43,6 +43,10 @@ type ApplyOptions struct {
 	// based on the matching labels or annotations.
 	ExclusionSelector map[string]string `json:"exclusionSelector"`
 
+	// IfNotPresentSelector determines which in-cluster objects are skipped from patching
+	// based on the matching labels or annotations.
+	IfNotPresentSelector map[string]string `json:"ifNotPresentSelector"`
+
 	// WaitTimeout defines after which interval should the engine give up on waiting for
 	// cluster scoped resources to become ready.
 	WaitTimeout time.Duration `json:"waitTimeout"`
@@ -303,9 +307,20 @@ func (m *ResourceManager) shouldForceApply(desiredObject *unstructured.Unstructu
 }
 
 // shouldSkipApply determines based on the object metadata and ApplyOptions if the object should be skipped.
-// An object is not applied if it contains a label or annotation which matches the ApplyOptions.ExclusionSelector.
+// An object is not applied if it contains a label or annotation
+// which matches the ApplyOptions.ExclusionSelector or ApplyOptions.IfNotPresentSelector.
 func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructured,
 	existingObject *unstructured.Unstructured, opts ApplyOptions) bool {
-	return AnyInMetadata(desiredObject, opts.ExclusionSelector) ||
-		(existingObject != nil && AnyInMetadata(existingObject, opts.ExclusionSelector))
+	if AnyInMetadata(desiredObject, opts.ExclusionSelector) ||
+		(existingObject != nil && AnyInMetadata(existingObject, opts.ExclusionSelector)) {
+		return true
+	}
+
+	if existingObject != nil &&
+		existingObject.GetUID() != "" &&
+		AnyInMetadata(desiredObject, opts.IfNotPresentSelector) {
+		return true
+	}
+
+	return false
 }
