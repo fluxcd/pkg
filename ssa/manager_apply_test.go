@@ -471,6 +471,80 @@ func TestApply_Exclusions(t *testing.T) {
 	})
 }
 
+func TestApply_IfNotPresent(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	meta := map[string]string{
+		"fluxcd.io/ssa": "IfNotPresent",
+	}
+
+	id := generateName("skip")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, ns := getFirstObject(objects, "Namespace", id)
+	_, configMap := getFirstObject(objects, "ConfigMap", id)
+	configMapClone := configMap.DeepCopy()
+	configMapClone.SetAnnotations(meta)
+
+	t.Run("creates objects", func(t *testing.T) {
+		// create objects
+		changeSet, err := manager.ApplyAllStaged(ctx, []*unstructured.Unstructured{ns, configMapClone}, ApplyOptions{
+			Force:                false,
+			IfNotPresentSelector: meta,
+			WaitTimeout:          time.Second,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if entry.Action != CreatedAction {
+				t.Errorf("Expected %s, got %s for %s", CreatedAction, entry.Action, entry.Subject)
+			}
+		}
+	})
+
+	t.Run("skips apply when annotated IfNotPresent", func(t *testing.T) {
+		changeSet, err := manager.Apply(ctx, configMapClone, ApplyOptions{
+			Force:                false,
+			IfNotPresentSelector: meta,
+			WaitTimeout:          time.Second,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if changeSet.Action != SkippedAction {
+			t.Errorf("Diff found for %s", changeSet.String())
+		}
+	})
+
+	t.Run("resume apply when is annotated Override", func(t *testing.T) {
+		override := map[string]string{
+			"fluxcd.io/ssa": "Override",
+		}
+		configMapClone.SetAnnotations(override)
+
+		changeSet, err := manager.Apply(ctx, configMapClone, ApplyOptions{
+			Force:                false,
+			IfNotPresentSelector: meta,
+			WaitTimeout:          time.Second,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if changeSet.Action != ConfiguredAction {
+			t.Errorf("Diff found for %s", changeSet.String())
+		}
+	})
+}
+
 func TestApply_Cleanup(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

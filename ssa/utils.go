@@ -307,8 +307,11 @@ func IsImmutableError(err error) bool {
 // AnyInMetadata searches for the specified key-value pairs in labels and annotations,
 // returns true if at least one key-value pair matches.
 func AnyInMetadata(object *unstructured.Unstructured, metadata map[string]string) bool {
+	labels := object.GetLabels()
+	annotations := object.GetAnnotations()
 	for key, val := range metadata {
-		if object.GetLabels()[key] == val || object.GetAnnotations()[key] == val {
+		if (labels[key] != "" && strings.EqualFold(labels[key], val)) ||
+			(annotations[key] != "" && strings.EqualFold(annotations[key], val)) {
 			return true
 		}
 	}
