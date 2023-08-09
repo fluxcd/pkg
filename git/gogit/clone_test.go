@@ -425,7 +425,7 @@ func TestClone_cloneSemVer(t *testing.T) {
 		},
 		{
 			tag:        "v0.1.0+build-3",
-			annotated:  true,
+			annotated:  false,
 			commitTime: now.Add(1 * time.Hour),
 			tagTime:    now.Add(1 * time.Hour), // This should be ignored during TS comparisons
 		},
@@ -439,6 +439,7 @@ func TestClone_cloneSemVer(t *testing.T) {
 	tests := []struct {
 		name       string
 		constraint string
+		annotated  bool
 		expectErr  error
 		expectTag  string
 	}{
@@ -446,6 +447,7 @@ func TestClone_cloneSemVer(t *testing.T) {
 			name:       "Orders by SemVer",
 			constraint: ">0.1.0",
 			expectTag:  "0.2.0",
+			annotated:  true,
 		},
 		{
 			name:       "Orders by SemVer and timestamp",
@@ -503,6 +505,12 @@ func TestClone_cloneSemVer(t *testing.T) {
 			g.Expect(cc.String()).To(Equal(tt.expectTag + "@" + git.HashTypeSHA1 + ":" + refs[tt.expectTag]))
 			g.Expect(filepath.Join(tmpDir, "tag")).To(BeARegularFile())
 			g.Expect(os.ReadFile(filepath.Join(tmpDir, "tag"))).To(BeEquivalentTo(tt.expectTag))
+			if tt.annotated {
+				g.Expect(cc.ReferencingTag).ToNot(BeNil())
+				g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tt.expectTag)))
+			} else {
+				g.Expect(cc.ReferencingTag).To(BeNil())
+			}
 		})
 	}
 }

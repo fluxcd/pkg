@@ -119,7 +119,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
 	}
 	g.repository = repo
-	return buildCommitWithRef(cc, ref)
+	return buildCommitWithRef(cc, nil, ref)
 }
 
 func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -190,39 +190,19 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
 	}
-	commit, err := buildCommitWithRef(cc, ref)
-	if err != nil {
-		return nil, err
-	}
 
 	tagRef, err := repo.Tag(tag)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find reference for tag '%s': %w", tag, err)
 	}
 
-	annotated := true
 	tagObj, err := repo.TagObject(tagRef.Hash())
-	if err != nil {
-		// If the tag ref exists but a tag object for the ref does not exist,
-		// treat the tag as a lightweight tag.
-		if err == plumbing.ErrObjectNotFound {
-			annotated = false
-		} else {
-			return nil, fmt.Errorf("unable to resolve tag object for tag '%s' with hash '%s': %w", tag, tagRef.Hash(), err)
-		}
-	}
-	// The commit is considered to have a parent only if the tag is annotated,
-	// as lightweight tags are essentially named pointers.
-	if annotated {
-		annotatedTag, err := buildTag(tagObj)
-		if err != nil {
-			return nil, err
-		}
-		commit.ReferencingTag = annotatedTag
+	if err != nil && err != plumbing.ErrObjectNotFound {
+		return nil, fmt.Errorf("unable to resolve tag object for tag '%s' with hash '%s': %w", tag, tagRef.Hash(), err)
 	}
 
 	g.repository = repo
-	return commit, nil
+	return buildCommitWithRef(cc, tagObj, ref)
 }
 
 func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -278,7 +258,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 	if opts.RefName != "" {
 		cloneOpts.ReferenceName = plumbing.ReferenceName(opts.RefName)
 	}
-	return buildCommitWithRef(cc, cloneOpts.ReferenceName)
+	return buildCommitWithRef(cc, nil, cloneOpts.ReferenceName)
 }
 
 func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -382,13 +362,17 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 		return nil, fmt.Errorf("unable to open Git worktree: %w", err)
 	}
 
-	ref := plumbing.NewTagReferenceName(t)
+	tagRef, err := repo.Tag(t)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find reference for tag '%s': %w", t, err)
+	}
 	err = w.Checkout(&extgogit.CheckoutOptions{
-		Branch: ref,
+		Branch: tagRef.Name(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to checkout tag '%s': %w", t, err)
 	}
+
 	head, err := repo.Head()
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve HEAD of tag '%s': %w", t, err)
@@ -397,8 +381,14 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
 	}
+
+	tagObj, err := repo.TagObject(tagRef.Hash())
+	if err != nil && err != plumbing.ErrObjectNotFound {
+		return nil, fmt.Errorf("unable to resolve tag object for tag '%s' with hash '%s': %w", t, tagRef.Hash(), err)
+	}
+
 	g.repository = repo
-	return buildCommitWithRef(cc, ref)
+	return buildCommitWithRef(cc, tagObj, tagRef.Name())
 }
 
 func (g *Client) cloneRefName(ctx context.Context, url string, refName string, cloneOpts repository.CloneConfig) (*git.Commit, error) {
@@ -548,7 +538,7 @@ func buildTag(t *object.Tag) (*git.AnnotatedTag, error) {
 	}, nil
 }
 
-func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Commit, error) {
+func buildCommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceName) (*git.Commit, error) {
 	if c == nil {
 		return nil, fmt.Errorf("unable to construct commit: no object")
 	}
@@ -566,7 +556,7 @@ func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Comm
 	if err != nil {
 		return nil, fmt.Errorf("unable to read encoded commit '%s': %w", c.Hash, err)
 	}
-	return &git.Commit{
+	cc := &git.Commit{
 		Hash:      []byte(c.Hash.String()),
 		Reference: ref.String(),
 		Author:    buildSignature(c.Author),
@@ -574,7 +564,17 @@ func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Comm
 		Signature: c.PGPSignature,
 		Encoded:   b,
 		Message:   c.Message,
-	}, nil
+	}
+
+	if t != nil {
+		tt, err := buildTag(t)
+		if err != nil {
+			return nil, err
+		}
+		cc.ReferencingTag = tt
+	}
+
+	return cc, nil
 }
 
 func isRemoteBranchNotFoundErr(err error, ref string) bool {
