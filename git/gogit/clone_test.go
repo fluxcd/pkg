@@ -653,6 +653,10 @@ func TestClone_cloneRefName(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(cc.AbsoluteReference()).To(Equal(tt.refName + "@" + git.HashTypeSHA1 + ":" + tt.expectedCommit))
 			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectedConcreteCommit))
+			if strings.Contains(tt.refName, "tags") && !strings.HasSuffix(tt.refName, tagDereferenceSuffix) {
+				g.Expect(cc.ReferencingTag).ToNot(BeNil())
+				g.Expect(cc.ReferencingTag.Message).To(ContainSubstring("Annotated tag for"))
+			}
 
 			for k, v := range tt.filesCreated {
 				g.Expect(filepath.Join(tmpDir, k)).To(BeARegularFile())

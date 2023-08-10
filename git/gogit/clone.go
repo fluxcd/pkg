@@ -210,6 +210,13 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
 	}
+
+	// we only want to fetch tags if the refname provided is a tag
+	// and does not have the dereference suffix.
+	tagStrategy := extgogit.NoTags
+	if plumbing.ReferenceName(opts.RefName).IsTag() && !strings.HasSuffix(opts.RefName, tagDereferenceSuffix) {
+		tagStrategy = extgogit.TagFollowing
+	}
 	cloneOpts := &extgogit.CloneOptions{
 		URL:               url,
 		Auth:              authMethod,
@@ -218,7 +225,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		NoCheckout:        true,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
-		Tags:              extgogit.NoTags,
+		Tags:              tagStrategy,
 		CABundle:          caBundle(g.authOpts),
 		ProxyOptions:      g.proxy,
 	}
@@ -254,11 +261,29 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 	if err != nil {
 		return nil, fmt.Errorf("unable to checkout commit '%s': %w", commit, err)
 	}
-	g.repository = repo
+
+	var tagObj *object.Tag
 	if opts.RefName != "" {
 		cloneOpts.ReferenceName = plumbing.ReferenceName(opts.RefName)
+		// If the refname points to a tag then try to resolve the tag object and include
+		// in the commit being returned. Refnames that point to a tag but have the dereference
+		// suffix aren't considered, since the suffix indicates that the refname is pointing to
+		// the commit object and not the tag object.
+		if cloneOpts.ReferenceName.IsTag() && !strings.HasSuffix(opts.RefName, tagDereferenceSuffix) {
+			tagRef, err := repo.Tag(cloneOpts.ReferenceName.Short())
+			if err != nil {
+				return nil, fmt.Errorf("unable to find reference for tag ref '%s': %w", opts.RefName, err)
+			}
+
+			tagObj, err = repo.TagObject(tagRef.Hash())
+			if err != nil && err != plumbing.ErrObjectNotFound {
+				return nil, fmt.Errorf("unable to resolve tag object for tag ref '%s' with hash '%s': %w", opts.RefName, tagRef.Hash(), err)
+			}
+		}
 	}
-	return buildCommitWithRef(cc, nil, cloneOpts.ReferenceName)
+
+	g.repository = repo
+	return buildCommitWithRef(cc, tagObj, cloneOpts.ReferenceName)
 }
 
 func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneConfig) (*git.Commit, error) {
