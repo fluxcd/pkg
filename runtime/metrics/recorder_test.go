@@ -44,15 +44,13 @@ func TestRecorder_RecordCondition(t *testing.T) {
 		Status: metav1.ConditionTrue,
 	}
 
-	rec.RecordCondition(ref, cond, false)
+	rec.RecordCondition(ref, cond)
 
 	metricFamilies, err := reg.Gather()
-	if err != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, err)
 
 	require.Equal(t, len(metricFamilies), 1)
-	require.Equal(t, len(metricFamilies[0].Metric), 4)
+	require.Equal(t, len(metricFamilies[0].Metric), 3)
 
 	var conditionTrueValue float64
 	for _, m := range metricFamilies[0].Metric {
@@ -69,6 +67,13 @@ func TestRecorder_RecordCondition(t *testing.T) {
 	}
 
 	require.Equal(t, conditionTrueValue, float64(1))
+
+	// Delete metrics.
+	rec.DeleteCondition(ref, cond.Type)
+
+	metricFamilies, err = reg.Gather()
+	require.NoError(t, err)
+	require.Equal(t, len(metricFamilies), 0)
 }
 
 func TestRecorder_RecordDuration(t *testing.T) {
@@ -86,9 +91,7 @@ func TestRecorder_RecordDuration(t *testing.T) {
 	rec.RecordDuration(ref, reconcileStart)
 
 	metricFamilies, err := reg.Gather()
-	if err != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, err)
 
 	require.Equal(t, len(metricFamilies), 1)
 	require.Equal(t, len(metricFamilies[0].Metric), 1)
@@ -110,4 +113,53 @@ func TestRecorder_RecordDuration(t *testing.T) {
 			t.Errorf("expected namespace label to be %s, got %s", ref.Namespace, *pair.Value)
 		}
 	}
+
+	// Delete metrics.
+	rec.DeleteDuration(ref)
+
+	metricFamilies, err = reg.Gather()
+	require.NoError(t, err)
+	require.Equal(t, len(metricFamilies), 0)
+}
+
+func TestRecorder_RecordSuspend(t *testing.T) {
+	rec := NewRecorder()
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(rec.suspendGauge)
+
+	ref := corev1.ObjectReference{
+		Kind:      "GitRepository",
+		Namespace: "default",
+		Name:      "test",
+	}
+
+	rec.RecordSuspend(ref, true)
+
+	metricFamilies, err := reg.Gather()
+	require.NoError(t, err)
+
+	require.Equal(t, len(metricFamilies), 1)
+	require.Equal(t, len(metricFamilies[0].Metric), 1)
+
+	value := *metricFamilies[0].Metric[0].GetGauge().Value
+	require.EqualValues(t, value, 1, "expected gauge value")
+
+	for _, pair := range metricFamilies[0].Metric[0].GetLabel() {
+		if *pair.Name == "kind" {
+			require.Equal(t, *pair.Value, ref.Kind, "unexpected kind")
+		}
+		if *pair.Name == "name" {
+			require.Equal(t, *pair.Value, ref.Name, "unexpected name")
+		}
+		if *pair.Name == "namespace" {
+			require.Equal(t, *pair.Value, ref.Namespace, "unexpected namespace")
+		}
+	}
+
+	// Delete metrics.
+	rec.DeleteSuspend(ref)
+
+	metricFamilies, err = reg.Gather()
+	require.NoError(t, err)
+	require.Equal(t, len(metricFamilies), 0)
 }
