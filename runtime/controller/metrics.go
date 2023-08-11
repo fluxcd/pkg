@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
-	crtlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/metrics"
@@ -50,21 +50,28 @@ import (
 type Metrics struct {
 	Scheme          *runtime.Scheme
 	MetricsRecorder *metrics.Recorder
+	ownedFinalizers []string
 }
 
-// MustMakeMetrics creates a new Metrics with a new metrics.Recorder, and the Metrics.Scheme set to that of the given
-// mgr.
-// It attempts to register the metrics collectors in the controller-runtime metrics registry, which panics upon the
-// first registration that causes an error. Which usually happens if you try to initialise a Metrics value twice for
-// your controller.
-func MustMakeMetrics(mgr ctrl.Manager) Metrics {
-	metricsRecorder := metrics.NewRecorder()
-	crtlmetrics.Registry.MustRegister(metricsRecorder.Collectors()...)
-
+// NewMetrics creates a new Metrics with the given metrics.Recorder, and the Metrics.Scheme set to that of the given
+// mgr, along with an optional set of owned finalizers which is used to determine when an object is being deleted.
+func NewMetrics(mgr ctrl.Manager, recorder *metrics.Recorder, finalizers ...string) Metrics {
 	return Metrics{
 		Scheme:          mgr.GetScheme(),
-		MetricsRecorder: metricsRecorder,
+		MetricsRecorder: recorder,
+		ownedFinalizers: finalizers,
 	}
+}
+
+// IsDelete returns if the object is deleted by checking for deletion timestamp
+// and owned finalizers in the object.
+func (m Metrics) IsDelete(obj conditions.Getter) bool {
+	for _, f := range m.ownedFinalizers {
+		if controllerutil.ContainsFinalizer(obj, f) {
+			return false
+		}
+	}
+	return !obj.GetDeletionTimestamp().IsZero()
 }
 
 // RecordDuration records the duration of a reconcile attempt for the given obj based on the given startTime.
@@ -73,6 +80,10 @@ func (m Metrics) RecordDuration(ctx context.Context, obj conditions.Getter, star
 		ref, err := reference.GetReference(m.Scheme, obj)
 		if err != nil {
 			logr.FromContextOrDiscard(ctx).Error(err, "unable to get object reference to record duration")
+			return
+		}
+		if m.IsDelete(obj) {
+			m.MetricsRecorder.DeleteDuration(*ref)
 			return
 		}
 		m.MetricsRecorder.RecordDuration(*ref, startTime)
@@ -87,22 +98,38 @@ func (m Metrics) RecordSuspend(ctx context.Context, obj conditions.Getter, suspe
 			logr.FromContextOrDiscard(ctx).Error(err, "unable to get object reference to record suspend")
 			return
 		}
+		if m.IsDelete(obj) {
+			m.MetricsRecorder.DeleteSuspend(*ref)
+			return
+		}
 		m.MetricsRecorder.RecordSuspend(*ref, suspend)
 	}
 }
 
 // RecordReadiness records the meta.ReadyCondition status for the given obj.
 func (m Metrics) RecordReadiness(ctx context.Context, obj conditions.Getter) {
+	if m.IsDelete(obj) {
+		m.DeleteCondition(ctx, obj, meta.ReadyCondition)
+		return
+	}
 	m.RecordCondition(ctx, obj, meta.ReadyCondition)
 }
 
 // RecordReconciling records the meta.ReconcilingCondition status for the given obj.
 func (m Metrics) RecordReconciling(ctx context.Context, obj conditions.Getter) {
+	if m.IsDelete(obj) {
+		m.DeleteCondition(ctx, obj, meta.ReconcilingCondition)
+		return
+	}
 	m.RecordCondition(ctx, obj, meta.ReconcilingCondition)
 }
 
 // RecordStalled records the meta.StalledCondition status for the given obj.
 func (m Metrics) RecordStalled(ctx context.Context, obj conditions.Getter) {
+	if m.IsDelete(obj) {
+		m.DeleteCondition(ctx, obj, meta.StalledCondition)
+		return
+	}
 	m.RecordCondition(ctx, obj, meta.StalledCondition)
 }
 
@@ -120,5 +147,19 @@ func (m Metrics) RecordCondition(ctx context.Context, obj conditions.Getter, con
 	if rc == nil {
 		rc = conditions.UnknownCondition(conditionType, "", "")
 	}
-	m.MetricsRecorder.RecordCondition(*ref, *rc, !obj.GetDeletionTimestamp().IsZero())
+	m.MetricsRecorder.RecordCondition(*ref, *rc)
+}
+
+// DeleteCondition deletes the condition metrics of the given conditionType for
+// the given object.
+func (m Metrics) DeleteCondition(ctx context.Context, obj conditions.Getter, conditionType string) {
+	if m.MetricsRecorder == nil {
+		return
+	}
+	ref, err := reference.GetReference(m.Scheme, obj)
+	if err != nil {
+		logr.FromContextOrDiscard(ctx).Error(err, "unable to get object reference to delete condition metric")
+		return
+	}
+	m.MetricsRecorder.DeleteCondition(*ref, conditionType)
 }

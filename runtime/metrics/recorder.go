@@ -21,12 +21,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-const (
-	ConditionDeleted = "Deleted"
+	crtlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
 // Recorder is a struct for recording GitOps Toolkit metrics for a controller.
@@ -36,6 +32,16 @@ type Recorder struct {
 	conditionGauge    *prometheus.GaugeVec
 	suspendGauge      *prometheus.GaugeVec
 	durationHistogram *prometheus.HistogramVec
+}
+
+// MustMakeRecorder attempts to register the metrics collectors in the
+// controller-runtime metrics registry, which panics upon the first registration
+// that causes an error. Which usually happens if you try to initialise a
+// Metrics value twice for your controller.
+func MustMakeRecorder() *Recorder {
+	metricsRecorder := NewRecorder()
+	crtlmetrics.Registry.MustRegister(metricsRecorder.Collectors()...)
+	return metricsRecorder
 }
 
 // NewRecorder returns a new Recorder with all metric names configured confirm GitOps Toolkit standards.
@@ -77,19 +83,20 @@ func (r *Recorder) Collectors() []prometheus.Collector {
 }
 
 // RecordCondition records the condition as given for the ref.
-func (r *Recorder) RecordCondition(ref corev1.ObjectReference, condition metav1.Condition, deleted bool) {
-	for _, status := range []string{string(metav1.ConditionTrue), string(metav1.ConditionFalse), string(metav1.ConditionUnknown), ConditionDeleted} {
+func (r *Recorder) RecordCondition(ref corev1.ObjectReference, condition metav1.Condition) {
+	for _, status := range []metav1.ConditionStatus{metav1.ConditionTrue, metav1.ConditionFalse, metav1.ConditionUnknown} {
 		var value float64
-		if deleted {
-			if status == ConditionDeleted {
-				value = 1
-			}
-		} else {
-			if status == string(condition.Status) {
-				value = 1
-			}
+		if status == condition.Status {
+			value = 1
 		}
-		r.conditionGauge.WithLabelValues(ref.Kind, ref.Name, ref.Namespace, condition.Type, status).Set(value)
+		r.conditionGauge.WithLabelValues(ref.Kind, ref.Name, ref.Namespace, condition.Type, string(status)).Set(value)
+	}
+}
+
+// DeleteCondition deletes the condition metrics for the ref.
+func (r *Recorder) DeleteCondition(ref corev1.ObjectReference, conditionType string) {
+	for _, status := range []metav1.ConditionStatus{metav1.ConditionTrue, metav1.ConditionFalse, metav1.ConditionUnknown} {
+		r.conditionGauge.DeleteLabelValues(ref.Kind, ref.Name, ref.Namespace, conditionType, string(status))
 	}
 }
 
@@ -102,7 +109,17 @@ func (r *Recorder) RecordSuspend(ref corev1.ObjectReference, suspend bool) {
 	r.suspendGauge.WithLabelValues(ref.Kind, ref.Name, ref.Namespace).Set(value)
 }
 
+// DeleteSuspend deletes the suspend metric for the ref.
+func (r *Recorder) DeleteSuspend(ref corev1.ObjectReference) {
+	r.suspendGauge.DeleteLabelValues(ref.Kind, ref.Name, ref.Namespace)
+}
+
 // RecordDuration records the duration since start for the given ref.
 func (r *Recorder) RecordDuration(ref corev1.ObjectReference, start time.Time) {
 	r.durationHistogram.WithLabelValues(ref.Kind, ref.Name, ref.Namespace).Observe(time.Since(start).Seconds())
+}
+
+// DeleteDuration deletes the duration metric for the ref.
+func (r *Recorder) DeleteDuration(ref corev1.ObjectReference) {
+	r.durationHistogram.DeleteLabelValues(ref.Kind, ref.Name, ref.Namespace)
 }
