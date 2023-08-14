@@ -62,6 +62,11 @@ type PushConfig struct {
 
 	// Force, if set to true, will result in a force push.
 	Force bool
+
+	// Options is a map specifying the push options that are sent
+	// to the Git server when performing a push option. For details, see:
+	// https://git-scm.com/docs/git-push#Documentation/git-push.txt---push-optionltoptiongt
+	Options map[string]string
 }
 
 // CheckoutStrategy provides options to checkout a repository to a target.
