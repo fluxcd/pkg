@@ -30,6 +30,7 @@ import (
 const (
 	flagQPS   = "kube-api-qps"
 	flagBurst = "kube-api-burst"
+	flagTimeout = "kube-api-timeout"
 )
 
 // Options contains the runtime configuration for a Kubernetes client.
@@ -56,6 +57,9 @@ type Options struct {
 
 	// Burst indicates the maximum burst queries-per-second of requests sent to the Kubernetes API, defaults to 300.
 	Burst int
+
+	// The maximum length of time to wait before giving up on a server request. A value of zero means no timeout.
+	Timeout time.Duration
 }
 
 // BindFlags will parse the given pflag.FlagSet for Kubernetes client option flags and set the Options accordingly.
@@ -64,6 +68,8 @@ func (o *Options) BindFlags(fs *pflag.FlagSet) {
 		"The maximum queries-per-second of requests sent to the Kubernetes API.")
 	fs.IntVar(&o.Burst, flagBurst, 300,
 		"The maximum burst queries-per-second of requests sent to the Kubernetes API.")
+	fs.DurationVar(&o.Timeout, flagTimeout, 0,
+		"The maximum length of time to wait before giving up on a server request. A value of zero means no timeout.")
 }
 
 // GetConfigOrDie wraps ctrl.GetConfigOrDie and checks if the Kubernetes apiserver
@@ -82,6 +88,7 @@ func GetConfigOrDie(opts Options) *rest.Config {
 	}
 	config.QPS = opts.QPS
 	config.Burst = opts.Burst
+	config.Timeout = opts.Timeout
 	return config
 }
 
