@@ -68,6 +68,7 @@ func TestMain(m *testing.M) {
 			Field: "resource-manager",
 			Group: "resource-manager.io",
 		},
+		concurrency: 2,
 	}
 
 	code := m.Run()

@@ -183,7 +183,10 @@ func TestApply_Force(t *testing.T) {
 
 	t.Run("force applies immutable secret", func(t *testing.T) {
 		// force apply
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{Force: true, WaitTimeout: timeout})
+		opts := DefaultApplyOptions()
+		opts.Force = true
+
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -220,6 +223,57 @@ func TestApply_Force(t *testing.T) {
 		}
 	})
 
+	t.Run("force apply waits for finalizer", func(t *testing.T) {
+		secretClone := secret.DeepCopy()
+		{
+			secretWithFinalizer := secretClone.DeepCopy()
+
+			unstructured.SetNestedStringSlice(secretWithFinalizer.Object, []string{"fluxcd.io/demo-finalizer"}, "metadata", "finalizers")
+			if err := manager.client.Update(ctx, secretWithFinalizer); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		// remove finalizer after a delay, to ensure the controller handles a slow deletion
+		go func() {
+			time.Sleep(3 * time.Second)
+
+			secretWithoutFinalizer := secretClone.DeepCopy()
+			unstructured.SetNestedStringSlice(secretWithoutFinalizer.Object, []string{}, "metadata", "finalizers")
+			if err := manager.client.Update(ctx, secretWithoutFinalizer); err != nil {
+				panic(err)
+			}
+		}()
+
+		// update a value in the secret
+		err = unstructured.SetNestedField(secret.Object, "val-secret2", "stringData", "key")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// force apply
+		opts := DefaultApplyOptions()
+		opts.Force = true
+
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// verify the secret was recreated
+		for _, entry := range changeSet.Entries {
+			if entry.Subject == secretName {
+				if diff := cmp.Diff(CreatedAction, entry.Action); diff != "" {
+					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+				}
+			} else {
+				if diff := cmp.Diff(UnchangedAction, entry.Action); diff != "" {
+					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+				}
+			}
+		}
+	})
+
 	t.Run("recreates immutable RBAC", func(t *testing.T) {
 		// update roleRef
 		err = unstructured.SetNestedField(crb.Object, "test", "roleRef", "name")
@@ -228,7 +282,10 @@ func TestApply_Force(t *testing.T) {
 		}
 
 		// force apply
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{Force: true, WaitTimeout: timeout})
+		opts := DefaultApplyOptions()
+		opts.Force = true
+
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -263,7 +320,10 @@ func TestApply_Force(t *testing.T) {
 		}
 
 		// force apply selector
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{ForceSelector: meta, WaitTimeout: timeout})
+		opts := DefaultApplyOptions()
+		opts.ForceSelector = meta
+
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -287,7 +347,10 @@ func TestApply_Force(t *testing.T) {
 		}
 
 		// force apply objects
-		_, err := manager.ApplyAllStaged(ctx, objects, ApplyOptions{Force: true, WaitTimeout: timeout})
+		opts := DefaultApplyOptions()
+		opts.Force = true
+
+		_, err := manager.ApplyAllStaged(ctx, objects, opts)
 		if err == nil {
 			t.Fatal("expected validation error but got none")
 		}
@@ -421,12 +484,11 @@ func TestApply_Exclusions(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		opts := DefaultApplyOptions()
+		opts.ExclusionSelector = meta
+
 		// apply with exclusions
-		changeSet, err := manager.ApplyAll(ctx, objects, ApplyOptions{
-			Force:             false,
-			ExclusionSelector: meta,
-			WaitTimeout:       time.Second,
-		})
+		changeSet, err := manager.ApplyAll(ctx, objects, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -493,11 +555,10 @@ func TestApply_IfNotPresent(t *testing.T) {
 
 	t.Run("creates objects", func(t *testing.T) {
 		// create objects
-		changeSet, err := manager.ApplyAllStaged(ctx, []*unstructured.Unstructured{ns, configMapClone}, ApplyOptions{
-			Force:                false,
-			IfNotPresentSelector: meta,
-			WaitTimeout:          time.Second,
-		})
+		opts := DefaultApplyOptions()
+		opts.IfNotPresentSelector = meta
+
+		changeSet, err := manager.ApplyAllStaged(ctx, []*unstructured.Unstructured{ns, configMapClone}, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -510,11 +571,10 @@ func TestApply_IfNotPresent(t *testing.T) {
 	})
 
 	t.Run("skips apply when annotated IfNotPresent", func(t *testing.T) {
-		changeSet, err := manager.Apply(ctx, configMapClone, ApplyOptions{
-			Force:                false,
-			IfNotPresentSelector: meta,
-			WaitTimeout:          time.Second,
-		})
+		opts := DefaultApplyOptions()
+		opts.IfNotPresentSelector = meta
+
+		changeSet, err := manager.Apply(ctx, configMapClone, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -530,11 +590,10 @@ func TestApply_IfNotPresent(t *testing.T) {
 		}
 		configMapClone.SetAnnotations(override)
 
-		changeSet, err := manager.Apply(ctx, configMapClone, ApplyOptions{
-			Force:                false,
-			IfNotPresentSelector: meta,
-			WaitTimeout:          time.Second,
-		})
+		opts := DefaultApplyOptions()
+		opts.IfNotPresentSelector = meta
+
+		changeSet, err := manager.Apply(ctx, configMapClone, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

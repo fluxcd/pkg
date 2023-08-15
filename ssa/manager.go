@@ -26,23 +26,33 @@ import (
 
 // ResourceManager reconciles Kubernetes resources onto the target cluster using server-side apply.
 type ResourceManager struct {
-	client client.Client
-	poller *polling.StatusPoller
-	owner  Owner
+	client      client.Client
+	poller      *polling.StatusPoller
+	owner       Owner
+	concurrency int
 }
 
 // NewResourceManager creates a ResourceManager for the given Kubernetes client.
 func NewResourceManager(client client.Client, poller *polling.StatusPoller, owner Owner) *ResourceManager {
 	return &ResourceManager{
-		client: client,
-		poller: poller,
-		owner:  owner,
+		client:      client,
+		poller:      poller,
+		owner:       owner,
+		concurrency: 1,
 	}
 }
 
 // Client returns the underlying controller-runtime client.
 func (m *ResourceManager) Client() client.Client {
 	return m.client
+}
+
+// SetConcurrency sets how many goroutines execute concurrently to check for config drift when applying changes.
+func (m *ResourceManager) SetConcurrency(c int) {
+	if c < 1 {
+		c = 1
+	}
+	m.concurrency = c
 }
 
 // SetOwnerLabels adds the ownership labels to the given objects.
