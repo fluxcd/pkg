@@ -87,6 +87,11 @@ func (o AuthOptions) Validate() error {
 func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 	opts := newAuthOptions(u)
 	if len(data) > 0 {
+		var caBytes []byte
+		// ca.crt takes precedence over caFile.
+		if caBytes = data["ca.crt"]; len(caBytes) == 0 {
+			caBytes = data["caFile"]
+		}
 		if opts.Transport == SSH {
 			opts.Identity = data["identity"]
 			opts.KnownHosts = data["known_hosts"]
@@ -99,10 +104,10 @@ func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 				opts.Username = DefaultPublicKeyAuthUser
 			}
 		} else if token, found := data["bearerToken"]; found {
-			opts.CAFile = data["caFile"]
+			opts.CAFile = caBytes
 			opts.BearerToken = string(token)
 		} else {
-			opts.CAFile = data["caFile"]
+			opts.CAFile = caBytes
 			opts.Username = string(data["username"])
 			opts.Password = string(data["password"])
 		}
