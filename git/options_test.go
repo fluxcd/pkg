@@ -188,7 +188,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 				"password":    []byte("secret"),
 				"identity":    []byte(privateKeyFixture),
 				"known_hosts": []byte(knownHostsFixture),
-				"caFile":      []byte("mock"),
+				"ca.crt":      []byte("mock"),
 			},
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
@@ -209,7 +209,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 				"bearerToken": []byte("token"),
 				"identity":    []byte(privateKeyFixture),
 				"known_hosts": []byte(knownHostsFixture),
-				"caFile":      []byte("mock"),
+				"ca.crt":      []byte("mock"),
 			},
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
@@ -230,7 +230,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 				"bearerToken": []byte("token"),
 				"identity":    []byte(privateKeyFixture),
 				"known_hosts": []byte(knownHostsFixture),
-				"caFile":      []byte("mock"),
+				"ca.crt":      []byte("mock"),
 			},
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
@@ -265,10 +265,31 @@ func TestAuthOptionsFromData(t *testing.T) {
 			},
 		},
 		{
-			name: "Sets caFile for HTTPS",
+			name: "Sets CAFile for HTTPS using ca.crt",
+			URL:  "https://example.com",
+			data: map[string][]byte{
+				"ca.crt": []byte("mock"),
+			},
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
+			},
+		},
+		{
+			name: "Sets CAFile for HTTPS using caFile",
 			URL:  "https://example.com",
 			data: map[string][]byte{
 				"caFile": []byte("mock"),
+			},
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
+			},
+		},
+		{
+			name: "Sets CAFile for HTTPS using ca.crt and ignores caFile",
+			URL:  "https://example.com",
+			data: map[string][]byte{
+				"ca.crt": []byte("mock"),
+				"caFile": []byte("ignored"),
 			},
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
