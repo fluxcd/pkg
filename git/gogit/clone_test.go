@@ -290,21 +290,23 @@ func TestClone_cloneTag(t *testing.T) {
 				return
 			}
 
-			// Check if commit has a parent if the tag was annotated.
-			for _, tagInRepo := range tt.tagsInRepo {
-				if tagInRepo.annotated {
-					g.Expect(cc.ReferencingTag).ToNot(BeNil())
-					g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tagInRepo.name)))
-				} else {
-					g.Expect(cc.ReferencingTag).To(BeNil())
-				}
-			}
-
 			// Check successful checkout results.
 			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectConcreteCommit))
 			targetTagHash := tagCommits[tt.checkoutTag]
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(cc.String()).To(Equal(tt.checkoutTag + "@" + git.HashTypeSHA1 + ":" + targetTagHash))
+
+			if tt.expectConcreteCommit {
+				g.Expect(cc.ReferencingTag).ToNot(BeNil())
+				for _, tagInRepo := range tt.tagsInRepo {
+					if tagInRepo.annotated {
+						g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeTrue())
+						g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tagInRepo.name)))
+					} else {
+						g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeFalse())
+					}
+				}
+			}
 
 			// Check file content only when there's an actual checkout.
 			if tt.lastRevTag != tt.checkoutTag {
@@ -505,11 +507,12 @@ func TestClone_cloneSemVer(t *testing.T) {
 			g.Expect(cc.String()).To(Equal(tt.expectTag + "@" + git.HashTypeSHA1 + ":" + refs[tt.expectTag]))
 			g.Expect(filepath.Join(tmpDir, "tag")).To(BeARegularFile())
 			g.Expect(os.ReadFile(filepath.Join(tmpDir, "tag"))).To(BeEquivalentTo(tt.expectTag))
+			g.Expect(cc.ReferencingTag).ToNot(BeNil())
 			if tt.annotated {
-				g.Expect(cc.ReferencingTag).ToNot(BeNil())
+				g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeTrue())
 				g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tt.expectTag)))
 			} else {
-				g.Expect(cc.ReferencingTag).To(BeNil())
+				g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeFalse())
 			}
 		})
 	}
@@ -653,9 +656,10 @@ func TestClone_cloneRefName(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(cc.AbsoluteReference()).To(Equal(tt.refName + "@" + git.HashTypeSHA1 + ":" + tt.expectedCommit))
 			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectedConcreteCommit))
-			if strings.Contains(tt.refName, "tags") && !strings.HasSuffix(tt.refName, tagDereferenceSuffix) {
+			if tt.expectedConcreteCommit && strings.Contains(tt.refName, "tags") && !strings.HasSuffix(tt.refName, tagDereferenceSuffix) {
 				g.Expect(cc.ReferencingTag).ToNot(BeNil())
 				g.Expect(cc.ReferencingTag.Message).To(ContainSubstring("Annotated tag for"))
+				g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeTrue())
 			}
 
 			for k, v := range tt.filesCreated {

@@ -535,9 +535,11 @@ func buildSignature(s object.Signature) git.Signature {
 	}
 }
 
-func buildTag(t *object.Tag) (*git.AnnotatedTag, error) {
+func buildTag(t *object.Tag, ref plumbing.ReferenceName) (*git.Tag, error) {
 	if t == nil {
-		return nil, fmt.Errorf("unable to contruct tag: no object")
+		return &git.Tag{
+			Name: ref.Short(),
+		}, nil
 	}
 
 	encoded := &plumbing.MemoryObject{}
@@ -553,7 +555,7 @@ func buildTag(t *object.Tag) (*git.AnnotatedTag, error) {
 		return nil, fmt.Errorf("unable to read encoded tag '%s': %w", t.Name, err)
 	}
 
-	return &git.AnnotatedTag{
+	return &git.Tag{
 		Hash:      []byte(t.Hash.String()),
 		Name:      t.Name,
 		Author:    buildSignature(t.Tagger),
@@ -591,8 +593,8 @@ func buildCommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceN
 		Message:   c.Message,
 	}
 
-	if t != nil {
-		tt, err := buildTag(t)
+	if ref.IsTag() {
+		tt, err := buildTag(t, ref)
 		if err != nil {
 			return nil, err
 		}

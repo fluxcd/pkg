@@ -87,8 +87,8 @@ type Commit struct {
 	Encoded []byte
 	// Message is the commit message, containing arbitrary text.
 	Message string
-	// ReferencingTag is the parent tag, that points to this commit.
-	ReferencingTag *AnnotatedTag
+	// ReferencingTag is the tag that points to this commit.
+	ReferencingTag *Tag
 }
 
 // String returns a string representation of the Commit, composed
@@ -115,8 +115,8 @@ func (c *Commit) AbsoluteReference() string {
 
 // Verify the Signature of the commit with the given key rings.
 // It returns the fingerprint of the key the signature was verified
-// with, or an error. It does not verify the signature of the parent
-// tag (if present). Users are expected to explicitly verify the parent
+// with, or an error. It does not verify the signature of the referencing
+// tag (if present). Users are expected to explicitly verify the referencing
 // tag's signature using `c.ReferencingTag.Verify()`
 func (c *Commit) Verify(keyRings ...string) (string, error) {
 	fingerprint, err := verifySignature(c.Signature, c.Encoded, keyRings...)
@@ -136,8 +136,8 @@ func (c *Commit) ShortMessage() string {
 	return subject
 }
 
-// AnnotatedTag represents an annotated Git tag.
-type AnnotatedTag struct {
+// Tag represents a Git tag.
+type Tag struct {
 	// Hash is the hash of the tag.
 	Hash Hash
 	// Name is the name of the tag.
@@ -155,7 +155,7 @@ type AnnotatedTag struct {
 // Verify the Signature of the tag with the given key rings.
 // It returns the fingerprint of the key the signature was verified
 // with, or an error.
-func (t *AnnotatedTag) Verify(keyRings ...string) (string, error) {
+func (t *Tag) Verify(keyRings ...string) (string, error) {
 	fingerprint, err := verifySignature(t.Signature, t.Encoded, keyRings...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git tag: %w", err)
@@ -164,8 +164,13 @@ func (t *AnnotatedTag) Verify(keyRings ...string) (string, error) {
 }
 
 // String returns a short string representation of the tag in the format
-// of <name@hash>, for eg: <1.0.0@a0c14dc8580a23f79bc654faa79c4f62b46c2c22>
-func (t *AnnotatedTag) String() string {
+// of <name@hash>, for eg: "1.0.0@a0c14dc8580a23f79bc654faa79c4f62b46c2c22"
+// If the tag is lightweight, it won't have a hash, so it'll simply return
+// the tag name, i.e. "1.0.0".
+func (t *Tag) String() string {
+	if len(t.Hash) == 0 {
+		return t.Name
+	}
 	return fmt.Sprintf("%s@%s", t.Name, t.Hash.String())
 }
 
@@ -193,6 +198,16 @@ func IsConcreteCommit(c Commit) bool {
 		return true
 	}
 	return false
+}
+
+// IsAnnotatedTag returns true if the provided tag is annotated.
+func IsAnnotatedTag(t Tag) bool {
+	return len(t.Encoded) > 0
+}
+
+// IsSignedTag returns true if the provided tag has a signature.
+func IsSignedTag(t Tag) bool {
+	return t.Signature != ""
 }
 
 func verifySignature(sig string, payload []byte, keyRings ...string) (string, error) {
