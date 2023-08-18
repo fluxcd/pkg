@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	. "github.com/onsi/gomega"
@@ -109,6 +110,25 @@ func TestValidHost(t *testing.T) {
 		t.Run(tt.host, func(t *testing.T) {
 			g := NewWithT(t)
 			g.Expect(ValidHost(tt.host)).To(Equal(tt.result))
+		})
+	}
+}
+
+func TestGetCloudConfiguration(t *testing.T) {
+	tests := []struct {
+		host   string
+		result cloud.Configuration
+	}{
+		{"foo.azurecr.io", cloud.AzurePublic},
+		{"foo.azurecr.cn", cloud.AzureChina},
+		{"foo.azurecr.de", cloud.AzurePublic},
+		{"foo.azurecr.us", cloud.AzureGovernment},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.host, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(getCloudConfiguration(tt.host)).To(Equal(tt.result))
 		})
 	}
 }
