@@ -175,7 +175,9 @@ func TestApply_Force(t *testing.T) {
 		}
 
 		// verify that the error message does not contain sensitive information
-		expectedErr := fmt.Sprintf("%s invalid, error: secret is immutable", FmtUnstructured(secret))
+		expectedErr := fmt.Sprintf(
+			"%s dry-run failed, reason: Invalid: Secret \"%s\" is invalid: data: Forbidden: field is immutable when `immutable` is set",
+			FmtUnstructured(secret), secret.GetName())
 		if diff := cmp.Diff(expectedErr, err.Error()); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
