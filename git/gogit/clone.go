@@ -119,7 +119,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
 	}
 	g.repository = repo
-	return buildCommitWithRef(cc, ref)
+	return buildCommitWithRef(cc, nil, ref)
 }
 
 func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -165,9 +165,10 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		Depth:             depth,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
-		Tags:              extgogit.NoTags,
-		CABundle:          caBundle(g.authOpts),
-		ProxyOptions:      g.proxy,
+		// Ask for the tag object that points to the commit to be sent as well.
+		Tags:         extgogit.TagFollowing,
+		CABundle:     caBundle(g.authOpts),
+		ProxyOptions: g.proxy,
 	}
 
 	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
@@ -189,14 +190,32 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
 	}
+
+	tagRef, err := repo.Tag(tag)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find reference for tag '%s': %w", tag, err)
+	}
+
+	tagObj, err := repo.TagObject(tagRef.Hash())
+	if err != nil && err != plumbing.ErrObjectNotFound {
+		return nil, fmt.Errorf("unable to resolve tag object for tag '%s' with hash '%s': %w", tag, tagRef.Hash(), err)
+	}
+
 	g.repository = repo
-	return buildCommitWithRef(cc, ref)
+	return buildCommitWithRef(cc, tagObj, ref)
 }
 
 func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneConfig) (*git.Commit, error) {
 	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
+	}
+
+	// we only want to fetch tags if the refname provided is a tag
+	// and does not have the dereference suffix.
+	tagStrategy := extgogit.NoTags
+	if plumbing.ReferenceName(opts.RefName).IsTag() && !strings.HasSuffix(opts.RefName, tagDereferenceSuffix) {
+		tagStrategy = extgogit.TagFollowing
 	}
 	cloneOpts := &extgogit.CloneOptions{
 		URL:               url,
@@ -206,7 +225,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		NoCheckout:        true,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
-		Tags:              extgogit.NoTags,
+		Tags:              tagStrategy,
 		CABundle:          caBundle(g.authOpts),
 		ProxyOptions:      g.proxy,
 	}
@@ -242,11 +261,29 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 	if err != nil {
 		return nil, fmt.Errorf("unable to checkout commit '%s': %w", commit, err)
 	}
-	g.repository = repo
+
+	var tagObj *object.Tag
 	if opts.RefName != "" {
 		cloneOpts.ReferenceName = plumbing.ReferenceName(opts.RefName)
+		// If the refname points to a tag then try to resolve the tag object and include
+		// in the commit being returned. Refnames that point to a tag but have the dereference
+		// suffix aren't considered, since the suffix indicates that the refname is pointing to
+		// the commit object and not the tag object.
+		if cloneOpts.ReferenceName.IsTag() && !strings.HasSuffix(opts.RefName, tagDereferenceSuffix) {
+			tagRef, err := repo.Tag(cloneOpts.ReferenceName.Short())
+			if err != nil {
+				return nil, fmt.Errorf("unable to find reference for tag ref '%s': %w", opts.RefName, err)
+			}
+
+			tagObj, err = repo.TagObject(tagRef.Hash())
+			if err != nil && err != plumbing.ErrObjectNotFound {
+				return nil, fmt.Errorf("unable to resolve tag object for tag ref '%s' with hash '%s': %w", opts.RefName, tagRef.Hash(), err)
+			}
+		}
 	}
-	return buildCommitWithRef(cc, cloneOpts.ReferenceName)
+
+	g.repository = repo
+	return buildCommitWithRef(cc, tagObj, cloneOpts.ReferenceName)
 }
 
 func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -350,13 +387,17 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 		return nil, fmt.Errorf("unable to open Git worktree: %w", err)
 	}
 
-	ref := plumbing.NewTagReferenceName(t)
+	tagRef, err := repo.Tag(t)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find reference for tag '%s': %w", t, err)
+	}
 	err = w.Checkout(&extgogit.CheckoutOptions{
-		Branch: ref,
+		Branch: tagRef.Name(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to checkout tag '%s': %w", t, err)
 	}
+
 	head, err := repo.Head()
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve HEAD of tag '%s': %w", t, err)
@@ -365,8 +406,14 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
 	}
+
+	tagObj, err := repo.TagObject(tagRef.Hash())
+	if err != nil && err != plumbing.ErrObjectNotFound {
+		return nil, fmt.Errorf("unable to resolve tag object for tag '%s' with hash '%s': %w", t, tagRef.Hash(), err)
+	}
+
 	g.repository = repo
-	return buildCommitWithRef(cc, ref)
+	return buildCommitWithRef(cc, tagObj, tagRef.Name())
 }
 
 func (g *Client) cloneRefName(ctx context.Context, url string, refName string, cloneOpts repository.CloneConfig) (*git.Commit, error) {
@@ -488,7 +535,37 @@ func buildSignature(s object.Signature) git.Signature {
 	}
 }
 
-func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Commit, error) {
+func buildTag(t *object.Tag, ref plumbing.ReferenceName) (*git.Tag, error) {
+	if t == nil {
+		return &git.Tag{
+			Name: ref.Short(),
+		}, nil
+	}
+
+	encoded := &plumbing.MemoryObject{}
+	if err := t.EncodeWithoutSignature(encoded); err != nil {
+		return nil, fmt.Errorf("unable to encode tag '%s': %w", t.Name, err)
+	}
+	reader, err := encoded.Reader()
+	if err != nil {
+		return nil, fmt.Errorf("unable to encode tag '%s': %w", t.Name, err)
+	}
+	b, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read encoded tag '%s': %w", t.Name, err)
+	}
+
+	return &git.Tag{
+		Hash:      []byte(t.Hash.String()),
+		Name:      t.Name,
+		Author:    buildSignature(t.Tagger),
+		Signature: t.PGPSignature,
+		Encoded:   b,
+		Message:   t.Message,
+	}, nil
+}
+
+func buildCommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceName) (*git.Commit, error) {
 	if c == nil {
 		return nil, fmt.Errorf("unable to construct commit: no object")
 	}
@@ -506,7 +583,7 @@ func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Comm
 	if err != nil {
 		return nil, fmt.Errorf("unable to read encoded commit '%s': %w", c.Hash, err)
 	}
-	return &git.Commit{
+	cc := &git.Commit{
 		Hash:      []byte(c.Hash.String()),
 		Reference: ref.String(),
 		Author:    buildSignature(c.Author),
@@ -514,7 +591,17 @@ func buildCommitWithRef(c *object.Commit, ref plumbing.ReferenceName) (*git.Comm
 		Signature: c.PGPSignature,
 		Encoded:   b,
 		Message:   c.Message,
-	}, nil
+	}
+
+	if ref.IsTag() {
+		tt, err := buildTag(t, ref)
+		if err != nil {
+			return nil, err
+		}
+		cc.ReferencingTag = tt
+	}
+
+	return cc, nil
 }
 
 func isRemoteBranchNotFoundErr(err error, ref string) bool {

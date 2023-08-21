@@ -296,6 +296,18 @@ func TestClone_cloneTag(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(cc.String()).To(Equal(tt.checkoutTag + "@" + git.HashTypeSHA1 + ":" + targetTagHash))
 
+			if tt.expectConcreteCommit {
+				g.Expect(cc.ReferencingTag).ToNot(BeNil())
+				for _, tagInRepo := range tt.tagsInRepo {
+					if tagInRepo.annotated {
+						g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeTrue())
+						g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tagInRepo.name)))
+					} else {
+						g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeFalse())
+					}
+				}
+			}
+
 			// Check file content only when there's an actual checkout.
 			if tt.lastRevTag != tt.checkoutTag {
 				g.Expect(filepath.Join(tmpDir, "tag")).To(BeARegularFile())
@@ -415,7 +427,7 @@ func TestClone_cloneSemVer(t *testing.T) {
 		},
 		{
 			tag:        "v0.1.0+build-3",
-			annotated:  true,
+			annotated:  false,
 			commitTime: now.Add(1 * time.Hour),
 			tagTime:    now.Add(1 * time.Hour), // This should be ignored during TS comparisons
 		},
@@ -429,6 +441,7 @@ func TestClone_cloneSemVer(t *testing.T) {
 	tests := []struct {
 		name       string
 		constraint string
+		annotated  bool
 		expectErr  error
 		expectTag  string
 	}{
@@ -436,6 +449,7 @@ func TestClone_cloneSemVer(t *testing.T) {
 			name:       "Orders by SemVer",
 			constraint: ">0.1.0",
 			expectTag:  "0.2.0",
+			annotated:  true,
 		},
 		{
 			name:       "Orders by SemVer and timestamp",
@@ -493,6 +507,13 @@ func TestClone_cloneSemVer(t *testing.T) {
 			g.Expect(cc.String()).To(Equal(tt.expectTag + "@" + git.HashTypeSHA1 + ":" + refs[tt.expectTag]))
 			g.Expect(filepath.Join(tmpDir, "tag")).To(BeARegularFile())
 			g.Expect(os.ReadFile(filepath.Join(tmpDir, "tag"))).To(BeEquivalentTo(tt.expectTag))
+			g.Expect(cc.ReferencingTag).ToNot(BeNil())
+			if tt.annotated {
+				g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeTrue())
+				g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tt.expectTag)))
+			} else {
+				g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeFalse())
+			}
 		})
 	}
 }
@@ -635,6 +656,11 @@ func TestClone_cloneRefName(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(cc.AbsoluteReference()).To(Equal(tt.refName + "@" + git.HashTypeSHA1 + ":" + tt.expectedCommit))
 			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectedConcreteCommit))
+			if tt.expectedConcreteCommit && strings.Contains(tt.refName, "tags") && !strings.HasSuffix(tt.refName, tagDereferenceSuffix) {
+				g.Expect(cc.ReferencingTag).ToNot(BeNil())
+				g.Expect(cc.ReferencingTag.Message).To(ContainSubstring("Annotated tag for"))
+				g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeTrue())
+			}
 
 			for k, v := range tt.filesCreated {
 				g.Expect(filepath.Join(tmpDir, k)).To(BeARegularFile())

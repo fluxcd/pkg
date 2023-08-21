@@ -87,6 +87,8 @@ type Commit struct {
 	Encoded []byte
 	// Message is the commit message, containing arbitrary text.
 	Message string
+	// ReferencingTag is the tag that points to this commit.
+	ReferencingTag *Tag
 }
 
 // String returns a string representation of the Commit, composed
@@ -113,24 +115,15 @@ func (c *Commit) AbsoluteReference() string {
 
 // Verify the Signature of the commit with the given key rings.
 // It returns the fingerprint of the key the signature was verified
-// with, or an error.
-func (c *Commit) Verify(keyRing ...string) (string, error) {
-	if c.Signature == "" {
-		return "", fmt.Errorf("commit does not have a PGP signature")
+// with, or an error. It does not verify the signature of the referencing
+// tag (if present). Users are expected to explicitly verify the referencing
+// tag's signature using `c.ReferencingTag.Verify()`
+func (c *Commit) Verify(keyRings ...string) (string, error) {
+	fingerprint, err := verifySignature(c.Signature, c.Encoded, keyRings...)
+	if err != nil {
+		return "", fmt.Errorf("unable to verify Git commit: %w", err)
 	}
-
-	for _, r := range keyRing {
-		reader := strings.NewReader(r)
-		keyring, err := openpgp.ReadArmoredKeyRing(reader)
-		if err != nil {
-			return "", fmt.Errorf("unable to read armored key ring: %w", err)
-		}
-		signer, err := openpgp.CheckArmoredDetachedSignature(keyring, bytes.NewBuffer(c.Encoded), bytes.NewBufferString(c.Signature), nil)
-		if err == nil {
-			return signer.PrimaryKey.KeyIdString(), nil
-		}
-	}
-	return "", fmt.Errorf("unable to verify commit with any of the given key rings")
+	return fingerprint, nil
 }
 
 // ShortMessage returns the first 50 characters of a commit subject.
@@ -141,6 +134,44 @@ func (c *Commit) ShortMessage() string {
 		return fmt.Sprintf("%s...", string(r[0:50]))
 	}
 	return subject
+}
+
+// Tag represents a Git tag.
+type Tag struct {
+	// Hash is the hash of the tag.
+	Hash Hash
+	// Name is the name of the tag.
+	Name string
+	// Author is the original author of the tag.
+	Author Signature
+	// Signature is the PGP signature of the tag.
+	Signature string
+	// Encoded is the encoded tag, without any signature.
+	Encoded []byte
+	// Message is the tag message, containing arbitrary text.
+	Message string
+}
+
+// Verify the Signature of the tag with the given key rings.
+// It returns the fingerprint of the key the signature was verified
+// with, or an error.
+func (t *Tag) Verify(keyRings ...string) (string, error) {
+	fingerprint, err := verifySignature(t.Signature, t.Encoded, keyRings...)
+	if err != nil {
+		return "", fmt.Errorf("unable to verify Git tag: %w", err)
+	}
+	return fingerprint, nil
+}
+
+// String returns a short string representation of the tag in the format
+// of <name@hash>, for eg: "1.0.0@a0c14dc8580a23f79bc654faa79c4f62b46c2c22"
+// If the tag is lightweight, it won't have a hash, so it'll simply return
+// the tag name, i.e. "1.0.0".
+func (t *Tag) String() string {
+	if len(t.Hash) == 0 {
+		return t.Name
+	}
+	return fmt.Sprintf("%s@%s", t.Name, t.Hash.String())
 }
 
 // ErrRepositoryNotFound indicates that the repository (or the ref in
@@ -167,4 +198,33 @@ func IsConcreteCommit(c Commit) bool {
 		return true
 	}
 	return false
+}
+
+// IsAnnotatedTag returns true if the provided tag is annotated.
+func IsAnnotatedTag(t Tag) bool {
+	return len(t.Encoded) > 0
+}
+
+// IsSignedTag returns true if the provided tag has a signature.
+func IsSignedTag(t Tag) bool {
+	return t.Signature != ""
+}
+
+func verifySignature(sig string, payload []byte, keyRings ...string) (string, error) {
+	if sig == "" {
+		return "", fmt.Errorf("unable to verify payload as the provided signature is empty")
+	}
+
+	for _, r := range keyRings {
+		reader := strings.NewReader(r)
+		keyring, err := openpgp.ReadArmoredKeyRing(reader)
+		if err != nil {
+			return "", fmt.Errorf("unable to read armored key ring: %w", err)
+		}
+		signer, err := openpgp.CheckArmoredDetachedSignature(keyring, bytes.NewBuffer(payload), bytes.NewBufferString(sig), nil)
+		if err == nil {
+			return signer.PrimaryKey.KeyIdString(), nil
+		}
+	}
+	return "", fmt.Errorf("unable to verify payload with any of the given key rings")
 }

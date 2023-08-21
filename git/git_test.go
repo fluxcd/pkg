@@ -155,6 +155,61 @@ func TestHash_Algorithm(t *testing.T) {
 	}
 }
 
+func Test_verifySignature(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  []byte
+		sig      string
+		keyRings []string
+		want     string
+		wantErr  string
+	}{
+		{
+			name:     "Valid commit signature",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{armoredKeyRingFixture},
+			want:     keyRingFingerprintFixture,
+		},
+		{
+			name:     "Malformed encoded commit",
+			payload:  []byte(malformedEncodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Malformed key ring",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture},
+			wantErr:  "unable to read armored key ring: unexpected EOF",
+		},
+		{
+			name:     "Missing signature",
+			payload:  []byte(encodedCommitFixture),
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload as the provided signature is empty",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			got, err := verifySignature(tt.sig, tt.payload, tt.keyRings...)
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(got).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(got).To(Equal(tt.want))
+		})
+	}
+}
+
 func TestHash_Digest(t *testing.T) {
 	tests := []struct {
 		name string
@@ -262,68 +317,6 @@ func TestCommit_AbsoluteReference(t *testing.T) {
 			g := NewWithT(t)
 
 			g.Expect(tt.commit.AbsoluteReference()).To(Equal(tt.want))
-		})
-	}
-}
-
-func TestCommit_Verify(t *testing.T) {
-	tests := []struct {
-		name     string
-		commit   *Commit
-		keyRings []string
-		want     string
-		wantErr  string
-	}{
-		{
-			name: "Valid commit signature",
-			commit: &Commit{
-				Encoded:   []byte(encodedCommitFixture),
-				Signature: signatureCommitFixture,
-			},
-			keyRings: []string{armoredKeyRingFixture},
-			want:     keyRingFingerprintFixture,
-		},
-		{
-			name: "Malformed encoded commit",
-			commit: &Commit{
-				Encoded:   []byte(malformedEncodedCommitFixture),
-				Signature: signatureCommitFixture,
-			},
-			keyRings: []string{armoredKeyRingFixture},
-			wantErr:  "unable to verify commit with any of the given key rings",
-		},
-		{
-			name: "Malformed key ring",
-			commit: &Commit{
-				Encoded:   []byte(encodedCommitFixture),
-				Signature: signatureCommitFixture,
-			},
-			keyRings: []string{malformedKeyRingFixture},
-			wantErr:  "unable to read armored key ring: unexpected EOF",
-		},
-		{
-			name: "Missing signature",
-			commit: &Commit{
-				Encoded: []byte(encodedCommitFixture),
-			},
-			keyRings: []string{armoredKeyRingFixture},
-			wantErr:  "commit does not have a PGP signature",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
-
-			got, err := tt.commit.Verify(tt.keyRings...)
-			if tt.wantErr != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
-				g.Expect(got).To(BeEmpty())
-				return
-			}
-
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(got).To(Equal(tt.want))
 		})
 	}
 }
