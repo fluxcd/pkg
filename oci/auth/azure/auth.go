@@ -74,10 +74,10 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 		c.credential = cred
 	}
 
+	configurationEnvironment := getCloudConfiguration(registryURL)
 	// Obtain access token using the token credential.
-	// TODO: Add support for other azure endpoints as well.
 	armToken, err := c.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{cloud.AzurePublic.Services[cloud.ResourceManager].Endpoint + "/" + ".default"},
+		Scopes: []string{configurationEnvironment.Services[cloud.ResourceManager].Endpoint + "/" + ".default"},
 	})
 	if err != nil {
 		return authConfig, err
@@ -96,6 +96,19 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 		Username: "00000000-0000-0000-0000-000000000000",
 		Password: accessToken,
 	}, nil
+}
+
+// getCloudConfiguration returns the cloud configuration based on the registry URL.
+// List from https://github.com/Azure/azure-sdk-for-go/blob/main/sdk/containers/azcontainerregistry/cloud_config.go#L16
+func getCloudConfiguration(url string) cloud.Configuration {
+	switch {
+	case strings.HasSuffix(url, ".azurecr.cn"):
+		return cloud.AzureChina
+	case strings.HasSuffix(url, ".azurecr.us"):
+		return cloud.AzureGovernment
+	default:
+		return cloud.AzurePublic
+	}
 }
 
 // ValidHost returns if a given host is a Azure container registry.
