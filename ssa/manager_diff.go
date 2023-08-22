@@ -20,7 +20,6 @@ package ssa
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -186,14 +185,6 @@ func (m *ResourceManager) validationError(object *unstructured.Unstructured, err
 	}
 
 	reason := fmt.Sprintf("%v", apierrors.ReasonForError(err))
-
-	if object.GetKind() == "Secret" {
-		msg := "data values must be of type string"
-		if strings.Contains(err.Error(), "immutable") {
-			msg = "secret is immutable"
-		}
-		return fmt.Errorf("%s %s, error: %s", FmtUnstructured(object), strings.ToLower(reason), msg)
-	}
 
 	// detect managed field conflict
 	if status, ok := apierrors.StatusCause(err, metav1.CauseTypeFieldManagerConflict); ok {
