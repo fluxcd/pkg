@@ -36,7 +36,9 @@ const (
 // CACertIdentifier.
 func ConfigFromSecret(certSecret *corev1.Secret) (*tls.Config, error) {
 	validSecret := false
-	tlsConfig := &tls.Config{}
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
 
 	clientCert, clientCertOk := certSecret.Data[ClientCertIdentifier]
 	clientKey, clientKeyOk := certSecret.Data[ClientKeyIdentifier]
