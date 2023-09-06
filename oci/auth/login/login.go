@@ -24,7 +24,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/oci"
 	"github.com/fluxcd/pkg/oci/auth/aws"
@@ -140,19 +140,19 @@ func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts Provid
 		if !opts.AwsAutoLogin {
 			return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
-		ctrl.LoggerFrom(ctx).Info("logging in to AWS ECR for " + u.Host)
+		log.FromContext(ctx).Info("logging in to AWS ECR for " + u.Host)
 		return m.ecr.OIDCLogin(ctx, u.Host)
 	case oci.ProviderGCP:
 		if !opts.GcpAutoLogin {
 			return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
-		ctrl.LoggerFrom(ctx).Info("logging in to GCP GCR for " + u.Host)
+		log.FromContext(ctx).Info("logging in to GCP GCR for " + u.Host)
 		return m.gcr.OIDCLogin(ctx)
 	case oci.ProviderAzure:
 		if !opts.AzureAutoLogin {
 			return nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
-		ctrl.LoggerFrom(ctx).Info("logging in to Azure ACR for " + u.Host)
+		log.FromContext(ctx).Info("logging in to Azure ACR for " + u.Host)
 		return m.acr.OIDCLogin(ctx, fmt.Sprintf("%s://%s", u.Scheme, u.Host))
 	}
 	return nil, nil

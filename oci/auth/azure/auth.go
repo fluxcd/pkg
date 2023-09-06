@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/oci"
 )
@@ -126,13 +126,13 @@ func ValidHost(host string) bool {
 // ensure that the passed image is a valid ACR image using ValidHost().
 func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref name.Reference) (authn.Authenticator, error) {
 	if autoLogin {
-		ctrl.LoggerFrom(ctx).Info("logging in to Azure ACR for " + image)
+		log.FromContext(ctx).Info("logging in to Azure ACR for " + image)
 		// get registry host from image
 		strArr := strings.SplitN(image, "/", 2)
 		endpoint := fmt.Sprintf("%s://%s", c.scheme, strArr[0])
 		authConfig, err := c.getLoginAuth(ctx, endpoint)
 		if err != nil {
-			ctrl.LoggerFrom(ctx).Info("error logging into ACR " + err.Error())
+			log.FromContext(ctx).Info("error logging into ACR " + err.Error())
 			return nil, err
 		}
 
@@ -149,7 +149,7 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 func (c *Client) OIDCLogin(ctx context.Context, registryUrl string) (authn.Authenticator, error) {
 	authConfig, err := c.getLoginAuth(ctx, registryUrl)
 	if err != nil {
-		ctrl.LoggerFrom(ctx).Info("error logging into ACR " + err.Error())
+		log.FromContext(ctx).Info("error logging into ACR " + err.Error())
 		return nil, err
 	}
 
