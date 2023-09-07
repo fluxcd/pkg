@@ -29,7 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/google/go-containerregistry/pkg/authn"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/oci"
 )
@@ -135,7 +135,7 @@ func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.A
 // Login attempts to get the authentication material for ECR.
 func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn.Authenticator, error) {
 	if autoLogin {
-		ctrl.LoggerFrom(ctx).Info("logging in to AWS ECR for " + image)
+		log.FromContext(ctx).Info("logging in to AWS ECR for " + image)
 		_, awsEcrRegion, ok := ParseRegistry(image)
 		if !ok {
 			return nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
