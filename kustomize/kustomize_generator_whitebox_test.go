@@ -49,6 +49,14 @@ func TestScanManifests(t *testing.T) {
 			base:    "./testdata/nokustomization/panic",
 			wantErr: true,
 		},
+		{
+			name: "utf-16LE with BOM files - should be valid",
+			base: "./testdata/nokustomization/utf16le",
+			wantPaths: []string{
+				"testdata/nokustomization/utf16le/configmap.yaml",
+				"testdata/nokustomization/utf16le/secret.yaml",
+			},
+		},
 	}
 
 	for _, tt := range tests {

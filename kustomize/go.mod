@@ -15,12 +15,13 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/gomega v1.27.10
 	github.com/otiai10/copy v1.12.0
+	golang.org/x/text v0.13.0
 	k8s.io/api v0.27.4
 	k8s.io/apiextensions-apiserver v0.27.4
 	k8s.io/apimachinery v0.27.4
 	k8s.io/client-go v0.27.4
 	sigs.k8s.io/controller-runtime v0.15.1
-	sigs.k8s.io/kustomize/api v0.13.4
+	sigs.k8s.io/kustomize/api v0.14.0
 	sigs.k8s.io/kustomize/kyaml v0.14.2
 	sigs.k8s.io/yaml v1.3.0
 )
@@ -72,7 +73,6 @@ require (
 	golang.org/x/oauth2 v0.5.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/term v0.10.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect

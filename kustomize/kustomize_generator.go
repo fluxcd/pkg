@@ -27,6 +27,8 @@ import (
 	"sync"
 
 	securefs "github.com/fluxcd/pkg/kustomize/filesys"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -510,7 +512,16 @@ func scanManifests(fs filesys.FileSystem, base string) ([]string, error) {
 			return
 		}
 
-		fContents, err := fs.ReadFile(path)
+		f, err := os.Open(path)
+		if err != nil {
+			walkErr = err
+			return
+		}
+		defer f.Close()
+
+		utf16bom := unicode.BOMOverride(unicode.UTF8.NewDecoder())
+		reader := transform.NewReader(f, utf16bom)
+		fContents, err := io.ReadAll(reader)
 		if err != nil {
 			walkErr = err
 			return
