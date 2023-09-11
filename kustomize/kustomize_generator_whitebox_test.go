@@ -57,6 +57,11 @@ func TestScanManifests(t *testing.T) {
 				"testdata/nokustomization/utf16le/secret.yaml",
 			},
 		},
+		{
+			name:    "utf-16LE without BOM files - should be invalid",
+			base:    "./testdata/nokustomization/utf16le-no-bom",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
