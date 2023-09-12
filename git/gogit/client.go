@@ -27,6 +27,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/go-git/go-billy/v5/osfs"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -39,7 +40,6 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/git/gogit/fs"
 	"github.com/fluxcd/pkg/git/repository"
 )
 
@@ -159,8 +159,8 @@ func WithSingleBranch(singleBranch bool) ClientOption {
 // Git related objects on disk.
 func WithDiskStorage() ClientOption {
 	return func(c *Client) error {
-		wt := fs.New(c.path)
-		dot := fs.New(filepath.Join(c.path, extgogit.GitDirName))
+		wt := osfs.New(c.path, osfs.WithBoundOS())
+		dot := osfs.New(filepath.Join(c.path, extgogit.GitDirName), osfs.WithBoundOS())
 
 		c.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
 		c.worktreeFS = wt
