@@ -34,6 +34,7 @@ import (
 
 	"github.com/elazarl/goproxy"
 	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/go-git/go-billy/v5/osfs"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -46,7 +47,6 @@ import (
 
 	"github.com/fluxcd/gitkit"
 	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/git/gogit/fs"
 	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
 	"github.com/fluxcd/pkg/ssh"
@@ -1556,7 +1556,7 @@ func Fuzz_GoGitError(f *testing.F) {
 }
 
 func initRepo(tmpDir string) (*extgogit.Repository, string, error) {
-	sto := filesystem.NewStorage(fs.New(tmpDir), cache.NewObjectLRUDefault())
+	sto := filesystem.NewStorage(osfs.New(tmpDir, osfs.WithBoundOS()), cache.NewObjectLRUDefault())
 	repo, err := extgogit.Init(sto, memfs.New())
 	if err != nil {
 		return nil, "", err
