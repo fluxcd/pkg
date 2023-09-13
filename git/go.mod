@@ -7,8 +7,8 @@ require (
 	// maintained by the ProtonMail team to continue to support the openpgp
 	// module, after the Go team decided to no longer maintain it.
 	// When in doubt (and not using openpgp), use /x/crypto.
-	github.com/ProtonMail/go-crypto v0.0.0-20230717121422-5aa5874ade95
-	github.com/cyphar/filepath-securejoin v0.2.3
+	github.com/ProtonMail/go-crypto v0.0.0-20230828082145-3c4c8a2d2371
+	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/onsi/gomega v1.27.10
 )
 
