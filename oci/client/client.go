@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/google/go-containerregistry/pkg/crane"
-	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/fluxcd/pkg/oci"
@@ -41,16 +40,9 @@ func NewClient(opts []crane.Option) *Client {
 	return &Client{options: options}
 }
 
-// DefaultOptions returns an array containing crane.WithPlatform
-// to set the platform to flux.
+// DefaultOptions returns an empty list of client options.
 func DefaultOptions() []crane.Option {
-	return []crane.Option{
-		crane.WithPlatform(&gcrv1.Platform{
-			Architecture: "flux",
-			OS:           "flux",
-			OSVersion:    "v2",
-		}),
-	}
+	return []crane.Option{}
 }
 
 // GetOptions returns the list of crane.Option used by this Client.
