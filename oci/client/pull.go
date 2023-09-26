@@ -48,6 +48,7 @@ func (c *Client) Pull(ctx context.Context, url, outDir string) (*Metadata, error
 	}
 
 	meta := MetadataFromAnnotations(manifest.Annotations)
+	meta.URL = url
 	meta.Digest = ref.Context().Digest(digest.String()).String()
 
 	layers, err := img.Layers()

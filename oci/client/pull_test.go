@@ -64,6 +64,7 @@ func Test_PullAnyTarball(t *testing.T) {
 	g.Expect(m.Created).To(BeEmpty())
 	g.Expect(m.Revision).To(BeEmpty())
 	g.Expect(m.Source).To(BeEmpty())
+	g.Expect(m.URL).To(Equal(dst))
 	g.Expect(m.Digest).ToNot(BeEmpty())
 	g.Expect(extractTo).To(BeADirectory())
 
