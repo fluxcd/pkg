@@ -17,17 +17,15 @@ limitations under the License.
 package client
 
 import (
-	"fmt"
-
 	"github.com/fluxcd/pkg/oci"
 )
 
 // Metadata holds the upstream information about on artifact's source.
 // https://github.com/opencontainers/image-spec/blob/main/annotations.md
 type Metadata struct {
-	Created     string            `json:"created"`
-	Source      string            `json:"source_url"`
-	Revision    string            `json:"source_revision"`
+	Created     string            `json:"created,omitempty"`
+	Source      string            `json:"source_url,omitempty"`
+	Revision    string            `json:"source_revision,omitempty"`
 	Digest      string            `json:"digest"`
 	URL         string            `json:"url"`
 	Annotations map[string]string `json:"annotations,omitempty"`
@@ -49,28 +47,11 @@ func (m *Metadata) ToAnnotations() map[string]string {
 }
 
 // MetadataFromAnnotations parses the OpenContainers annotations and returns a Metadata object.
-func MetadataFromAnnotations(annotations map[string]string) (*Metadata, error) {
-	created, ok := annotations[oci.CreatedAnnotation]
-	if !ok {
-		return nil, fmt.Errorf("'%s' annotation not found", oci.CreatedAnnotation)
-	}
-
-	source, ok := annotations[oci.SourceAnnotation]
-	if !ok {
-		return nil, fmt.Errorf("'%s' annotation not found", oci.SourceAnnotation)
-	}
-
-	revision, ok := annotations[oci.RevisionAnnotation]
-	if !ok {
-		return nil, fmt.Errorf("'%s' annotation not found", oci.RevisionAnnotation)
-	}
-
-	m := Metadata{
-		Created:     created,
-		Source:      source,
-		Revision:    revision,
+func MetadataFromAnnotations(annotations map[string]string) *Metadata {
+	return &Metadata{
+		Created:     annotations[oci.CreatedAnnotation],
+		Source:      annotations[oci.SourceAnnotation],
+		Revision:    annotations[oci.RevisionAnnotation],
 		Annotations: annotations,
 	}
-
-	return &m, nil
 }

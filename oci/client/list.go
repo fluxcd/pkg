@@ -104,11 +104,10 @@ func (c *Client) List(ctx context.Context, url string, opts ListOptions) ([]Meta
 			return nil, fmt.Errorf("parsing manifest failed: %w", err)
 		}
 
-		if m, err := MetadataFromAnnotations(manifest.Annotations); err == nil {
-			meta.Revision = m.Revision
-			meta.Source = m.Source
-			meta.Created = m.Created
-		}
+		manifestMetadata := MetadataFromAnnotations(manifest.Annotations)
+		meta.Revision = manifestMetadata.Revision
+		meta.Source = manifestMetadata.Source
+		meta.Created = manifestMetadata.Created
 
 		digest, err := crane.Digest(meta.URL, c.optionsWithContext(ctx)...)
 		if err != nil {

@@ -47,10 +47,8 @@ func (c *Client) Pull(ctx context.Context, url, outDir string) (*Metadata, error
 		return nil, fmt.Errorf("parsing manifest failed: %w", err)
 	}
 
-	meta, err := MetadataFromAnnotations(manifest.Annotations)
-	if err != nil {
-		return nil, err
-	}
+	meta := MetadataFromAnnotations(manifest.Annotations)
+	meta.URL = url
 	meta.Digest = ref.Context().Digest(digest.String()).String()
 
 	layers, err := img.Layers()
