@@ -140,7 +140,7 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 	}
 
 	// Extracts the tar file.
-	if err = tar.Untar(f, dir, tar.WithMaxUntarSize(r.maxUntarSize)); err != nil {
+	if err = tar.Untar(f, dir, tar.WithMaxUntarSize(r.maxUntarSize), tar.WithSkipSymlinks()); err != nil {
 		return fmt.Errorf("failed to extract archive (check whether file size exceeds max download size): %w", err)
 	}
 

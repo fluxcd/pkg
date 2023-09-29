@@ -20,9 +20,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fluxcd/pkg/tar"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
+
+	"github.com/fluxcd/pkg/tar"
 )
 
 // Pull downloads an artifact from an OCI repository and extracts the content to the given directory.
@@ -65,7 +66,7 @@ func (c *Client) Pull(ctx context.Context, url, outDir string) (*Metadata, error
 		return nil, fmt.Errorf("extracting first layer failed: %w", err)
 	}
 
-	if err = tar.Untar(blob, outDir, tar.WithMaxUntarSize(-1)); err != nil {
+	if err = tar.Untar(blob, outDir, tar.WithMaxUntarSize(-1), tar.WithSkipSymlinks()); err != nil {
 		return nil, fmt.Errorf("failed to untar first layer: %w", err)
 	}
 
