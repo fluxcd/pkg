@@ -39,6 +39,9 @@ type tarOpts struct {
 	// maxUntarSize represents the limit size (bytes) for archives being decompressed by Untar.
 	// When max is a negative value the size checks are disabled.
 	maxUntarSize int
+
+	// skipSymlinks ignores symlinks instead of failing the decompression.
+	skipSymlinks bool
 }
 
 // Untar reads the gzip-compressed tar file from r and writes it into dir.
@@ -168,6 +171,10 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 				return err
 			}
 			madeDir[abs] = true
+		case mode&os.ModeSymlink == os.ModeSymlink:
+			if !opts.skipSymlinks {
+				return fmt.Errorf("tar file entry %s is a symlink, which is not allowed in this context", f.Name)
+			}
 		default:
 			return fmt.Errorf("tar file entry %s contained unsupported file type %v", f.Name, mode)
 		}
