@@ -2,9 +2,15 @@ module github.com/fluxcd/pkg/ssa
 
 go 1.20
 
+// Fix CVE-2022-28948
+replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
+
 require (
+	github.com/evanphx/json-patch/v5 v5.6.0
 	github.com/google/go-cmp v0.5.9
 	github.com/onsi/gomega v1.27.10
+	// TODO: unpin when https://github.com/wI2L/jsondiff/pull/14 has ended up in a release.
+	github.com/wI2L/jsondiff v0.4.1-0.20230626084051-c85fb8ce3cac
 	golang.org/x/sync v0.3.0
 	k8s.io/api v0.27.4
 	k8s.io/apimachinery v0.27.4
@@ -16,9 +22,6 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-// Fix CVE-2022-28948
-replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
-
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
@@ -26,7 +29,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
-	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
