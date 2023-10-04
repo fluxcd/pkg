@@ -765,3 +765,201 @@ func TestNormalizeUnstructured(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeDryRunUnstructured(t *testing.T) {
+	tests := []struct {
+		name    string
+		object  *unstructured.Unstructured
+		want    *unstructured.Unstructured
+		wantErr bool
+	}{
+		{
+			name: "removes duplicated metrics from v2beta2 HorizontalPodAutoscaler",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "autoscaling/v2beta2",
+					"kind":       "HorizontalPodAutoscaler",
+					"spec": map[string]interface{}{
+						"metrics": []interface{}{
+							map[string]interface{}{
+								"type": "Resource",
+								"resource": map[string]interface{}{
+									"name": "cpu",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+							map[string]interface{}{
+								"type": "ContainerResource",
+								"containerResource": map[string]interface{}{
+									"name":      "cpu",
+									"container": "application",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+							map[string]interface{}{
+								"type": "Resource",
+								"resource": map[string]interface{}{
+									"name": "cpu",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+							map[string]interface{}{},
+						},
+					},
+				},
+			},
+			want: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "autoscaling/v2beta2",
+					"kind":       "HorizontalPodAutoscaler",
+					"metadata": map[string]interface{}{
+						"creationTimestamp": nil,
+					},
+					"spec": map[string]interface{}{
+						"maxReplicas": int64(0),
+						"metrics": []interface{}{
+							map[string]interface{}{
+								"type": "Resource",
+								"resource": map[string]interface{}{
+									"name": "cpu",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+							map[string]interface{}{
+								"type": "ContainerResource",
+								"containerResource": map[string]interface{}{
+									"name":      "cpu",
+									"container": "application",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+						},
+						"scaleTargetRef": map[string]interface{}{
+							"kind": "",
+							"name": "",
+						},
+					},
+					"status": map[string]interface{}{
+						"conditions":      nil,
+						"currentMetrics":  nil,
+						"currentReplicas": int64(0),
+						"desiredReplicas": int64(0),
+					},
+				},
+			},
+		},
+		{
+			name: "removes duplicated metrics from v2 HorizontalPodAutoscaler",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "autoscaling/v2",
+					"kind":       "HorizontalPodAutoscaler",
+					"spec": map[string]interface{}{
+						"metrics": []interface{}{
+							map[string]interface{}{
+								"type": "Resource",
+								"resource": map[string]interface{}{
+									"name": "cpu",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+							map[string]interface{}{
+								"type": "ContainerResource",
+								"containerResource": map[string]interface{}{
+									"name":      "cpu",
+									"container": "application",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+							map[string]interface{}{
+								"type": "Resource",
+								"resource": map[string]interface{}{
+									"name": "cpu",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+							map[string]interface{}{},
+						},
+					},
+				},
+			},
+			want: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "autoscaling/v2",
+					"kind":       "HorizontalPodAutoscaler",
+					"metadata": map[string]interface{}{
+						"creationTimestamp": nil,
+					},
+					"spec": map[string]interface{}{
+						"maxReplicas": int64(0),
+						"metrics": []interface{}{
+							map[string]interface{}{
+								"type": "Resource",
+								"resource": map[string]interface{}{
+									"name": "cpu",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+							map[string]interface{}{
+								"type": "ContainerResource",
+								"containerResource": map[string]interface{}{
+									"name":      "cpu",
+									"container": "application",
+									"target": map[string]interface{}{
+										"type":               "Utilization",
+										"averageUtilization": int64(60),
+									},
+								},
+							},
+						},
+						"scaleTargetRef": map[string]interface{}{
+							"kind": "",
+							"name": "",
+						},
+					},
+					"status": map[string]interface{}{
+						"currentMetrics":  nil,
+						"desiredReplicas": int64(0),
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := NormalizeDryRunUnstructured(tt.object); (err != nil) != tt.wantErr {
+				t.Errorf("NormalizeDryRunUnstructured() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if diff := cmp.Diff(tt.want, tt.object); diff != "" {
+				t.Errorf("NormalizeDryRunUnstructured() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

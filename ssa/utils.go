@@ -24,9 +24,6 @@ import (
 	"regexp"
 	"strings"
 
-	hpav2 "k8s.io/api/autoscaling/v2"
-	hpav2beta2 "k8s.io/api/autoscaling/v2beta2"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -277,72 +274,6 @@ func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
 	for _, u := range objects {
 		if err := NormalizeUnstructured(u); err != nil {
 			return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-		}
-	}
-	return nil
-}
-
-// Fix bug in server-side dry-run apply that duplicates the first item in the metrics array
-// and inserts an empty metric as the last item in the array.
-func fixHorizontalPodAutoscaler(object *unstructured.Unstructured) error {
-	if object.GetKind() == "HorizontalPodAutoscaler" {
-		switch object.GetAPIVersion() {
-		case "autoscaling/v2beta2":
-			var d hpav2beta2.HorizontalPodAutoscaler
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(object.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
-			}
-
-			var metrics []hpav2beta2.MetricSpec
-			for _, metric := range d.Spec.Metrics {
-				found := false
-				for _, existing := range metrics {
-					if apiequality.Semantic.DeepEqual(metric, existing) {
-						found = true
-						break
-					}
-				}
-				if !found && metric.Type != "" {
-					metrics = append(metrics, metric)
-				}
-			}
-
-			d.Spec.Metrics = metrics
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
-			}
-			object.Object = out
-		case "autoscaling/v2":
-			var d hpav2.HorizontalPodAutoscaler
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(object.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
-			}
-
-			var metrics []hpav2.MetricSpec
-			for _, metric := range d.Spec.Metrics {
-				found := false
-				for _, existing := range metrics {
-					if apiequality.Semantic.DeepEqual(metric, existing) {
-						found = true
-						break
-					}
-				}
-				if !found && metric.Type != "" {
-					metrics = append(metrics, metric)
-				}
-			}
-
-			d.Spec.Metrics = metrics
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
-			}
-			object.Object = out
 		}
 	}
 	return nil

@@ -18,8 +18,11 @@ package ssa
 
 import (
 	appsv1 "k8s.io/api/apps/v1"
+	hpav2 "k8s.io/api/autoscaling/v2"
+	hpav2beta2 "k8s.io/api/autoscaling/v2beta2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -120,6 +123,61 @@ func NormalizeUnstructuredWithScheme(object *unstructured.Unstructured, scheme *
 		unstructured.RemoveNestedField(object.Object, "status")
 	}
 
+	return nil
+}
+
+// NormalizeDryRunUnstructured normalizes an Unstructured object retrieved from
+// a dry-run by performing fixes for known upstream issues.
+func NormalizeDryRunUnstructured(object *unstructured.Unstructured) error {
+	// Address an issue with dry-run returning a HorizontalPodAutoscaler
+	// with the first metric duplicated and an empty metric added at the
+	// end of the list. Which happens on Kubernetes < 1.27.x.
+	// xref: https://github.com/kubernetes/kubernetes/issues/118293
+	if object.GetKind() == "HorizontalPodAutoscaler" {
+		typedObject, err := FromUnstructured(object)
+		if err != nil {
+			return err
+		}
+
+		switch o := typedObject.(type) {
+		case *hpav2beta2.HorizontalPodAutoscaler:
+			var metrics []hpav2beta2.MetricSpec
+			for _, metric := range o.Spec.Metrics {
+				found := false
+				for _, existing := range metrics {
+					if apiequality.Semantic.DeepEqual(metric, existing) {
+						found = true
+						break
+					}
+				}
+				if !found && metric.Type != "" {
+					metrics = append(metrics, metric)
+				}
+			}
+			o.Spec.Metrics = metrics
+		case *hpav2.HorizontalPodAutoscaler:
+			var metrics []hpav2.MetricSpec
+			for _, metric := range o.Spec.Metrics {
+				found := false
+				for _, existing := range metrics {
+					if apiequality.Semantic.DeepEqual(metric, existing) {
+						found = true
+						break
+					}
+				}
+				if !found && metric.Type != "" {
+					metrics = append(metrics, metric)
+				}
+			}
+			o.Spec.Metrics = metrics
+		}
+
+		normalizedObject, err := ToUnstructured(typedObject)
+		if err != nil {
+			return err
+		}
+		object.Object = normalizedObject.Object
+	}
 	return nil
 }
 

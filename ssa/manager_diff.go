@@ -116,7 +116,7 @@ func prepareObjectForDiff(object *unstructured.Unstructured) *unstructured.Unstr
 	deepCopy := object.DeepCopy()
 	unstructured.RemoveNestedField(deepCopy.Object, "metadata")
 	unstructured.RemoveNestedField(deepCopy.Object, "status")
-	if err := fixHorizontalPodAutoscaler(deepCopy); err != nil {
+	if err := NormalizeDryRunUnstructured(deepCopy); err != nil {
 		return object
 	}
 	return deepCopy
