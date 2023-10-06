@@ -24,7 +24,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
 	hpav2 "k8s.io/api/autoscaling/v2"
 	hpav2beta1 "k8s.io/api/autoscaling/v2beta1"
@@ -96,69 +95,6 @@ func FmtUnstructuredList(objects []*unstructured.Unstructured) string {
 		b.WriteString(FmtObjMetadata(object.UnstructuredToObjMetadata(obj)) + "\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
-}
-
-func getNestedMap(object *unstructured.Unstructured) (map[string]interface{}, bool, error) {
-	dryRunData, foundDryRun, err := unstructured.NestedMap(object.Object, "data")
-	if err != nil {
-		return nil, foundDryRun, err
-	}
-
-	return dryRunData, foundDryRun, nil
-}
-
-func setNestedMap(object *unstructured.Unstructured, data map[string]interface{}) error {
-	err := unstructured.SetNestedMap(object.Object, data, "data")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func cmpMaskData(currentData, futureData map[string]interface{}) (map[string]interface{}, map[string]interface{}) {
-	for k, currentVal := range currentData {
-		futureVal, ok := futureData[k]
-		if !ok {
-			// if the key is not in the existing object, we apply the default masking
-			currentData[k] = defaultMask
-			continue
-		}
-		// if the key is in the existing object, we need to check if the value is the same
-		if cmp.Diff(currentVal, futureVal) != "" {
-			// if the value is different, we need to apply different masking
-			currentData[k] = defaultMask
-			futureData[k] = diffMask
-			continue
-		}
-		// if the value is the same, we apply the same masking
-		currentData[k] = defaultMask
-		futureData[k] = defaultMask
-	}
-
-	for k := range futureData {
-		if _, ok := currentData[k]; !ok {
-			// if the key is not in the dry run object, we apply the default masking
-			futureData[k] = defaultMask
-		}
-	}
-
-	return currentData, futureData
-}
-
-// maskSecret replaces the data key values with the given mask.
-func maskSecret(data map[string]interface{}, object *unstructured.Unstructured, mask string) (*unstructured.Unstructured, error) {
-
-	for k := range data {
-		data[k] = mask
-	}
-
-	err := setNestedMap(object, data)
-	if err != nil {
-		return nil, err
-	}
-
-	return object, err
 }
 
 // ReadObject decodes a YAML or JSON document from the given reader into an unstructured Kubernetes API object.
@@ -283,6 +219,11 @@ func IsKustomization(object *unstructured.Unstructured) bool {
 		return true
 	}
 	return false
+}
+
+// IsSecret returns true if the given object is a Kubernetes Secret.
+func IsSecret(object *unstructured.Unstructured) bool {
+	return strings.ToLower(object.GetKind()) == "secret" && object.GetAPIVersion() == "v1"
 }
 
 // Match CEL immutable error variants.

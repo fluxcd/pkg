@@ -28,11 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	defaultMask = "*****"
-	diffMask    = "******"
-)
-
 // DiffOptions contains options for server-side dry-run apply requests.
 type DiffOptions struct {
 	// Exclusions determines which in-cluster objects are skipped from dry-run apply
@@ -79,66 +74,16 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 		unstructured.RemoveNestedField(dryRunObject.Object, "metadata", "managedFields")
 		unstructured.RemoveNestedField(existingObject.Object, "metadata", "managedFields")
 
-		if dryRunObject.GetKind() == "Secret" {
-			d, ex, err := m.sanitizeDriftedSecrets(existingObject, dryRunObject)
-			if err != nil {
+		if IsSecret(dryRunObject) {
+			if err := SanitizeUnstructuredData(existingObject, dryRunObject); err != nil {
 				return nil, nil, nil, err
 			}
-
-			dryRunObject, existingObject = d, ex
 		}
 
 		return cse, existingObject, dryRunObject, nil
 	}
 
 	return m.changeSetEntry(dryRunObject, UnchangedAction), nil, nil, nil
-}
-
-// sanitizeDriftedSecrets masks the data values of the given secret objects
-func (m *ResourceManager) sanitizeDriftedSecrets(existingObject, dryRunObject *unstructured.Unstructured) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
-	dryRunData, foundDryRun, err := getNestedMap(dryRunObject)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to get data from dry run object: %w", err)
-	}
-
-	existingData, foundExisting, err := getNestedMap(existingObject)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to get data from existing object: %w", err)
-	}
-
-	if !foundDryRun || !foundExisting {
-		if foundDryRun {
-			d, err := maskSecret(dryRunData, dryRunObject, diffMask)
-			if err != nil {
-				return nil, nil, fmt.Errorf("masking secret data failed: %w", err)
-			}
-			return d, existingObject, nil
-		}
-
-		e, err := maskSecret(existingData, existingObject, diffMask)
-		if err != nil {
-			return nil, nil, fmt.Errorf("masking secret data failed: %w", err)
-		}
-		return dryRunObject, e, nil
-	}
-
-	if foundDryRun && foundExisting {
-		d, ex := cmpMaskData(dryRunData, existingData)
-
-		err := setNestedMap(dryRunObject, d)
-		if err != nil {
-			return nil, nil, fmt.Errorf("masking secret data failed: %w", err)
-		}
-
-		err = setNestedMap(existingObject, ex)
-		if err != nil {
-			return nil, nil, fmt.Errorf("masking secret data failed: %w", err)
-		}
-
-	}
-
-	return dryRunObject, existingObject, nil
-
 }
 
 // hasDrifted detects changes to metadata labels, annotations and spec.
