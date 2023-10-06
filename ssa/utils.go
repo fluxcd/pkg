@@ -285,7 +285,11 @@ func IsKustomization(object *unstructured.Unstructured) bool {
 	return false
 }
 
-var matchImmutableFieldErr = regexp.MustCompile(`.*is\simmutable.*`)
+// Match CEL immutable error variants.
+var matchImmutableFieldErrors = []*regexp.Regexp{
+	regexp.MustCompile(`.*is\simmutable.*`),
+	regexp.MustCompile(`.*immutable\sfield.*`),
+}
 
 // IsImmutableError checks if the given error is an immutable error.
 func IsImmutableError(err error) bool {
@@ -297,8 +301,10 @@ func IsImmutableError(err error) bool {
 
 	// Detect immutable errors returned by custom admission webhooks and Kubernetes CEL
 	// https://kubernetes.io/blog/2022/09/29/enforce-immutability-using-cel/#immutablility-after-first-modification
-	if matchImmutableFieldErr.MatchString(err.Error()) {
-		return true
+	for _, fieldError := range matchImmutableFieldErrors {
+		if fieldError.MatchString(err.Error()) {
+			return true
+		}
 	}
 
 	return false
