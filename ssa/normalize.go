@@ -17,6 +17,8 @@ limitations under the License.
 package ssa
 
 import (
+	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 	hpav2 "k8s.io/api/autoscaling/v2"
 	hpav2beta2 "k8s.io/api/autoscaling/v2beta2"
@@ -66,6 +68,29 @@ func ToUnstructured(object metav1.Object) (*unstructured.Unstructured, error) {
 		return nil, err
 	}
 	return &unstructured.Unstructured{Object: u}, nil
+}
+
+// NormalizeUnstructuredList normalizes a list of Unstructured objects by
+// converting them to typed Kubernetes resources, normalizing them, and then
+// converting them back to Unstructured objects. It only works for API types
+// registered with the default client-go scheme. If the conversion fails, only
+// certain standard fields are removed.
+func NormalizeUnstructuredList(objects []*unstructured.Unstructured) error {
+	return NormalizeUnstructuredListWithScheme(objects, defaultScheme)
+}
+
+// NormalizeUnstructuredListWithScheme normalizes a list of Unstructured
+// objects by converting them to typed Kubernetes resources, normalizing them,
+// and then converting them back to Unstructured objects. It only works for API
+// types registered with the given scheme. If the conversion fails, only
+// certain standard fields are removed.
+func NormalizeUnstructuredListWithScheme(objects []*unstructured.Unstructured, scheme *runtime.Scheme) error {
+	for _, o := range objects {
+		if err := NormalizeUnstructuredWithScheme(o, scheme); err != nil {
+			return fmt.Errorf("%s normalization error: %w", FmtUnstructured(o), err)
+		}
+	}
+	return nil
 }
 
 // NormalizeUnstructured normalizes an Unstructured object by converting it to

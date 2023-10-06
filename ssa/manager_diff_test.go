@@ -90,7 +90,7 @@ func TestDiff(t *testing.T) {
 	t.Run("generates diff for replaced key in stringData secret", func(t *testing.T) {
 		// create a new stringData secret
 		sec := secret.DeepCopy()
-		if err := unstructured.SetNestedField(sec.Object, generateName("diff"), "metadata", "name"); err != nil {
+		if err = unstructured.SetNestedField(sec.Object, generateName("diff"), "metadata", "name"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -98,7 +98,9 @@ func TestDiff(t *testing.T) {
 		diffSecret := sec.DeepCopy()
 
 		// apply stringData conversion
-		SetNativeKindsDefaults([]*unstructured.Unstructured{sec})
+		if err = NormalizeUnstructured(sec); err != nil {
+			t.Fatal(err)
+		}
 
 		if _, err = manager.Apply(ctx, sec, DefaultApplyOptions()); err != nil {
 			t.Fatal(err)
@@ -108,13 +110,14 @@ func TestDiff(t *testing.T) {
 		unstructured.RemoveNestedField(diffSecret.Object, "stringData", "key")
 
 		newKey := "key.new"
-		err = unstructured.SetNestedField(diffSecret.Object, newVal, "stringData", newKey)
-		if err != nil {
+		if err = unstructured.SetNestedField(diffSecret.Object, newVal, "stringData", newKey); err != nil {
 			t.Fatal(err)
 		}
 
 		// apply stringData conversion
-		SetNativeKindsDefaults([]*unstructured.Unstructured{diffSecret})
+		if err = NormalizeUnstructured(diffSecret); err != nil {
+			t.Fatal(err)
+		}
 
 		_, liveObj, mergedObj, err := manager.Diff(ctx, diffSecret, DefaultDiffOptions())
 		if err != nil {
@@ -234,7 +237,10 @@ func TestDiff_Removals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	SetNativeKindsDefaults(objects)
+
+	if err = NormalizeUnstructuredList(objects); err != nil {
+		t.Fatal(err)
+	}
 
 	configMapName, configMap := getFirstObject(objects, "ConfigMap", id)
 

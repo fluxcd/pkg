@@ -377,7 +377,7 @@ func TestApply_SetNativeKindsDefaults(t *testing.T) {
 
 	manager.SetOwnerLabels(objects, "app1", "default")
 
-	if err := SetNativeKindsDefaults(objects); err != nil {
+	if err := NormalizeUnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -417,7 +417,7 @@ func TestApply_NoOp(t *testing.T) {
 
 	manager.SetOwnerLabels(objects, "app1", "default")
 
-	if err := SetNativeKindsDefaults(objects); err != nil {
+	if err := NormalizeUnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -639,7 +639,7 @@ func TestApply_Cleanup(t *testing.T) {
 
 	_, deployObject := getFirstObject(objects, "Deployment", id)
 
-	if err := SetNativeKindsDefaults(objects); err != nil {
+	if err = NormalizeUnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -897,7 +897,7 @@ func TestApply_Cleanup_Exclusions(t *testing.T) {
 
 	_, deployObject := getFirstObject(objects, "Deployment", id)
 
-	if err := SetNativeKindsDefaults(objects); err != nil {
+	if err = NormalizeUnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 

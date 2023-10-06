@@ -19,7 +19,6 @@ package ssa
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -270,13 +269,10 @@ func AnyInMetadata(object *unstructured.Unstructured, metadata map[string]string
 
 // SetNativeKindsDefaults sets default values for native Kubernetes objects,
 // working around various upstream Kubernetes API bugs.
+//
+// Deprecated: use NormalizeUnstructuredList or NormalizeUnstructured instead.
 func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
-	for _, u := range objects {
-		if err := NormalizeUnstructured(u); err != nil {
-			return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-		}
-	}
-	return nil
+	return NormalizeUnstructuredList(objects)
 }
 
 func containsItemString(s []string, e string) bool {
