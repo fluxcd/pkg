@@ -19,11 +19,7 @@ package ssa
 
 import (
 	"context"
-	"fmt"
-
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -61,7 +57,7 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-		return nil, nil, nil, m.validationError(dryRunObject, err)
+		return nil, nil, nil, NewDryRunErr(err, dryRunObject)
 	}
 
 	if dryRunObject.GetResourceVersion() == "" {
@@ -120,27 +116,4 @@ func prepareObjectForDiff(object *unstructured.Unstructured) *unstructured.Unstr
 		return object
 	}
 	return deepCopy
-}
-
-// validationError formats the given error and hides sensitive data
-// if the error was caused by an invalid Kubernetes secrets.
-func (m *ResourceManager) validationError(object *unstructured.Unstructured, err error) error {
-	if apierrors.IsNotFound(err) {
-		return fmt.Errorf("%s namespace not specified: %w", FmtUnstructured(object), err)
-	}
-
-	reason := fmt.Sprintf("%v", apierrors.ReasonForError(err))
-
-	// detect managed field conflict
-	if status, ok := apierrors.StatusCause(err, metav1.CauseTypeFieldManagerConflict); ok {
-		reason = fmt.Sprintf("%v", status.Type)
-	}
-
-	if reason != "" {
-		reason = fmt.Sprintf(", reason: %s", reason)
-	}
-
-	return fmt.Errorf("%s dry-run failed%s: %w",
-		FmtUnstructured(object), reason, err)
-
 }

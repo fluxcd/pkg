@@ -108,7 +108,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 			return m.Apply(ctx, object, opts)
 		}
 
-		return nil, m.validationError(dryRunObject, err)
+		return nil, NewDryRunErr(err, dryRunObject)
 	}
 
 	patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
@@ -191,7 +191,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					}
 
 					if err != nil {
-						return m.validationError(dryRunObject, err)
+						return NewDryRunErr(err, dryRunObject)
 					}
 				}
 
