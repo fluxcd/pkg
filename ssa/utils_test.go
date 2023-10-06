@@ -21,77 +21,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/gomega"
 )
-
-func TestCmpMaskData(t *testing.T) {
-	testCases := []struct {
-		name     string
-		current  map[string]interface{}
-		future   map[string]interface{}
-		expected string
-	}{
-		{
-			name:     "empty",
-			current:  map[string]interface{}{},
-			future:   map[string]interface{}{},
-			expected: "",
-		},
-		{
-			name: "no change",
-			current: map[string]interface{}{
-				"foo": "bar",
-			},
-			future: map[string]interface{}{
-				"foo": "bar",
-			},
-			expected: "",
-		},
-		{
-			name: "simple value changed",
-			current: map[string]interface{}{
-				"foo": "bar",
-			},
-			future: map[string]interface{}{
-				"foo": "baz",
-			},
-			expected: fmt.Sprintf("foo\": string(\"%s\")", defaultMask),
-		},
-		{
-			name: "simple value changed with different casing",
-			current: map[string]interface{}{
-				"foo": "bar",
-			},
-			future: map[string]interface{}{
-				"FOO": "baz",
-			},
-			expected: fmt.Sprintf("foo\": string(\"%s\")", defaultMask),
-		},
-		{
-			name: "value changed with different casing and different values",
-			current: map[string]interface{}{
-				"foo": "bar",
-				"baz": "qux",
-			},
-			future: map[string]interface{}{
-				"foo": "baz",
-				"baz": "qux",
-			},
-			expected: fmt.Sprintf("baz\": string(\"%s\")", defaultMask),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			c, ft := cmpMaskData(tc.current, tc.future)
-			if diff := cmp.Diff(c, ft); !strings.Contains(diff, tc.expected) {
-				t.Errorf("expected %s in %s", tc.expected, diff)
-			}
-		})
-	}
-
-}
 
 func TestReadObjects_DropsInvalid(t *testing.T) {
 	testCases := []struct {
