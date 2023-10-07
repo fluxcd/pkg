@@ -19,17 +19,10 @@ package ssa
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"regexp"
 	"strings"
 
-	appsv1 "k8s.io/api/apps/v1"
-	hpav2 "k8s.io/api/autoscaling/v2"
-	hpav2beta1 "k8s.io/api/autoscaling/v2beta1"
-	hpav2beta2 "k8s.io/api/autoscaling/v2beta2"
-	corev1 "k8s.io/api/core/v1"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -195,14 +188,25 @@ func ObjectsToJSON(objects []*unstructured.Unstructured) (string, error) {
 
 // IsClusterDefinition checks if the given object is a Kubernetes namespace or a custom resource definition.
 func IsClusterDefinition(object *unstructured.Unstructured) bool {
-	kind := object.GetKind()
-	switch strings.ToLower(kind) {
-	case "customresourcedefinition":
+	switch {
+	case IsCRD(object):
 		return true
-	case "namespace":
+	case IsNamespace(object):
 		return true
+	default:
+		return false
 	}
-	return false
+}
+
+// IsCRD returns true if the given object is a CustomResourceDefinition.
+func IsCRD(object *unstructured.Unstructured) bool {
+	return strings.ToLower(object.GetKind()) == "customresourcedefinition" &&
+		strings.HasPrefix(object.GetAPIVersion(), "apiextensions.k8s.io/")
+}
+
+// IsNamespace returns true if the given object is a Namespace.
+func IsNamespace(object *unstructured.Unstructured) bool {
+	return strings.ToLower(object.GetKind()) == "namespace" && object.GetAPIVersion() == "v1"
 }
 
 // IsKubernetesObject checks if the given object has the minimum required fields to be a Kubernetes object.
@@ -215,10 +219,8 @@ func IsKubernetesObject(object *unstructured.Unstructured) bool {
 
 // IsKustomization checks if the given object is a Kustomize config.
 func IsKustomization(object *unstructured.Unstructured) bool {
-	if object.GetKind() == "Kustomization" && object.GroupVersionKind().GroupKind().Group == "kustomize.config.k8s.io" {
-		return true
-	}
-	return false
+	return strings.ToLower(object.GetKind()) == "kustomization" &&
+		strings.HasPrefix(object.GetAPIVersion(), "kustomize.config.k8s.io/")
 }
 
 // IsSecret returns true if the given object is a Kubernetes Secret.
@@ -265,251 +267,12 @@ func AnyInMetadata(object *unstructured.Unstructured, metadata map[string]string
 	return false
 }
 
-// SetNativeKindsDefaults implements workarounds for server-side apply upstream bugs affecting Kubernetes < 1.22
-// ContainerPort missing default TCP proto: https://github.com/kubernetes-sigs/structured-merge-diff/issues/130
-// ServicePort missing default TCP proto: https://github.com/kubernetes/kubernetes/pull/98576
-// PodSpec resources missing int to string conversion for e.g. 'cpu: 2'
-// secret.stringData key replacement add an extra key in the resulting data map: https://github.com/kubernetes/kubernetes/issues/108008
+// SetNativeKindsDefaults sets default values for native Kubernetes objects,
+// working around various upstream Kubernetes API bugs.
+//
+// Deprecated: use NormalizeUnstructuredList or NormalizeUnstructured instead.
 func SetNativeKindsDefaults(objects []*unstructured.Unstructured) error {
-
-	var setProtoDefault = func(spec *corev1.PodSpec) {
-		for _, c := range spec.Containers {
-			for i, port := range c.Ports {
-				if port.Protocol == "" {
-					c.Ports[i].Protocol = "TCP"
-				}
-			}
-		}
-	}
-
-	for _, u := range objects {
-		switch u.GetAPIVersion() {
-		case "v1":
-			switch u.GetKind() {
-			case "Service":
-				var d corev1.Service
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-
-				// set port protocol default
-				// workaround for: https://github.com/kubernetes-sigs/structured-merge-diff/issues/130
-				for i, port := range d.Spec.Ports {
-					if port.Protocol == "" {
-						d.Spec.Ports[i].Protocol = "TCP"
-					}
-				}
-
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			case "Pod":
-				var d corev1.Pod
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-
-				setProtoDefault(&d.Spec)
-
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			case "Secret":
-				var s corev1.Secret
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &s)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				convertStringDataToData(&s)
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&s)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			}
-
-		case "apps/v1":
-			switch u.GetKind() {
-			case "Deployment":
-				var d appsv1.Deployment
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-
-				setProtoDefault(&d.Spec.Template.Spec)
-
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			case "StatefulSet":
-				var d appsv1.StatefulSet
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-
-				setProtoDefault(&d.Spec.Template.Spec)
-
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			case "DaemonSet":
-				var d appsv1.DaemonSet
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-
-				setProtoDefault(&d.Spec.Template.Spec)
-
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			case "ReplicaSet":
-				var d appsv1.ReplicaSet
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-
-				setProtoDefault(&d.Spec.Template.Spec)
-
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			}
-		}
-
-		switch u.GetKind() {
-		case "HorizontalPodAutoscaler":
-			switch u.GetAPIVersion() {
-			case "autoscaling/v2beta1":
-				var d hpav2beta1.HorizontalPodAutoscaler
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			case "autoscaling/v2beta2":
-				var d hpav2beta2.HorizontalPodAutoscaler
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			case "autoscaling/v2":
-				var d hpav2.HorizontalPodAutoscaler
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-				if err != nil {
-					return fmt.Errorf("%s validation error: %w", FmtUnstructured(u), err)
-				}
-				u.Object = out
-			}
-		}
-
-		// remove fields that are not supposed to be present in manifests
-		unstructured.RemoveNestedField(u.Object, "metadata", "creationTimestamp")
-
-		// remove status but for CRDs (kstatus wait doesn't work with empty status fields)
-		if u.GetKind() != "CustomResourceDefinition" {
-			unstructured.RemoveNestedField(u.Object, "status")
-		}
-
-	}
-	return nil
-}
-
-// Fix bug in server-side dry-run apply that duplicates the first item in the metrics array
-// and inserts an empty metric as the last item in the array.
-func fixHorizontalPodAutoscaler(object *unstructured.Unstructured) error {
-	if object.GetKind() == "HorizontalPodAutoscaler" {
-		switch object.GetAPIVersion() {
-		case "autoscaling/v2beta2":
-			var d hpav2beta2.HorizontalPodAutoscaler
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(object.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
-			}
-
-			var metrics []hpav2beta2.MetricSpec
-			for _, metric := range d.Spec.Metrics {
-				found := false
-				for _, existing := range metrics {
-					if apiequality.Semantic.DeepEqual(metric, existing) {
-						found = true
-						break
-					}
-				}
-				if !found && metric.Type != "" {
-					metrics = append(metrics, metric)
-				}
-			}
-
-			d.Spec.Metrics = metrics
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
-			}
-			object.Object = out
-		case "autoscaling/v2":
-			var d hpav2.HorizontalPodAutoscaler
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(object.Object, &d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
-			}
-
-			var metrics []hpav2.MetricSpec
-			for _, metric := range d.Spec.Metrics {
-				found := false
-				for _, existing := range metrics {
-					if apiequality.Semantic.DeepEqual(metric, existing) {
-						found = true
-						break
-					}
-				}
-				if !found && metric.Type != "" {
-					metrics = append(metrics, metric)
-				}
-			}
-
-			d.Spec.Metrics = metrics
-
-			out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&d)
-			if err != nil {
-				return fmt.Errorf("%s validation error: %w", FmtUnstructured(object), err)
-			}
-			object.Object = out
-		}
-	}
-	return nil
+	return NormalizeUnstructuredList(objects)
 }
 
 func containsItemString(s []string, e string) bool {
@@ -519,18 +282,4 @@ func containsItemString(s []string, e string) bool {
 		}
 	}
 	return false
-}
-
-func convertStringDataToData(secret *corev1.Secret) {
-	// StringData overwrites Data
-	if len(secret.StringData) > 0 {
-		if secret.Data == nil {
-			secret.Data = map[string][]byte{}
-		}
-		for k, v := range secret.StringData {
-			secret.Data[k] = []byte(v)
-		}
-
-		secret.StringData = nil
-	}
 }

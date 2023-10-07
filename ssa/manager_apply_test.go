@@ -176,7 +176,7 @@ func TestApply_Force(t *testing.T) {
 
 		// verify that the error message does not contain sensitive information
 		expectedErr := fmt.Sprintf(
-			"%s dry-run failed, reason: Invalid: Secret \"%s\" is invalid: data: Forbidden: field is immutable when `immutable` is set",
+			"%s dry-run failed (Invalid): Secret \"%s\" is invalid: data: Forbidden: field is immutable when `immutable` is set",
 			FmtUnstructured(secret), secret.GetName())
 		if diff := cmp.Diff(expectedErr, err.Error()); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
@@ -377,7 +377,7 @@ func TestApply_SetNativeKindsDefaults(t *testing.T) {
 
 	manager.SetOwnerLabels(objects, "app1", "default")
 
-	if err := SetNativeKindsDefaults(objects); err != nil {
+	if err := NormalizeUnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -417,7 +417,7 @@ func TestApply_NoOp(t *testing.T) {
 
 	manager.SetOwnerLabels(objects, "app1", "default")
 
-	if err := SetNativeKindsDefaults(objects); err != nil {
+	if err := NormalizeUnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -639,7 +639,7 @@ func TestApply_Cleanup(t *testing.T) {
 
 	_, deployObject := getFirstObject(objects, "Deployment", id)
 
-	if err := SetNativeKindsDefaults(objects); err != nil {
+	if err = NormalizeUnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -897,7 +897,7 @@ func TestApply_Cleanup_Exclusions(t *testing.T) {
 
 	_, deployObject := getFirstObject(objects, "Deployment", id)
 
-	if err := SetNativeKindsDefaults(objects); err != nil {
+	if err = NormalizeUnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
