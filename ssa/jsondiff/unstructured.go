@@ -104,11 +104,15 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 		client.FieldOwner(o.FieldOwner),
 	}
 	if err := c.Patch(ctx, dryRunObj, client.Apply, patchOpts...); err != nil {
-		return nil, err
+		return nil, ssa.NewDryRunErr(err, obj)
 	}
 
 	if dryRunObj.GetResourceVersion() == "" {
 		return NewChangeForUnstructured(obj, ChangeTypeCreate, nil), nil
+	}
+
+	if err := ssa.NormalizeDryRunUnstructured(dryRunObj); err != nil {
+		return nil, err
 	}
 
 	// Remove any ignored JSON pointers from the dry-run and existing objects.

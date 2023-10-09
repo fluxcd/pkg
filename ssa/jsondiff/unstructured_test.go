@@ -665,7 +665,7 @@ func TestUnstructured(t *testing.T) {
 			path: "testdata/empty-secret.yaml",
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "foo")
-				_ = ssa.SetNativeKindsDefaults([]*unstructured.Unstructured{obj})
+				_ = ssa.NormalizeUnstructured(obj)
 			},
 			opts: []ResourceOption{
 				MaskSecrets(false),
@@ -694,11 +694,11 @@ func TestUnstructured(t *testing.T) {
 			mutateCluster: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "foo")
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "bar")
-				_ = ssa.SetNativeKindsDefaults([]*unstructured.Unstructured{obj})
+				_ = ssa.NormalizeUnstructured(obj)
 			},
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "baz", "stringData", "foo")
-				_ = ssa.SetNativeKindsDefaults([]*unstructured.Unstructured{obj})
+				_ = ssa.NormalizeUnstructured(obj)
 			},
 			opts: []ResourceOption{
 				MaskSecrets(true),
