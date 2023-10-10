@@ -293,7 +293,7 @@ func initRepo(tmp, repoURL, branch, fixture, username, password string) error {
 		if err != nil {
 			return err
 		}
-		err = os.WriteFile(filepath.Join(tmp, d.Name()), input, 0644)
+		err = os.WriteFile(filepath.Join(tmp, d.Name()), input, 0o600)
 		if err != nil {
 			return err
 		}
