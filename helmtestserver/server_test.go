@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"golang.org/x/crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"helm.sh/helm/v3/pkg/downloader"
 )
 

@@ -22,7 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"golang.org/x/crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
