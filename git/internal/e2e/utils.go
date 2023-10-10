@@ -139,10 +139,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 
 	g.Eventually(func() bool {
 		err = client.Push(context.TODO(), repository.PushConfig{})
-		if err != nil {
-			return false
-		}
-		return true
+		return err == nil
 	}, timeout).Should(BeTrue())
 
 	headCommit, _, err := headCommitWithBranch(upstreamRepo.url, "main", upstreamRepo.username, upstreamRepo.password)
