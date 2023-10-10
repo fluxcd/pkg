@@ -201,7 +201,6 @@ func (s *GitServer) StopHTTP() {
 	if s.httpServer != nil {
 		s.httpServer.Close()
 	}
-	return
 }
 
 // PublicKeyLookupFunc sets the function to be used for SSH authentication.
