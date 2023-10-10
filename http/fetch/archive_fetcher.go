@@ -44,8 +44,8 @@ type ArchiveFetcher struct {
 	hostnameOverwrite string
 }
 
-// FileNotFoundError is an error type used to signal 404 HTTP status code responses.
-var FileNotFoundError = errors.New("file not found")
+// ErrFileNotFound is an error type used to signal 404 HTTP status code responses.
+var ErrFileNotFound = errors.New("file not found")
 
 // NewArchiveFetcher configures the retryable http client used for fetching archives.
 func NewArchiveFetcher(retries, maxDownloadSize, maxUntarSize int, hostnameOverwrite string) *ArchiveFetcher {
@@ -65,7 +65,7 @@ func NewArchiveFetcher(retries, maxDownloadSize, maxUntarSize int, hostnameOverw
 
 // Fetch downloads, verifies and extracts the tarball content to the specified directory.
 // If the file server responds with 5xx errors, the download operation is retried.
-// If the file server responds with 404, the returned error is of type FileNotFoundError.
+// If the file server responds with 404, the returned error is of type ErrFileNotFound.
 // If the file server is unavailable for more than 3 minutes, the returned error contains the original status code.
 func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 	if r.hostnameOverwrite != "" {
@@ -90,7 +90,7 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 
 	if code := resp.StatusCode; code != http.StatusOK {
 		if code == http.StatusNotFound {
-			return FileNotFoundError
+			return ErrFileNotFound
 		}
 		return fmt.Errorf("failed to download archive from %s (status: %s)", archiveURL, resp.Status)
 	}
