@@ -295,12 +295,14 @@ func TestPush_pushConfig_refspecs(t *testing.T) {
 			"refs/heads/feature/refspecs:refs/heads/prod/refspecs",
 		},
 	})
+	g.Expect(err).ToNot(HaveOccurred())
 
 	err = ggc.Push(context.TODO(), repository.PushConfig{
 		Refspecs: []string{
 			"refs/tags/v0.1.0:refs/tags/v0.1.0",
 		},
 	})
+	g.Expect(err).ToNot(HaveOccurred())
 
 	repo, err = extgogit.PlainClone(t.TempDir(), false, &extgogit.CloneOptions{
 		URL: repoURL,
@@ -321,7 +323,7 @@ func TestPush_pushConfig_refspecs(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(tagRef.Hash().String()).To(Equal(head.Hash().String()))
 
-	tagRef, err = repo.Reference(plumbing.NewTagReferenceName("v0.2.0"), true)
+	_, err = repo.Reference(plumbing.NewTagReferenceName("v0.2.0"), true)
 	g.Expect(err).To(HaveOccurred())
 }
 

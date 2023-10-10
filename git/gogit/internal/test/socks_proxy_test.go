@@ -36,7 +36,6 @@ import (
 )
 
 var proxiedRequests int32
-var gitServerAddr *url.URL
 
 func Test_SOCKS5_proxy(t *testing.T) {
 	g := NewWithT(t)

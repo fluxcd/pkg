@@ -730,6 +730,7 @@ func Test_cloneSubmodule(t *testing.T) {
 		ShallowClone:      true,
 		RecurseSubmodules: true,
 	})
+	g.Expect(err).ToNot(HaveOccurred())
 
 	expectedPaths := []string{"base", "base/foo.txt", "bar.txt", "."}
 	var c int
@@ -1259,12 +1260,12 @@ func Test_getRemoteHEAD(t *testing.T) {
 	g.Expect(head).To(Equal(fmt.Sprintf("refs/tags/%s@%s", "v0.1.0"+tagDereferenceSuffix, git.Hash(cc.String()).Digest())))
 
 	ref = plumbing.ReferenceName("/refs/heads/main")
-	head, err = ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
+	_, err = ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(Equal(fmt.Sprintf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())))
 
 	ref = plumbing.ReferenceName("refs/heads/main/")
-	head, err = ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
+	_, err = ggc.getRemoteHEAD(context.TODO(), path, ref, nil)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(Equal(fmt.Sprintf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())))
 }
