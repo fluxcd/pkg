@@ -9,12 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"testing"
-)
-
-var (
-	mu sync.Mutex
 )
 
 func TestMain(m *testing.M) {
