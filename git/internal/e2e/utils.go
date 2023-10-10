@@ -20,7 +20,6 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"math/rand"
 	"net/url"
 	"os"
@@ -290,11 +289,11 @@ func initRepo(tmp, repoURL, branch, fixture, username, password string) error {
 		if d.IsDir() {
 			return nil
 		}
-		input, err := ioutil.ReadFile(path)
+		input, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		err = ioutil.WriteFile(filepath.Join(tmp, d.Name()), input, 0644)
+		err = os.WriteFile(filepath.Join(tmp, d.Name()), input, 0644)
 		if err != nil {
 			return err
 		}
