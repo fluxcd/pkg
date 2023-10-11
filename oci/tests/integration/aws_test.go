@@ -21,10 +21,15 @@ package integration
 
 import (
 	"context"
+	"fmt"
 
 	tfjson "github.com/hashicorp/terraform-json"
 
 	"github.com/fluxcd/test-infra/tftestenv"
+)
+
+const (
+	eksRoleArnAnnotation = "eks.amazonaws.com/role-arn"
 )
 
 // createKubeconfigEKS constructs kubeconfig from the terraform state output at
@@ -79,4 +84,17 @@ func pushAppTestImagesECR(ctx context.Context, localImgs map[string]string, outp
 	repo := output["ecr_test_app_repo_url"].Value.(string)
 	remoteImage := repo + ":test"
 	return tftestenv.PushTestAppImagesECR(ctx, localImgs, remoteImage)
+}
+
+// getWISAAnnotationsAWS returns annotations for a kubernetes service account required to configure IRSA / workload
+// identity on AWS. It gets the role ARN from the terraform output and returns the map[eks.amazonaws.com/role-arn=<arn>]
+func getWISAAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	iamARN := output["aws_wi_iam_arn"].Value.(string)
+	if iamARN == "" {
+		return nil, fmt.Errorf("no AWS iam role arn in terraform output")
+	}
+
+	return map[string]string{
+		eksRoleArnAnnotation: iamARN,
+	}, nil
 }

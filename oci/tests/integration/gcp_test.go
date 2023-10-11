@@ -28,6 +28,12 @@ import (
 	"github.com/fluxcd/test-infra/tftestenv"
 )
 
+const (
+	// gcpIAMAnnotation is the key for the annotation on the kubernetes serviceaccount
+	// with the email address of the IAM service account on GCP.
+	gcpIAMAnnotation = "iam.gke.io/gcp-service-account"
+)
+
 // createKubeconfigGKE constructs kubeconfig from the terraform state output at
 // the given kubeconfig path.
 func createKubeconfigGKE(ctx context.Context, state map[string]*tfjson.StateOutput, kcPath string) error {
@@ -71,4 +77,16 @@ func pushAppTestImagesGCR(ctx context.Context, localImgs map[string]string, outp
 	region := output["gcp_region"].Value.(string)
 	repositoryID := output["gcp_artifact_repository"].Value.(string)
 	return tftestenv.PushTestAppImagesGCR(ctx, localImgs, project, region, repositoryID)
+}
+
+// getWISAAnnotationsGCP returns workload identity annotations for a kubernetes ServiceAccount
+func getWISAAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	saEmail := output["wi_iam_serviceaccount_email"].Value.(string)
+	if saEmail == "" {
+		return nil, fmt.Errorf("no GCP serviceaccount email in terraform output")
+	}
+
+	return map[string]string{
+		gcpIAMAnnotation: saEmail,
+	}, nil
 }

@@ -28,6 +28,11 @@ import (
 	"github.com/fluxcd/test-infra/tftestenv"
 )
 
+const (
+	// azureWIClientIdAnnotation is the key for the annotation on the kubernetes serviceaccount
+	azureWIClientIdAnnotation = "azure.workload.identity/client-id"
+)
+
 // createKubeConfigAKS constructs kubeconfig for an AKS cluster from the
 // terraform state output at the given kubeconfig path.
 func createKubeConfigAKS(ctx context.Context, state map[string]*tfjson.StateOutput, kcPath string) error {
@@ -61,4 +66,18 @@ func pushAppTestImagesACR(ctx context.Context, localImgs map[string]string, outp
 	// Get the registry name and construct the image names accordingly.
 	registryURL := output["acr_registry_url"].Value.(string)
 	return tftestenv.PushTestAppImagesACR(ctx, localImgs, registryURL)
+}
+
+// getWISAAnnotationsAzure returns azure workload identity's annotations for
+// kubernetes service account using output from terraform.
+// https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview?tabs=dotnet#pod-annotations
+func getWISAAnnotationsAzure(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	clientID := output["workload_identity_client_id"].Value.(string)
+	if clientID == "" {
+		return nil, fmt.Errorf("no Azure client id in terraform output")
+	}
+
+	return map[string]string{
+		azureWIClientIdAnnotation: clientID,
+	}, nil
 }
