@@ -95,6 +95,10 @@ func tgzWithSymlinks(src string, buf io.Writer) error {
 	zr := gzip.NewWriter(buf)
 	tw := tar.NewWriter(zr)
 	if err := filepath.Walk(absDir, func(file string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		header, err := tar.FileInfoHeader(fi, file)
 		if err != nil {
 			return err
