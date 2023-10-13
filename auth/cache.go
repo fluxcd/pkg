@@ -17,21 +17,28 @@ limitations under the License.
 package auth
 
 import (
-	"sync"
+	"errors"
 	"time"
 )
 
-var once sync.Once
 var cache Store
+
+var ErrCacheAlreadyInitialized = errors.New("cache already initialized; cannot be re-initialized")
+var ErrEmptyCache = errors.New("cannot initialize cache with an empty store")
 
 // InitCache intializes the pacakge cache with the provided cache object.
 // Consumers that want automatic caching when using `GetRegistryAuthenticator()`
 // or `GetGitCredentials()` must call this before. It should only be called once,
-// all subsequent calls will be a no-op.
-func InitCache(s Store) {
-	once.Do(func() {
-		cache = s
-	})
+// all subsequent calls will return an error.
+func InitCache(s Store) error {
+	if cache != nil {
+		return ErrCacheAlreadyInitialized
+	}
+	if s == nil {
+		return ErrEmptyCache
+	}
+	cache = s
+	return nil
 }
 
 // GetCache returns a handle to the package level cache.

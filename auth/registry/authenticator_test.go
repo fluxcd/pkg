@@ -54,9 +54,8 @@ func TestGetAuthenticator(t *testing.T) {
 	tokenStr, err := token.SignedString(pk)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	var s auth.Store
-	s = testutils.NewDummyCache()
-	auth.InitCache(s)
+	auth.InitCache(testutils.NewDummyCache())
+	customCache := testutils.NewDummyCache()
 
 	tests := []struct {
 		name           string
@@ -72,7 +71,9 @@ func TestGetAuthenticator(t *testing.T) {
 			name:     "get authenticator from gcp",
 			provider: auth.ProviderGCP,
 			authOpts: &auth.AuthOptions{
-				CacheKey: "gcp-123",
+				CacheOptions: auth.CacheOptions{
+					Key: "gcp-123",
+				},
 			},
 			responseBody: `{
 	"access_token": "access-token",
@@ -94,10 +95,55 @@ func TestGetAuthenticator(t *testing.T) {
 			},
 		},
 		{
-			name:     "get authenticator from cache",
+			name:     "get authenticator from global cache",
 			provider: auth.ProviderGCP,
 			authOpts: &auth.AuthOptions{
-				CacheKey: "gcp-123",
+				CacheOptions: auth.CacheOptions{
+					Key: "gcp-123",
+				},
+			},
+			expectCacheHit: true,
+			wantAuthConfig: &authn.AuthConfig{
+				Username: gcp.DefaultGARUsername,
+				Password: "access-token",
+			},
+		},
+		{
+			name:     "get authenticator from gcp with local cache",
+			provider: auth.ProviderGCP,
+			authOpts: &auth.AuthOptions{
+				CacheOptions: auth.CacheOptions{
+					Key:   "gcp-local-123",
+					Cache: customCache,
+				},
+			},
+			responseBody: `{
+	"access_token": "access-token",
+	"expires_in": 10,
+	"token_type": "Bearer"
+}`,
+			beforeFunc: func(authOpts *auth.AuthOptions, serverURL string, registry *string) {
+				authOpts.ProviderOptions.GcpOpts = []gcp.ProviderOptFunc{gcp.WithTokenURL(serverURL), gcp.WithEmailURL(serverURL)}
+			},
+			wantAuthConfig: &authn.AuthConfig{
+				Username: gcp.DefaultGARUsername,
+				Password: "access-token",
+			},
+			afterFunc: func(t *WithT, cache auth.Store, authConfig authn.AuthConfig) {
+				val, ok := cache.Get("gcp-local-123")
+				t.Expect(ok).To(BeTrue())
+				ac := val.(authn.AuthConfig)
+				t.Expect(ac).To(Equal(authConfig))
+			},
+		},
+		{
+			name:     "get authenticator from global cache",
+			provider: auth.ProviderGCP,
+			authOpts: &auth.AuthOptions{
+				CacheOptions: auth.CacheOptions{
+					Key:   "gcp-local-123",
+					Cache: customCache,
+				},
 			},
 			expectCacheHit: true,
 			wantAuthConfig: &authn.AuthConfig{
@@ -126,7 +172,9 @@ func TestGetAuthenticator(t *testing.T) {
 			name:     "get authenticator from aws",
 			provider: auth.ProviderAWS,
 			authOpts: &auth.AuthOptions{
-				CacheKey: "aws-123",
+				CacheOptions: auth.CacheOptions{
+					Key: "aws-123",
+				},
 			},
 			responseBody: fmt.Sprintf(`{
 	"authorizationData": [
@@ -161,7 +209,9 @@ func TestGetAuthenticator(t *testing.T) {
 			name:     "get authenticator from azure",
 			provider: auth.ProviderAzure,
 			authOpts: &auth.AuthOptions{
-				CacheKey: "azure-123",
+				CacheOptions: auth.CacheOptions{
+					Key: "azure-123",
+				},
 			},
 			responseBody: fmt.Sprintf(`{"refresh_token": "%s"}`, tokenStr),
 			beforeFunc: func(authOpts *auth.AuthOptions, serverURL string, registry *string) {
@@ -219,7 +269,7 @@ func TestGetAuthenticator(t *testing.T) {
 
 			g.Expect(*ac).To(Equal(*tt.wantAuthConfig))
 			if tt.afterFunc != nil {
-				tt.afterFunc(g, s, *ac)
+				tt.afterFunc(g, tt.authOpts.GetCache(), *ac)
 			}
 			if tt.expectCacheHit {
 				g.Expect(count).To(Equal(0))

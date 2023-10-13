@@ -42,9 +42,8 @@ import (
 
 func TestGetCredentials(t *testing.T) {
 	expiresAt := time.Now().UTC().Add(time.Hour)
-	var s auth.Store
-	s = testutils.NewDummyCache()
-	auth.InitCache(s)
+	auth.InitCache(testutils.NewDummyCache())
+	customCache := testutils.NewDummyCache()
 
 	tests := []struct {
 		name            string
@@ -60,7 +59,9 @@ func TestGetCredentials(t *testing.T) {
 			name:     "get credentials from github",
 			provider: auth.ProviderGitHub,
 			authOpts: &auth.AuthOptions{
-				CacheKey: "github-123",
+				CacheOptions: auth.CacheOptions{
+					Key: "github-123",
+				},
 			},
 			responseBody: `{
 	"token": "access-token",
@@ -93,7 +94,60 @@ func TestGetCredentials(t *testing.T) {
 			name:     "get credentials from cache",
 			provider: auth.ProviderGitHub,
 			authOpts: &auth.AuthOptions{
-				CacheKey: "github-123",
+				CacheOptions: auth.CacheOptions{
+					Key: "github-123",
+				},
+			},
+			expectCacheHit: true,
+			wantCredentials: &Credentials{
+				Username: GitHubAccessTokenUsername,
+				Password: "access-token",
+			},
+		},
+		{
+			name:     "get credentials from github with local cache",
+			provider: auth.ProviderGitHub,
+			authOpts: &auth.AuthOptions{
+				CacheOptions: auth.CacheOptions{
+					Key:   "github-local-123",
+					Cache: customCache,
+				},
+			},
+			responseBody: `{
+	"token": "access-token",
+	"expires_at": "2029-11-10T23:00:00Z"
+}`,
+			beforeFunc: func(t *WithT, authOpts *auth.AuthOptions, serverURL string) {
+				pk, err := createPrivateKey()
+				t.Expect(err).ToNot(HaveOccurred())
+				authOpts.Secret = &corev1.Secret{
+					Data: map[string][]byte{
+						github.ApiURLKey:            []byte(serverURL),
+						github.AppIDKey:             []byte("127"),
+						github.AppInstallationIDKey: []byte("300"),
+						github.AppPkKey:             pk,
+					},
+				}
+			},
+			afterFunc: func(t *WithT, cache auth.Store, creds Credentials) {
+				val, ok := cache.Get("github-local-123")
+				t.Expect(ok).To(BeTrue())
+				credentials := val.(Credentials)
+				t.Expect(credentials).To(Equal(creds))
+			},
+			wantCredentials: &Credentials{
+				Username: GitHubAccessTokenUsername,
+				Password: "access-token",
+			},
+		},
+		{
+			name:     "get credentials from local cache",
+			provider: auth.ProviderGitHub,
+			authOpts: &auth.AuthOptions{
+				CacheOptions: auth.CacheOptions{
+					Key:   "github-local-123",
+					Cache: customCache,
+				},
 			},
 			expectCacheHit: true,
 			wantCredentials: &Credentials{
@@ -130,7 +184,9 @@ func TestGetCredentials(t *testing.T) {
 			name:     "get credentials from azure",
 			provider: auth.ProviderAzure,
 			authOpts: &auth.AuthOptions{
-				CacheKey: "azure-123",
+				CacheOptions: auth.CacheOptions{
+					Key: "azure-123",
+				},
 				ProviderOptions: auth.ProviderOptions{
 					AzureOpts: []azure.ProviderOptFunc{
 						azure.WithCredential(&azure.FakeTokenCredential{
@@ -154,7 +210,9 @@ func TestGetCredentials(t *testing.T) {
 			name:     "get credentials from gcp",
 			provider: auth.ProviderGCP,
 			authOpts: &auth.AuthOptions{
-				CacheKey: "gcp-123",
+				CacheOptions: auth.CacheOptions{
+					Key: "gcp-123",
+				},
 			},
 			responseBody: `{
 	"access_token": "access-token",
@@ -223,7 +281,7 @@ func TestGetCredentials(t *testing.T) {
 			g.Expect(*creds).To(Equal(*tt.wantCredentials))
 
 			if tt.afterFunc != nil {
-				tt.afterFunc(g, s, *creds)
+				tt.afterFunc(g, tt.authOpts.GetCache(), *creds)
 			}
 
 			if tt.expectCacheHit {

@@ -29,17 +29,23 @@ import (
 
 // GetAuthenticator returns an authenticator that can provide credentials to
 // access the provided registry.
-// If caching is enabled and authOpts.CacheKey is not blank, the authentication
-// config is cached according to the ttl advertised by the registry provider.
+// The authentication credentials will be cached if `authOpts.CacheOptions.Key`
+// is not blank and caching is enabled. Caching can be enabled by either calling
+// `auth.InitCache()`  or specifying a cache via `authOpts.CacheOptions.Cache`.
+// The credentials are cached according to the ttl advertised by the registry
+// provider.
 func GetAuthenticator(ctx context.Context, registry string, provider string, authOpts *auth.AuthOptions) (authn.Authenticator, error) {
 	var authConfig authn.AuthConfig
 
-	cache := auth.GetCache()
-	if cache != nil && authOpts != nil && authOpts.CacheKey != "" {
-		val, found := cache.Get(authOpts.CacheKey)
-		if found {
-			authConfig = val.(authn.AuthConfig)
-			return authn.FromConfig(authConfig), nil
+	var cache auth.Store
+	if authOpts != nil {
+		cache = authOpts.GetCache()
+		if cache != nil && authOpts.CacheOptions.Key != "" {
+			val, found := cache.Get(authOpts.CacheOptions.Key)
+			if found {
+				authConfig = val.(authn.AuthConfig)
+				return authn.FromConfig(authConfig), nil
+			}
 		}
 	}
 
@@ -79,8 +85,8 @@ func GetAuthenticator(ctx context.Context, registry string, provider string, aut
 		return nil, err
 	}
 
-	if cache != nil && authOpts != nil && authOpts.CacheKey != "" {
-		if err := cache.Set(authOpts.CacheKey, authConfig, expiresIn); err != nil {
+	if cache != nil && authOpts != nil && authOpts.CacheOptions.Key != "" {
+		if err := cache.Set(authOpts.CacheOptions.Key, authConfig, expiresIn); err != nil {
 			return nil, err
 		}
 	}

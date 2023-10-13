@@ -41,10 +41,30 @@ type AuthOptions struct {
 	// providers.
 	ProviderOptions ProviderOptions
 
-	// CacheKey is the key to use for caching the authentication credentials.
-	// Consumers must make sure to call `InitCache()` in order for caching to
-	// be enabled.
-	CacheKey string
+	// CacheOptions specifies the options to configure caching behavior of the
+	// authentication credentials.
+	CacheOptions CacheOptions
+}
+
+// GetCache returns the cache to use for fetching/storing authentication
+// credentials.
+func (a *AuthOptions) GetCache() Store {
+	if a.CacheOptions.Cache != nil {
+		return a.CacheOptions.Cache
+	}
+	return GetCache()
+}
+
+// CacheOptions contains options to configure the caching behavior of the
+// authentication credentials.
+type CacheOptions struct {
+	// Key is the key to use for caching the authentication credentials.
+	Key string
+
+	// Cache is the Store to use for caching the authentication credentials.
+	// If specified, then the global cache specified through `auth.InitCache()`
+	// is ignored and the credentials are cached in this Store instead.
+	Cache Store
 }
 
 // ProviderOptions contains options to configure various authentication
