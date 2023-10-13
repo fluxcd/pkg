@@ -113,15 +113,15 @@ func generateKeyring(privateKeyPath, publicKeyPath string) error {
 		return err
 	}
 	priv, err := os.Create(privateKeyPath)
+	if err != nil {
+		return err
+	}
 	defer priv.Close()
-	if err != nil {
-		return err
-	}
 	pub, err := os.Create(publicKeyPath)
-	defer pub.Close()
 	if err != nil {
 		return err
 	}
+	defer pub.Close()
 	if err := entity.SerializePrivate(priv, nil); err != nil {
 		return err
 	}
