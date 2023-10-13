@@ -35,7 +35,6 @@ type untarTestCase struct {
 	content         []byte
 	wantErr         string
 	maxUntarSize    int
-	allowSymlink    bool
 }
 
 func TestUntar(t *testing.T) {
