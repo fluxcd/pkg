@@ -156,15 +156,15 @@ func (m *ResourceManager) WaitForTermination(objects []*unstructured.Unstructure
 	defer cancel()
 
 	for _, object := range objects {
-		if err := wait.PollImmediate(opts.Interval, opts.Timeout, m.isDeleted(ctx, object)); err != nil {
+		if err := wait.PollUntilContextCancel(ctx, opts.Interval, true, m.isDeleted(object)); err != nil {
 			return fmt.Errorf("%s termination timeout: %w", FmtUnstructured(object), err)
 		}
 	}
 	return nil
 }
 
-func (m *ResourceManager) isDeleted(ctx context.Context, object *unstructured.Unstructured) wait.ConditionFunc {
-	return func() (bool, error) {
+func (m *ResourceManager) isDeleted(object *unstructured.Unstructured) wait.ConditionWithContextFunc {
+	return func(ctx context.Context) (bool, error) {
 		obj := object.DeepCopy()
 		err := m.client.Get(ctx, client.ObjectKeyFromObject(obj), obj)
 		if apierrors.IsNotFound(err) {

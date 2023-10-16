@@ -44,7 +44,7 @@ func SanitizeUnstructuredData(old, new *unstructured.Unstructured) error {
 		return fmt.Errorf("unable to get data from new object: %w", err)
 	}
 
-	for k, _ := range oldData {
+	for k := range oldData {
 		if _, ok := newData[k]; ok {
 			if oldData[k] != newData[k] {
 				oldData[k] = sanitizeMaskBefore
@@ -55,7 +55,7 @@ func SanitizeUnstructuredData(old, new *unstructured.Unstructured) error {
 		}
 		oldData[k] = sanitizeMaskDefault
 	}
-	for k, _ := range newData {
+	for k := range newData {
 		if _, ok := oldData[k]; !ok {
 			newData[k] = sanitizeMaskDefault
 		}

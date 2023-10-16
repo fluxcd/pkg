@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"golang.org/x/crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"helm.sh/helm/v3/pkg/downloader"
 )
 
@@ -43,10 +43,10 @@ func TestPackageSignedChartWithVersion(t *testing.T) {
 	}
 
 	out, err := os.Open(publicKeyPath)
-	defer out.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer out.Close()
 
 	if _, err = openpgp.ReadKeyRing(out); err != nil {
 		t.Fatal(err)

@@ -20,7 +20,6 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"math/rand"
 	"net/url"
 	"os"
@@ -140,10 +139,7 @@ func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstrea
 
 	g.Eventually(func() bool {
 		err = client.Push(context.TODO(), repository.PushConfig{})
-		if err != nil {
-			return false
-		}
-		return true
+		return err == nil
 	}, timeout).Should(BeTrue())
 
 	headCommit, _, err := headCommitWithBranch(upstreamRepo.url, "main", upstreamRepo.username, upstreamRepo.password)
@@ -290,11 +286,11 @@ func initRepo(tmp, repoURL, branch, fixture, username, password string) error {
 		if d.IsDir() {
 			return nil
 		}
-		input, err := ioutil.ReadFile(path)
+		input, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		err = ioutil.WriteFile(filepath.Join(tmp, d.Name()), input, 0644)
+		err = os.WriteFile(filepath.Join(tmp, d.Name()), input, 0o600)
 		if err != nil {
 			return err
 		}

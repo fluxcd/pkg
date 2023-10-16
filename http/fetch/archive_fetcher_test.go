@@ -116,7 +116,7 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 			maxDownloadSize: -1,
 			maxUntarSize:    -1,
 			wantErr:         true,
-			wantErrType:     FileNotFoundError,
+			wantErrType:     ErrFileNotFound,
 		},
 	}
 

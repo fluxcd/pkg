@@ -56,11 +56,11 @@ func (e *DryRunErr) Error() string {
 		return fmt.Sprintf("%s not found: %s", FmtUnstructured(e.involvedObject), e.Unwrap().Error())
 	}
 
-	reason := fmt.Sprintf("%s", apierrors.ReasonForError(e.Unwrap()))
+	reason := string(apierrors.ReasonForError(e.Unwrap()))
 
 	// Detect managed field conflict.
 	if status, ok := apierrors.StatusCause(e.Unwrap(), metav1.CauseTypeFieldManagerConflict); ok {
-		reason = fmt.Sprintf("%s", status.Type)
+		reason = string(status.Type)
 	}
 
 	if reason != "" {

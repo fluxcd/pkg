@@ -22,7 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"golang.org/x/crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
@@ -113,15 +113,15 @@ func generateKeyring(privateKeyPath, publicKeyPath string) error {
 		return err
 	}
 	priv, err := os.Create(privateKeyPath)
+	if err != nil {
+		return err
+	}
 	defer priv.Close()
-	if err != nil {
-		return err
-	}
 	pub, err := os.Create(publicKeyPath)
-	defer pub.Close()
 	if err != nil {
 		return err
 	}
+	defer pub.Close()
 	if err := entity.SerializePrivate(priv, nil); err != nil {
 		return err
 	}

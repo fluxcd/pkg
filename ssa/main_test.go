@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/polling"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -93,21 +92,6 @@ func readManifest(manifest, namespace string) ([]*unstructured.Unstructured, err
 	return objects, nil
 }
 
-func setNamespace(objects []*unstructured.Unstructured, namespace string) {
-	for _, object := range objects {
-		object.SetNamespace(namespace)
-	}
-
-	u := &unstructured.Unstructured{}
-	u.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "",
-		Kind:    "Namespace",
-		Version: "v1",
-	})
-	u.SetName(namespace)
-	objects = append(objects, u)
-}
-
 var nextNameId int64
 
 func generateName(prefix string) string {
@@ -122,8 +106,4 @@ func getFirstObject(objects []*unstructured.Unstructured, kind, name string) (st
 		}
 	}
 	return "", nil
-}
-
-func removeObject(s []*unstructured.Unstructured, index int) []*unstructured.Unstructured {
-	return append(s[:index], s[index+1:]...)
 }
