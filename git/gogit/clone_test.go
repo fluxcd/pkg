@@ -643,6 +643,7 @@ func TestClone_cloneRefName(t *testing.T) {
 				CheckoutStrategy: repository.CheckoutStrategy{
 					RefName: tt.refName,
 				},
+				ShallowClone:       true,
 				LastObservedCommit: tt.lastRevision,
 			})
 
