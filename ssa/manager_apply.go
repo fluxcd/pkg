@@ -26,6 +26,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -101,7 +102,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
-			if err := m.client.Delete(ctx, existingObject); err != nil && !errors.IsNotFound(err) {
+			if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 				return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
 					FmtUnstructured(dryRunObject), err)
 			}
@@ -167,7 +168,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					// as immutable and deleted it when ApplyAll was called the last time (the check for ImmutableError
 					// returns false positives)
 					if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
-						if err := m.client.Delete(ctx, existingObject); err != nil && !errors.IsNotFound(err) {
+						if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 							return fmt.Errorf("%s immutable field detected, failed to delete object: %w",
 								FmtUnstructured(dryRunObject), err)
 						}
