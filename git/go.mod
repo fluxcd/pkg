@@ -7,17 +7,17 @@ require (
 	// maintained by the ProtonMail team to continue to support the openpgp
 	// module, after the Go team decided to no longer maintain it.
 	// When in doubt (and not using openpgp), use /x/crypto.
-	github.com/ProtonMail/go-crypto v0.0.0-20230828082145-3c4c8a2d2371
+	github.com/ProtonMail/go-crypto v0.0.0-20231012073058-a7379d079e0e
 	github.com/cyphar/filepath-securejoin v0.2.4
-	github.com/onsi/gomega v1.27.10
+	github.com/onsi/gomega v1.28.0
 )
 
 require (
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
-	golang.org/x/crypto v0.11.0 // indirect
-	golang.org/x/net v0.12.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/crypto v0.12.0 // indirect
+	golang.org/x/net v0.14.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/text v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
