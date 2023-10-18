@@ -32,11 +32,13 @@ type ListOption interface {
 type ResourceOptions struct {
 	// FieldManager is the name of the user or component submitting
 	// the server-side apply request.
-	FieldOwner string
+	FieldManager string
 	// IgnorePaths is a list of JSON pointers to ignore when comparing objects.
 	IgnorePaths []string
-	// MaskSecrets is a flag to mask secrets in the diff.
+	// MaskSecrets enables masking of Kubernetes Secrets in the diff.
 	MaskSecrets bool
+	// Rationalize enables rationalization of JSON operations in the diff.
+	Rationalize bool
 }
 
 // ApplyOptions applies the given options on these options, and then returns
@@ -50,9 +52,6 @@ func (o *ResourceOptions) ApplyOptions(opts []ResourceOption) *ResourceOptions {
 
 // ListOptions holds options for the server-side apply diff operation.
 type ListOptions struct {
-	// FieldManager is the name of the user or component submitting
-	// the server-side apply request.
-	FieldManager string
 	// ExclusionSelectors is a map of annotations or labels which mark a
 	// resource to be excluded from the server-side apply diff.
 	ExclusionSelectors map[string]string
@@ -75,12 +74,12 @@ type FieldOwner string
 
 // ApplyToResource applies this configuration to the given options.
 func (f FieldOwner) ApplyToResource(opts *ResourceOptions) {
-	opts.FieldOwner = string(f)
+	opts.FieldManager = string(f)
 }
 
 // ApplyToList applies this configuration to the given options.
 func (f FieldOwner) ApplyToList(opts *ListOptions) {
-	opts.FieldManager = string(f)
+	// no-op
 }
 
 // ExclusionSelector sets the annotations or labels which mark a resource to
@@ -114,4 +113,23 @@ type MaskSecrets bool
 // ApplyToResource applies this configuration to the given options.
 func (m MaskSecrets) ApplyToResource(opts *ResourceOptions) {
 	opts.MaskSecrets = bool(m)
+}
+
+// ApplyToList applies this configuration to the given options.
+func (m MaskSecrets) ApplyToList(_ *ListOptions) {
+	// no-op
+}
+
+// Rationalize enables the rationalization of JSON operations in the
+// server-side apply diff.
+type Rationalize bool
+
+// ApplyToResource applies this configuration to the given options.
+func (r Rationalize) ApplyToResource(opts *ResourceOptions) {
+	opts.Rationalize = bool(r)
+}
+
+// ApplyToList applies this configuration to the given options.
+func (r Rationalize) ApplyToList(_ *ListOptions) {
+	// no-op
 }

@@ -18,7 +18,6 @@ package jsondiff
 
 import (
 	"context"
-	"github.com/fluxcd/pkg/ssa"
 	"reflect"
 	"testing"
 	"time"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/fluxcd/pkg/ssa"
 )
 
 const dummyFieldOwner = "dummy"
@@ -319,6 +320,84 @@ func TestUnstructuredList(t *testing.T) {
 								"labels": map[string]interface{}{
 									"labeled": "change",
 								},
+							}},
+						},
+					},
+				}
+			},
+		},
+		{
+			name: "masks Secret data",
+			paths: []string{
+				"testdata/empty-secret.yaml",
+			},
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "foo")
+				_ = ssa.NormalizeUnstructured(obj)
+			},
+			opts: []ListOption{
+				MaskSecrets(true),
+			},
+			want: func(ns string) ChangeSet {
+				return ChangeSet{
+					&Change{
+						Type: ChangeTypeUpdate,
+						GroupVersionKind: schema.GroupVersionKind{
+							Group:   "",
+							Version: "v1",
+							Kind:    "Secret",
+						},
+						Namespace: ns,
+						Name:      "secret-data",
+						Patch: jsondiff.Patch{
+							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{
+								"foo": sensitiveMaskDefault,
+							}},
+						},
+					},
+				}
+			},
+		},
+		{
+			name: "rationalizes data",
+			paths: []string{
+				"testdata/empty-configmap.yaml",
+			},
+			mutateCluster: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedMap(obj.Object, map[string]interface{}{
+					"a": "2",
+					"b": "1",
+				}, "data")
+				_ = ssa.NormalizeUnstructured(obj)
+			},
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedMap(obj.Object, map[string]interface{}{
+					"a": "1",
+					"b": "2",
+				}, "data")
+				_ = ssa.NormalizeUnstructured(obj)
+			},
+			opts: []ListOption{
+				Rationalize(true),
+			},
+			want: func(ns string) ChangeSet {
+				return ChangeSet{
+					&Change{
+						Type: ChangeTypeUpdate,
+						GroupVersionKind: schema.GroupVersionKind{
+							Group:   "",
+							Version: "v1",
+							Kind:    "ConfigMap",
+						},
+						Namespace: ns,
+						Name:      "configmap-data",
+						Patch: jsondiff.Patch{
+							{Type: jsondiff.OperationReplace, Path: "/data", Value: map[string]interface{}{
+								"a": "1",
+								"b": "2",
+							}, OldValue: map[string]interface{}{
+								"a": "2",
+								"b": "1",
 							}},
 						},
 					},
@@ -714,6 +793,39 @@ func TestUnstructured(t *testing.T) {
 					Namespace: ns,
 					Name:      "secret-data",
 					Patch: jsondiff.Patch{
+						{Type: jsondiff.OperationRemove, Path: "/data/bar", OldValue: sensitiveMaskDefault},
+						{Type: jsondiff.OperationReplace, Path: "/data/foo", OldValue: sensitiveMaskBefore, Value: sensitiveMaskAfter},
+					},
+				}
+			},
+		},
+		{
+			name: "Secret with changed and deleted key, and rationalization enabled",
+			path: "testdata/empty-secret.yaml",
+			mutateCluster: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "foo")
+				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "bar")
+				_ = ssa.NormalizeUnstructured(obj)
+			},
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "baz", "stringData", "foo")
+				_ = ssa.NormalizeUnstructured(obj)
+			},
+			opts: []ResourceOption{
+				MaskSecrets(true),
+				Rationalize(true),
+			},
+			want: func(ns string) *Change {
+				return &Change{
+					Type: ChangeTypeUpdate,
+					GroupVersionKind: schema.GroupVersionKind{
+						Group:   "",
+						Version: "v1",
+						Kind:    "Secret",
+					},
+					Namespace: ns,
+					Name:      "secret-data",
+					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
 							"bar": sensitiveMaskDefault,
 							"foo": sensitiveMaskBefore,
@@ -803,12 +915,12 @@ func TestUnstructured(t *testing.T) {
 
 func Test_diffUnstructuredMetadata(t *testing.T) {
 	tests := []struct {
-		name        string
-		x           *unstructured.Unstructured
-		y           *unstructured.Unstructured
-		ignorePaths []string
-		want        jsondiff.Patch
-		wantErr     bool
+		name    string
+		x       *unstructured.Unstructured
+		y       *unstructured.Unstructured
+		opts    []jsondiff.Option
+		want    jsondiff.Patch
+		wantErr bool
 	}{
 		{
 			name: "label added",
@@ -1011,7 +1123,9 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 					},
 				},
 			},
-			ignorePaths: []string{"/metadata/annotations/bar"},
+			opts: []jsondiff.Option{
+				jsondiff.Ignores("/metadata/annotations/bar"),
+			},
 			want: jsondiff.Patch{
 				{Type: jsondiff.OperationReplace, Path: "/metadata/labels/foo", Value: "baz", OldValue: "bar"},
 			},
@@ -1019,7 +1133,7 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := diffUnstructuredMetadata(tt.x, tt.y, tt.ignorePaths...)
+			got, err := diffUnstructuredMetadata(tt.x, tt.y, tt.opts...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("diffResourceMetadata() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1036,6 +1150,7 @@ func Test_diffUnstructured(t *testing.T) {
 		name    string
 		x       *unstructured.Unstructured
 		y       *unstructured.Unstructured
+		opts    []jsondiff.Option
 		want    jsondiff.Patch
 		wantErr bool
 	}{
@@ -1078,6 +1193,37 @@ func Test_diffUnstructured(t *testing.T) {
 			},
 		},
 		{
+			name: "data change with rationalization",
+			x: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"data": map[string]interface{}{
+						"a": "1",
+						"b": "2",
+					},
+				},
+			},
+			y: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"data": map[string]interface{}{
+						"a": "2",
+						"b": "1",
+					},
+				},
+			},
+			opts: []jsondiff.Option{
+				jsondiff.Rationalize(),
+			},
+			want: jsondiff.Patch{
+				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
+					"a": "1",
+					"b": "2",
+				}, Value: map[string]interface{}{
+					"a": "2",
+					"b": "1",
+				}},
+			},
+		},
+		{
 			name: "metadata changed",
 			x: &unstructured.Unstructured{
 				Object: map[string]interface{}{
@@ -1116,7 +1262,7 @@ func Test_diffUnstructured(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := diffUnstructured(tt.x, tt.y)
+			got, err := diffUnstructured(tt.x, tt.y, tt.opts...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("diffResourceMetadata() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -17,8 +17,9 @@ limitations under the License.
 package jsondiff
 
 import (
-	"github.com/wI2L/jsondiff"
 	"strings"
+
+	"github.com/wI2L/jsondiff"
 )
 
 const (

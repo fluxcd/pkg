@@ -19,10 +19,12 @@ package jsondiff
 import (
 	"context"
 	"fmt"
-	"github.com/fluxcd/pkg/ssa"
+
 	"github.com/wI2L/jsondiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/fluxcd/pkg/ssa"
 )
 
 // IgnorePathSelector contains the information needed to ignore certain paths
@@ -101,7 +103,7 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	patchOpts := []client.PatchOption{
 		client.DryRunAll,
 		client.ForceOwnership,
-		client.FieldOwner(o.FieldOwner),
+		client.FieldOwner(o.FieldManager),
 	}
 	if err := c.Patch(ctx, dryRunObj, client.Apply, patchOpts...); err != nil {
 		return nil, ssa.NewDryRunErr(err, obj)
@@ -126,15 +128,20 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 		}
 	}
 
+	var diffOpts []jsondiff.Option
+	if o.Rationalize {
+		diffOpts = append(diffOpts, jsondiff.Rationalize())
+	}
+
 	// Calculate the JSON patch between the dry-run and existing objects.
 	var patch jsondiff.Patch
-	metaPatch, err := diffUnstructuredMetadata(existingObj, dryRunObj, o.IgnorePaths...)
+	metaPatch, err := diffUnstructuredMetadata(existingObj, dryRunObj, diffOpts...)
 	if err != nil {
 		return nil, err
 	}
 	patch = append(patch, metaPatch...)
 
-	resPatch, err := diffUnstructured(existingObj, dryRunObj)
+	resPatch, err := diffUnstructured(existingObj, dryRunObj, diffOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -156,9 +163,9 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 // diffUnstructuredMetadata returns a JSON patch with the differences between
 // the labels and annotations metadata of the given objects. It ignores other
 // fields, and only returns "replace" and "add" changes.
-func diffUnstructuredMetadata(x, y *unstructured.Unstructured, ignorePath ...string) (jsondiff.Patch, error) {
+func diffUnstructuredMetadata(x, y *unstructured.Unstructured, opts ...jsondiff.Option) (jsondiff.Patch, error) {
 	xMeta, yMeta := copyAnnotationsAndLabels(x), copyAnnotationsAndLabels(y)
-	patch, err := jsondiff.Compare(xMeta, yMeta, jsondiff.Ignores(ignorePath...))
+	patch, err := jsondiff.Compare(xMeta, yMeta, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("unable to compare annotations and labels of objects: %w", err)
 	}
@@ -179,15 +186,9 @@ func diffUnstructuredMetadata(x, y *unstructured.Unstructured, ignorePath ...str
 
 // diffUnstructured returns a JSON patch with the differences between the given
 // objects while ignoring "metadata" and "status" fields.
-func diffUnstructured(x, y *unstructured.Unstructured) (jsondiff.Patch, error) {
+func diffUnstructured(x, y *unstructured.Unstructured, opts ...jsondiff.Option) (jsondiff.Patch, error) {
 	xSpec, ySpec := removeMetadataAndStatus(x), removeMetadataAndStatus(y)
-	diffOpts := []jsondiff.Option{
-		// Rationalize to minimize the number of changes. This ensures that
-		// multiple changes to a path are combined into a single "replace"
-		// change instead of multiple remove and add operations.
-		jsondiff.Rationalize(),
-	}
-	patch, err := jsondiff.Compare(xSpec.Object, ySpec.Object, diffOpts...)
+	patch, err := jsondiff.Compare(xSpec.Object, ySpec.Object, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("unable to compare objects: %w", err)
 	}
