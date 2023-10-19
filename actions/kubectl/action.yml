@@ -53,8 +53,11 @@ runs:
           KUBECTL_TARGET_FILE="$DL_DIR/$KUBECTL_EXEC_FILE"
           KUBECTL_SHA256_FILE="$DL_DIR/$KUBECTL_EXEC_FILE.sha256"
 
-          curl -fsSL -o "$KUBECTL_TARGET_FILE" "$KUBECTL_DOWNLOAD_URL"
-          curl -fsSL -o "$KUBECTL_SHA256_FILE" "$KUBECTL_DOWNLOAD_URL.sha256"
+          echo "Downloading binary from ${KUBECTL_DOWNLOAD_URL}"
+          curl -sSL --fail-with-body -o "$KUBECTL_TARGET_FILE" "$KUBECTL_DOWNLOAD_URL"
+
+          echo "Downloading checksum from ${KUBECTL_DOWNLOAD_URL}.sha256"
+          curl -sSL --fail-with-body -o "$KUBECTL_SHA256_FILE" "$KUBECTL_DOWNLOAD_URL.sha256"
 
           echo "Verifying checksum"
           sum=$(openssl sha1 -sha256 ${KUBECTL_TARGET_FILE} | awk '{print $2}')
