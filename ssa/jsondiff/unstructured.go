@@ -36,11 +36,11 @@ type IgnorePathSelector struct {
 	Selector *Selector
 }
 
-// UnstructuredList performs a server-side apply dry-run and returns a ChangeSet
+// UnstructuredList performs a server-side apply dry-run and returns a DiffSet
 // containing the changes detected. It takes a list of Kubernetes resources
 // and a list of options. The options can be used to ignore certain paths in
 // certain resources, or to ignore certain resources altogether.
-func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured.Unstructured, opts ...ListOption) (ChangeSet, error) {
+func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured.Unstructured, opts ...ListOption) (DiffSet, error) {
 	o := &ListOptions{}
 	o.ApplyOptions(opts)
 
@@ -60,12 +60,12 @@ func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured
 		}
 	}
 
-	var changeSet ChangeSet
+	var set DiffSet
 	for _, obj := range objs {
 		obj := obj
 
 		if ssa.AnyInMetadata(obj, o.ExclusionSelectors) {
-			changeSet = append(changeSet, NewChangeForUnstructured(obj, ChangeTypeExclude, nil))
+			set = append(set, NewDiffForUnstructured(obj, DiffTypeExclude, nil))
 			continue
 		}
 
@@ -76,21 +76,21 @@ func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured
 			}
 		}
 
-		change, err := Unstructured(ctx, c, obj, append(resOpts, ignorePaths)...)
+		diff, err := Unstructured(ctx, c, obj, append(resOpts, ignorePaths)...)
 		if err != nil {
 			return nil, err
 		}
-		changeSet = append(changeSet, change)
+		set = append(set, diff)
 	}
-	return changeSet, nil
+	return set, nil
 }
 
 // Unstructured performs a server-side apply dry-run and returns the type of change
 // detected, and a JSON patch with the changes. If the resource does not exist,
-// it returns ChangeTypeCreate. If the resource exists and is identical to the
-// dry-run object, it returns ChangeTypeNone. Otherwise, it returns
-// ChangeTypeUpdate and a JSON patch with the changes.
-func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstructured, opts ...ResourceOption) (*Change, error) {
+// it returns DiffTypeCreate. If the resource exists and is identical to the
+// dry-run object, it returns DiffTypeNone. Otherwise, it returns
+// DiffTypeUpdate and a JSON patch with the changes.
+func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstructured, opts ...ResourceOption) (*Diff, error) {
 	o := &ResourceOptions{}
 	o.ApplyOptions(opts)
 
@@ -110,7 +110,7 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	}
 
 	if dryRunObj.GetResourceVersion() == "" {
-		return NewChangeForUnstructured(obj, ChangeTypeCreate, nil), nil
+		return NewDiffForUnstructured(obj, DiffTypeCreate, nil), nil
 	}
 
 	if err := ssa.NormalizeDryRunUnstructured(dryRunObj); err != nil {
@@ -148,7 +148,7 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	patch = append(patch, resPatch...)
 
 	if len(patch) == 0 {
-		return NewChangeForUnstructured(obj, ChangeTypeNone, nil), nil
+		return NewDiffForUnstructured(obj, DiffTypeNone, nil), nil
 	}
 
 	// Mask secrets if requested.
@@ -157,7 +157,7 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 			patch = MaskSecretPatchData(patch)
 		}
 	}
-	return NewChangeForUnstructured(obj, ChangeTypeUpdate, patch), nil
+	return NewDiffForUnstructured(obj, DiffTypeUpdate, patch), nil
 }
 
 // diffUnstructuredMetadata returns a JSON patch with the differences between

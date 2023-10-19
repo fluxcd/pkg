@@ -22,29 +22,29 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// ChangeType is the type of change detected by the server-side apply diff
+// DiffType is the type of change detected by the server-side apply diff
 // operation.
-type ChangeType string
+type DiffType string
 
 const (
-	// ChangeTypeCreate indicates that the resource does not exist
+	// DiffTypeCreate indicates that the resource does not exist
 	// and needs to be created.
-	ChangeTypeCreate ChangeType = "create"
-	// ChangeTypeUpdate indicates that the resource exists and needs
+	DiffTypeCreate DiffType = "create"
+	// DiffTypeUpdate indicates that the resource exists and needs
 	// to be updated.
-	ChangeTypeUpdate ChangeType = "update"
-	// ChangeTypeExclude indicates that the resource is excluded from
+	DiffTypeUpdate DiffType = "update"
+	// DiffTypeExclude indicates that the resource is excluded from
 	// the diff.
-	ChangeTypeExclude ChangeType = "exclude"
-	// ChangeTypeNone indicates that the resource exists and is
+	DiffTypeExclude DiffType = "exclude"
+	// DiffTypeNone indicates that the resource exists and is
 	// identical to the dry-run object.
-	ChangeTypeNone ChangeType = "none"
+	DiffTypeNone DiffType = "none"
 )
 
-// Change is a change detected by the server-side apply diff operation.
-type Change struct {
+// Diff is a change detected by the server-side apply diff operation.
+type Diff struct {
 	// Type of change detected.
-	Type ChangeType
+	Type DiffType
 
 	// GroupVersionKind of the resource the Patch applies to.
 	GroupVersionKind schema.GroupVersionKind
@@ -59,9 +59,9 @@ type Change struct {
 	Patch jsondiff.Patch
 }
 
-// NewChangeForUnstructured creates a new Change for the given unstructured object.
-func NewChangeForUnstructured(obj *unstructured.Unstructured, t ChangeType, p jsondiff.Patch) *Change {
-	return &Change{
+// NewDiffForUnstructured creates a new Diff for the given unstructured object.
+func NewDiffForUnstructured(obj *unstructured.Unstructured, t DiffType, p jsondiff.Patch) *Diff {
+	return &Diff{
 		Type:             t,
 		GroupVersionKind: obj.GetObjectKind().GroupVersionKind(),
 		Namespace:        obj.GetNamespace(),
@@ -70,5 +70,5 @@ func NewChangeForUnstructured(obj *unstructured.Unstructured, t ChangeType, p js
 	}
 }
 
-// ChangeSet is a list of changes.
-type ChangeSet []*Change
+// DiffSet is a list of changes.
+type DiffSet []*Diff

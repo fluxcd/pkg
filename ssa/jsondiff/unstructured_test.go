@@ -41,7 +41,7 @@ func TestUnstructuredList(t *testing.T) {
 		mutateCluster func(*unstructured.Unstructured)
 		mutateDesired func(*unstructured.Unstructured)
 		opts          []ListOption
-		want          func(ns string) ChangeSet
+		want          func(ns string) DiffSet
 		wantErr       bool
 	}{
 		{
@@ -53,10 +53,10 @@ func TestUnstructuredList(t *testing.T) {
 			mutateCluster: func(obj *unstructured.Unstructured) {
 				obj.Object = nil
 			},
-			want: func(ns string) ChangeSet {
-				return ChangeSet{
-					&Change{
-						Type: ChangeTypeCreate,
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeCreate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Group:   "apps",
 							Version: "v1",
@@ -65,8 +65,8 @@ func TestUnstructuredList(t *testing.T) {
 						Namespace: ns,
 						Name:      "podinfo",
 					},
-					&Change{
-						Type: ChangeTypeCreate,
+					&Diff{
+						Type: DiffTypeCreate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Version: "v1",
 							Kind:    "Service",
@@ -91,10 +91,10 @@ func TestUnstructuredList(t *testing.T) {
 					_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
 				}
 			},
-			want: func(ns string) ChangeSet {
-				return ChangeSet{
-					&Change{
-						Type: ChangeTypeUpdate,
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeUpdate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Group:   "apps",
 							Version: "v1",
@@ -106,8 +106,8 @@ func TestUnstructuredList(t *testing.T) {
 							{Type: jsondiff.OperationReplace, Path: "/spec/replicas", Value: float64(2), OldValue: float64(1)},
 						},
 					},
-					&Change{
-						Type: ChangeTypeUpdate,
+					&Diff{
+						Type: DiffTypeUpdate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Version: "v1",
 							Kind:    "Service",
@@ -145,10 +145,10 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				ExclusionSelector{"exclude": "enabled"},
 			},
-			want: func(ns string) ChangeSet {
-				return ChangeSet{
-					&Change{
-						Type: ChangeTypeExclude,
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeExclude,
 						GroupVersionKind: schema.GroupVersionKind{
 							Group:   "apps",
 							Version: "v1",
@@ -157,8 +157,8 @@ func TestUnstructuredList(t *testing.T) {
 						Namespace: ns,
 						Name:      "podinfo",
 					},
-					&Change{
-						Type: ChangeTypeNone,
+					&Diff{
+						Type: DiffTypeNone,
 						GroupVersionKind: schema.GroupVersionKind{
 							Version: "v1",
 							Kind:    "Service",
@@ -192,10 +192,10 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				ExclusionSelector{"exclude": "enabled"},
 			},
-			want: func(ns string) ChangeSet {
-				return ChangeSet{
-					&Change{
-						Type: ChangeTypeNone,
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeNone,
 						GroupVersionKind: schema.GroupVersionKind{
 							Group:   "apps",
 							Version: "v1",
@@ -204,8 +204,8 @@ func TestUnstructuredList(t *testing.T) {
 						Namespace: ns,
 						Name:      "podinfo",
 					},
-					&Change{
-						Type: ChangeTypeExclude,
+					&Diff{
+						Type: DiffTypeExclude,
 						GroupVersionKind: schema.GroupVersionKind{
 							Version: "v1",
 							Kind:    "Service",
@@ -238,10 +238,10 @@ func TestUnstructuredList(t *testing.T) {
 					},
 				},
 			},
-			want: func(ns string) ChangeSet {
-				return ChangeSet{
-					&Change{
-						Type: ChangeTypeUpdate,
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeUpdate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Group:   "apps",
 							Version: "v1",
@@ -254,8 +254,8 @@ func TestUnstructuredList(t *testing.T) {
 							{Type: jsondiff.OperationAdd, Path: "/metadata/labels/labeled", Value: "change"},
 						},
 					},
-					&Change{
-						Type: ChangeTypeUpdate,
+					&Diff{
+						Type: DiffTypeUpdate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Version: "v1",
 							Kind:    "Service",
@@ -292,10 +292,10 @@ func TestUnstructuredList(t *testing.T) {
 					},
 				},
 			},
-			want: func(ns string) ChangeSet {
-				return ChangeSet{
-					&Change{
-						Type: ChangeTypeUpdate,
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeUpdate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Group:   "apps",
 							Version: "v1",
@@ -307,8 +307,8 @@ func TestUnstructuredList(t *testing.T) {
 							{Type: jsondiff.OperationAdd, Path: "/metadata/labels/labeled", Value: "change"},
 						},
 					},
-					&Change{
-						Type: ChangeTypeUpdate,
+					&Diff{
+						Type: DiffTypeUpdate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Version: "v1",
 							Kind:    "Service",
@@ -338,10 +338,10 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				MaskSecrets(true),
 			},
-			want: func(ns string) ChangeSet {
-				return ChangeSet{
-					&Change{
-						Type: ChangeTypeUpdate,
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeUpdate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Group:   "",
 							Version: "v1",
@@ -380,10 +380,10 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				Rationalize(true),
 			},
-			want: func(ns string) ChangeSet {
-				return ChangeSet{
-					&Change{
-						Type: ChangeTypeUpdate,
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeUpdate,
 						GroupVersionKind: schema.GroupVersionKind{
 							Group:   "",
 							Version: "v1",
@@ -467,7 +467,7 @@ func TestUnstructured(t *testing.T) {
 		mutateCluster func(*unstructured.Unstructured)
 		mutateDesired func(*unstructured.Unstructured)
 		opts          []ResourceOption
-		want          func(ns string) *Change
+		want          func(ns string) *Diff
 		wantErr       bool
 	}{
 		{
@@ -477,9 +477,9 @@ func TestUnstructured(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -501,9 +501,9 @@ func TestUnstructured(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeNone,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeNone,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -525,9 +525,9 @@ func TestUnstructured(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -556,9 +556,9 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				IgnorePaths{"/metadata/annotations/annotated"},
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -583,9 +583,9 @@ func TestUnstructured(t *testing.T) {
 				})
 				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -617,9 +617,9 @@ func TestUnstructured(t *testing.T) {
 				})
 				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -648,9 +648,9 @@ func TestUnstructured(t *testing.T) {
 				containers[0].(map[string]interface{})["image"] = "nginx:latest"
 				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -675,9 +675,9 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				IgnorePaths{"/spec/template/spec/containers/0/image"},
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeNone,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeNone,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -691,9 +691,9 @@ func TestUnstructured(t *testing.T) {
 		{
 			name: "Deployment without changes",
 			path: "testdata/deployment.yaml",
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeNone,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeNone,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -710,9 +710,9 @@ func TestUnstructured(t *testing.T) {
 			mutateCluster: func(obj *unstructured.Unstructured) {
 				obj.Object = nil
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeCreate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeCreate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "apps",
 						Version: "v1",
@@ -726,9 +726,9 @@ func TestUnstructured(t *testing.T) {
 		{
 			name: "Secret without changes",
 			path: "testdata/empty-secret.yaml",
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeNone,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeNone,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "",
 						Version: "v1",
@@ -749,9 +749,9 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				MaskSecrets(false),
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "",
 						Version: "v1",
@@ -782,9 +782,9 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				MaskSecrets(true),
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "",
 						Version: "v1",
@@ -815,9 +815,9 @@ func TestUnstructured(t *testing.T) {
 				MaskSecrets(true),
 				Rationalize(true),
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Group:   "",
 						Version: "v1",
@@ -848,9 +848,9 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				MaskSecrets(true),
 			},
-			want: func(ns string) *Change {
-				return &Change{
-					Type: ChangeTypeUpdate,
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeUpdate,
 					GroupVersionKind: schema.GroupVersionKind{
 						Version: "v1",
 						Kind:    "ConfigMap",
