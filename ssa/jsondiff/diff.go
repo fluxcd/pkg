@@ -72,3 +72,24 @@ func NewDiffForUnstructured(obj *unstructured.Unstructured, t DiffType, p jsondi
 
 // DiffSet is a list of changes.
 type DiffSet []*Diff
+
+// HasType returns true if the DiffSet contains a Diff of the given type.
+func (ds DiffSet) HasType(t DiffType) bool {
+	for _, d := range ds {
+		if d.Type == t {
+			return true
+		}
+	}
+	return false
+}
+
+// HasChanges returns true if the DiffSet contains a Diff of type
+// DiffTypeCreate or DiffTypeUpdate.
+func (ds DiffSet) HasChanges() bool {
+	for _, d := range ds {
+		if d.Type == DiffTypeCreate || d.Type == DiffTypeUpdate {
+			return true
+		}
+	}
+	return false
+}
