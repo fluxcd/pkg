@@ -33,6 +33,10 @@ import (
 // Build archives the given directory as a tarball to the given local path.
 // While archiving, any environment specific data (for example, the user and group name) is stripped from file headers.
 func (c *Client) Build(artifactPath, sourceDir string, ignorePaths []string) (err error) {
+	return build(artifactPath, sourceDir, ignorePaths)
+}
+
+func build(artifactPath, sourceDir string, ignorePaths []string) (err error) {
 	absDir, err := filepath.Abs(sourceDir)
 	if err != nil {
 		return err

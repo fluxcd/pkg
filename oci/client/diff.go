@@ -45,7 +45,7 @@ func (c *Client) Diff(ctx context.Context, url, dir string, ignorePaths []string
 
 	tmpFile := filepath.Join(tmpBuildDir, "artifact.tgz")
 
-	if err := c.Build(tmpFile, dir, ignorePaths); err != nil {
+	if err := build(tmpFile, dir, ignorePaths); err != nil {
 		return fmt.Errorf("building artifact failed: %w", err)
 	}
 
