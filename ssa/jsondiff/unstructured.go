@@ -22,6 +22,7 @@ import (
 
 	"github.com/wI2L/jsondiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/ssa"
@@ -49,6 +50,9 @@ type IgnoreRule struct {
 // It accepts a list of ListOption, which can be used to exclude an object
 // using an ExclusionSelector, or to ignore specific JSON pointers within
 // an object using an IgnoreRule.
+//
+// When Graceful is passed as an option, the function will return a DiffSet
+// with the errors that occurred during the dry-run patch, but will not fail.
 func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured.Unstructured, opts ...ListOption) (DiffSet, error) {
 	o := &ListOptions{}
 	o.ApplyOptions(opts)
@@ -69,7 +73,10 @@ func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured
 		}
 	}
 
-	var set DiffSet
+	var (
+		set  DiffSet
+		errs []error
+	)
 	for _, obj := range objs {
 		var ignorePaths IgnorePaths
 		for sr, paths := range sm {
@@ -80,11 +87,15 @@ func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured
 
 		diff, err := Unstructured(ctx, c, obj, append(resOpts, ignorePaths)...)
 		if err != nil {
+			if o.Graceful {
+				errs = append(errs, err)
+				continue
+			}
 			return nil, err
 		}
 		set = append(set, diff)
 	}
-	return set, nil
+	return set, errors.Reduce(errors.NewAggregate(errs))
 }
 
 // Unstructured runs a dry-run patch against a Kubernetes cluster and compares

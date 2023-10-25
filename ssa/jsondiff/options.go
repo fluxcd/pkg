@@ -58,6 +58,10 @@ type ListOptions struct {
 	// IgnoreRules is a list of rules that specify which paths to ignore
 	// for which resources.
 	IgnoreRules []IgnoreRule
+	// Graceful enables graceful handling of errors during a server-side
+	// apply diff operation. If enabled, the diff operation will continue
+	// even if an error occurs for a single resource.
+	Graceful bool
 }
 
 // ApplyOptions applies the given options on these options, and then returns
@@ -137,4 +141,14 @@ func (r Rationalize) ApplyToResource(opts *ResourceOptions) {
 // ApplyToList applies this configuration to the given options.
 func (r Rationalize) ApplyToList(_ *ListOptions) {
 	// no-op
+}
+
+// Graceful enables graceful handling of errors during a server-side
+// apply diff operation. If enabled, the diff operation will continue
+// even if an error occurs for a single resource.
+type Graceful bool
+
+// ApplyToList applies this configuration to the given options.
+func (f Graceful) ApplyToList(opts *ListOptions) {
+	opts.Graceful = bool(f)
 }

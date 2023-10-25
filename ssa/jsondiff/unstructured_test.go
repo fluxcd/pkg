@@ -404,6 +404,60 @@ func TestUnstructuredList(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "handles errors gracefully when instructed",
+			paths: []string{
+				"testdata/deployment.yaml",
+				"testdata/empty-configmap.yaml",
+				"testdata/service.yaml",
+			},
+			mutateDesired: func(u *unstructured.Unstructured) {
+				switch u.GetKind() {
+				case "ConfigMap":
+					_ = unstructured.SetNestedField(u.Object, "value", "data", "key")
+				default:
+					_ = unstructured.SetNestedField(u.Object, "invalid", "spec")
+				}
+			},
+			opts: []ListOption{
+				Graceful(true),
+			},
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeUpdate,
+						GroupVersionKind: schema.GroupVersionKind{
+							Version: "v1",
+							Kind:    "ConfigMap",
+						},
+						Namespace: ns,
+						Name:      "configmap-data",
+						Patch: jsondiff.Patch{
+							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{"key": "value"}},
+						},
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "returns error without graceful option",
+			paths: []string{
+				"testdata/deployment.yaml",
+				"testdata/empty-configmap.yaml",
+				"testdata/service.yaml",
+			},
+			mutateDesired: func(u *unstructured.Unstructured) {
+				switch u.GetKind() {
+				case "ConfigMap":
+					_ = unstructured.SetNestedField(u.Object, "value", "data", "key")
+				default:
+					_ = unstructured.SetNestedField(u.Object, "invalid", "spec")
+				}
+			},
+			want:    func(ns string) DiffSet { return nil },
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -450,7 +504,6 @@ func TestUnstructuredList(t *testing.T) {
 			change, err := UnstructuredList(ctx, testClient, desired, opts...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("UnstructuredList() error = %v, wantErr %v", err, tt.wantErr)
-				return
 			}
 
 			if diff := cmp.Diff(tt.want(ns.Name), change, cmpopts.IgnoreUnexported(jsondiff.Operation{})); diff != "" {
