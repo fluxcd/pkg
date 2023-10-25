@@ -35,6 +35,9 @@ type ResourceOptions struct {
 	FieldManager string
 	// IgnorePaths is a list of JSON pointers to ignore when comparing objects.
 	IgnorePaths []string
+	// ExclusionSelector is a map of annotations or labels which mark a
+	// resource to be excluded from the server-side apply diff.
+	ExclusionSelector map[string]string
 	// MaskSecrets enables masking of Kubernetes Secrets in the diff.
 	MaskSecrets bool
 	// Rationalize enables rationalization of JSON operations in the diff.
@@ -52,12 +55,9 @@ func (o *ResourceOptions) ApplyOptions(opts []ResourceOption) *ResourceOptions {
 
 // ListOptions holds options for the server-side apply diff operation.
 type ListOptions struct {
-	// ExclusionSelectors is a map of annotations or labels which mark a
-	// resource to be excluded from the server-side apply diff.
-	ExclusionSelectors map[string]string
-	// IgnorePathSelectors is a list of selectors that match resources
-	// to ignore JSON pointers in.
-	IgnorePathSelectors []IgnorePathSelector
+	// IgnoreRules is a list of rules that specify which paths to ignore
+	// for which resources.
+	IgnoreRules []IgnoreRule
 }
 
 // ApplyOptions applies the given options on these options, and then returns
@@ -78,7 +78,7 @@ func (f FieldOwner) ApplyToResource(opts *ResourceOptions) {
 }
 
 // ApplyToList applies this configuration to the given options.
-func (f FieldOwner) ApplyToList(opts *ListOptions) {
+func (f FieldOwner) ApplyToList(_ *ListOptions) {
 	// no-op
 }
 
@@ -87,8 +87,13 @@ func (f FieldOwner) ApplyToList(opts *ListOptions) {
 type ExclusionSelector map[string]string
 
 // ApplyToList applies this configuration to the given options.
-func (e ExclusionSelector) ApplyToList(opts *ListOptions) {
-	opts.ExclusionSelectors = e
+func (e ExclusionSelector) ApplyToList(_ *ListOptions) {
+	// no-op
+}
+
+// ApplyToResource applies this configuration to the given options.
+func (e ExclusionSelector) ApplyToResource(opts *ResourceOptions) {
+	opts.ExclusionSelector = e
 }
 
 // IgnorePaths sets the JSON pointers to ignore when comparing objects.
@@ -99,12 +104,12 @@ func (i IgnorePaths) ApplyToResource(opts *ResourceOptions) {
 	opts.IgnorePaths = i
 }
 
-// IgnorePathSelectors sets the JSON pointers to ignore when comparing objects.
-type IgnorePathSelectors []IgnorePathSelector
+// IgnoreRules sets the JSON pointers to ignore when comparing objects.
+type IgnoreRules []IgnoreRule
 
 // ApplyToList applies this configuration to the given options.
-func (i IgnorePathSelectors) ApplyToList(opts *ListOptions) {
-	opts.IgnorePathSelectors = i
+func (i IgnoreRules) ApplyToList(opts *ListOptions) {
+	opts.IgnoreRules = i
 }
 
 // MaskSecrets sets the flag to mask secrets in the diff.

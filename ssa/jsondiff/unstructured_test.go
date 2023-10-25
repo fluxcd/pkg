@@ -227,7 +227,7 @@ func TestUnstructuredList(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "change", "metadata", "labels", "labeled")
 			},
 			opts: []ListOption{
-				IgnorePathSelectors{
+				IgnoreRules{
 					{
 						Paths: []string{
 							"/metadata/annotations",
@@ -284,7 +284,7 @@ func TestUnstructuredList(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "change", "metadata", "labels", "labeled")
 			},
 			opts: []ListOption{
-				IgnorePathSelectors{
+				IgnoreRules{
 					{
 						Paths: []string{
 							"/metadata/annotations",
@@ -569,6 +569,73 @@ func TestUnstructured(t *testing.T) {
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationReplace, Path: "/metadata/labels/labeled", Value: "yes", OldValue: "no"},
 					},
+				}
+			},
+		},
+		{
+			name: "Deployment with ignored root path",
+			path: "testdata/deployment.yaml",
+			opts: []ResourceOption{
+				IgnorePaths{IgnorePathRoot},
+			},
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeExclude,
+					GroupVersionKind: schema.GroupVersionKind{
+						Group:   "apps",
+						Version: "v1",
+						Kind:    "Deployment",
+					},
+					Namespace: ns,
+					Name:      "podinfo",
+				}
+			},
+		},
+		{
+			name: "Deployment with annotation matching exclusion selector",
+			path: "testdata/deployment.yaml",
+			opts: []ResourceOption{
+				ExclusionSelector{
+					"ignore": "enabled",
+				},
+			},
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "enabled", "metadata", "annotations", "ignore")
+			},
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeExclude,
+					GroupVersionKind: schema.GroupVersionKind{
+						Group:   "apps",
+						Version: "v1",
+						Kind:    "Deployment",
+					},
+					Namespace: ns,
+					Name:      "podinfo",
+				}
+			},
+		},
+		{
+			name: "Deployment with label matching exclusion selector",
+			path: "testdata/deployment.yaml",
+			opts: []ResourceOption{
+				ExclusionSelector{
+					"ignore": "enabled",
+				},
+			},
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "enabled", "metadata", "labels", "ignore")
+			},
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeExclude,
+					GroupVersionKind: schema.GroupVersionKind{
+						Group:   "apps",
+						Version: "v1",
+						Kind:    "Deployment",
+					},
+					Namespace: ns,
+					Name:      "podinfo",
 				}
 			},
 		},
