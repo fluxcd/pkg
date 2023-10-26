@@ -23,6 +23,7 @@ https://github.com/kubernetes-sigs/kustomize/blob/fb7ee2f4871d4ef054ecd9d2e1bc9b
 package jsondiff
 
 import (
+	"fmt"
 	"regexp"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -89,35 +90,35 @@ func NewSelectorRegex(s *Selector) (sr *SelectorRegex, err error) {
 
 	sr.groupRegex, err = regexp.Compile(anchorRegex(s.Group))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid group regex: %w", err)
 	}
 	sr.versionRegex, err = regexp.Compile(anchorRegex(s.Version))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid version regex: %w", err)
 	}
 	sr.kindRegex, err = regexp.Compile(anchorRegex(s.Kind))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid kind regex: %w", err)
 	}
 	sr.nameRegex, err = regexp.Compile(anchorRegex(s.Name))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid name regex: %w", err)
 	}
 	sr.namespaceRegex, err = regexp.Compile(anchorRegex(s.Namespace))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid namespace regex: %w", err)
 	}
 
 	if s.LabelSelector != "" {
 		sr.labelSelector, err = labels.Parse(s.LabelSelector)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid label selector: %w", err)
 		}
 	}
 	if s.AnnotationSelector != "" {
 		sr.annotationSelector, err = labels.Parse(s.AnnotationSelector)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid annotation selector: %w", err)
 		}
 	}
 

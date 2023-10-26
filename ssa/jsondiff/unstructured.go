@@ -22,33 +22,46 @@ import (
 
 	"github.com/wI2L/jsondiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/ssa"
 )
 
-// IgnorePathSelector contains the information needed to ignore certain paths
-// in a (set of) Kubernetes resource(s).
-type IgnorePathSelector struct {
-	// Paths is a list of JSON pointers to ignore.
+// IgnorePathRoot ignores the root of a JSON document, i.e., the entire
+// document.
+const IgnorePathRoot = ""
+
+// IgnoreRule contains the paths to ignore and an optional selector that
+// matches one or more resources.
+type IgnoreRule struct {
+	// Paths is a list of JSON pointers (RFC 6901) to ignore.
+	// To ignore the entire resource, use IgnorePathRoot.
 	Paths []string
 	// Selector is a selector that matches the resources to ignore.
 	Selector *Selector
 }
 
-// UnstructuredList performs a server-side apply dry-run and returns a DiffSet
-// containing the changes detected. It takes a list of Kubernetes resources
-// and a list of options. The options can be used to ignore certain paths in
-// certain resources, or to ignore certain resources altogether.
+// UnstructuredList runs a dry-run patch for a list of Kubernetes resources
+// against a Kubernetes cluster and compares the result against the original
+// objects. It returns a DiffSet, which contains differences between the
+// original and the dry-run objects.
+//
+// It accepts a list of ListOption, which can be used to exclude an object
+// using an ExclusionSelector, or to ignore specific JSON pointers within
+// an object using an IgnoreRule.
+//
+// When Graceful is passed as an option, the function will return a DiffSet
+// with the errors that occurred during the dry-run patch, but will not fail.
 func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured.Unstructured, opts ...ListOption) (DiffSet, error) {
 	o := &ListOptions{}
 	o.ApplyOptions(opts)
 
-	var sm = make(map[*SelectorRegex][]string, len(o.IgnorePathSelectors))
-	for _, ips := range o.IgnorePathSelectors {
+	var sm = make(map[*SelectorRegex][]string, len(o.IgnoreRules))
+	for _, ips := range o.IgnoreRules {
 		sr, err := NewSelectorRegex(ips.Selector)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create selector regex: %w", err)
+			return nil, fmt.Errorf("failed to create ignore rule selector: %w", err)
 		}
 		sm[sr] = ips.Paths
 	}
@@ -60,15 +73,11 @@ func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured
 		}
 	}
 
-	var set DiffSet
+	var (
+		set  DiffSet
+		errs []error
+	)
 	for _, obj := range objs {
-		obj := obj
-
-		if ssa.AnyInMetadata(obj, o.ExclusionSelectors) {
-			set = append(set, NewDiffForUnstructured(obj, DiffTypeExclude, nil))
-			continue
-		}
-
 		var ignorePaths IgnorePaths
 		for sr, paths := range sm {
 			if sr.MatchUnstructured(obj) {
@@ -78,21 +87,47 @@ func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured
 
 		diff, err := Unstructured(ctx, c, obj, append(resOpts, ignorePaths)...)
 		if err != nil {
+			if o.Graceful {
+				errs = append(errs, err)
+				continue
+			}
 			return nil, err
 		}
 		set = append(set, diff)
 	}
-	return set, nil
+	return set, errors.Reduce(errors.NewAggregate(errs))
 }
 
-// Unstructured performs a server-side apply dry-run and returns the type of change
-// detected, and a JSON patch with the changes. If the resource does not exist,
-// it returns DiffTypeCreate. If the resource exists and is identical to the
-// dry-run object, it returns DiffTypeNone. Otherwise, it returns
-// DiffTypeUpdate and a JSON patch with the changes.
+// Unstructured runs a dry-run patch against a Kubernetes cluster and compares
+// the result against the original object. It returns a Diff, which contains
+// differences between the original and the dry-run object.
+//
+// It accepts a list of ResourceOption, which can be used to exclude an
+// object using an ExclusionSelector, or to ignore specific JSON pointers
+// within the object using IgnorePaths.
+//
+// The DiffType of the returned Diff is DiffTypeNone if the dry-run object is
+// identical to the original object, DiffTypeCreate if the dry-run object
+// doesn't exist, or DiffTypeUpdate if the dry-run object is different from
+// the original object.
+//
+// When the object is excluded using an ExclusionSelector or an
+// IgnorePathRoot, the DiffType is DiffTypeExclude.
 func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstructured, opts ...ResourceOption) (*Diff, error) {
 	o := &ResourceOptions{}
 	o.ApplyOptions(opts)
+
+	// Check if the object should be excluded based on metadata.
+	if ssa.AnyInMetadata(obj, o.ExclusionSelector) {
+		return NewDiffForUnstructured(obj, DiffTypeExclude, nil), nil
+	}
+
+	// Short-circuit if the object in full is to be ignored.
+	for _, p := range o.IgnorePaths {
+		if p == IgnorePathRoot {
+			return NewDiffForUnstructured(obj, DiffTypeExclude, nil), nil
+		}
+	}
 
 	existingObj := obj.DeepCopy()
 	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), existingObj); client.IgnoreNotFound(err) != nil {

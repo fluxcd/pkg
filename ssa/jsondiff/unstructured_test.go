@@ -227,7 +227,7 @@ func TestUnstructuredList(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "change", "metadata", "labels", "labeled")
 			},
 			opts: []ListOption{
-				IgnorePathSelectors{
+				IgnoreRules{
 					{
 						Paths: []string{
 							"/metadata/annotations",
@@ -284,7 +284,7 @@ func TestUnstructuredList(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "change", "metadata", "labels", "labeled")
 			},
 			opts: []ListOption{
-				IgnorePathSelectors{
+				IgnoreRules{
 					{
 						Paths: []string{
 							"/metadata/annotations",
@@ -404,6 +404,60 @@ func TestUnstructuredList(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "handles errors gracefully when instructed",
+			paths: []string{
+				"testdata/deployment.yaml",
+				"testdata/empty-configmap.yaml",
+				"testdata/service.yaml",
+			},
+			mutateDesired: func(u *unstructured.Unstructured) {
+				switch u.GetKind() {
+				case "ConfigMap":
+					_ = unstructured.SetNestedField(u.Object, "value", "data", "key")
+				default:
+					_ = unstructured.SetNestedField(u.Object, "invalid", "spec")
+				}
+			},
+			opts: []ListOption{
+				Graceful(true),
+			},
+			want: func(ns string) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type: DiffTypeUpdate,
+						GroupVersionKind: schema.GroupVersionKind{
+							Version: "v1",
+							Kind:    "ConfigMap",
+						},
+						Namespace: ns,
+						Name:      "configmap-data",
+						Patch: jsondiff.Patch{
+							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{"key": "value"}},
+						},
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "returns error without graceful option",
+			paths: []string{
+				"testdata/deployment.yaml",
+				"testdata/empty-configmap.yaml",
+				"testdata/service.yaml",
+			},
+			mutateDesired: func(u *unstructured.Unstructured) {
+				switch u.GetKind() {
+				case "ConfigMap":
+					_ = unstructured.SetNestedField(u.Object, "value", "data", "key")
+				default:
+					_ = unstructured.SetNestedField(u.Object, "invalid", "spec")
+				}
+			},
+			want:    func(ns string) DiffSet { return nil },
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -450,7 +504,6 @@ func TestUnstructuredList(t *testing.T) {
 			change, err := UnstructuredList(ctx, testClient, desired, opts...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("UnstructuredList() error = %v, wantErr %v", err, tt.wantErr)
-				return
 			}
 
 			if diff := cmp.Diff(tt.want(ns.Name), change, cmpopts.IgnoreUnexported(jsondiff.Operation{})); diff != "" {
@@ -569,6 +622,73 @@ func TestUnstructured(t *testing.T) {
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationReplace, Path: "/metadata/labels/labeled", Value: "yes", OldValue: "no"},
 					},
+				}
+			},
+		},
+		{
+			name: "Deployment with ignored root path",
+			path: "testdata/deployment.yaml",
+			opts: []ResourceOption{
+				IgnorePaths{IgnorePathRoot},
+			},
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeExclude,
+					GroupVersionKind: schema.GroupVersionKind{
+						Group:   "apps",
+						Version: "v1",
+						Kind:    "Deployment",
+					},
+					Namespace: ns,
+					Name:      "podinfo",
+				}
+			},
+		},
+		{
+			name: "Deployment with annotation matching exclusion selector",
+			path: "testdata/deployment.yaml",
+			opts: []ResourceOption{
+				ExclusionSelector{
+					"ignore": "enabled",
+				},
+			},
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "enabled", "metadata", "annotations", "ignore")
+			},
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeExclude,
+					GroupVersionKind: schema.GroupVersionKind{
+						Group:   "apps",
+						Version: "v1",
+						Kind:    "Deployment",
+					},
+					Namespace: ns,
+					Name:      "podinfo",
+				}
+			},
+		},
+		{
+			name: "Deployment with label matching exclusion selector",
+			path: "testdata/deployment.yaml",
+			opts: []ResourceOption{
+				ExclusionSelector{
+					"ignore": "enabled",
+				},
+			},
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "enabled", "metadata", "labels", "ignore")
+			},
+			want: func(ns string) *Diff {
+				return &Diff{
+					Type: DiffTypeExclude,
+					GroupVersionKind: schema.GroupVersionKind{
+						Group:   "apps",
+						Version: "v1",
+						Kind:    "Deployment",
+					},
+					Namespace: ns,
+					Name:      "podinfo",
 				}
 			},
 		},
