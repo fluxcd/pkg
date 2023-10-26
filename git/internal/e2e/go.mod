@@ -17,7 +17,7 @@ require (
 	github.com/fluxcd/pkg/git/gogit v0.14.0
 	github.com/fluxcd/pkg/gittestserver v0.8.6
 	github.com/fluxcd/pkg/ssh v0.8.2
-	github.com/go-git/go-git/v5 v5.9.0
+	github.com/go-git/go-git/v5 v5.10.0
 	github.com/go-logr/logr v1.2.4
 	github.com/google/uuid v1.3.1
 	github.com/onsi/gomega v1.28.0
