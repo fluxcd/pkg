@@ -28,6 +28,7 @@ import (
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -96,7 +97,8 @@ func testImageRepositoryListTags(t *testing.T, args []string) {
 
 	g.Expect(testEnv.Client.Create(ctx, job)).To(Succeed())
 	defer func() {
-		g.Expect(testEnv.Client.Delete(ctx, job)).To(Succeed())
+		background := metav1.DeletePropagationBackground
+		g.Expect(testEnv.Client.Delete(ctx, job, &client.DeleteOptions{PropagationPolicy: &background})).To(Succeed())
 	}()
 	g.Eventually(func() bool {
 		if err := testEnv.Client.Get(ctx, key, job); err != nil {
