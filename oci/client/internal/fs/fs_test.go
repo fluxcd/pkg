@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 		},
 	}
 
-	os.MkdirAll("testdata/symlinks", 0o755)
+	os.MkdirAll("testdata/symlinks", 0o750)
 
 	for _, sl := range symlinks {
 		err := os.Symlink(sl.oldPath, sl.newPath)

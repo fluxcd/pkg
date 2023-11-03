@@ -39,7 +39,7 @@ func TestMakeFsOnDiskSecure(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		matchingDir := filepath.Join(tmpDir, "subdir")
-		g.Expect(os.Mkdir(matchingDir, 0o644)).To(Succeed())
+		g.Expect(os.Mkdir(matchingDir, 0o600)).To(Succeed())
 
 		got, err := MakeFsOnDiskSecure(filepath.Join(tmpDir, "subdir"), tmpDir)
 		g.Expect(err).To(HaveOccurred())
@@ -138,8 +138,8 @@ func Test_fsSecure_RemoveAll(t *testing.T) {
 	root := filepath.Join(tmpDir, "workdir")
 
 	g.Expect(os.MkdirAll(filepath.Join(root, "subdir"), 0o700)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(root, "subdir", "file.txt"), []byte(""), 0o644)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(root, "subdir", "file.txt"), []byte(""), 0o600)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0o600)).To(Succeed())
 
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -169,8 +169,8 @@ func Test_fsSecure_Open(t *testing.T) {
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o644)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("illegal"), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o600)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("illegal"), 0o600)).To(Succeed())
 
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -234,9 +234,9 @@ func Test_fsSecure_ReadDir(t *testing.T) {
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o600)).To(Succeed())
 	g.Expect(os.Mkdir(filepath.Join(tmpDir, "illegal"), 0o700)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(tmpDir, "illegal", "file.txt"), []byte("illegal"), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "illegal", "file.txt"), []byte("illegal"), 0o600)).To(Succeed())
 
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -347,8 +347,8 @@ func Test_fsSecure_Glob(t *testing.T) {
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
 
-	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o644)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("illegal"), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o600)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("illegal"), 0o600)).To(Succeed())
 
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -367,8 +367,8 @@ func Test_fsSecure_ReadFile(t *testing.T) {
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o644)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("illegal"), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o600)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("illegal"), 0o600)).To(Succeed())
 
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -434,8 +434,8 @@ func Test_fsSecure_Walk(t *testing.T) {
 
 	root := filepath.Join(tmpDir, "workdir")
 	g.Expect(os.Mkdir(root, 0o700)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o644)).To(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("illegal"), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(root, "file.txt"), []byte("secure"), 0o600)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("illegal"), 0o600)).To(Succeed())
 
 	fs, err := MakeFsOnDiskSecure(root)
 	g.Expect(err).ToNot(HaveOccurred())

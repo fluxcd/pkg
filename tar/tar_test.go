@@ -42,7 +42,7 @@ func TestUntar(t *testing.T) {
 	symlink := filepath.Join(t.TempDir(), "symlink")
 
 	subdir := filepath.Join(targetDirOutput, "subdir")
-	err := os.MkdirAll(subdir, 0o755)
+	err := os.MkdirAll(subdir, 0o750)
 	if err != nil {
 		t.Fatalf("cannot create subdir: %v", err)
 	}

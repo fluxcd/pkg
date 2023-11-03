@@ -74,7 +74,7 @@ func (s *ArtifactServer) ArtifactFromFiles(files []File) (string, error) {
 	for _, f := range files {
 		hdr := &tar.Header{
 			Name: f.Name,
-			Mode: 0600,
+			Mode: 0o600,
 			Size: int64(len(f.Body)),
 		}
 		if err := tw.WriteHeader(hdr); err != nil {
@@ -167,7 +167,7 @@ func (s *ArtifactServer) ArtifactFromDir(source, destination string) (string, er
 		return "", err
 	}
 
-	if err := os.Chmod(f.Name(), 0644); err != nil {
+	if err := os.Chmod(f.Name(), 0o600); err != nil {
 		return "", err
 	}
 
