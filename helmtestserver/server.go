@@ -63,7 +63,7 @@ func (s *HelmServer) GenerateIndex() error {
 		return err
 	}
 	f := filepath.Join(s.HTTPServer.Root(), "index.yaml")
-	return os.WriteFile(f, d, 0644)
+	return os.WriteFile(f, d, 0o600)
 }
 
 // PackageChart attempts to package the chart at the given path, to be served

@@ -119,7 +119,7 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 			// write will fail with the same error.
 			dir := filepath.Dir(abs)
 			if !madeDir[dir] {
-				if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+				if err := os.MkdirAll(filepath.Dir(abs), 0o750); err != nil {
 					return err
 				}
 				madeDir[dir] = true
@@ -167,7 +167,7 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 				}
 			}
 		case mode.IsDir():
-			if err := os.MkdirAll(abs, 0o755); err != nil {
+			if err := os.MkdirAll(abs, 0o750); err != nil {
 				return err
 			}
 			madeDir[abs] = true
