@@ -7,7 +7,7 @@ require (
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/go-git/go-billy/v5 v5.4.1
 	github.com/go-git/go-git/v5 v5.8.1
-	golang.org/x/crypto v0.12.0
+	golang.org/x/crypto v0.14.0
 )
 
 // Fix CVE-2022-28948
@@ -30,8 +30,8 @@ require (
 	github.com/skeema/knownhosts v1.2.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/mod v0.8.0 // indirect
-	golang.org/x/net v0.12.0 // indirect
-	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
