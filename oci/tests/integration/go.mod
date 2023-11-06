@@ -12,7 +12,7 @@ require (
 	github.com/onsi/gomega v1.27.10
 	k8s.io/api v0.27.7
 	k8s.io/apimachinery v0.27.7
-	sigs.k8s.io/controller-runtime v0.15.1
+	sigs.k8s.io/controller-runtime v0.15.3
 )
 
 require (

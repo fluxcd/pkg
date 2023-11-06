@@ -24,7 +24,7 @@ require (
 	github.com/onsi/gomega v1.27.10
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/sirupsen/logrus v1.9.3
-	sigs.k8s.io/controller-runtime v0.15.1
+	sigs.k8s.io/controller-runtime v0.15.3
 )
 
 require (
