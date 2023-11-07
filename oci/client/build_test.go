@@ -31,7 +31,6 @@ import (
 
 func TestBuild(t *testing.T) {
 	g := NewWithT(t)
-	c := NewClient(DefaultOptions())
 
 	absPath := fmt.Sprintf("%s/deployment.yaml", t.TempDir())
 	err := copyFile(absPath, "testdata/artifact/deployment.yaml")
@@ -97,7 +96,7 @@ func TestBuild(t *testing.T) {
 			tmpDir := t.TempDir()
 			artifactPath := filepath.Join(tmpDir, "files.tar.gz")
 
-			err := c.Build(artifactPath, tt.path, tt.ignorePath)
+			err := build(artifactPath, tt.path, tt.ignorePath)
 			if tt.expectErr {
 				g.Expect(err).To(HaveOccurred())
 				return
