@@ -19,7 +19,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -28,6 +27,10 @@ import (
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/static"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	. "github.com/onsi/gomega"
 
@@ -48,8 +51,13 @@ func Test_Push_Pull(t *testing.T) {
 		sourcePath        string
 		tag               string
 		ignorePaths       []string
-		opts              []PushOption
-		expectErr         bool
+		pushOpts          []PushOption
+		pullOpts          []PullOption
+		pushFn            func(url string, path string) error
+		testLayerIndex    int
+		expectedNumLayers int
+		expectPullErr     bool
+		expectPushErr     bool
 		expectedMediaType types.MediaType
 	}{
 		{
@@ -63,36 +71,132 @@ func Test_Push_Pull(t *testing.T) {
 			tag:               "v0.0.1",
 			sourcePath:        "testdata/artifact",
 			expectedMediaType: oci.CanonicalContentMediaType,
-			opts: []PushOption{
+			pushOpts: []PushOption{
 				WithPushLayerType(LayerTypeTarball),
+			},
+			pullOpts: []PullOption{
+				WithPullLayerType(LayerTypeTarball),
 			},
 		},
 		{
 			name:       "push static file",
 			tag:        "v0.0.2",
 			sourcePath: "testdata/artifact/deployment.yaml",
-			opts: []PushOption{
+			pushOpts: []PushOption{
 				WithPushLayerType(LayerTypeStatic),
 				WithPushMediaTypeExt("ml"),
+			},
+			pullOpts: []PullOption{
+				WithPullLayerType(LayerTypeStatic),
 			},
 			expectedMediaType: getLayerMediaType("ml"),
 		},
 		{
 			name:       "push directory as static layer (should return error)",
 			sourcePath: "testdata/artifact",
-			opts: []PushOption{
+			pushOpts: []PushOption{
 				WithPushLayerType(LayerTypeStatic),
 			},
-			expectErr: true,
+			expectPushErr: true,
 		},
 		{
 			name:       "push static file without media type extension",
 			tag:        "v0.0.2",
 			sourcePath: "testdata/artifact/deployment.yaml",
-			opts: []PushOption{
+			pushOpts: []PushOption{
 				WithPushLayerType(LayerTypeStatic),
 			},
 			expectedMediaType: oci.CanonicalMediaTypePrefix,
+		},
+		{
+			name:       "push directory and pull archive (push with LayerTypeTarball and pull with LayerTypeStatic)",
+			tag:        "v0.0.2",
+			sourcePath: "testdata/artifact",
+			pullOpts: []PullOption{
+				WithPullLayerType(LayerTypeStatic),
+			},
+			expectedMediaType: oci.CanonicalContentMediaType,
+		},
+		{
+			name:              "push static artifact (and with LayerTypeTarball PullOption - should return error)",
+			tag:               "static-flux",
+			sourcePath:        "testdata/artifact/deployment.yaml",
+			pullOpts:          []PullOption{WithPullLayerType(LayerTypeTarball)},
+			pushOpts:          []PushOption{WithPushLayerType(LayerTypeStatic)},
+			expectPullErr:     true,
+			expectedMediaType: oci.CanonicalMediaTypePrefix,
+		},
+		{
+			name:       "two layers in image (specify index)",
+			tag:        "two-layers",
+			sourcePath: "testdata/artifact",
+			pullOpts:   []PullOption{WithPullLayerType(LayerTypeTarball), WithPullLayerIndex(1)},
+			pushFn: func(url string, path string) error {
+				artifact := filepath.Join(t.TempDir(), "artifact.tgz")
+				err := build(artifact, path, nil)
+				if err != nil {
+					return err
+				}
+
+				img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
+				img = mutate.ConfigMediaType(img, oci.CanonicalConfigMediaType)
+
+				layer1 := static.NewLayer([]byte("test-byte"), oci.CanonicalMediaTypePrefix)
+
+				layer2, err := tarball.LayerFromFile(artifact, tarball.WithMediaType(oci.CanonicalContentMediaType))
+				if err != nil {
+					return err
+				}
+
+				img, err = mutate.Append(img, mutate.Addendum{Layer: layer1}, mutate.Addendum{Layer: layer2})
+				if err != nil {
+					return err
+				}
+
+				err = crane.Push(img, url, c.optionsWithContext(ctx)...)
+				if err != nil {
+					return err
+				}
+				return err
+			},
+			testLayerIndex:    1,
+			expectedNumLayers: 2,
+			expectedMediaType: oci.CanonicalContentMediaType,
+		},
+		{
+			name:       "specify wrong layer (should return error)",
+			tag:        "not-flux",
+			sourcePath: "testdata/artifact",
+			pullOpts:   []PullOption{WithPullLayerType(LayerTypeTarball), WithPullLayerIndex(1)},
+			pushFn: func(url string, path string) error {
+				artifact := filepath.Join(t.TempDir(), "artifact.tgz")
+				err := build(artifact, path, nil)
+				if err != nil {
+					return err
+				}
+
+				img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
+				img = mutate.ConfigMediaType(img, oci.CanonicalConfigMediaType)
+
+				layer1, err := tarball.LayerFromFile(artifact, tarball.WithMediaType(oci.CanonicalContentMediaType))
+				if err != nil {
+					return err
+				}
+
+				img, err = mutate.Append(img, mutate.Addendum{Layer: layer1})
+				if err != nil {
+					return err
+				}
+
+				dst := fmt.Sprintf("%s/%s:%s", dockerReg, repo, "not-flux")
+				err = crane.Push(img, dst, c.optionsWithContext(ctx)...)
+				if err != nil {
+					return err
+				}
+				return err
+			},
+			expectedMediaType: oci.CanonicalContentMediaType,
+			expectPullErr:     true,
 		},
 	}
 
@@ -109,11 +213,16 @@ func Test_Push_Pull(t *testing.T) {
 					"org.opencontainers.image.licenses":      "Apache-2.0",
 				},
 			}
-			opts := append(tt.opts, WithPushMetadata(metadata))
+			opts := append(tt.pushOpts, WithPushMetadata(metadata))
 
 			// Build and push the artifact to registry
-			_, err := c.Push(ctx, url, tt.sourcePath, opts...)
-			if tt.expectErr {
+			var err error
+			if tt.pushFn == nil {
+				_, err = c.Push(ctx, url, tt.sourcePath, opts...)
+			} else {
+				err = tt.pushFn(url, tt.sourcePath)
+			}
+			if tt.expectPushErr {
 				g.Expect(err).To(HaveOccurred())
 				return
 			}
@@ -133,35 +242,54 @@ func Test_Push_Pull(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Verify that annotations exist in manifest
-			g.Expect(manifest.Annotations[oci.CreatedAnnotation]).To(BeEquivalentTo(created))
-			g.Expect(manifest.Annotations[oci.SourceAnnotation]).To(BeEquivalentTo(source))
-			g.Expect(manifest.Annotations[oci.RevisionAnnotation]).To(BeEquivalentTo(revision))
+			if len(manifest.Annotations) != 0 {
+				g.Expect(manifest.Annotations[oci.CreatedAnnotation]).To(BeEquivalentTo(created))
+				g.Expect(manifest.Annotations[oci.SourceAnnotation]).To(BeEquivalentTo(source))
+				g.Expect(manifest.Annotations[oci.RevisionAnnotation]).To(BeEquivalentTo(revision))
+			}
 
 			// Verify media types
 			g.Expect(manifest.MediaType).To(Equal(types.OCIManifestSchema1))
 			g.Expect(manifest.Config.MediaType).To(BeEquivalentTo(oci.CanonicalConfigMediaType))
-			g.Expect(len(manifest.Layers)).To(BeEquivalentTo(1))
-			g.Expect(manifest.Layers[0].MediaType).To(BeEquivalentTo(tt.expectedMediaType))
+
+			numLayers := 1
+			layerIdx := 0
+			if tt.expectedNumLayers > 0 {
+				numLayers = tt.expectedNumLayers
+				layerIdx = tt.testLayerIndex
+			}
+			g.Expect(len(manifest.Layers)).To(BeEquivalentTo(numLayers))
+			g.Expect(manifest.Layers[layerIdx].MediaType).To(BeEquivalentTo(tt.expectedMediaType))
 
 			// Verify custom annotations
 			meta := MetadataFromAnnotations(manifest.Annotations)
-			g.Expect(meta.Annotations["org.opencontainers.image.documentation"]).To(BeEquivalentTo("https://my/readme.md"))
-			g.Expect(meta.Annotations["org.opencontainers.image.licenses"]).To(BeEquivalentTo("Apache-2.0"))
+			if len(meta.Annotations) > 0 {
+				g.Expect(meta.Annotations["org.opencontainers.image.documentation"]).To(BeEquivalentTo("https://my/readme.md"))
+				g.Expect(meta.Annotations["org.opencontainers.image.licenses"]).To(BeEquivalentTo("Apache-2.0"))
+			}
 
-			po := &PushOptions{}
-			for _, opt := range opts {
+			po := &PullOptions{
+				layerType: LayerTypeTarball,
+			}
+			for _, opt := range tt.pullOpts {
 				opt(po)
 			}
+
+			// Pull the artifact from registry and extract its contents to tmp
+			tmpPath := filepath.Join(t.TempDir(), "artifact")
+			_, err = c.Pull(ctx, url, tmpPath, tt.pullOpts...)
+			if tt.expectPullErr {
+				g.Expect(err).To(HaveOccurred())
+				return
+			}
+			g.Expect(err).ToNot(HaveOccurred())
+
 			switch po.layerType {
 			case LayerTypeTarball:
-				// Pull the artifact from registry and extract its contents to tmp
-				tmpDir := t.TempDir()
-				_, err := c.Pull(ctx, url, tmpDir)
-				g.Expect(err).ToNot(HaveOccurred())
 				// Walk the test directory and check that all files exist in the pulled artifact
 				fsErr := filepath.Walk(tt.sourcePath, func(path string, info fs.FileInfo, err error) error {
 					if !info.IsDir() {
-						tmpPath := filepath.Join(tmpDir, strings.TrimPrefix(path, tt.sourcePath))
+						tmpPath := filepath.Join(tmpPath, strings.TrimPrefix(path, tt.sourcePath))
 						if _, err := os.Stat(tmpPath); err != nil && os.IsNotExist(err) {
 							return fmt.Errorf("path '%s' doesn't exist in archive", path)
 						}
@@ -171,27 +299,19 @@ func Test_Push_Pull(t *testing.T) {
 				})
 				g.Expect(fsErr).ToNot(HaveOccurred())
 			case LayerTypeStatic:
-				// contents of uncompressed and compressed layer should be the same as file
-				expectedBytes, err := os.ReadFile(tt.sourcePath)
-				g.Expect(err).To(Not(HaveOccurred()))
-				layers, err := image.Layers()
+				fileInfo, err := os.Stat(tt.sourcePath)
+				// if a directory was pushed, then the created file is a gzipped archive and
+				// we don't need to check that its content matches the source directory
+				if fileInfo.IsDir() {
+					return
+				}
+				expected, err := os.ReadFile(tt.sourcePath)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				blob, err := layers[0].Uncompressed()
+				got, err := os.ReadFile(tmpPath)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				b, err := io.ReadAll(blob)
-				g.Expect(err).ToNot(HaveOccurred())
-
-				g.Expect(b).To(BeEquivalentTo(expectedBytes))
-
-				blob, err = layers[0].Compressed()
-				g.Expect(err).ToNot(HaveOccurred())
-
-				b, err = io.ReadAll(blob)
-				g.Expect(err).ToNot(HaveOccurred())
-
-				g.Expect(b).To(BeEquivalentTo(expectedBytes))
+				g.Expect(expected).To(Equal(got))
 			}
 		})
 	}
