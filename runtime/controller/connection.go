@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -27,6 +28,14 @@ import (
 const (
 	flagInsecureAllowHTTP = "insecure-allow-http"
 )
+
+// proxyFromEnvironment is the function that returns the environment's
+// proxy configuration.
+var proxyFromEnvironment = httpproxy.FromEnvironment
+
+// ErrInsecureHTTPBlocked signals that the use of insecure plain HTTP
+// connections was requested but such behavior is blocked.
+var ErrInsecureHTTPBlocked = errors.New("use of insecure plain HTTP connections is blocked")
 
 // ConnectionOptions defines the configurable options for outbound connections
 // opened by reconcilers. Consumers are expected to check for compatibility via
@@ -44,23 +53,23 @@ func (o *ConnectionOptions) BindFlags(fs *pflag.FlagSet) {
 		"Allow the controller to make HTTP requests to external services like insecure Git servers, container registries, etc.")
 }
 
-// CheckEnvironmentCompatibility checks if the enviornment is compatible with
+// CheckEnvironmentCompatibility checks if the environment is compatible with
 // the configured connection options.
 func (o *ConnectionOptions) CheckEnvironmentCompatibility() error {
 	if !o.AllowHTTP {
-		config := httpproxy.FromEnvironment()
+		config := proxyFromEnvironment()
 		if config.HTTPProxy != "" {
-			return fmt.Errorf("usage of HTTP requests is blocked but found a HTTP proxy set in enviornment")
+			return fmt.Errorf("%w: found HTTP proxy set in environment", ErrInsecureHTTPBlocked)
 		}
 
 		if config.HTTPSProxy != "" {
 			proxy, err := url.Parse(config.HTTPSProxy)
 			if err != nil {
-				return fmt.Errorf("unable to parse address specified in the HTTPS proxy enviornment setting: %w", err)
+				return fmt.Errorf("unable to parse address specified in the HTTPS proxy environment setting: %w", err)
 			}
 
 			if proxy.Scheme != "https" {
-				return fmt.Errorf("usage of HTTP requests is blocked but found a non-https address in the HTTPS proxy enviornment setting")
+				return fmt.Errorf("%w: found a non-https address in HTTPS proxy environment setting", ErrInsecureHTTPBlocked)
 			}
 		}
 	}
