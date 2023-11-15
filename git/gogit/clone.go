@@ -106,7 +106,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 			}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
+			return nil, fmt.Errorf("unable to clone '%s': %w", url, err)
 		}
 	}
 
@@ -179,7 +179,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 				URL:     url,
 			}
 		}
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, err)
 	}
 
 	head, err := repo.Head()
@@ -243,7 +243,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 				URL:     url,
 			}
 		}
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, err)
 	}
 
 	w, err := repo.Worktree()
@@ -305,7 +305,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 				URL:     url,
 			}
 		}
-		return nil, fmt.Errorf("unable to clone '%s': %w", url, goGitError(err))
+		return nil, fmt.Errorf("unable to clone '%s': %w", url, err)
 	}
 
 	repoTags, err := repo.Tags()
@@ -608,24 +608,4 @@ func buildCommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceN
 
 func isRemoteBranchNotFoundErr(err error, ref string) bool {
 	return strings.Contains(err.Error(), fmt.Sprintf("couldn't find remote ref '%s'", ref))
-}
-
-// goGitError translates an error from the go-git library, or returns
-// `nil` if the argument is `nil`.
-func goGitError(err error) error {
-	if err == nil {
-		return nil
-	}
-	switch strings.TrimSpace(err.Error()) {
-	case "unknown error: remote:":
-		// this unhelpful error arises because go-git takes the first
-		// line of the output on stderr, and for some git providers
-		// (GitLab, at least) the output has a blank line at the
-		// start. The rest of stderr is thrown away, so we can't get
-		// the actual error; but at least we know what was being
-		// attempted, and the likely cause.
-		return fmt.Errorf("push rejected; check git secret has write access")
-	default:
-		return err
-	}
 }

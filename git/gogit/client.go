@@ -418,7 +418,11 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 		ProxyOptions: g.proxy,
 		Options:      cfg.Options,
 	})
-	return goGitError(err)
+	if err != nil {
+		return fmt.Errorf("failed to push to remote: %w", err)
+	}
+
+	return nil
 }
 
 // SwitchBranch switches the current branch to the given branch name.
