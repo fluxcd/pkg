@@ -39,3 +39,7 @@ output "ecr_registry_id" {
 output "ecr_test_app_repo_url" {
   value = module.test_app_ecr.repository_url
 }
+
+output "aws_wi_iam_arn" {
+  value = var.enable_wi ? aws_iam_role.assume_role[0].arn : ""
+}

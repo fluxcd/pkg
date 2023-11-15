@@ -18,3 +18,7 @@ output "gcr_repository_url" {
 output "gcp_artifact_repository" {
   value = module.gcr.artifact_repository_id
 }
+
+output "wi_iam_serviceaccount_email" {
+  value = var.enable_wi ? google_service_account.test[0].email : ""
+}
