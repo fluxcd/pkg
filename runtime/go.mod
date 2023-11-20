@@ -13,11 +13,11 @@ require (
 	// TODO: switch back to sigs.k8s.io/cli-utils once they update to Kubernetes 1.28
 	github.com/fluxcd/cli-utils v0.36.0-flux.1
 	github.com/fluxcd/pkg/apis/acl v0.1.0
-	github.com/fluxcd/pkg/apis/event v0.5.2
-	github.com/fluxcd/pkg/apis/meta v1.1.2
+	github.com/fluxcd/pkg/apis/event v0.6.0
+	github.com/fluxcd/pkg/apis/meta v1.2.0
 	github.com/go-logr/logr v1.3.0
 	github.com/google/go-cmp v0.6.0
-	github.com/hashicorp/go-retryablehttp v0.7.4
+	github.com/hashicorp/go-retryablehttp v0.7.5
 	github.com/kylelemons/godebug v1.1.0
 	github.com/onsi/gomega v1.30.0
 	github.com/pkg/errors v0.9.1
