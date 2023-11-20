@@ -9,7 +9,7 @@ replace (
 
 require (
 	github.com/drone/envsubst v1.0.3
-	github.com/fluxcd/pkg/apis/kustomize v1.1.1
+	github.com/fluxcd/pkg/apis/kustomize v1.2.0
 	github.com/fluxcd/pkg/sourceignore v0.3.5
 	github.com/go-git/go-git/v5 v5.10.0
 	github.com/hashicorp/go-multierror v1.1.1
