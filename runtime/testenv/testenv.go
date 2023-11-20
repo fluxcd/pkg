@@ -42,6 +42,7 @@ import (
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/config"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -165,8 +166,10 @@ func New(o ...Option) *Environment {
 	}
 
 	mgr, err := ctrl.NewManager(env.Config, manager.Options{
-		Scheme:             opts.scheme,
-		MetricsBindAddress: "0",
+		Scheme: opts.scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 		Controller: config.Controller{
 			MaxConcurrentReconciles: opts.maxConcurrentReconciles,
 		},
