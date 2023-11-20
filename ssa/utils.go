@@ -23,11 +23,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fluxcd/cli-utils/pkg/object"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
-	"sigs.k8s.io/cli-utils/pkg/object"
 	"sigs.k8s.io/yaml"
 )
 
