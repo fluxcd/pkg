@@ -24,12 +24,13 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
 )
 
 var manager *ResourceManager

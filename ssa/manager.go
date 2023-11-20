@@ -18,10 +18,11 @@ limitations under the License.
 package ssa
 
 import (
-	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
-	"github.com/fluxcd/cli-utils/pkg/object"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
+	"github.com/fluxcd/cli-utils/pkg/object"
 )
 
 // ResourceManager reconciles Kubernetes resources onto the target cluster using server-side apply.

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	rc "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
 
 	"github.com/fluxcd/pkg/apis/meta"
 )
