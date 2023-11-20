@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"sigs.k8s.io/cli-utils/pkg/object"
+	"github.com/fluxcd/cli-utils/pkg/object"
 )
 
 // Action represents the action type performed by the reconciliation process.

@@ -20,9 +20,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"runtime"
-
-	"github.com/go-logr/logr"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // HTTPPrefixPProf is the prefix appended to all Endpoints.
@@ -42,28 +39,24 @@ var Endpoints = map[string]http.Handler{
 	HTTPPrefixPProf + "/mutex":        pprof.Handler("mutex"),
 }
 
-// SetupHandlers registers the pprof endpoints on the metrics server of the given mgr.
+// GetHandlers returns the pprof endpoints for the mgr metrics server.
 //
-// The func can be used in the main.go file of your controller, after initialisation of the manager:
+// The func can be used in the main.go file of your controller, when initializing the manager:
 //
 //	func main() {
-//		mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
-//		if err != nil {
-//			log.Error(err, "unable to start manager")
-//			os.Exit(1)
+//		mgrConfig := ctrl.Options{
+//			Metrics: metricsserver.Options{
+//				BindAddress:   metricsAddr,
+//				ExtraHandlers: pprof.GetHandlers(),
+//			},
 //		}
-//		pprof.SetupHandlers(mgr, log)
 //	}
-func SetupHandlers(mgr ctrl.Manager, log logr.Logger) {
+func GetHandlers() map[string]http.Handler {
 	// Only set the fraction if there is no existing setting
 	if runtime.SetMutexProfileFraction(-1) == 0 {
 		// Default to report 1 out of 5 mutex events, on average
 		runtime.SetMutexProfileFraction(5)
 	}
 
-	for p, h := range Endpoints {
-		if err := mgr.AddMetricsExtraHandler(p, h); err != nil {
-			log.Error(err, "unable to add pprof handler")
-		}
-	}
+	return Endpoints
 }

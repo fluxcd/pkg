@@ -27,8 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
-	"sigs.k8s.io/cli-utils/pkg/object"
 	"sigs.k8s.io/yaml"
+
+	"github.com/fluxcd/cli-utils/pkg/object"
 )
 
 const fmtSeparator = "/"
