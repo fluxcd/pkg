@@ -130,6 +130,9 @@ func IsLessThan(i, j schema.GroupKind) bool {
 	if indexI != indexJ {
 		return indexI < indexJ
 	}
+	if (i.Kind == types.NamespaceKind && j.Kind == types.NamespaceKind) && (i.Group == "" || j.Group == "") {
+		return i.Group > j.Group
+	}
 	if i.Group != j.Group {
 		return i.Group < j.Group
 	}
