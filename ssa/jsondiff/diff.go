@@ -18,8 +18,8 @@ package jsondiff
 
 import (
 	"github.com/wI2L/jsondiff"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // DiffType is the type of change detected by the server-side apply diff
@@ -46,27 +46,44 @@ type Diff struct {
 	// Type of change detected.
 	Type DiffType
 
-	// GroupVersionKind of the resource the Patch applies to.
-	GroupVersionKind schema.GroupVersionKind
+	// DesiredObject is the client.Object that was used as the desired state to
+	// generate the Patch.
+	DesiredObject client.Object
 
-	// Namespace of the resource the Patch applies to.
-	Namespace string
-
-	// Name of the resource the Patch applies to.
-	Name string
+	// ClusterObject is the client.Object in the cluster that was used as the
+	// current state to generate the Patch.
+	// It is nil if the resource does not exist in the cluster or has been
+	// excluded, which can be detected by checking the Type field for the
+	// value DiffTypeCreate or DiffTypeExclude.
+	ClusterObject client.Object
 
 	// Patch with the changes detected for the resource.
 	Patch jsondiff.Patch
 }
 
+// GetName returns the name of the resource the Diff applies to.
+func (d *Diff) GetName() string {
+	return d.DesiredObject.GetName()
+}
+
+// GetNamespace returns the namespace of the resource the Diff applies to.
+func (d *Diff) GetNamespace() string {
+	return d.DesiredObject.GetNamespace()
+}
+
+// GroupVersionKind returns the GroupVersionKind of the resource the Diff
+// applies to.
+func (d *Diff) GroupVersionKind() schema.GroupVersionKind {
+	return d.DesiredObject.GetObjectKind().GroupVersionKind()
+}
+
 // NewDiffForUnstructured creates a new Diff for the given unstructured object.
-func NewDiffForUnstructured(obj *unstructured.Unstructured, t DiffType, p jsondiff.Patch) *Diff {
+func NewDiffForUnstructured(desired, cluster client.Object, t DiffType, p jsondiff.Patch) *Diff {
 	return &Diff{
-		Type:             t,
-		GroupVersionKind: obj.GetObjectKind().GroupVersionKind(),
-		Namespace:        obj.GetNamespace(),
-		Name:             obj.GetName(),
-		Patch:            p,
+		Type:          t,
+		DesiredObject: desired,
+		ClusterObject: cluster,
+		Patch:         p,
 	}
 }
 

@@ -119,17 +119,18 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 
 	// Check if the object should be excluded based on metadata.
 	if ssa.AnyInMetadata(obj, o.ExclusionSelector) {
-		return NewDiffForUnstructured(obj, DiffTypeExclude, nil), nil
+		return NewDiffForUnstructured(obj, nil, DiffTypeExclude, nil), nil
 	}
 
 	// Short-circuit if the object in full is to be ignored.
 	for _, p := range o.IgnorePaths {
 		if p == IgnorePathRoot {
-			return NewDiffForUnstructured(obj, DiffTypeExclude, nil), nil
+			return NewDiffForUnstructured(obj, nil, DiffTypeExclude, nil), nil
 		}
 	}
 
-	existingObj := obj.DeepCopy()
+	existingObj := &unstructured.Unstructured{}
+	existingObj.SetGroupVersionKind(obj.GroupVersionKind())
 	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), existingObj); client.IgnoreNotFound(err) != nil {
 		return nil, err
 	}
@@ -145,7 +146,7 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	}
 
 	if dryRunObj.GetResourceVersion() == "" {
-		return NewDiffForUnstructured(obj, DiffTypeCreate, nil), nil
+		return NewDiffForUnstructured(obj, nil, DiffTypeCreate, nil), nil
 	}
 
 	if err := ssa.NormalizeDryRunUnstructured(dryRunObj); err != nil {
@@ -153,12 +154,13 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	}
 
 	// Remove any ignored JSON pointers from the dry-run and existing objects.
+	filteredObj := existingObj.DeepCopy()
 	if len(o.IgnorePaths) > 0 {
 		patch := GenerateRemovePatch(o.IgnorePaths...)
 		if err := ApplyPatchToUnstructured(dryRunObj, patch); err != nil {
 			return nil, err
 		}
-		if err := ApplyPatchToUnstructured(existingObj, patch); err != nil {
+		if err := ApplyPatchToUnstructured(filteredObj, patch); err != nil {
 			return nil, err
 		}
 	}
@@ -170,20 +172,20 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 
 	// Calculate the JSON patch between the dry-run and existing objects.
 	var patch jsondiff.Patch
-	metaPatch, err := diffUnstructuredMetadata(existingObj, dryRunObj, diffOpts...)
+	metaPatch, err := diffUnstructuredMetadata(filteredObj, dryRunObj, diffOpts...)
 	if err != nil {
 		return nil, err
 	}
 	patch = append(patch, metaPatch...)
 
-	resPatch, err := diffUnstructured(existingObj, dryRunObj, diffOpts...)
+	resPatch, err := diffUnstructured(filteredObj, dryRunObj, diffOpts...)
 	if err != nil {
 		return nil, err
 	}
 	patch = append(patch, resPatch...)
 
 	if len(patch) == 0 {
-		return NewDiffForUnstructured(obj, DiffTypeNone, nil), nil
+		return NewDiffForUnstructured(obj, existingObj, DiffTypeNone, nil), nil
 	}
 
 	// Mask secrets if requested.
@@ -192,7 +194,7 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 			patch = MaskSecretPatchData(patch)
 		}
 	}
-	return NewDiffForUnstructured(obj, DiffTypeUpdate, patch), nil
+	return NewDiffForUnstructured(obj, existingObj, DiffTypeUpdate, patch), nil
 }
 
 // diffUnstructuredMetadata returns a JSON patch with the differences between
