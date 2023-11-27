@@ -26,7 +26,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/wI2L/jsondiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/ssa"
@@ -41,7 +40,7 @@ func TestUnstructuredList(t *testing.T) {
 		mutateCluster func(*unstructured.Unstructured)
 		mutateDesired func(*unstructured.Unstructured)
 		opts          []ListOption
-		want          func(ns string) DiffSet
+		want          func(desired, cluster []*unstructured.Unstructured) DiffSet
 		wantErr       bool
 	}{
 		{
@@ -53,26 +52,15 @@ func TestUnstructuredList(t *testing.T) {
 			mutateCluster: func(obj *unstructured.Unstructured) {
 				obj.Object = nil
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeCreate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Group:   "apps",
-							Version: "v1",
-							Kind:    "Deployment",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeCreate,
+						DesiredObject: desired[0],
 					},
 					&Diff{
-						Type: DiffTypeCreate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Version: "v1",
-							Kind:    "Service",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeCreate,
+						DesiredObject: desired[1],
 					},
 				}
 			},
@@ -91,29 +79,20 @@ func TestUnstructuredList(t *testing.T) {
 					_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
 				}
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Group:   "apps",
-							Version: "v1",
-							Kind:    "Deployment",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[0],
+						ClusterObject: cluster[0],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationReplace, Path: "/spec/replicas", Value: float64(2), OldValue: float64(1)},
 						},
 					},
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Version: "v1",
-							Kind:    "Service",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[1],
+						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationAdd, Path: "/metadata", Value: map[string]interface{}{
 								"annotations": map[string]interface{}{
@@ -145,26 +124,16 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				ExclusionSelector{"exclude": "enabled"},
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeExclude,
-						GroupVersionKind: schema.GroupVersionKind{
-							Group:   "apps",
-							Version: "v1",
-							Kind:    "Deployment",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeExclude,
+						DesiredObject: desired[0],
 					},
 					&Diff{
-						Type: DiffTypeNone,
-						GroupVersionKind: schema.GroupVersionKind{
-							Version: "v1",
-							Kind:    "Service",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeNone,
+						DesiredObject: desired[1],
+						ClusterObject: cluster[1],
 					},
 				}
 			},
@@ -192,26 +161,16 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				ExclusionSelector{"exclude": "enabled"},
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeNone,
-						GroupVersionKind: schema.GroupVersionKind{
-							Group:   "apps",
-							Version: "v1",
-							Kind:    "Deployment",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeNone,
+						DesiredObject: desired[0],
+						ClusterObject: cluster[0],
 					},
 					&Diff{
-						Type: DiffTypeExclude,
-						GroupVersionKind: schema.GroupVersionKind{
-							Version: "v1",
-							Kind:    "Service",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeExclude,
+						DesiredObject: desired[1],
 					},
 				}
 			},
@@ -238,30 +197,21 @@ func TestUnstructuredList(t *testing.T) {
 					},
 				},
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Group:   "apps",
-							Version: "v1",
-							Kind:    "Deployment",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[0],
+						ClusterObject: cluster[0],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationAdd, Path: "/metadata/annotations/annotated", Value: "change"},
 							{Type: jsondiff.OperationAdd, Path: "/metadata/labels/labeled", Value: "change"},
 						},
 					},
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Version: "v1",
-							Kind:    "Service",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[1],
+						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationAdd, Path: "/metadata", Value: map[string]interface{}{
 								"labels": map[string]interface{}{
@@ -292,29 +242,20 @@ func TestUnstructuredList(t *testing.T) {
 					},
 				},
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Group:   "apps",
-							Version: "v1",
-							Kind:    "Deployment",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[0],
+						ClusterObject: cluster[0],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationAdd, Path: "/metadata/labels/labeled", Value: "change"},
 						},
 					},
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Version: "v1",
-							Kind:    "Service",
-						},
-						Namespace: ns,
-						Name:      "podinfo",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[1],
+						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationAdd, Path: "/metadata", Value: map[string]interface{}{
 								"labels": map[string]interface{}{
@@ -338,17 +279,12 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				MaskSecrets(true),
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Group:   "",
-							Version: "v1",
-							Kind:    "Secret",
-						},
-						Namespace: ns,
-						Name:      "secret-data",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[0],
+						ClusterObject: cluster[0],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{
 								"foo": sensitiveMaskDefault,
@@ -380,17 +316,12 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				Rationalize(true),
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Group:   "",
-							Version: "v1",
-							Kind:    "ConfigMap",
-						},
-						Namespace: ns,
-						Name:      "configmap-data",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[0],
+						ClusterObject: cluster[0],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationReplace, Path: "/data", Value: map[string]interface{}{
 								"a": "1",
@@ -422,16 +353,12 @@ func TestUnstructuredList(t *testing.T) {
 			opts: []ListOption{
 				Graceful(true),
 			},
-			want: func(ns string) DiffSet {
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
 				return DiffSet{
 					&Diff{
-						Type: DiffTypeUpdate,
-						GroupVersionKind: schema.GroupVersionKind{
-							Version: "v1",
-							Kind:    "ConfigMap",
-						},
-						Namespace: ns,
-						Name:      "configmap-data",
+						Type:          DiffTypeUpdate,
+						DesiredObject: desired[1],
+						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
 							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{"key": "value"}},
 						},
@@ -455,7 +382,7 @@ func TestUnstructuredList(t *testing.T) {
 					_ = unstructured.SetNestedField(u.Object, "invalid", "spec")
 				}
 			},
-			want:    func(ns string) DiffSet { return nil },
+			want:    func(desired, cluster []*unstructured.Unstructured) DiffSet { return nil },
 			wantErr: true,
 		},
 	}
@@ -470,7 +397,7 @@ func TestUnstructuredList(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = testClient.Delete(ctx, ns) })
 
-			var desired []*unstructured.Unstructured
+			var desired, cluster []*unstructured.Unstructured
 			for _, path := range tt.paths {
 				res, err := LoadResource(path)
 				if err != nil {
@@ -486,6 +413,7 @@ func TestUnstructuredList(t *testing.T) {
 					if err := testClient.Patch(ctx, cObj, client.Apply, client.FieldOwner(dummyFieldOwner)); err != nil {
 						t.Fatal(err)
 					}
+					cluster = append(cluster, cObj)
 				}
 
 				dObj.SetNamespace(ns.Name)
@@ -506,7 +434,7 @@ func TestUnstructuredList(t *testing.T) {
 				t.Errorf("UnstructuredList() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if diff := cmp.Diff(tt.want(ns.Name), change, cmpopts.IgnoreUnexported(jsondiff.Operation{})); diff != "" {
+			if diff := cmp.Diff(tt.want(desired, cluster), change, cmpopts.IgnoreUnexported(jsondiff.Operation{})); diff != "" {
 				t.Errorf("UnstructuredList() mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -520,7 +448,7 @@ func TestUnstructured(t *testing.T) {
 		mutateCluster func(*unstructured.Unstructured)
 		mutateDesired func(*unstructured.Unstructured)
 		opts          []ResourceOption
-		want          func(ns string) *Diff
+		want          func(desired, cluster client.Object) *Diff
 		wantErr       bool
 	}{
 		{
@@ -530,16 +458,11 @@ func TestUnstructured(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationAdd, Path: "/metadata/annotations/annotated", Value: "yes"},
 						{Type: jsondiff.OperationAdd, Path: "/metadata/labels/labeled", Value: "yes"},
@@ -554,16 +477,11 @@ func TestUnstructured(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeNone,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeNone,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 				}
 			},
 		},
@@ -578,16 +496,11 @@ func TestUnstructured(t *testing.T) {
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
 				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationReplace, Path: "/metadata/annotations/annotated", Value: "yes", OldValue: "no"},
 						{Type: jsondiff.OperationReplace, Path: "/metadata/labels/labeled", Value: "yes", OldValue: "no"},
@@ -609,16 +522,11 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				IgnorePaths{"/metadata/annotations/annotated"},
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationReplace, Path: "/metadata/labels/labeled", Value: "yes", OldValue: "no"},
 					},
@@ -631,16 +539,10 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				IgnorePaths{IgnorePathRoot},
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeExclude,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeExclude,
+					DesiredObject: desired,
 				}
 			},
 		},
@@ -655,16 +557,10 @@ func TestUnstructured(t *testing.T) {
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "enabled", "metadata", "annotations", "ignore")
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeExclude,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeExclude,
+					DesiredObject: desired,
 				}
 			},
 		},
@@ -679,16 +575,10 @@ func TestUnstructured(t *testing.T) {
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "enabled", "metadata", "labels", "ignore")
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeExclude,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeExclude,
+					DesiredObject: desired,
 				}
 			},
 		},
@@ -703,16 +593,11 @@ func TestUnstructured(t *testing.T) {
 				})
 				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationAdd, Path: "/spec/template/spec/containers/-", Value: map[string]interface{}{
 							"name":                     "nginx",
@@ -737,16 +622,11 @@ func TestUnstructured(t *testing.T) {
 				})
 				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationRemove, Path: "/spec/template/spec/containers/1", OldValue: map[string]interface{}{
 							"name":                     "nginx",
@@ -768,16 +648,11 @@ func TestUnstructured(t *testing.T) {
 				containers[0].(map[string]interface{})["image"] = "nginx:latest"
 				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationReplace, Path: "/spec/template/spec/containers/0/image", Value: "nginx:latest", OldValue: "ghcr.io/stefanprodan/podinfo:6.0.3"},
 					},
@@ -795,32 +670,22 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				IgnorePaths{"/spec/template/spec/containers/0/image"},
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeNone,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeNone,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 				}
 			},
 		},
 		{
 			name: "Deployment without changes",
 			path: "testdata/deployment.yaml",
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeNone,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeNone,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 				}
 			},
 		},
@@ -830,32 +695,21 @@ func TestUnstructured(t *testing.T) {
 			mutateCluster: func(obj *unstructured.Unstructured) {
 				obj.Object = nil
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeCreate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "apps",
-						Version: "v1",
-						Kind:    "Deployment",
-					},
-					Namespace: ns,
-					Name:      "podinfo",
+					Type:          DiffTypeCreate,
+					DesiredObject: desired,
 				}
 			},
 		},
 		{
 			name: "Secret without changes",
 			path: "testdata/empty-secret.yaml",
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeNone,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "",
-						Version: "v1",
-						Kind:    "Secret",
-					},
-					Namespace: ns,
-					Name:      "secret-data",
+					Type:          DiffTypeNone,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 				}
 			},
 		},
@@ -869,16 +723,11 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				MaskSecrets(false),
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "",
-						Version: "v1",
-						Kind:    "Secret",
-					},
-					Namespace: ns,
-					Name:      "secret-data",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{
 							"foo": "YmFy",
@@ -902,16 +751,11 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				MaskSecrets(true),
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "",
-						Version: "v1",
-						Kind:    "Secret",
-					},
-					Namespace: ns,
-					Name:      "secret-data",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationRemove, Path: "/data/bar", OldValue: sensitiveMaskDefault},
 						{Type: jsondiff.OperationReplace, Path: "/data/foo", OldValue: sensitiveMaskBefore, Value: sensitiveMaskAfter},
@@ -935,16 +779,11 @@ func TestUnstructured(t *testing.T) {
 				MaskSecrets(true),
 				Rationalize(true),
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Group:   "",
-						Version: "v1",
-						Kind:    "Secret",
-					},
-					Namespace: ns,
-					Name:      "secret-data",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
 							"bar": sensitiveMaskDefault,
@@ -968,15 +807,11 @@ func TestUnstructured(t *testing.T) {
 			opts: []ResourceOption{
 				MaskSecrets(true),
 			},
-			want: func(ns string) *Diff {
+			want: func(desired, cluster client.Object) *Diff {
 				return &Diff{
-					Type: DiffTypeUpdate,
-					GroupVersionKind: schema.GroupVersionKind{
-						Version: "v1",
-						Kind:    "ConfigMap",
-					},
-					Namespace: ns,
-					Name:      "configmap-data",
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationReplace, Path: "/data/foo", OldValue: "bar", Value: "baz"},
 					},
@@ -1026,7 +861,7 @@ func TestUnstructured(t *testing.T) {
 				return
 			}
 
-			if diff := cmp.Diff(tt.want(ns.Name), change, cmpopts.IgnoreUnexported(jsondiff.Operation{})); diff != "" {
+			if diff := cmp.Diff(tt.want(desired, cluster), change, cmpopts.IgnoreUnexported(jsondiff.Operation{})); diff != "" {
 				t.Errorf("Unstructured() mismatch (-want +got):\n%s", diff)
 			}
 		})
