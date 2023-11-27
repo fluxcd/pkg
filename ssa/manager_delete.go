@@ -61,7 +61,8 @@ func DefaultDeleteOptions() DeleteOptions {
 // Delete deletes the given object (not found errors are ignored).
 func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstructured, opts DeleteOptions) (*ChangeSetEntry, error) {
 
-	existingObject := object.DeepCopy()
+	existingObject := &unstructured.Unstructured{}
+	existingObject.SetGroupVersionKind(object.GroupVersionKind())
 	err := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {

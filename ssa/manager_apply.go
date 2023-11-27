@@ -92,7 +92,8 @@ func DefaultApplyOptions() ApplyOptions {
 // Drift detection is performed by comparing the server-side dry-run result with the existing object.
 // When immutable field changes are detected, the object is recreated if 'force' is set to 'true'.
 func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstructured, opts ApplyOptions) (*ChangeSetEntry, error) {
-	existingObject := object.DeepCopy()
+	existingObject := &unstructured.Unstructured{}
+	existingObject.SetGroupVersionKind(object.GroupVersionKind())
 	getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 	if m.shouldSkipApply(object, existingObject, opts) {
@@ -153,7 +154,8 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 			i, object := i, object
 
 			g.Go(func() error {
-				existingObject := object.DeepCopy()
+				existingObject := &unstructured.Unstructured{}
+				existingObject.SetGroupVersionKind(object.GroupVersionKind())
 				getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 				if m.shouldSkipApply(object, existingObject, opts) {
