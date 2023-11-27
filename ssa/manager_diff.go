@@ -19,6 +19,7 @@ package ssa
 
 import (
 	"context"
+
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,7 +49,8 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 	*unstructured.Unstructured,
 	error,
 ) {
-	existingObject := object.DeepCopy()
+	existingObject := &unstructured.Unstructured{}
+	existingObject.SetGroupVersionKind(object.GroupVersionKind())
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 	if existingObject != nil && AnyInMetadata(existingObject, opts.Exclusions) {
