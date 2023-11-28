@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
-	"gotest.tools/assert"
+	. "github.com/onsi/gomega"
 )
 
 func TestReadPatterns(t *testing.T) {
@@ -59,14 +59,15 @@ func TestReadPatterns(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 			reader := strings.NewReader(tt.ignore)
 			ps := ReadPatterns(reader, tt.domain)
 			matcher := NewMatcher(ps)
 			for _, m := range tt.matches {
-				assert.Equal(t, matcher.Match(strings.Split(m, "/"), false), true, "expected %s to match", m)
+				g.Expect(matcher.Match(strings.Split(m, "/"), false)).To(BeTrue())
 			}
 			for _, m := range tt.mismatches {
-				assert.Equal(t, matcher.Match(strings.Split(m, "/"), false), false, "expected %s to not match", m)
+				g.Expect(matcher.Match(strings.Split(m, "/"), false)).To(BeFalse())
 			}
 		})
 	}
@@ -147,12 +148,13 @@ func TestVCSPatterns(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 			matcher := NewDefaultMatcher(tt.patterns, tt.domain)
 			for _, m := range tt.matches {
-				assert.Equal(t, matcher.Match(strings.Split(m, "/"), false), true, "expected %s to match", m)
+				g.Expect(matcher.Match(strings.Split(m, "/"), false)).To(BeTrue())
 			}
 			for _, m := range tt.mismatches {
-				assert.Equal(t, matcher.Match(strings.Split(m, "/"), false), false, "expected %s to not match", m)
+				g.Expect(matcher.Match(strings.Split(m, "/"), false)).To(BeFalse())
 			}
 		})
 	}
@@ -185,12 +187,13 @@ func TestDefaultPatterns(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 			matcher := NewDefaultMatcher(tt.patterns, tt.domain)
 			for _, m := range tt.matches {
-				assert.Equal(t, matcher.Match(strings.Split(m, "/"), false), true, "expected %s to match", m)
+				g.Expect(matcher.Match(strings.Split(m, "/"), false)).To(BeTrue())
 			}
 			for _, m := range tt.mismatches {
-				assert.Equal(t, matcher.Match(strings.Split(m, "/"), false), false, "expected %s to not match", m)
+				g.Expect(matcher.Match(strings.Split(m, "/"), false)).To(BeFalse())
 			}
 		})
 	}
