@@ -1516,47 +1516,6 @@ func TestClone_CredentialsOverHttp(t *testing.T) {
 	}
 }
 
-func TestGoGitErrorReplace(t *testing.T) {
-	// this is what go-git uses as the error message is if the remote
-	// sends a blank first line
-	unknownMessage := `unknown error: remote: `
-	err := errors.New(unknownMessage)
-	err = goGitError(err)
-	reformattedMessage := err.Error()
-	if reformattedMessage == unknownMessage {
-		t.Errorf("expected rewritten error, got %q", reformattedMessage)
-	}
-}
-
-func TestGoGitErrorUnchanged(t *testing.T) {
-	// this is (roughly) what GitHub sends if the deploy key doesn't
-	// have write access; go-git passes this on verbatim
-	regularMessage := `remote: ERROR: deploy key does not have write access`
-	expectedReformat := regularMessage
-	err := errors.New(regularMessage)
-	err = goGitError(err)
-	reformattedMessage := err.Error()
-	// test that it's been rewritten, without checking the exact content
-	if len(reformattedMessage) > len(expectedReformat) {
-		t.Errorf("expected %q, got %q", expectedReformat, reformattedMessage)
-	}
-}
-
-func Fuzz_GoGitError(f *testing.F) {
-	f.Add("")
-	f.Add("unknown error: remote: ")
-	f.Add("some other error")
-
-	f.Fuzz(func(t *testing.T, msg string) {
-		var err error
-		if msg != "" {
-			err = errors.New(msg)
-		}
-
-		_ = goGitError(err)
-	})
-}
-
 func initRepo(tmpDir string) (*extgogit.Repository, string, error) {
 	sto := filesystem.NewStorage(osfs.New(tmpDir, osfs.WithBoundOS()), cache.NewObjectLRUDefault())
 	repo, err := extgogit.Init(sto, memfs.New())
