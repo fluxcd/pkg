@@ -13,10 +13,10 @@ replace (
 
 require (
 	github.com/fluxcd/go-git-providers v0.19.1
-	github.com/fluxcd/pkg/git v0.15.0
+	github.com/fluxcd/pkg/git v0.16.0
 	github.com/fluxcd/pkg/git/gogit v0.15.0
-	github.com/fluxcd/pkg/gittestserver v0.8.6
-	github.com/fluxcd/pkg/ssh v0.9.0
+	github.com/fluxcd/pkg/gittestserver v0.9.0
+	github.com/fluxcd/pkg/ssh v0.10.0
 	github.com/go-git/go-git/v5 v5.10.1
 	github.com/go-logr/logr v1.2.4
 	github.com/google/uuid v1.3.1
