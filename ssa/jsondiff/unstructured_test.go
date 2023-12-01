@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/fluxcd/pkg/ssa"
+	"github.com/fluxcd/pkg/ssa/normalize"
 )
 
 const dummyFieldOwner = "dummy"
@@ -274,7 +274,7 @@ func TestUnstructuredList(t *testing.T) {
 			},
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "foo")
-				_ = ssa.NormalizeUnstructured(obj)
+				_ = normalize.Unstructured(obj)
 			},
 			opts: []ListOption{
 				MaskSecrets(true),
@@ -304,14 +304,14 @@ func TestUnstructuredList(t *testing.T) {
 					"a": "2",
 					"b": "1",
 				}, "data")
-				_ = ssa.NormalizeUnstructured(obj)
+				_ = normalize.Unstructured(obj)
 			},
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedMap(obj.Object, map[string]interface{}{
 					"a": "1",
 					"b": "2",
 				}, "data")
-				_ = ssa.NormalizeUnstructured(obj)
+				_ = normalize.Unstructured(obj)
 			},
 			opts: []ListOption{
 				Rationalize(true),
@@ -718,7 +718,7 @@ func TestUnstructured(t *testing.T) {
 			path: "testdata/empty-secret.yaml",
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "foo")
-				_ = ssa.NormalizeUnstructured(obj)
+				_ = normalize.Unstructured(obj)
 			},
 			opts: []ResourceOption{
 				MaskSecrets(false),
@@ -742,11 +742,11 @@ func TestUnstructured(t *testing.T) {
 			mutateCluster: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "foo")
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "bar")
-				_ = ssa.NormalizeUnstructured(obj)
+				_ = normalize.Unstructured(obj)
 			},
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "baz", "stringData", "foo")
-				_ = ssa.NormalizeUnstructured(obj)
+				_ = normalize.Unstructured(obj)
 			},
 			opts: []ResourceOption{
 				MaskSecrets(true),
@@ -769,11 +769,11 @@ func TestUnstructured(t *testing.T) {
 			mutateCluster: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "foo")
 				_ = unstructured.SetNestedField(obj.Object, "bar", "stringData", "bar")
-				_ = ssa.NormalizeUnstructured(obj)
+				_ = normalize.Unstructured(obj)
 			},
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(obj.Object, "baz", "stringData", "foo")
-				_ = ssa.NormalizeUnstructured(obj)
+				_ = normalize.Unstructured(obj)
 			},
 			opts: []ResourceOption{
 				MaskSecrets(true),

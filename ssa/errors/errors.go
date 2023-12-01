@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ssa
+package errors
 
 import (
 	"fmt"
@@ -22,6 +22,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 // DryRunErr is an error that occurs during a server-side dry-run apply.
@@ -51,9 +53,9 @@ func (e *DryRunErr) Error() string {
 
 	if apierrors.IsNotFound(e.Unwrap()) {
 		if e.involvedObject.GetNamespace() != "" {
-			return fmt.Sprintf("%s namespace not specified: %s", FmtUnstructured(e.involvedObject), e.Unwrap().Error())
+			return fmt.Sprintf("%s namespace not specified: %s", utils.FmtUnstructured(e.involvedObject), e.Unwrap().Error())
 		}
-		return fmt.Sprintf("%s not found: %s", FmtUnstructured(e.involvedObject), e.Unwrap().Error())
+		return fmt.Sprintf("%s not found: %s", utils.FmtUnstructured(e.involvedObject), e.Unwrap().Error())
 	}
 
 	reason := string(apierrors.ReasonForError(e.Unwrap()))
@@ -67,7 +69,7 @@ func (e *DryRunErr) Error() string {
 		reason = fmt.Sprintf(" (%s)", reason)
 	}
 
-	return fmt.Sprintf("%s dry-run failed%s: %s", FmtUnstructured(e.involvedObject), reason, e.underlyingErr.Error())
+	return fmt.Sprintf("%s dry-run failed%s: %s", utils.FmtUnstructured(e.involvedObject), reason, e.underlyingErr.Error())
 }
 
 // Unwrap returns the underlying error.

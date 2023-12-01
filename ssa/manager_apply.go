@@ -31,6 +31,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 // ApplyOptions contains options for server-side apply requests.
@@ -105,18 +108,18 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
 			if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 				return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
-					FmtUnstructured(dryRunObject), err)
+					utils.FmtUnstructured(dryRunObject), err)
 			}
 			return m.Apply(ctx, object, opts)
 		}
 
-		return nil, NewDryRunErr(err, dryRunObject)
+		return nil, ssaerrors.NewDryRunErr(err, dryRunObject)
 	}
 
 	patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
 	if err != nil {
 		return nil, fmt.Errorf("%s metadata.managedFields cleanup failed: %w",
-			FmtUnstructured(existingObject), err)
+			utils.FmtUnstructured(existingObject), err)
 	}
 
 	// do not apply objects that have not drifted to avoid bumping the resource version
@@ -126,7 +129,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 
 	appliedObject := object.DeepCopy()
 	if err := m.apply(ctx, appliedObject); err != nil {
-		return nil, fmt.Errorf("%s apply failed: %w", FmtUnstructured(appliedObject), err)
+		return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 	}
 
 	if dryRunObject.GetResourceVersion() == "" {
@@ -172,7 +175,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
 						if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 							return fmt.Errorf("%s immutable field detected, failed to delete object: %w",
-								FmtUnstructured(dryRunObject), err)
+								utils.FmtUnstructured(dryRunObject), err)
 						}
 
 						// Wait until deleted (in case of any finalizers).
@@ -187,21 +190,21 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 						})
 						if err != nil {
 							return fmt.Errorf("%s immutable field detected, failed to wait for object to be deleted: %w",
-								FmtUnstructured(dryRunObject), err)
+								utils.FmtUnstructured(dryRunObject), err)
 						}
 
 						err = m.dryRunApply(ctx, dryRunObject)
 					}
 
 					if err != nil {
-						return NewDryRunErr(err, dryRunObject)
+						return ssaerrors.NewDryRunErr(err, dryRunObject)
 					}
 				}
 
 				patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
 				if err != nil {
 					return fmt.Errorf("%s metadata.managedFields cleanup failed: %w",
-						FmtUnstructured(existingObject), err)
+						utils.FmtUnstructured(existingObject), err)
 				}
 
 				if patched || m.hasDrifted(existingObject, dryRunObject) {
@@ -227,7 +230,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		if object != nil {
 			appliedObject := object.DeepCopy()
 			if err := m.apply(ctx, appliedObject); err != nil {
-				return nil, fmt.Errorf("%s apply failed: %w", FmtUnstructured(appliedObject), err)
+				return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 			}
 		}
 	}
@@ -252,7 +255,7 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 	var stageTwo []*unstructured.Unstructured
 
 	for _, u := range objects {
-		if IsClusterDefinition(u) {
+		if utils.IsClusterDefinition(u) {
 			stageOne = append(stageOne, u)
 		} else {
 			stageTwo = append(stageTwo, u)
@@ -302,7 +305,7 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 	desiredObject *unstructured.Unstructured,
 	object *unstructured.Unstructured,
 	opts ApplyCleanupOptions) (bool, error) {
-	if AnyInMetadata(desiredObject, opts.Exclusions) || AnyInMetadata(object, opts.Exclusions) {
+	if utils.AnyInMetadata(desiredObject, opts.Exclusions) || utils.AnyInMetadata(object, opts.Exclusions) {
 		return false, nil
 	}
 
@@ -347,10 +350,10 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 // contains a label or annotation which matches the ApplyOptions.ForceSelector.
 func (m *ResourceManager) shouldForceApply(desiredObject *unstructured.Unstructured,
 	existingObject *unstructured.Unstructured, opts ApplyOptions, err error) bool {
-	if IsImmutableError(err) {
+	if ssaerrors.IsImmutableError(err) {
 		if opts.Force ||
-			AnyInMetadata(desiredObject, opts.ForceSelector) ||
-			(existingObject != nil && AnyInMetadata(existingObject, opts.ForceSelector)) {
+			utils.AnyInMetadata(desiredObject, opts.ForceSelector) ||
+			(existingObject != nil && utils.AnyInMetadata(existingObject, opts.ForceSelector)) {
 			return true
 		}
 	}
@@ -363,14 +366,14 @@ func (m *ResourceManager) shouldForceApply(desiredObject *unstructured.Unstructu
 // which matches the ApplyOptions.ExclusionSelector or ApplyOptions.IfNotPresentSelector.
 func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructured,
 	existingObject *unstructured.Unstructured, opts ApplyOptions) bool {
-	if AnyInMetadata(desiredObject, opts.ExclusionSelector) ||
-		(existingObject != nil && AnyInMetadata(existingObject, opts.ExclusionSelector)) {
+	if utils.AnyInMetadata(desiredObject, opts.ExclusionSelector) ||
+		(existingObject != nil && utils.AnyInMetadata(existingObject, opts.ExclusionSelector)) {
 		return true
 	}
 
 	if existingObject != nil &&
 		existingObject.GetUID() != "" &&
-		AnyInMetadata(desiredObject, opts.IfNotPresentSelector) {
+		utils.AnyInMetadata(desiredObject, opts.IfNotPresentSelector) {
 		return true
 	}
 

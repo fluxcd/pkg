@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/fluxcd/pkg/ssa"
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 var (
@@ -80,5 +80,5 @@ func LoadResource(p string) (*unstructured.Unstructured, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return ssa.ReadObject(f)
+	return utils.ReadObject(f)
 }
