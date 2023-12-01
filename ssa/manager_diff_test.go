@@ -27,6 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	"github.com/fluxcd/pkg/ssa/normalize"
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 func TestDiff(t *testing.T) {
@@ -98,7 +101,7 @@ func TestDiff(t *testing.T) {
 		diffSecret := sec.DeepCopy()
 
 		// apply stringData conversion
-		if err = NormalizeUnstructured(sec); err != nil {
+		if err = normalize.Unstructured(sec); err != nil {
 			t.Fatal(err)
 		}
 
@@ -115,7 +118,7 @@ func TestDiff(t *testing.T) {
 		}
 
 		// apply stringData conversion
-		if err = NormalizeUnstructured(diffSecret); err != nil {
+		if err = normalize.Unstructured(diffSecret); err != nil {
 			t.Fatal(err)
 		}
 
@@ -197,7 +200,7 @@ func TestDiff_Exclusions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if entry.Action != UnchangedAction && entry.Subject == FmtUnstructured(secret) {
+		if entry.Action != UnchangedAction && entry.Subject == utils.FmtUnstructured(secret) {
 			t.Errorf("Expected %s, got %s", UnchangedAction, entry.Action)
 		}
 	})
@@ -221,7 +224,7 @@ func TestDiff_Exclusions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if entry.Action != SkippedAction && entry.Subject == FmtUnstructured(configMap) {
+		if entry.Action != SkippedAction && entry.Subject == utils.FmtUnstructured(configMap) {
 			t.Errorf("Expected %s, got %s", SkippedAction, entry.Action)
 		}
 	})
@@ -238,7 +241,7 @@ func TestDiff_Removals(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = NormalizeUnstructuredList(objects); err != nil {
+	if err = normalize.UnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 

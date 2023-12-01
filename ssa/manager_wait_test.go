@@ -33,6 +33,8 @@ import (
 
 	"github.com/fluxcd/cli-utils/pkg/kstatus/status"
 	"github.com/fluxcd/cli-utils/pkg/object"
+
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 func TestWaitForSet(t *testing.T) {
@@ -190,7 +192,7 @@ func TestWaitForSet_failFast(t *testing.T) {
 			FailFast: false,
 		})
 
-		deployFailedMsg := fmt.Sprintf("%s status: '%s'", FmtObjMetadata(deployObjMeta), status.FailedStatus)
+		deployFailedMsg := fmt.Sprintf("%s status: '%s'", utils.FmtObjMetadata(deployObjMeta), status.FailedStatus)
 
 		if err == nil || !strings.Contains(err.Error(), "timeout waiting for") {
 			t.Fatal("expected WaitForSet to timeout waiting for deployment")
@@ -208,7 +210,7 @@ func TestWaitForSet_failFast(t *testing.T) {
 			FailFast: true,
 		})
 
-		deployFailedMsg := fmt.Sprintf("%s status: '%s'", FmtObjMetadata(deployObjMeta), status.FailedStatus)
+		deployFailedMsg := fmt.Sprintf("%s status: '%s'", utils.FmtObjMetadata(deployObjMeta), status.FailedStatus)
 
 		if err == nil || !strings.Contains(err.Error(), "failed early") {
 			t.Fatal("expected WaitForSet to fail early due to stalled deployment")
@@ -251,7 +253,7 @@ func TestWaitForSet_failFast(t *testing.T) {
 			FailFast: true,
 		})
 
-		deployFailedMsg := fmt.Sprintf("%s status: '%s'", FmtObjMetadata(deployObjMeta), status.FailedStatus)
+		deployFailedMsg := fmt.Sprintf("%s status: '%s'", utils.FmtObjMetadata(deployObjMeta), status.FailedStatus)
 
 		if err == nil || !strings.Contains(err.Error(), "failed early") {
 			t.Fatal("expected WaitForSet to fail early due to stalled deployment")

@@ -31,6 +31,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/fluxcd/pkg/ssa/normalize"
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 func TestApply(t *testing.T) {
@@ -59,7 +62,7 @@ func TestApply(t *testing.T) {
 		sort.Sort(SortableUnstructureds(objects))
 		var expected []string
 		for _, object := range objects {
-			expected = append(expected, FmtUnstructured(object))
+			expected = append(expected, utils.FmtUnstructured(object))
 		}
 
 		// verify the change set contains only created actions
@@ -177,7 +180,7 @@ func TestApply_Force(t *testing.T) {
 		// verify that the error message does not contain sensitive information
 		expectedErr := fmt.Sprintf(
 			"%s dry-run failed (Invalid): Secret \"%s\" is invalid: data: Forbidden: field is immutable when `immutable` is set",
-			FmtUnstructured(secret), secret.GetName())
+			utils.FmtUnstructured(secret), secret.GetName())
 		if diff := cmp.Diff(expectedErr, err.Error()); diff != "" {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
 		}
@@ -377,7 +380,7 @@ func TestApply_SetNativeKindsDefaults(t *testing.T) {
 
 	manager.SetOwnerLabels(objects, "app1", "default")
 
-	if err := NormalizeUnstructuredList(objects); err != nil {
+	if err := normalize.UnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -417,7 +420,7 @@ func TestApply_NoOp(t *testing.T) {
 
 	manager.SetOwnerLabels(objects, "app1", "default")
 
-	if err := NormalizeUnstructuredList(objects); err != nil {
+	if err := normalize.UnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -510,7 +513,7 @@ func TestApply_Exclusions(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if entry.Action != ConfiguredAction && entry.Subject == FmtUnstructured(configMap) {
+			if entry.Action != ConfiguredAction && entry.Subject == utils.FmtUnstructured(configMap) {
 				t.Errorf("Expected %s, got %s", ConfiguredAction, entry.Action)
 			}
 		}
@@ -639,7 +642,7 @@ func TestApply_Cleanup(t *testing.T) {
 
 	_, deployObject := getFirstObject(objects, "Deployment", id)
 
-	if err = NormalizeUnstructuredList(objects); err != nil {
+	if err = normalize.UnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -897,7 +900,7 @@ func TestApply_Cleanup_Exclusions(t *testing.T) {
 
 	_, deployObject := getFirstObject(objects, "Deployment", id)
 
-	if err = NormalizeUnstructuredList(objects); err != nil {
+	if err = normalize.UnstructuredList(objects); err != nil {
 		t.Fatal(err)
 	}
 
@@ -944,4 +947,13 @@ func TestApply_Cleanup_Exclusions(t *testing.T) {
 			t.Errorf("Mismatch from expected values, want %v manager", kubectlManager)
 		}
 	})
+}
+
+func containsItemString(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }

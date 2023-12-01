@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ssa
+package normalize
 
 import (
 	"fmt"
@@ -29,6 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 var defaultScheme = scheme.Scheme
@@ -70,44 +72,44 @@ func ToUnstructured(object metav1.Object) (*unstructured.Unstructured, error) {
 	return &unstructured.Unstructured{Object: u}, nil
 }
 
-// NormalizeUnstructuredList normalizes a list of Unstructured objects by
+// UnstructuredList normalizes a list of Unstructured objects by
 // converting them to typed Kubernetes resources, normalizing them, and then
 // converting them back to Unstructured objects. It only works for API types
 // registered with the default client-go scheme. If the conversion fails, only
 // certain standard fields are removed.
-func NormalizeUnstructuredList(objects []*unstructured.Unstructured) error {
-	return NormalizeUnstructuredListWithScheme(objects, defaultScheme)
+func UnstructuredList(objects []*unstructured.Unstructured) error {
+	return UnstructuredListWithScheme(objects, defaultScheme)
 }
 
-// NormalizeUnstructuredListWithScheme normalizes a list of Unstructured
+// UnstructuredListWithScheme normalizes a list of Unstructured
 // objects by converting them to typed Kubernetes resources, normalizing them,
 // and then converting them back to Unstructured objects. It only works for API
 // types registered with the given scheme. If the conversion fails, only
 // certain standard fields are removed.
-func NormalizeUnstructuredListWithScheme(objects []*unstructured.Unstructured, scheme *runtime.Scheme) error {
+func UnstructuredListWithScheme(objects []*unstructured.Unstructured, scheme *runtime.Scheme) error {
 	for _, o := range objects {
-		if err := NormalizeUnstructuredWithScheme(o, scheme); err != nil {
-			return fmt.Errorf("%s normalization error: %w", FmtUnstructured(o), err)
+		if err := UnstructuredWithScheme(o, scheme); err != nil {
+			return fmt.Errorf("%s normalization error: %w", utils.FmtUnstructured(o), err)
 		}
 	}
 	return nil
 }
 
-// NormalizeUnstructured normalizes an Unstructured object by converting it to
+// Unstructured normalizes an Unstructured object by converting it to
 // a typed Kubernetes resource, normalizing it, and then converting it back to
 // an Unstructured object. It only works for API types registered with the
 // default client-go scheme. If the conversion fails, only certain standard
 // fields are removed.
-func NormalizeUnstructured(object *unstructured.Unstructured) error {
-	return NormalizeUnstructuredWithScheme(object, defaultScheme)
+func Unstructured(object *unstructured.Unstructured) error {
+	return UnstructuredWithScheme(object, defaultScheme)
 }
 
-// NormalizeUnstructuredWithScheme normalizes an Unstructured object by
+// UnstructuredWithScheme normalizes an Unstructured object by
 // converting it to a typed Kubernetes resource, normalizing it, and then
 // converting it back to an Unstructured object. It only works for API types
 // registered with the given scheme. If the conversion fails, only certain
 // standard fields are removed.
-func NormalizeUnstructuredWithScheme(object *unstructured.Unstructured, scheme *runtime.Scheme) error {
+func UnstructuredWithScheme(object *unstructured.Unstructured, scheme *runtime.Scheme) error {
 	if typedObject, err := FromUnstructuredWithScheme(object, scheme); err == nil {
 		switch o := typedObject.(type) {
 		case *corev1.Pod:
@@ -140,20 +142,20 @@ func NormalizeUnstructuredWithScheme(object *unstructured.Unstructured, scheme *
 	// Ensure the object has an empty creation timestamp, to avoid
 	// issues with the Kubernetes API server rejecting the object
 	// or causing any spurious diffs.
-	unstructured.SetNestedField(object.Object, nil, "metadata", "creationTimestamp")
+	_ = unstructured.SetNestedField(object.Object, nil, "metadata", "creationTimestamp")
 
 	// To ensure kstatus continues to work with CRDs, we need to keep the
 	// status field for CRDs.
-	if !IsCRD(object) {
+	if !utils.IsCRD(object) {
 		unstructured.RemoveNestedField(object.Object, "status")
 	}
 
 	return nil
 }
 
-// NormalizeDryRunUnstructured normalizes an Unstructured object retrieved from
+// DryRunUnstructured normalizes an Unstructured object retrieved from
 // a dry-run by performing fixes for known upstream issues.
-func NormalizeDryRunUnstructured(object *unstructured.Unstructured) error {
+func DryRunUnstructured(object *unstructured.Unstructured) error {
 	// Address an issue with dry-run returning a HorizontalPodAutoscaler
 	// with the first metric duplicated and an empty metric added at the
 	// end of the list. Which happens on Kubernetes < 1.27.x.

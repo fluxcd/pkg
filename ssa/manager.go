@@ -23,6 +23,8 @@ import (
 
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
 	"github.com/fluxcd/cli-utils/pkg/object"
+
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 // ResourceManager reconciles Kubernetes resources onto the target cluster using server-side apply.
@@ -87,7 +89,7 @@ func (m *ResourceManager) changeSetEntry(o *unstructured.Unstructured, action Ac
 	return &ChangeSetEntry{
 		ObjMetadata:  object.UnstructuredToObjMetadata(o),
 		GroupVersion: o.GroupVersionKind().Version,
-		Subject:      FmtUnstructured(o),
+		Subject:      utils.FmtUnstructured(o),
 		Action:       action,
 	}
 }

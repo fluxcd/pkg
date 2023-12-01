@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ssa
+package normalize
 
 import (
 	"testing"
@@ -756,11 +756,11 @@ func TestNormalizeUnstructured(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := NormalizeUnstructured(tt.object); (err != nil) != tt.wantErr {
-				t.Errorf("NormalizeUnstructured() error = %v, wantErr %v", err, tt.wantErr)
+			if err := Unstructured(tt.object); (err != nil) != tt.wantErr {
+				t.Errorf("Unstructured() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if diff := cmp.Diff(tt.want, tt.object); diff != "" {
-				t.Errorf("NormalizeUnstructured() mismatch (-want +got):\n%s", diff)
+				t.Errorf("Unstructured() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -954,11 +954,11 @@ func TestNormalizeDryRunUnstructured(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := NormalizeDryRunUnstructured(tt.object); (err != nil) != tt.wantErr {
-				t.Errorf("NormalizeDryRunUnstructured() error = %v, wantErr %v", err, tt.wantErr)
+			if err := DryRunUnstructured(tt.object); (err != nil) != tt.wantErr {
+				t.Errorf("DryRunUnstructured() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if diff := cmp.Diff(tt.want, tt.object); diff != "" {
-				t.Errorf("NormalizeDryRunUnstructured() mismatch (-want +got):\n%s", diff)
+				t.Errorf("DryRunUnstructured() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

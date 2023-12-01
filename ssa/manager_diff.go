@@ -23,6 +23,10 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/fluxcd/pkg/ssa/errors"
+	"github.com/fluxcd/pkg/ssa/normalize"
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 // DiffOptions contains options for server-side dry-run apply requests.
@@ -53,13 +57,13 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 	existingObject.SetGroupVersionKind(object.GroupVersionKind())
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-	if existingObject != nil && AnyInMetadata(existingObject, opts.Exclusions) {
+	if existingObject != nil && utils.AnyInMetadata(existingObject, opts.Exclusions) {
 		return m.changeSetEntry(existingObject, SkippedAction), nil, nil, nil
 	}
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
-		return nil, nil, nil, NewDryRunErr(err, dryRunObject)
+		return nil, nil, nil, errors.NewDryRunErr(err, dryRunObject)
 	}
 
 	if dryRunObject.GetResourceVersion() == "" {
@@ -72,7 +76,7 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 		unstructured.RemoveNestedField(dryRunObject.Object, "metadata", "managedFields")
 		unstructured.RemoveNestedField(existingObject.Object, "metadata", "managedFields")
 
-		if IsSecret(dryRunObject) {
+		if utils.IsSecret(dryRunObject) {
 			if err := SanitizeUnstructuredData(existingObject, dryRunObject); err != nil {
 				return nil, nil, nil, err
 			}
@@ -114,7 +118,7 @@ func prepareObjectForDiff(object *unstructured.Unstructured) *unstructured.Unstr
 	deepCopy := object.DeepCopy()
 	unstructured.RemoveNestedField(deepCopy.Object, "metadata")
 	unstructured.RemoveNestedField(deepCopy.Object, "status")
-	if err := NormalizeDryRunUnstructured(deepCopy); err != nil {
+	if err := normalize.DryRunUnstructured(deepCopy); err != nil {
 		return object
 	}
 	return deepCopy

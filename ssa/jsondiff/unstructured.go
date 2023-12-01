@@ -25,7 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/fluxcd/pkg/ssa"
+	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
+	"github.com/fluxcd/pkg/ssa/normalize"
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 // IgnorePathRoot ignores the root of a JSON document, i.e., the entire
@@ -118,7 +120,7 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	o.ApplyOptions(opts)
 
 	// Check if the object should be excluded based on metadata.
-	if ssa.AnyInMetadata(obj, o.ExclusionSelector) {
+	if utils.AnyInMetadata(obj, o.ExclusionSelector) {
 		return NewDiffForUnstructured(obj, nil, DiffTypeExclude, nil), nil
 	}
 
@@ -142,14 +144,14 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 		client.FieldOwner(o.FieldManager),
 	}
 	if err := c.Patch(ctx, dryRunObj, client.Apply, patchOpts...); err != nil {
-		return nil, ssa.NewDryRunErr(err, obj)
+		return nil, ssaerrors.NewDryRunErr(err, obj)
 	}
 
 	if dryRunObj.GetResourceVersion() == "" {
 		return NewDiffForUnstructured(obj, nil, DiffTypeCreate, nil), nil
 	}
 
-	if err := ssa.NormalizeDryRunUnstructured(dryRunObj); err != nil {
+	if err := normalize.DryRunUnstructured(dryRunObj); err != nil {
 		return nil, err
 	}
 

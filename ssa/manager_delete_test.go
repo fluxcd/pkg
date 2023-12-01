@@ -26,6 +26,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 func TestDelete(t *testing.T) {
@@ -60,7 +62,7 @@ func TestDelete(t *testing.T) {
 		// expected deleted order
 		var expected []string
 		for _, object := range objects {
-			expected = append(expected, FmtUnstructured(object))
+			expected = append(expected, utils.FmtUnstructured(object))
 		}
 
 		// verify the change set contains only created actions
@@ -151,7 +153,7 @@ func TestDelete_Exclusions(t *testing.T) {
 		}
 
 		for _, entry := range changeSet.Entries {
-			if entry.Action != SkippedAction && entry.Subject == FmtUnstructured(configMap) {
+			if entry.Action != SkippedAction && entry.Subject == utils.FmtUnstructured(configMap) {
 				t.Errorf("Expected %s, got %s", SkippedAction, entry.Action)
 			}
 		}

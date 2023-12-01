@@ -27,6 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 // DeleteOptions contains options for delete requests.
@@ -67,7 +69,7 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return m.changeSetEntry(object, UnknownAction),
-				fmt.Errorf("%s query failed: %w", FmtUnstructured(object), err)
+				fmt.Errorf("%s query failed: %w", utils.FmtUnstructured(object), err)
 		}
 		return m.changeSetEntry(object, DeletedAction), nil
 	}
@@ -75,20 +77,20 @@ func (m *ResourceManager) Delete(ctx context.Context, object *unstructured.Unstr
 	sel, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: opts.Inclusions})
 	if err != nil {
 		return m.changeSetEntry(object, UnknownAction),
-			fmt.Errorf("%s label selector failed: %w", FmtUnstructured(object), err)
+			fmt.Errorf("%s label selector failed: %w", utils.FmtUnstructured(object), err)
 	}
 
 	if !sel.Matches(labels.Set(existingObject.GetLabels())) {
 		return m.changeSetEntry(object, SkippedAction), nil
 	}
 
-	if AnyInMetadata(existingObject, opts.Exclusions) {
+	if utils.AnyInMetadata(existingObject, opts.Exclusions) {
 		return m.changeSetEntry(object, SkippedAction), nil
 	}
 
 	if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(opts.PropagationPolicy)); err != nil {
 		return m.changeSetEntry(object, UnknownAction),
-			fmt.Errorf("%s delete failed: %w", FmtUnstructured(object), err)
+			fmt.Errorf("%s delete failed: %w", utils.FmtUnstructured(object), err)
 	}
 
 	return m.changeSetEntry(object, DeletedAction), nil

@@ -34,6 +34,8 @@ import (
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/event"
 	"github.com/fluxcd/cli-utils/pkg/kstatus/status"
 	"github.com/fluxcd/cli-utils/pkg/object"
+
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 // WaitOptions contains options for wait requests.
@@ -68,7 +70,7 @@ func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, opts WaitOp
 	return m.WaitForSet(objectsMeta, opts)
 }
 
-// WaitForSet checks if the given set of ObjMetadata has been fully reconciled.
+// WaitForSet checks if the given set of FmtObjMetadata has been fully reconciled.
 func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions) error {
 	statusCollector := collector.NewResourceStatusCollector(set)
 
@@ -129,16 +131,16 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 		var errors = []string{}
 		for id, rs := range statusCollector.ResourceStatuses {
 			if rs == nil {
-				errors = append(errors, fmt.Sprintf("can't determine status for %s", FmtObjMetadata(id)))
+				errors = append(errors, fmt.Sprintf("can't determine status for %s", utils.FmtObjMetadata(id)))
 				continue
 			}
 			if lastStatus[id] == nil {
 				// this is only nil in the rare case where no status can be determined for the resource at all
-				errors = append(errors, fmt.Sprintf("%s (unknown status)", FmtObjMetadata(rs.Identifier)))
+				errors = append(errors, fmt.Sprintf("%s (unknown status)", utils.FmtObjMetadata(rs.Identifier)))
 			} else if lastStatus[id].Status != status.CurrentStatus {
 				var builder strings.Builder
 				builder.WriteString(fmt.Sprintf("%s status: '%s'",
-					FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
+					utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
 				if rs.Error != nil {
 					builder.WriteString(fmt.Sprintf(": %s", rs.Error))
 				}
@@ -158,7 +160,7 @@ func (m *ResourceManager) WaitForTermination(objects []*unstructured.Unstructure
 
 	for _, object := range objects {
 		if err := wait.PollUntilContextCancel(ctx, opts.Interval, true, m.isDeleted(object)); err != nil {
-			return fmt.Errorf("%s termination timeout: %w", FmtUnstructured(object), err)
+			return fmt.Errorf("%s termination timeout: %w", utils.FmtUnstructured(object), err)
 		}
 	}
 	return nil

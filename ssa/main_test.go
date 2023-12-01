@@ -31,6 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
+
+	"github.com/fluxcd/pkg/ssa/utils"
 )
 
 var manager *ResourceManager
@@ -85,7 +87,7 @@ func readManifest(manifest, namespace string) ([]*unstructured.Unstructured, err
 	}
 	yml := fmt.Sprintf(string(data), namespace)
 
-	objects, err := ReadObjects(strings.NewReader(yml))
+	objects, err := utils.ReadObjects(strings.NewReader(yml))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +105,7 @@ func generateName(prefix string) string {
 func getFirstObject(objects []*unstructured.Unstructured, kind, name string) (string, *unstructured.Unstructured) {
 	for _, object := range objects {
 		if object.GetKind() == kind && object.GetName() == name {
-			return FmtUnstructured(object), object
+			return utils.FmtUnstructured(object), object
 		}
 	}
 	return "", nil
