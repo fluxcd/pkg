@@ -24,7 +24,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"time"
 
@@ -101,12 +100,20 @@ func newExchanger(endpoint string) *exchanger {
 // ExchangeACRAccessToken exchanges an access token for a refresh token with the
 // exchange service.
 func (e *exchanger) ExchangeACRAccessToken(armToken string) (string, error) {
+	// If the endpoint doesn't have a scheme, then prepend the "https" scheme.
+	// This is required because the net/url package cannot parse an URL properly
+	// without a scheme causing issues such as returning an URL object with an
+	// empty host.
+	if !(strings.HasPrefix(e.endpoint, "https://") || strings.HasPrefix(e.endpoint, "http://")) {
+		e.endpoint = fmt.Sprintf("https://%s", e.endpoint)
+	}
+
 	// Construct the exchange URL.
 	exchangeURL, err := url.Parse(e.endpoint)
 	if err != nil {
 		return "", err
 	}
-	exchangeURL.Path = path.Join(exchangeURL.Path, "oauth2/exchange")
+	exchangeURL.Path = "oauth2/exchange"
 
 	parameters := url.Values{}
 	parameters.Add("grant_type", "access_token")
