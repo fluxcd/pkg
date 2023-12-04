@@ -45,7 +45,7 @@ jobs:
           wget https://github.com/graillus/gcrgc/releases/download/v${GCRGC_VERSION}/gcrgc_${GCRGC_VERSION}_linux_amd64.tar.gz -O - | tar xz
           mv gcrgc ~/.local/bin/
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@f105ef0cdb3b102a020be1767fcc8a974898b7c6 # v1.2.0
+        uses: google-github-actions/auth@67e9c72af6e0492df856527b474995862b7b6591 # v2.0.0
         with:
           credentials_json: '${{ secrets.CLEANUP_E2E_GOOGLE_CREDENTIALS }}'
       - name: Setup gcloud
@@ -76,7 +76,7 @@ jobs:
           go-version: 1.20.x
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Authenticate to Azure
-        uses: Azure/login@4c88f01b0e3a5600e08a37889921afd060f75cf0 # v1.4.6
+        uses: Azure/login@de95379fe4dadc2defb305917eaa7e5dde727294 # v1.4.6
         with:
           creds: '{"clientId":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.CLEANUP_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.CLEANUP_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Run reaper
