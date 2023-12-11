@@ -25,12 +25,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - name: Setup Go
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: 1.20.x
           cache-dependency-path: oci/tests/integration/go.sum
       - name: Authenticate to Azure
-        uses: Azure/login@4c88f01b0e3a5600e08a37889921afd060f75cf0 # v1.4.6
+        uses: Azure/login@de95379fe4dadc2defb305917eaa7e5dde727294 # v1.4.6
         with:
           creds: '{"clientId":"${{ secrets.OCI_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.OCI_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.OCI_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.OCI_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Setup QEMU

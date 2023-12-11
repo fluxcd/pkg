@@ -22,7 +22,7 @@ jobs:
         with:
           repository: fluxcd/test-infra
       - name: Setup Go
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: 1.20.x
           cache-dependency-path: ./tools/reaper/go.sum
@@ -45,11 +45,11 @@ jobs:
           wget https://github.com/graillus/gcrgc/releases/download/v${GCRGC_VERSION}/gcrgc_${GCRGC_VERSION}_linux_amd64.tar.gz -O - | tar xz
           mv gcrgc ~/.local/bin/
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@f105ef0cdb3b102a020be1767fcc8a974898b7c6 # v1.2.0
+        uses: google-github-actions/auth@67e9c72af6e0492df856527b474995862b7b6591 # v2.0.0
         with:
           credentials_json: '${{ secrets.CLEANUP_E2E_GOOGLE_CREDENTIALS }}'
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@e30db14379863a8c79331b04a9969f4c1e225e0b # v1.1.1
+        uses: google-github-actions/setup-gcloud@825196879a077b7efa50db2e88409f44de4635c2 # v2.0.0
       - name: Run gcrgc
         # Cleanup all the GCR repositories in the project. They are not tracked
         # by terraform used to provision test infra and are left behind.
@@ -71,12 +71,12 @@ jobs:
         with:
           repository: fluxcd/test-infra
       - name: Setup Go
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: 1.20.x
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Authenticate to Azure
-        uses: Azure/login@4c88f01b0e3a5600e08a37889921afd060f75cf0 # v1.4.6
+        uses: Azure/login@de95379fe4dadc2defb305917eaa7e5dde727294 # v1.4.6
         with:
           creds: '{"clientId":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.CLEANUP_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.CLEANUP_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Run reaper
