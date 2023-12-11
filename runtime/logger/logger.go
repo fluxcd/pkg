@@ -99,8 +99,14 @@ func NewLogger(opts Options) logr.Logger {
 
 	switch opts.LogEncoding {
 	case "console":
+		zapOpts.EncoderConfigOptions = append(zapOpts.EncoderConfigOptions, func(config *zapcore.EncoderConfig) {
+			config.EncodeLevel = CapitalLevelEncoder
+		})
 		zap.ConsoleEncoder(zapOpts.EncoderConfigOptions...)(&zapOpts)
 	case "json":
+		zapOpts.EncoderConfigOptions = append(zapOpts.EncoderConfigOptions, func(config *zapcore.EncoderConfig) {
+			config.EncodeLevel = LowercaseLevelEncoder
+		})
 		zap.JSONEncoder(zapOpts.EncoderConfigOptions...)(&zapOpts)
 	}
 
@@ -120,4 +126,26 @@ func NewLogger(opts Options) logr.Logger {
 func SetLogger(logger logr.Logger) {
 	ctrl.SetLogger(logger)
 	klog.SetLoggerWithOptions(logger.WithName("runtime"), klog.ContextualLogger(true))
+}
+
+// LowercaseLevelEncoder is a zapcore.LevelEncoder that encodes the level to a lowercase string.
+// It has the same behavior as zapcore.LowercaseLevelEncoder, except that it has a special case
+// for the trace level, which it encodes as "trace" instead of "Level(-2)".
+func LowercaseLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
+	if l < zapcore.DebugLevel {
+		enc.AppendString("trace")
+		return
+	}
+	zapcore.LowercaseLevelEncoder(l, enc)
+}
+
+// CapitalLevelEncoder is a zapcore.LevelEncoder that encodes the level to a capitalized string.
+// It has the same behavior as zapcore.CapitalLevelEncoder, except that it encodes the trace
+// level as "TRACE" instead of "LEVEL(-2)".
+func CapitalLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
+	if l < zapcore.DebugLevel {
+		enc.AppendString("TRACE")
+		return
+	}
+	zapcore.CapitalLevelEncoder(l, enc)
 }
