@@ -6,9 +6,9 @@ branding:
   icon: command
 inputs:
   version:
-    description: "Strict SemVer of the kustomize CLI. Defaults to 5.0.3. Use 'latest' to get the latest release."
+    description: "Strict SemVer of the kustomize CLI. Defaults to 5.3.0. Use 'latest' to get the latest release."
     required: false
-    default: "5.0.3"
+    default: "5.3.0"
 runs:
   using: composite
   steps:
@@ -49,6 +49,10 @@ runs:
 
           echo "Downloading kustomize ${VERSION} for ${OS}/${ARCH}"
           KUSTOMIZE_TARGET_FILE="kustomize_${VERSION}_${OS}_${ARCH}.tar.gz"
+          if [[ "$OS" == "windows" ]]; then
+            KUSTOMIZE_TARGET_FILE="kustomize_${VERSION}_${OS}_${ARCH}.zip"
+          fi
+        
           KUSTOMIZE_CHECKSUMS_FILE="checksums.txt"
 
           KUSTOMIZE_DOWNLOAD_URL="https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${VERSION}/"
@@ -66,7 +70,11 @@ runs:
 
           echo "Installing kustomize to ${KUSTOMIZE_TOOL_DIR}"
           mkdir -p "$KUSTOMIZE_TOOL_DIR"
-          tar xzf "$DL_DIR/$KUSTOMIZE_TARGET_FILE" -C "$KUSTOMIZE_TOOL_DIR" $KUSTOMIZE_EXEC_FILE
+          if [[ "$OS" == "windows" ]]; then
+            unzip "$DL_DIR/$KUSTOMIZE_TARGET_FILE" "$KUSTOMIZE_EXEC_FILE" -d "$KUSTOMIZE_TOOL_DIR"
+          else
+            tar xzf "$DL_DIR/$KUSTOMIZE_TARGET_FILE" -C "$KUSTOMIZE_TOOL_DIR" $KUSTOMIZE_EXEC_FILE
+          fi
           chmod +x "$KUSTOMIZE_TOOL_DIR/$KUSTOMIZE_EXEC_FILE"
         fi
 
