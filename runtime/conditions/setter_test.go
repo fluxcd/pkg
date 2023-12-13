@@ -357,6 +357,36 @@ func TestSetAggregate(t *testing.T) {
 	g.Expect(Has(target, "foo")).To(BeTrue())
 }
 
+func TestTrimConditionMessage(t *testing.T) {
+	tests := []struct {
+		message   string
+		maxLength int
+		expected  string
+	}{
+		{
+			message:   "message too long",
+			maxLength: 10,
+			expected:  "message...",
+		},
+		{
+			message:   "message that fits",
+			maxLength: 17,
+			expected:  "message that fits",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.message, func(t *testing.T) {
+			g := NewWithT(t)
+
+			condition := TrueCondition(meta.ReadyCondition, "", tt.message)
+			condition.Message = trimConditionMessage(condition.Message, tt.maxLength)
+			g.Expect(len(condition.Message)).To(Equal(tt.maxLength))
+			g.Expect(condition.Message).To(Equal(tt.expected))
+		})
+	}
+}
+
 func setterWithConditions(conditions ...*metav1.Condition) Setter {
 	obj := &testdata.Fake{}
 	obj.SetConditions(conditionList(conditions...))
