@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/opencontainers/go-digest"
 	_ "github.com/opencontainers/go-digest/blake3"
@@ -47,13 +48,29 @@ type ArchiveFetcher struct {
 // ErrFileNotFound is an error type used to signal 404 HTTP status code responses.
 var ErrFileNotFound = errors.New("file not found")
 
-// NewArchiveFetcher configures the retryable http client used for fetching archives.
+// NewArchiveFetcher configures the retryable HTTP client used for fetching archives.
 func NewArchiveFetcher(retries, maxDownloadSize, maxUntarSize int, hostnameOverwrite string) *ArchiveFetcher {
+	return NewArchiveFetcherWithLogger(retries, maxDownloadSize, maxUntarSize, hostnameOverwrite, nil)
+}
+
+// NewArchiveFetcherWithLogger configures the retryable HTTP client used for
+// fetching archives and sets the logger to use.
+//
+// The logger can be any type that implements the retryablehttp.Logger or
+// retryablehttp.LeveledLogger interface. If the logger is of type logr.Logger,
+// it will be wrapped in a retryablehttp.LeveledLogger that only logs errors.
+func NewArchiveFetcherWithLogger(retries, maxDownloadSize, maxUntarSize int, hostnameOverwrite string, logger any) *ArchiveFetcher {
 	httpClient := retryablehttp.NewClient()
 	httpClient.RetryWaitMin = 5 * time.Second
 	httpClient.RetryWaitMax = 30 * time.Second
 	httpClient.RetryMax = retries
-	httpClient.Logger = nil
+
+	switch logger.(type) {
+	case logr.Logger:
+		httpClient.Logger = newErrorLogger(logger.(logr.Logger))
+	default:
+		httpClient.Logger = logger
+	}
 
 	return &ArchiveFetcher{
 		httpClient:        httpClient,
