@@ -28,8 +28,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/fluxcd/pkg/apis/meta"
 )
 
 // Setter is an interface that defines methods a Kubernetes object should implement in order to
@@ -50,6 +51,9 @@ func Set(to Setter, condition *metav1.Condition) {
 
 	// Always set the observed generation on the condition.
 	condition.ObservedGeneration = to.GetGeneration()
+
+	// Trim the message to the maximum accepted length.
+	condition.Message = trimConditionMessage(condition.Message, maxMessageLength)
 
 	// Check if the new conditions already exists, and change it only if there is a status
 	// transition (otherwise we should preserve the current last transition time)-
@@ -222,4 +226,23 @@ func hasSameState(i, j *metav1.Condition) bool {
 		i.Status == j.Status &&
 		i.Reason == j.Reason &&
 		i.Message == j.Message
+}
+
+const (
+	maxMessageLength     = 32768
+	trimmedMessageSuffix = "..."
+)
+
+// trimConditionMessage trims the condition message to the specified maximum length.
+func trimConditionMessage(msg string, maxLength int) string {
+	if maxLength < len(trimmedMessageSuffix) {
+		maxLength = len(trimmedMessageSuffix)
+	}
+
+	if len(msg) <= maxLength {
+		return msg
+	}
+
+	trimmedMsg := msg[:maxLength-len(trimmedMessageSuffix)] + trimmedMessageSuffix
+	return trimmedMsg
 }
