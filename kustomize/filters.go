@@ -81,23 +81,25 @@ func filterKsWithIgnoreFiles(ks *kustypes.Kustomization, dirPath string, ignore 
 	return nil
 }
 
+func isUrl(s string) bool {
+	u, err := url.ParseRequestURI(s)
+	return err == nil && u.Scheme != ""
+}
+
 func filterSlice(ks *kustypes.Kustomization, path string, s *[]string, t string, filter filter) error {
 	start := 0
 	for _, res := range *s {
-		// check if we have a url and skip it
+		// check if we have a url and skip the source file filters
 		// this is not needed for crds as they are not allowed to be urls
-		if t != crds {
-			if u, err := url.ParseRequestURI(res); err == nil && u.Scheme != "" {
+		if t == crds || !isUrl(res) {
+			f := filepath.Join(path, res)
+			info, err := os.Lstat(f)
+			if err != nil {
+				return err
+			}
+			if filter(f, info) {
 				continue
 			}
-		}
-		f := filepath.Join(path, res)
-		info, err := os.Lstat(f)
-		if err != nil {
-			return err
-		}
-		if filter(f, info) {
-			continue
 		}
 		(*s)[start] = res
 		start++

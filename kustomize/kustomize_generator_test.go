@@ -28,6 +28,7 @@ import (
 	"github.com/otiai10/copy"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/api/resmap"
+	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/yaml"
 )
@@ -287,6 +288,64 @@ func TestKustomizationGenerator_WithSourceIgnore(t *testing.T) {
 			}
 
 			g.Expect(string(resources)).To(Equal(string(expected)))
+		})
+	}
+}
+
+func TestKustomizationGenerator_WithRemoteResource(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		ignore   string
+		expected []string
+	}{
+		{
+			name: "without ignore",
+			expected: []string{
+				"configmap.yaml",
+				"https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/rbac/controller.yaml",
+			},
+		},
+		{
+			name:   "with ignore",
+			ignore: "configmap.yaml",
+			expected: []string{
+				"https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/rbac/controller.yaml",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			// Create a kustomization file with varsub
+			yamlKus, err := os.ReadFile("./testdata/kustomization.yaml")
+			g.Expect(err).NotTo(HaveOccurred())
+
+			clientObjects, err := readYamlObjects(strings.NewReader(string(yamlKus)))
+			g.Expect(err).NotTo(HaveOccurred())
+
+			// Get a generator
+			gen := kustomize.NewGeneratorWithIgnore("./testdata/remote", tt.ignore, clientObjects[0])
+			action, err := gen.WriteFile("./testdata/remote", kustomize.WithSaveOriginalKustomization())
+			g.Expect(err).NotTo(HaveOccurred())
+			defer kustomize.CleanDirectory("./testdata/remote", action)
+
+			// Read updated Kustomization contents
+			updatedContent, err := os.ReadFile("./testdata/remote/kustomization.yaml")
+			g.Expect(err).NotTo(HaveOccurred())
+
+			kus := kustypes.Kustomization{
+				TypeMeta: kustypes.TypeMeta{
+					APIVersion: kustypes.KustomizationVersion,
+					Kind:       kustypes.KustomizationKind,
+				},
+			}
+			err = yaml.Unmarshal(updatedContent, &kus)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			// Check that the resources are passed through
+			g.Expect(kus.Resources).To(Equal(tt.expected))
 		})
 	}
 }
