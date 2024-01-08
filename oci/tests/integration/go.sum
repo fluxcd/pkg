@@ -71,8 +71,8 @@ github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc
 github.com/evanphx/json-patch v5.7.0+incompatible h1:vgGkfT/9f8zE6tvSCe74nfpAVDQ2tG6yudJd8LBksgI=
 github.com/evanphx/json-patch/v5 v5.7.0 h1:nJqP7uwL84RJInrohHfW0Fx3awjbm8qZeFv0nW9SYGc=
 github.com/evanphx/json-patch/v5 v5.7.0/go.mod h1:VNkHZ/282BpEyt/tObQO8s5CMPmYYq14uClGH4abBuQ=
-github.com/fluxcd/test-infra/tftestenv v0.0.0-20230720084205-d40ee5473f22 h1:1f0EQM0kPX2px9FanVMyD/UrHFQ9zqFg58M42Y8bBts=
-github.com/fluxcd/test-infra/tftestenv v0.0.0-20230720084205-d40ee5473f22/go.mod h1:liFlLEXgambGVdWSJ4JzbIHf1Vjpp1HwUyPazPIVZug=
+github.com/fluxcd/test-infra/tftestenv v0.0.0-20240108135005-b58e0c4e0cfa h1:JdI+rVwGF5gBYt+UBijOVzXtq7aAU80vgksMNXSCCfU=
+github.com/fluxcd/test-infra/tftestenv v0.0.0-20240108135005-b58e0c4e0cfa/go.mod h1:liFlLEXgambGVdWSJ4JzbIHf1Vjpp1HwUyPazPIVZug=
 github.com/fsnotify/fsnotify v1.6.0 h1:n+5WquG0fcWoWp6xPWfHdbskMCQaFnG6PfBrh1Ky4HY=
 github.com/fsnotify/fsnotify v1.6.0/go.mod h1:sl3t1tCWJFWoRz9R8WJCbQihKKwmorjAbSClcnxKAGw=
 github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 h1:+zs/tPmkDkHx3U66DAb0lQFJrpS6731Oaa12ikc+DiI=

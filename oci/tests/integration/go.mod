@@ -6,8 +6,9 @@ replace github.com/fluxcd/pkg/oci => ../../
 
 require (
 	github.com/fluxcd/pkg/oci v0.32.0
-	github.com/fluxcd/test-infra/tftestenv v0.0.0-20230720084205-d40ee5473f22
+	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240108135005-b58e0c4e0cfa
 	github.com/google/go-containerregistry v0.17.0
+	github.com/hashicorp/terraform-exec v0.18.1
 	github.com/hashicorp/terraform-json v0.17.1
 	github.com/onsi/gomega v1.30.0
 	k8s.io/api v0.28.4
@@ -65,7 +66,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/hc-install v0.5.1 // indirect
-	github.com/hashicorp/terraform-exec v0.18.1 // indirect
 	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

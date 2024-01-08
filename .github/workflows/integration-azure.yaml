@@ -57,3 +57,15 @@ jobs:
           TF_VAR_enable_wi: ${{ matrix.enable-workload-id }}
           TF_VAR_wi_k8s_sa_name: test-workload-id
           TF_VAR_wi_k8s_sa_ns: default
+      - name: Ensure resource cleanup
+        if: ${{ always() }}
+        run: . .env && make destroy-azure
+        env:
+          ARM_CLIENT_ID: ${{ secrets.OCI_E2E_AZ_ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.OCI_E2E_AZ_ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.OCI_E2E_AZ_ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.OCI_E2E_AZ_ARM_TENANT_ID }}
+          TF_VAR_azure_location: ${{ vars.TF_VAR_azure_location }}
+          TF_VAR_enable_wi: ${{ matrix.enable-workload-id }}
+          TF_VAR_wi_k8s_sa_name: test-workload-id
+          TF_VAR_wi_k8s_sa_ns: default
