@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -79,6 +80,9 @@ var (
 
 	// verbose flag to enable output of terraform execution.
 	verbose = flag.Bool("verbose", false, "verbose output of the environment setup")
+
+	// destroyOnly flag to destroy any provisioned infrastructure.
+	destroyOnly = flag.Bool("destroy-only", false, "run in destroy-only mode and delete any existing infrastructure")
 
 	// testRepos is a map of registry common name and URL of the test
 	// repositories. This is used as the test cases to run the tests against.
@@ -153,15 +157,6 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 	ctx := context.TODO()
 
-	appImg := os.Getenv("TEST_IMG")
-	if appImg == "" {
-		log.Fatal("TEST_IMG must be set to the test application image, cannot be empty")
-	}
-
-	localImgs := map[string]string{
-		"app": appImg,
-	}
-
 	// Validate the provider.
 	if *targetProvider == "" {
 		log.Fatalf("-provider flag must be set to one of %v", supportedProviders)
@@ -179,6 +174,30 @@ func TestMain(m *testing.M) {
 	providerCfg := getProviderConfig(*targetProvider)
 	if providerCfg == nil {
 		log.Fatalf("Failed to get provider config for %q", *targetProvider)
+	}
+
+	// Run destroy-only mode if enabled.
+	if *destroyOnly {
+		log.Println("Running in destroy-only mode...")
+		envOpts := []tftestenv.EnvironmentOption{
+			tftestenv.WithVerbose(*verbose),
+			// Ignore any state lock in destroy-only mode.
+			tftestenv.WithTfDestroyOptions(tfexec.Lock(false)),
+		}
+		if err := tftestenv.Destroy(ctx, providerCfg.terraformPath, envOpts...); err != nil {
+			panic(err)
+		}
+		os.Exit(0)
+	}
+
+	// Check the test app image.
+	appImg := os.Getenv("TEST_IMG")
+	if appImg == "" {
+		log.Fatal("TEST_IMG must be set to the test application image, cannot be empty")
+	}
+
+	localImgs := map[string]string{
+		"app": appImg,
 	}
 
 	// Construct scheme to be added to the kubeclient.

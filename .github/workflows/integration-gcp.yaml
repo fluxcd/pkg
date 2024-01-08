@@ -71,3 +71,13 @@ jobs:
           TF_VAR_enable_wi: ${{ matrix.enable-workload-id }}
           TF_VAR_wi_k8s_sa_name: test-workload-id
           TF_VAR_wi_k8s_sa_ns: default
+      - name: Ensure resource cleanup
+        if: ${{ always() }}
+        run: . .env && make destroy-gcp
+        env:
+          TF_VAR_gcp_project_id: ${{ vars.TF_VAR_gcp_project_id }}
+          TF_VAR_gcp_region: ${{ vars.TF_VAR_gcp_region }}
+          TF_VAR_gcp_zone: ${{ vars.TF_VAR_gcp_zone }}
+          TF_VAR_enable_wi: ${{ matrix.enable-workload-id }}
+          TF_VAR_wi_k8s_sa_name: test-workload-id
+          TF_VAR_wi_k8s_sa_ns: default
