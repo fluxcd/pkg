@@ -3,7 +3,7 @@ name: integration-cleanup
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 * * * *"
 
 permissions: {}
 
@@ -53,11 +53,9 @@ jobs:
       - name: Run gcrgc
         # Cleanup all the GCR repositories in the project. They are not tracked
         # by terraform used to provision test infra and are left behind.
-        run: gcrgc gcr.io/${{ vars.TF_VAR_gcp_project_id }}
+        run: gcrgc gcr.io/${{ vars.TF_VAR_gcp_project_id }} --retention-period 1h
       - name: Run reaper
-        # NOTE: This is in dry-run mode by default. Pass `-delete` to allow it
-        # to delete.
-        run: go run ./ -provider gcp -gcpproject ${{ vars.TF_VAR_gcp_project_id }} -retention-period 1d -tags 'ci=true'
+        run: go run ./ -provider gcp -gcpproject ${{ vars.TF_VAR_gcp_project_id }} -retention-period 1h -tags 'ci=true' -delete
 
   azure:
     runs-on: ubuntu-latest
@@ -80,6 +78,4 @@ jobs:
         with:
           creds: '{"clientId":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.CLEANUP_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.CLEANUP_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Run reaper
-        # NOTE: This is in dry-run mode by default. Pass `-delete` to allow it
-        # to delete.
-        run: go run ./ -provider azure -retention-period 1d -tags 'ci=true'
+        run: go run ./ -provider azure -retention-period 1h -tags 'ci=true' -delete
