@@ -139,8 +139,11 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 				errors = append(errors, fmt.Sprintf("%s (unknown status)", utils.FmtObjMetadata(rs.Identifier)))
 			} else if lastStatus[id].Status != status.CurrentStatus {
 				var builder strings.Builder
-				builder.WriteString(fmt.Sprintf("%s status: '%s'",
-					utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
+				if strings.ToLower(lastStatus[id].Status.String()) != "unknown" {
+					// ignore status 'unknown' to only list failed resources
+					builder.WriteString(fmt.Sprintf("%s status: '%s'",
+						utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
+				}
 				if rs.Error != nil {
 					builder.WriteString(fmt.Sprintf(": %s", rs.Error))
 				}
