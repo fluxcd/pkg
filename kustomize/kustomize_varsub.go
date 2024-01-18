@@ -18,12 +18,12 @@ package kustomize
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/drone/envsubst"
-	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -181,12 +181,12 @@ func getSubstituteFrom(kustomization unstructured.Unstructured) ([]SubstituteRef
 			sub, ok := s.(map[string]interface{})
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			var substitute SubstituteReference
 			err = runtime.DefaultUnstructuredConverter.FromUnstructured(sub, &substitute)
 			if err != nil {
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			res = append(res, substitute)
 		}
