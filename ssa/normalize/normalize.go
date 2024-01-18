@@ -88,6 +88,13 @@ func UnstructuredList(objects []*unstructured.Unstructured) error {
 // certain standard fields are removed.
 func UnstructuredListWithScheme(objects []*unstructured.Unstructured, scheme *runtime.Scheme) error {
 	for _, o := range objects {
+		// Skip Role and ClusterRole objects to avoid resetting the rules due to upstream serialization bug.
+		// xref:https://github.com/fluxcd/kustomize-controller/issues/1041
+		if o.GetAPIVersion() == "rbac.authorization.k8s.io/v1" &&
+			(o.GetKind() == "Role" || o.GetKind() == "ClusterRole") {
+			continue
+		}
+
 		if err := UnstructuredWithScheme(o, scheme); err != nil {
 			return fmt.Errorf("%s normalization error: %w", utils.FmtUnstructured(o), err)
 		}

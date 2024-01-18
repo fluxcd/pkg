@@ -22,6 +22,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +36,27 @@ func TestFromUnstructured(t *testing.T) {
 		want    metav1.Object
 		wantErr bool
 	}{
+		{
+			name: "no rules ClusterRole",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "rbac.authorization.k8s.io/v1",
+					"kind":       "ClusterRole",
+					"metadata": map[string]interface{}{
+						"name": "test-clusterrole",
+					},
+				},
+			},
+			want: &rbacv1.ClusterRole{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "rbac.authorization.k8s.io/v1",
+					Kind:       "ClusterRole",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-clusterrole",
+				},
+			},
+		},
 		{
 			name: "valid Pod",
 			object: &unstructured.Unstructured{
