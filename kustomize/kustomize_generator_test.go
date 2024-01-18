@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fluxcd/pkg/kustomize"
 	. "github.com/onsi/gomega"
 	"github.com/otiai10/copy"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,9 +30,34 @@ import (
 	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/yaml"
+
+	"github.com/fluxcd/pkg/kustomize"
 )
 
 const resourcePath = "./testdata/resources/"
+
+func TestGenerator_EmptyDir(t *testing.T) {
+	g := NewWithT(t)
+	dataKS, err := os.ReadFile("./testdata/empty/ks.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	ks, err := readYamlObjects(strings.NewReader(string(dataKS)))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	emptyDir, err := testTempDir(t)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	_, err = kustomize.NewGenerator("", ks[0]).WriteFile(emptyDir)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	data, err := os.ReadFile(filepath.Join(emptyDir, "kustomization.yaml"))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(string(data)).To(ContainSubstring("_placeholder"))
+
+	resMap, err := kustomize.SecureBuild(emptyDir, emptyDir, false)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(resMap.Resources()).To(HaveLen(0))
+}
 
 func TestKustomizationGenerator(t *testing.T) {
 	tests := []struct {

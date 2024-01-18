@@ -26,7 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	securefs "github.com/fluxcd/pkg/kustomize/filesys"
+	"github.com/hashicorp/go-multierror"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,7 +39,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/fluxcd/pkg/apis/kustomize"
-	"github.com/hashicorp/go-multierror"
+	securefs "github.com/fluxcd/pkg/kustomize/filesys"
 )
 
 const (
@@ -467,7 +467,14 @@ func (g *Generator) generateKustomization(dirPath string) (Action, string, error
 		resources = append(resources, strings.Replace(file, abs, ".", 1))
 	}
 
-	kus.Resources = resources
+	if len(resources) == 0 {
+		// if there are no resources, set a placeholder namespace
+		// to avoid "kustomization.yaml is empty" build error
+		kus.Namespace = "_placeholder"
+	} else {
+		kus.Resources = resources
+	}
+
 	kd, err := yaml.Marshal(kus)
 	if err != nil {
 		// delete the kustomization file
