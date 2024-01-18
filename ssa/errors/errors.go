@@ -52,7 +52,7 @@ func (e *DryRunErr) Error() string {
 	}
 
 	if apierrors.IsNotFound(e.Unwrap()) {
-		if e.involvedObject.GetNamespace() != "" {
+		if e.involvedObject.GetNamespace() == "" {
 			return fmt.Sprintf("%s namespace not specified: %s", utils.FmtUnstructured(e.involvedObject), e.Unwrap().Error())
 		}
 		return fmt.Sprintf("%s not found: %s", utils.FmtUnstructured(e.involvedObject), e.Unwrap().Error())
