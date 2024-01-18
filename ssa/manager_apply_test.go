@@ -949,6 +949,26 @@ func TestApply_Cleanup_Exclusions(t *testing.T) {
 	})
 }
 
+func TestApply_MissingNamespaceErr(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("err")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, configMap := getFirstObject(objects, "ConfigMap", id)
+	unstructured.RemoveNestedField(configMap.Object, "metadata", "namespace")
+
+	_, err = manager.ApplyAllStaged(ctx, []*unstructured.Unstructured{configMap}, DefaultApplyOptions())
+	if !strings.Contains(err.Error(), "namespace not specified") {
+		t.Fatal("Expected namespace not specified error")
+	}
+}
+
 func containsItemString(s []string, e string) bool {
 	for _, a := range s {
 		if a == e {
