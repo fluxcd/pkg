@@ -18,6 +18,7 @@ package kustomize
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,7 +27,6 @@ import (
 	"strings"
 	"sync"
 
-	securefs "github.com/fluxcd/pkg/kustomize/filesys"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,7 +39,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/fluxcd/pkg/apis/kustomize"
-	"github.com/hashicorp/go-multierror"
+	securefs "github.com/fluxcd/pkg/kustomize/filesys"
 )
 
 const (
@@ -274,12 +274,12 @@ func (g *Generator) getPatches() ([]kustomize.Patch, error) {
 			patch, ok := p.(map[string]interface{})
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			var kpatch kustomize.Patch
 			err = runtime.DefaultUnstructuredConverter.FromUnstructured(patch, &kpatch)
 			if err != nil {
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			res = append(res, kpatch)
 		}
@@ -303,12 +303,12 @@ func (g *Generator) getPatchesStrategicMerge() ([]apiextensionsv1.JSON, error) {
 			patch, ok := p.(map[string]interface{})
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			var kpatch apiextensionsv1.JSON
 			err = runtime.DefaultUnstructuredConverter.FromUnstructured(patch, &kpatch)
 			if err != nil {
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			res = append(res, kpatch)
 		}
@@ -332,12 +332,12 @@ func (g *Generator) getPatchesJson6902() ([]kustomize.JSON6902Patch, error) {
 			patch, ok := p.(map[string]interface{})
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			var kpatch kustomize.JSON6902Patch
 			err = runtime.DefaultUnstructuredConverter.FromUnstructured(patch, &kpatch)
 			if err != nil {
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			res = append(res, kpatch)
 		}
@@ -361,12 +361,12 @@ func (g *Generator) getImages() ([]kustomize.Image, error) {
 			im, ok := i.(map[string]interface{})
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			var image kustomize.Image
 			err = runtime.DefaultUnstructuredConverter.FromUnstructured(im, &image)
 			if err != nil {
-				resultErr = multierror.Append(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 			}
 			res = append(res, image)
 		}
@@ -467,7 +467,14 @@ func (g *Generator) generateKustomization(dirPath string) (Action, string, error
 		resources = append(resources, strings.Replace(file, abs, ".", 1))
 	}
 
-	kus.Resources = resources
+	if len(resources) == 0 {
+		// if there are no resources, set a placeholder namespace
+		// to avoid "kustomization.yaml is empty" build error
+		kus.Namespace = "_placeholder"
+	} else {
+		kus.Resources = resources
+	}
+
 	kd, err := yaml.Marshal(kus)
 	if err != nil {
 		// delete the kustomization file
