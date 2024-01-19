@@ -3,7 +3,7 @@ module github.com/fluxcd/pkg/sourceignore
 go 1.20
 
 require (
-	github.com/go-git/go-git/v5 v5.10.1
+	github.com/go-git/go-git/v5 v5.11.0
 	github.com/onsi/gomega v1.30.0
 )
 

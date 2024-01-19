@@ -46,6 +46,7 @@ import (
 	cryptossh "golang.org/x/crypto/ssh"
 
 	"github.com/fluxcd/gitkit"
+
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
@@ -912,7 +913,7 @@ func Test_ssh_KeyExchangeAlgos(t *testing.T) {
 			name:      "non-matching kex",
 			ClientKex: []string{"ecdh-sha2-nistp521"},
 			ServerKex: []string{"curve25519-sha256@libssh.org"},
-			wantErr:   "ssh: no common algorithm for key exchange; client offered: [ecdh-sha2-nistp521 ext-info-c], server offered: [curve25519-sha256@libssh.org]",
+			wantErr:   "ssh: no common algorithm for key exchange;",
 		},
 	}
 
