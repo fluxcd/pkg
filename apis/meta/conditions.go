@@ -57,6 +57,10 @@ const (
 	// For more information about polarity patterns, see:
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
 	ReconcilingCondition string = "Reconciling"
+
+	// HealthyCondition represents the last recorded
+	// health assessment result.
+	HealthyCondition string = "Healthy"
 )
 
 // These constants define generic Condition reasons to be used by GitOps Toolkit components.
@@ -120,6 +124,30 @@ const (
 	// UnsupportedConnectionTypeReason signals a failure caused by
 	// the use of unsupported network protocols.
 	UnsupportedConnectionTypeReason = "UnsupportedConnectionType"
+
+	// PruneFailedReason represents the fact that the
+	// pruning of the resources failed.
+	PruneFailedReason string = "PruneFailed"
+
+	// ArtifactFailedReason represents the fact that the
+	// source artifact download failed.
+	ArtifactFailedReason string = "ArtifactFailed"
+
+	// BuildFailedReason represents the fact that the
+	// build failed.
+	BuildFailedReason string = "BuildFailed"
+
+	// HealthCheckFailedReason represents the fact that
+	// one of the health checks failed.
+	HealthCheckFailedReason string = "HealthCheckFailed"
+
+	// ReconciliationSucceededReason represents the fact that
+	// the reconciliation succeeded.
+	ReconciliationSucceededReason string = "ReconciliationSucceeded"
+
+	// ReconciliationFailedReason represents the fact that
+	// the reconciliation failed.
+	ReconciliationFailedReason string = "ReconciliationFailed"
 )
 
 // ObjectWithConditions describes a Kubernetes resource object with status conditions.
