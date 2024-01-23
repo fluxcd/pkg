@@ -139,7 +139,7 @@ func TestWaitForSet_failFast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set Progressing Condition to false and reason to ProgressDeadlineExceeded
+	// Set Progressing Condition to false and reason to ProgressDeadlineExceeded.
 	// This tells kstatus that the deployment has stalled.
 	cond := appsv1.DeploymentCondition{
 		Type:               appsv1.DeploymentProgressing,
@@ -160,6 +160,8 @@ func TestWaitForSet_failFast(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Set PVC phase to Pending.
+	// This tells kstatus that the PVC is in progress.
 	clusterPvc := &unstructured.Unstructured{}
 	clusterPvc.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",
@@ -170,7 +172,7 @@ func TestWaitForSet_failFast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := unstructured.SetNestedField(clusterPvc.Object, "Bound", "status", "phase"); err != nil {
+	if err := unstructured.SetNestedField(clusterPvc.Object, "Pending", "status", "phase"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -185,7 +187,7 @@ func TestWaitForSet_failFast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("timeout when failfast is set to false", func(t *testing.T) {
+	t.Run("timeout when fail fast is disabled", func(t *testing.T) {
 		err = manager.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{
 			Interval: interval,
 			Timeout:  timeout,
@@ -199,11 +201,15 @@ func TestWaitForSet_failFast(t *testing.T) {
 		}
 
 		if !strings.Contains(err.Error(), deployFailedMsg) {
-			t.Fatal("expected error to contain status of failed deployment")
+			t.Fatal("expected error to contain status of failed deployment", err.Error())
+		}
+
+		if !strings.Contains(err.Error(), "InProgress") {
+			t.Fatal("expected error to contain InProgress deployment", err.Error())
 		}
 	})
 
-	t.Run("return early when failfast is set to true", func(t *testing.T) {
+	t.Run("fail early even if there are still progressing resources", func(t *testing.T) {
 		err = manager.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{
 			Interval: interval,
 			Timeout:  timeout,
@@ -213,54 +219,15 @@ func TestWaitForSet_failFast(t *testing.T) {
 		deployFailedMsg := fmt.Sprintf("%s status: '%s'", utils.FmtObjMetadata(deployObjMeta), status.FailedStatus)
 
 		if err == nil || !strings.Contains(err.Error(), "failed early") {
-			t.Fatal("expected WaitForSet to fail early due to stalled deployment")
+			t.Fatal("expected to fail early due to stalled deployment", err.Error())
 		}
 
 		if !strings.Contains(err.Error(), deployFailedMsg) {
-			t.Fatal("expected error to contain status of failed deployment")
-		}
-	})
-
-	t.Run("fail early even if there are still Progressing resources", func(t *testing.T) {
-		// change status to Pending to have an 'InProgress' resource
-		clusterPvc := &unstructured.Unstructured{}
-		clusterPvc.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   "",
-			Kind:    "PersistentVolumeClaim",
-			Version: "v1",
-		})
-		if err := manager.client.Get(ctx, client.ObjectKeyFromObject(pvc), clusterPvc); err != nil {
-			t.Fatal(err)
+			t.Fatal("expected error to contain status of failed deployment", err.Error())
 		}
 
-		if err := unstructured.SetNestedField(clusterPvc.Object, "Pending", "status", "phase"); err != nil {
-			t.Fatal(err)
-		}
-		opts := &client.SubResourcePatchOptions{
-			PatchOptions: client.PatchOptions{
-				FieldManager: manager.owner.Field,
-			},
-		}
-
-		clusterPvc.SetManagedFields(nil)
-		if err := manager.client.Status().Patch(ctx, clusterPvc, client.Apply, opts); err != nil {
-			t.Fatal(err)
-		}
-
-		err = manager.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{
-			Interval: interval,
-			Timeout:  timeout,
-			FailFast: true,
-		})
-
-		deployFailedMsg := fmt.Sprintf("%s status: '%s'", utils.FmtObjMetadata(deployObjMeta), status.FailedStatus)
-
-		if err == nil || !strings.Contains(err.Error(), "failed early") {
-			t.Fatal("expected WaitForSet to fail early due to stalled deployment")
-		}
-
-		if !strings.Contains(err.Error(), deployFailedMsg) {
-			t.Fatal("expected error to contain status of failed deployment")
+		if strings.Contains(err.Error(), "InProgress") {
+			t.Fatal("expected error to not contain InProgress resources", err.Error())
 		}
 	})
 }

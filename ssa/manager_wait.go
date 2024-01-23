@@ -19,6 +19,7 @@ package ssa
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -83,7 +84,6 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 	eventsChan := m.poller.Poll(ctx, set, pollingOpts)
 
 	lastStatus := make(map[object.ObjMetadata]*event.ResourceStatus)
-	var failedResources int
 
 	done := statusCollector.ListenWithObserver(eventsChan, collector.ObserverFunc(
 		func(statusCollector *collector.ResourceStatusCollector, e event.Event) {
@@ -96,7 +96,7 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 				// skip DeadlineExceeded errors because kstatus emits that error
 				// for every resource it's monitoring even when only one of them
 				// actually fails.
-				if rs.Error != context.DeadlineExceeded {
+				if !errors.Is(rs.Error, context.DeadlineExceeded) {
 					lastStatus[rs.Identifier] = rs
 				}
 
@@ -105,7 +105,6 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 				}
 				rss = append(rss, rs)
 			}
-			failedResources = countFailed
 
 			desired := status.CurrentStatus
 			aggStatus := aggregator.AggregateStatus(rss, desired)
@@ -122,32 +121,36 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 		return statusCollector.Error
 	}
 
-	if ctx.Err() == context.DeadlineExceeded || (opts.FailFast && failedResources > 0) {
+	var errs []string
+	for id, rs := range statusCollector.ResourceStatuses {
+		switch {
+		case rs == nil || lastStatus[id] == nil:
+			errs = append(errs, fmt.Sprintf("can't determine status for %s", utils.FmtObjMetadata(id)))
+		case lastStatus[id].Status == status.FailedStatus:
+			var builder strings.Builder
+			builder.WriteString(fmt.Sprintf("%s status: '%s'",
+				utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
+			if rs.Error != nil {
+				builder.WriteString(fmt.Sprintf(": %s", rs.Error))
+			}
+			errs = append(errs, builder.String())
+		case errors.Is(ctx.Err(), context.DeadlineExceeded) && lastStatus[id].Status != status.CurrentStatus:
+			var builder strings.Builder
+			builder.WriteString(fmt.Sprintf("%s status: '%s'",
+				utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
+			if rs.Error != nil {
+				builder.WriteString(fmt.Sprintf(": %s", rs.Error))
+			}
+			errs = append(errs, builder.String())
+		}
+	}
+
+	if len(errs) > 0 {
 		msg := "failed early due to stalled resources"
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			msg = "timeout waiting for"
 		}
-
-		var errors = []string{}
-		for id, rs := range statusCollector.ResourceStatuses {
-			if rs == nil {
-				errors = append(errors, fmt.Sprintf("can't determine status for %s", utils.FmtObjMetadata(id)))
-				continue
-			}
-			if lastStatus[id] == nil {
-				// this is only nil in the rare case where no status can be determined for the resource at all
-				errors = append(errors, fmt.Sprintf("%s (unknown status)", utils.FmtObjMetadata(rs.Identifier)))
-			} else if lastStatus[id].Status != status.CurrentStatus {
-				var builder strings.Builder
-				builder.WriteString(fmt.Sprintf("%s status: '%s'",
-					utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
-				if rs.Error != nil {
-					builder.WriteString(fmt.Sprintf(": %s", rs.Error))
-				}
-				errors = append(errors, builder.String())
-			}
-		}
-		return fmt.Errorf("%s: [%s]", msg, strings.Join(errors, ", "))
+		return fmt.Errorf("%s: [%s]", msg, strings.Join(errs, ", "))
 	}
 
 	return nil
