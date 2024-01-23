@@ -34,7 +34,7 @@ jobs:
         run: echo "GCRGC_VERSION=${GCRGC_VERSION}" >> $GITHUB_ENV
       - name: Cache gcrgc
         id: cache-gcrgc
-        uses: actions/cache@e12d46a63a90f2fae62d114769bbf2a179198b5c # v3.3.3
+        uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2 # v4.0.0
         with:
           path: ~/.local/bin/gcrgc
           key: gcrgc-${{ env.GCRGC_VERSION }}
@@ -45,11 +45,11 @@ jobs:
           wget https://github.com/graillus/gcrgc/releases/download/v${GCRGC_VERSION}/gcrgc_${GCRGC_VERSION}_linux_amd64.tar.gz -O - | tar xz
           mv gcrgc ~/.local/bin/
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@f6de81663f7788d05bd15bcce18f0e57f23f0846 # v2.0.1
+        uses: google-github-actions/auth@5a50e581162a13f4baa8916d01180d2acbc04363 # v2.1.0
         with:
           credentials_json: '${{ secrets.CLEANUP_E2E_GOOGLE_CREDENTIALS }}'
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@5a5f7b85fca43e76e53463acaa9d408a03c98d3a # v2.0.1
+        uses: google-github-actions/setup-gcloud@98ddc00a17442e89a24bbf282954a3b65ce6d200 # v2.1.0
       - name: Run gcrgc
         # Cleanup all the GCR repositories in the project. They are not tracked
         # by terraform used to provision test infra and are left behind.
@@ -74,7 +74,7 @@ jobs:
           go-version: 1.20.x
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Authenticate to Azure
-        uses: Azure/login@e15b166166a8746d1a47596803bd8c1b595455cf # v1.4.6
+        uses: Azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.4.6
         with:
           creds: '{"clientId":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.CLEANUP_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.CLEANUP_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Run reaper
