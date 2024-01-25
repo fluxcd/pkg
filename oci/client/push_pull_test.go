@@ -17,6 +17,8 @@ limitations under the License.
 package client
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
@@ -299,16 +301,18 @@ func Test_Push_Pull(t *testing.T) {
 				})
 				g.Expect(fsErr).ToNot(HaveOccurred())
 			case LayerTypeStatic:
-				fileInfo, err := os.Stat(tt.sourcePath)
-				// if a directory was pushed, then the created file is a gzipped archive and
-				// we don't need to check that its content matches the source directory
-				if fileInfo.IsDir() {
-					return
-				}
-				expected, err := os.ReadFile(tt.sourcePath)
+				got, err := os.ReadFile(tmpPath)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				got, err := os.ReadFile(tmpPath)
+				fileInfo, err := os.Stat(tt.sourcePath)
+				// if a directory was pushed, then the created file should be a gzipped archive
+				if fileInfo.IsDir() {
+					bufReader := bufio.NewReader(bytes.NewReader(got))
+					g.Expect(isGzipBlob(bufReader)).To(BeTrue())
+					return
+				}
+
+				expected, err := os.ReadFile(tt.sourcePath)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				g.Expect(expected).To(Equal(got))
