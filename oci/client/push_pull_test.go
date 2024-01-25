@@ -54,29 +54,32 @@ func Test_Push_Pull(t *testing.T) {
 		pushOpts          []PushOption
 		pullOpts          []PullOption
 		pushFn            func(url string, path string) error
+		testLayerType     LayerType
 		testLayerIndex    int
 		expectedNumLayers int
-		expectPullErr     bool
-		expectPushErr     bool
+		expectedPullErr   bool
+		expectedPushErr   bool
 		expectedMediaType types.MediaType
 	}{
 		{
 			name:              "push directory (default layer type)",
 			tag:               "v0.0.1",
 			sourcePath:        "testdata/artifact",
+			testLayerType:     LayerTypeTarball,
 			expectedMediaType: oci.CanonicalContentMediaType,
 		},
 		{
-			name:              "push directory (specify layer type)",
-			tag:               "v0.0.1",
-			sourcePath:        "testdata/artifact",
-			expectedMediaType: oci.CanonicalContentMediaType,
+			name:       "push directory (specify layer type)",
+			tag:        "v0.0.1",
+			sourcePath: "testdata/artifact",
 			pushOpts: []PushOption{
 				WithPushLayerType(LayerTypeTarball),
 			},
 			pullOpts: []PullOption{
 				WithPullLayerType(LayerTypeTarball),
 			},
+			testLayerType:     LayerTypeTarball,
+			expectedMediaType: oci.CanonicalContentMediaType,
 		},
 		{
 			name:       "push static file",
@@ -89,6 +92,7 @@ func Test_Push_Pull(t *testing.T) {
 			pullOpts: []PullOption{
 				WithPullLayerType(LayerTypeStatic),
 			},
+			testLayerType:     LayerTypeTarball,
 			expectedMediaType: getLayerMediaType("ml"),
 		},
 		{
@@ -97,7 +101,7 @@ func Test_Push_Pull(t *testing.T) {
 			pushOpts: []PushOption{
 				WithPushLayerType(LayerTypeStatic),
 			},
-			expectPushErr: true,
+			expectedPushErr: true,
 		},
 		{
 			name:       "push static file without media type extension",
@@ -106,6 +110,7 @@ func Test_Push_Pull(t *testing.T) {
 			pushOpts: []PushOption{
 				WithPushLayerType(LayerTypeStatic),
 			},
+			testLayerType:     LayerTypeStatic,
 			expectedMediaType: oci.CanonicalMediaTypePrefix,
 		},
 		{
@@ -115,6 +120,7 @@ func Test_Push_Pull(t *testing.T) {
 			pullOpts: []PullOption{
 				WithPullLayerType(LayerTypeStatic),
 			},
+			testLayerType:     LayerTypeStatic,
 			expectedMediaType: oci.CanonicalContentMediaType,
 		},
 		{
@@ -123,7 +129,7 @@ func Test_Push_Pull(t *testing.T) {
 			sourcePath:        "testdata/artifact/deployment.yaml",
 			pullOpts:          []PullOption{WithPullLayerType(LayerTypeTarball)},
 			pushOpts:          []PushOption{WithPushLayerType(LayerTypeStatic)},
-			expectPullErr:     true,
+			expectedPullErr:   true,
 			expectedMediaType: oci.CanonicalMediaTypePrefix,
 		},
 		{
@@ -160,6 +166,7 @@ func Test_Push_Pull(t *testing.T) {
 				return err
 			},
 			testLayerIndex:    1,
+			testLayerType:     LayerTypeTarball,
 			expectedNumLayers: 2,
 			expectedMediaType: oci.CanonicalContentMediaType,
 		},
@@ -196,7 +203,7 @@ func Test_Push_Pull(t *testing.T) {
 				return err
 			},
 			expectedMediaType: oci.CanonicalContentMediaType,
-			expectPullErr:     true,
+			expectedPullErr:   true,
 		},
 	}
 
@@ -222,7 +229,7 @@ func Test_Push_Pull(t *testing.T) {
 			} else {
 				err = tt.pushFn(url, tt.sourcePath)
 			}
-			if tt.expectPushErr {
+			if tt.expectedPushErr {
 				g.Expect(err).To(HaveOccurred())
 				return
 			}
@@ -268,23 +275,16 @@ func Test_Push_Pull(t *testing.T) {
 				g.Expect(meta.Annotations["org.opencontainers.image.licenses"]).To(BeEquivalentTo("Apache-2.0"))
 			}
 
-			po := &PullOptions{
-				layerType: LayerTypeTarball,
-			}
-			for _, opt := range tt.pullOpts {
-				opt(po)
-			}
-
 			// Pull the artifact from registry and extract its contents to tmp
 			tmpPath := filepath.Join(t.TempDir(), "artifact")
 			_, err = c.Pull(ctx, url, tmpPath, tt.pullOpts...)
-			if tt.expectPullErr {
+			if tt.expectedPullErr {
 				g.Expect(err).To(HaveOccurred())
 				return
 			}
 			g.Expect(err).ToNot(HaveOccurred())
 
-			switch po.layerType {
+			switch tt.testLayerType {
 			case LayerTypeTarball:
 				// Walk the test directory and check that all files exist in the pulled artifact
 				fsErr := filepath.Walk(tt.sourcePath, func(path string, info fs.FileInfo, err error) error {
@@ -312,6 +312,8 @@ func Test_Push_Pull(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				g.Expect(expected).To(Equal(got))
+			default:
+				t.Errorf("no layer type specified for test")
 			}
 		})
 	}

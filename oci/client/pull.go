@@ -107,7 +107,7 @@ func (c *Client) Pull(ctx context.Context, url, outPath string, opts ...PullOpti
 		return nil, fmt.Errorf("index '%d' out of bound for '%d' layers in artifact", o.layerIndex, len(layers))
 	}
 
-	err = extractLayer(layers[o.layerIndex], outPath, o)
+	err = extractLayer(layers[o.layerIndex], outPath, o.layerType)
 	if err != nil {
 		return nil, err
 	}
@@ -115,26 +115,27 @@ func (c *Client) Pull(ctx context.Context, url, outPath string, opts ...PullOpti
 }
 
 // extractLayer extracts the Layer to the path
-func extractLayer(layer gcrv1.Layer, path string, opts *PullOptions) error {
+func extractLayer(layer gcrv1.Layer, path string, layerType LayerType) error {
 	var blob io.Reader
 	blob, err := layer.Compressed()
 	if err != nil {
 		return fmt.Errorf("extracting layer failed: %w", err)
 	}
 
-	if opts.layerType == "" {
+	actualLayerType := layerType
+	if actualLayerType == "" {
 		bufReader := bufio.NewReader(blob)
 		if ok, _ := isGzipBlob(bufReader); ok {
-			opts.layerType = LayerTypeTarball
+			actualLayerType = LayerTypeTarball
 		} else {
-			opts.layerType = LayerTypeStatic
+			actualLayerType = LayerTypeStatic
 		}
 		// the bufio.Reader has read the bytes from the io.Reader
 		// and should be used instead
 		blob = bufReader
 	}
 
-	return extractLayerType(path, blob, opts.layerType)
+	return extractLayerType(path, blob, actualLayerType)
 }
 
 // extractLayerType extracts the contents of a io.Reader to the given path.
