@@ -94,7 +94,7 @@ func Test_Push_Pull(t *testing.T) {
 			pullOpts: []PullOption{
 				WithPullLayerType(LayerTypeStatic),
 			},
-			testLayerType:     LayerTypeTarball,
+			testLayerType:     LayerTypeStatic,
 			expectedMediaType: getLayerMediaType("ml"),
 		},
 		{
@@ -106,7 +106,7 @@ func Test_Push_Pull(t *testing.T) {
 			expectedPushErr: true,
 		},
 		{
-			name:       "push static file without media type extension",
+			name:       "push static file without media type extension (automatic layer detection for pull)",
 			tag:        "v0.0.2",
 			sourcePath: "testdata/artifact/deployment.yaml",
 			pushOpts: []PushOption{
