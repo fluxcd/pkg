@@ -32,7 +32,7 @@ jobs:
       # git directory. Subsequent steps check if this is true, before executing, thus helping us
       # run these tests only when there are changes to the git package.
       - name: Check for changes to git/ or e2e workflow
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
