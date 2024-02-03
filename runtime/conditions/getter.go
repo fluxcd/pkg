@@ -67,6 +67,17 @@ func HasAny(from Getter, t []string) bool {
 	return false
 }
 
+// HasAnyReason returns true if a condition with the given
+// type exists and any of the given reasons exist.
+func HasAnyReason(from Getter, t string, r ...string) bool {
+	for _, reason := range r {
+		if GetReason(from, t) == reason {
+			return true
+		}
+	}
+	return false
+}
+
 // IsTrue is true if the condition with the given type is True, otherwise it is false if the condition is not True or if
 // the condition does not exist (is nil).
 func IsTrue(from Getter, t string) bool {
