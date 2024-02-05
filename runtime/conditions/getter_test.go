@@ -27,9 +27,10 @@ import (
 	"testing"
 
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
-	"github.com/fluxcd/pkg/apis/meta"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/fluxcd/pkg/apis/meta"
 
 	"github.com/fluxcd/pkg/runtime/conditions/testdata"
 )
@@ -64,6 +65,18 @@ func TestGetAndHas(t *testing.T) {
 	g.Expect(HasAny(obj, []string{"conditionFoo", "conditionX"})).To(BeTrue())
 	g.Expect(HasAny(obj, []string{"conditionY", "conditionBaz"})).To(BeTrue())
 	g.Expect(HasAny(obj, []string{"conditionX", "conditionY"})).To(BeFalse())
+}
+
+func TestHasAnyReason(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := getterWithConditions(true1, false1, unknown1)
+
+	g.Expect(HasAnyReason(obj, "true1")).To(BeFalse())
+	g.Expect(HasAnyReason(obj, "true1", "reason true1")).To(BeTrue())
+	g.Expect(HasAnyReason(obj, "false1", "reason true1", "reason false1")).To(BeTrue())
+	g.Expect(HasAnyReason(obj, "unknown1", "reason unknown2", "reason unknown3")).To(BeFalse())
+	g.Expect(HasAnyReason(obj, "unknown2", "reason unknown1")).To(BeFalse())
 }
 
 func TestIsMethods(t *testing.T) {
