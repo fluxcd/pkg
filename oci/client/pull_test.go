@@ -41,6 +41,7 @@ func Test_PullAnyTarball(t *testing.T) {
 	repo := "test-no-annotations" + randStringRunes(5)
 
 	dst := fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag)
+	fmt.Println("Pulling from:", dst)
 
 	artifact := filepath.Join(t.TempDir(), "artifact.tgz")
 	g.Expect(build(artifact, testDir, nil)).To(Succeed())
@@ -81,4 +82,24 @@ func Test_PullAnyTarball(t *testing.T) {
 	} {
 		g.Expect(extractTo + "/" + entry).To(Or(BeAnExistingFile(), BeADirectory()))
 	}
+}
+
+func Test_PullLargeTarball(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+	c := NewClient(DefaultOptions())
+	dst := "vnp505/zephyr-7b-alpha:alpha"
+	extractTo := filepath.Join(t.TempDir(), "artifact")
+	m, err := c.Pull(ctx, dst, extractTo, WithPullLayerIndex(19))
+	fmt.Println("Pulled from:", dst)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(m).ToNot(BeNil())
+	g.Expect(m.Annotations).To(BeEmpty())
+	g.Expect(m.Created).To(BeEmpty())
+	g.Expect(m.Revision).To(BeEmpty())
+	g.Expect(m.Source).To(BeEmpty())
+	g.Expect(m.URL).To(Equal(dst))
+	g.Expect(m.Digest).ToNot(BeEmpty())
+	g.Expect(extractTo).ToNot(BeEmpty())
 }

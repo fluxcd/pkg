@@ -305,6 +305,7 @@ func Test_Push_Pull(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				fileInfo, err := os.Stat(tt.sourcePath)
+				g.Expect(err).ToNot(HaveOccurred())
 				// if a directory was pushed, then the created file should be a gzipped archive
 				if fileInfo.IsDir() {
 					bufReader := bufio.NewReader(bytes.NewReader(got))

@@ -21,13 +21,15 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/fluxcd/pkg/oci"
 )
 
 // Client holds the options for accessing remote OCI registries.
 type Client struct {
-	options []crane.Option
+	options    []crane.Option
+	httpClient *retryablehttp.Client
 }
 
 // NewClient returns an OCI client configured with the given crane options.
