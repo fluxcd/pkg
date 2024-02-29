@@ -153,7 +153,6 @@ func (f *FakeStatus) DeepCopy() *FakeStatus {
 // Fake is a mock struct that adheres to the minimal requirements to
 // work with the condition helpers, by implementing client.Object.
 // +genclient
-// +genclient:Namespaced
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 type Fake struct {
