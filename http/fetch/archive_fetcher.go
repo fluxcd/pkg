@@ -17,14 +17,18 @@ limitations under the License.
 package fetch
 
 import (
+	"context"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -36,19 +40,106 @@ import (
 	"github.com/fluxcd/pkg/tar"
 )
 
-// ArchiveFetcher holds the HTTP client that reties with back off when
-// the file server is offline.
+// ArchiveFetcher is a flexible API for downloading an archive from an HTTP server,
+// verifying its digest and extracting its contents to a given path in the Filesystem.
 type ArchiveFetcher struct {
-	httpClient        *retryablehttp.Client
+	retries           int
 	maxDownloadSize   int
-	maxUntarSize      int
+	fileMode          fs.FileMode
+	untarOpts         []tar.TarOption
 	hostnameOverwrite string
+	filename          string
+	logger            any
+
+	httpClient *retryablehttp.Client
 }
+
+// Option is an option for constructing the ArchiveFetcher.
+type Option func(a *ArchiveFetcher)
 
 // ErrFileNotFound is an error type used to signal 404 HTTP status code responses.
 var ErrFileNotFound = errors.New("file not found")
 
+// WithRetries sets the maximum amount of retries the HTTP client will be allowed to make.
+func WithRetries(retries int) Option {
+	return func(a *ArchiveFetcher) {
+		a.retries = retries
+	}
+}
+
+// WithMaxDownloadSize specifies a limit for the size of the downloaded archive.
+func WithMaxDownloadSize(maxDownloadSize int) Option {
+	return func(a *ArchiveFetcher) {
+		a.maxDownloadSize = maxDownloadSize
+	}
+}
+
+// WithUntar tells the ArchiveFetcher to untar the archive expecting it to be a tarball.
+func WithUntar(opts ...tar.TarOption) Option {
+	return func(a *ArchiveFetcher) {
+		a.untarOpts = append([]tar.TarOption{}, opts...) // to make sure a.untarOpts won't be nil
+	}
+}
+
+// WithHostnameOverwrite sets an override for the hostname in download URLs.
+func WithHostnameOverwrite(hostnameOverwrite string) Option {
+	return func(a *ArchiveFetcher) {
+		a.hostnameOverwrite = hostnameOverwrite
+	}
+}
+
+// WithLogger sets a logger for the HTTP client.
+// The logger can be any type that implements the retryablehttp.Logger or
+// retryablehttp.LeveledLogger interface. If the logger is of type logr.Logger,
+// it will be wrapped in a retryablehttp.LeveledLogger that only logs errors.
+func WithLogger(logger any) Option {
+	return func(a *ArchiveFetcher) {
+		a.logger = logger
+	}
+}
+
+// WithFileName sets the file name for the downloaded archive.
+func WithFileName(filename string) Option {
+	return func(a *ArchiveFetcher) {
+		a.filename = filename
+	}
+}
+
+// WithFileMode sets the file mode for the downloaded archive.
+// Applies only if untar is not enabled and the archive is not extracted.
+func WithFileMode(fileMode fs.FileMode) Option {
+	return func(a *ArchiveFetcher) {
+		a.fileMode = fileMode
+	}
+}
+
+// New creates an *ArchiveFetcher accepting options.
+func New(opts ...Option) *ArchiveFetcher {
+	a := &ArchiveFetcher{
+		fileMode: 0o600,
+	}
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	// Create HTTP client.
+	a.httpClient = retryablehttp.NewClient()
+	a.httpClient.RetryWaitMin = 5 * time.Second
+	a.httpClient.RetryWaitMax = 30 * time.Second
+	a.httpClient.RetryMax = a.retries
+	switch a.logger.(type) {
+	case logr.Logger:
+		a.httpClient.Logger = newErrorLogger(a.logger.(logr.Logger))
+	default:
+		a.httpClient.Logger = a.logger
+	}
+
+	return a
+}
+
 // NewArchiveFetcher configures the retryable HTTP client used for fetching archives.
+//
+// Deprecated: Use New() instead.
 func NewArchiveFetcher(retries, maxDownloadSize, maxUntarSize int, hostnameOverwrite string) *ArchiveFetcher {
 	return NewArchiveFetcherWithLogger(retries, maxDownloadSize, maxUntarSize, hostnameOverwrite, nil)
 }
@@ -59,25 +150,11 @@ func NewArchiveFetcher(retries, maxDownloadSize, maxUntarSize int, hostnameOverw
 // The logger can be any type that implements the retryablehttp.Logger or
 // retryablehttp.LeveledLogger interface. If the logger is of type logr.Logger,
 // it will be wrapped in a retryablehttp.LeveledLogger that only logs errors.
+//
+// Deprecated: Use New() instead.
 func NewArchiveFetcherWithLogger(retries, maxDownloadSize, maxUntarSize int, hostnameOverwrite string, logger any) *ArchiveFetcher {
-	httpClient := retryablehttp.NewClient()
-	httpClient.RetryWaitMin = 5 * time.Second
-	httpClient.RetryWaitMax = 30 * time.Second
-	httpClient.RetryMax = retries
-
-	switch logger.(type) {
-	case logr.Logger:
-		httpClient.Logger = newErrorLogger(logger.(logr.Logger))
-	default:
-		httpClient.Logger = logger
-	}
-
-	return &ArchiveFetcher{
-		httpClient:        httpClient,
-		maxDownloadSize:   maxDownloadSize,
-		maxUntarSize:      maxUntarSize,
-		hostnameOverwrite: hostnameOverwrite,
-	}
+	return New(WithRetries(retries), WithMaxDownloadSize(maxDownloadSize), WithHostnameOverwrite(hostnameOverwrite),
+		WithLogger(logger), WithUntar(tar.WithMaxUntarSize(maxUntarSize)))
 }
 
 // Fetch downloads, verifies and extracts the tarball content to the specified directory.
@@ -85,6 +162,11 @@ func NewArchiveFetcherWithLogger(retries, maxDownloadSize, maxUntarSize int, hos
 // If the file server responds with 404, the returned error is of type ErrFileNotFound.
 // If the file server is unavailable for more than 3 minutes, the returned error contains the original status code.
 func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
+	return r.FetchWithContext(context.Background(), archiveURL, digest, dir)
+}
+
+// FetchWithContext is the same as Fetch but accepts a context.
+func (r *ArchiveFetcher) FetchWithContext(ctx context.Context, archiveURL, digest, dir string) (err error) {
 	if r.hostnameOverwrite != "" {
 		u, err := url.Parse(archiveURL)
 		if err != nil {
@@ -94,7 +176,7 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 		archiveURL = u.String()
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodGet, archiveURL, nil)
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, archiveURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create a new request: %w", err)
 	}
@@ -112,11 +194,37 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 		return fmt.Errorf("failed to download archive from %s (status: %s)", archiveURL, resp.Status)
 	}
 
-	f, err := os.CreateTemp("", "fetch.*.tmp")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
+	// Create a file for storing the archive.
+	var f *os.File
+	if r.untarOpts != nil {
+		f, err = os.CreateTemp("", "fetch.*.tmp")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file: %w", err)
+		}
+		defer os.Remove(f.Name())
+	} else {
+		fn := r.filename
+		if fn == "" {
+			fn = path.Base(archiveURL)
+		}
+		p := filepath.Join(dir, fn)
+		f, err = os.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_EXCL, r.fileMode)
+		if err != nil {
+			return fmt.Errorf("failed to create target file: %w", err)
+		}
 	}
-	defer os.Remove(f.Name())
+
+	// Close the file.
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			closeErr = fmt.Errorf("failed to close file: %w", closeErr)
+			if err != nil {
+				err = errors.Join(err, closeErr)
+			} else {
+				err = closeErr
+			}
+		}
+	}()
 
 	// Save temporary file, but limit download to the max download size.
 	if r.maxDownloadSize > 0 {
@@ -150,15 +258,18 @@ func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 		return fmt.Errorf("failed to verify archive: %w", err)
 	}
 
-	// Jump back at the beginning of the file stream again.
-	_, err = f.Seek(0, 0)
-	if err != nil {
-		return fmt.Errorf("failed to seek back to beginning again: %w", err)
-	}
+	if r.untarOpts != nil {
+		// Jump back at the beginning of the file stream again.
+		_, err = f.Seek(0, 0)
+		if err != nil {
+			return fmt.Errorf("failed to seek back to beginning again: %w", err)
+		}
 
-	// Extracts the tar file.
-	if err = tar.Untar(f, dir, tar.WithMaxUntarSize(r.maxUntarSize), tar.WithSkipSymlinks()); err != nil {
-		return fmt.Errorf("failed to extract archive (check whether file size exceeds max download size): %w", err)
+		// Extracts the tar file.
+		opts := append(r.untarOpts, tar.WithSkipSymlinks())
+		if err = tar.Untar(f, dir, opts...); err != nil {
+			return fmt.Errorf("failed to extract archive (check whether file size exceeds max download size): %w", err)
+		}
 	}
 
 	return nil
