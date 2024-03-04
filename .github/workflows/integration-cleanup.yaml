@@ -34,7 +34,7 @@ jobs:
         run: echo "GCRGC_VERSION=${GCRGC_VERSION}" >> $GITHUB_ENV
       - name: Cache gcrgc
         id: cache-gcrgc
-        uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2 # v4.0.0
+        uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
         with:
           path: ~/.local/bin/gcrgc
           key: gcrgc-${{ env.GCRGC_VERSION }}
