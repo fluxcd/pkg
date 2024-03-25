@@ -5,8 +5,12 @@ branding:
   color: blue
   icon: command
 inputs:
-  version:
-    description: Strict SemVer or version range of the envtest binaries to install. Defaults to the latest release.
+  k8s_version:
+    description: Strict SemVer or version range of the envtest Kubernetes binaries to install. Defaults to the latest release.
+    required: true
+    default: latest
+  envtest_version:
+    description: verion of envtest to install. Can be a tag or a commit SHA. Defaults to latest.
     required: true
     default: latest
 runs:
@@ -17,7 +21,13 @@ runs:
       with:
         go-version: 1.20.x
         cache: false
-    - name: Download the binary to the runner's cache dir
+    - name: Use specified version to install
+      if: inputs.envtest_version != ''
+      shell: bash
+      run: |
+        echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+    - name: Determine version to install
+      if: inputs.envtest_version == ''
       shell: bash
       run: |
         VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" "https://api.github.com/repos/kubernetes-sigs/controller-runtime/commits?path=tools/setup-envtest&page=1&per_page=1" | grep sha | head -n1 | cut -d '"' -f 4)
@@ -25,7 +35,10 @@ runs:
           echo "Unable to determine latest setup-envtest version"
           exit 1
         fi
-
+        echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+    - name: Download the binary to the runner's cache dir
+      shell: bash
+      run: |
         OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
         ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
 
@@ -53,17 +66,16 @@ runs:
     - name: Install the specified version of envtest
       shell: bash
       run: |
-        VERSION=${{ inputs.version }}
-        if [[ -z "$VERSION" ]]; then
-          VERSION="latest"
+        K8S_VERSION=${{ inputs.k8s_version }}
+        if [[ -z "$K8S_VERSION" ]]; then
+          K8S_VERSION="latest"
         fi
-
         # Install the assets for the specified version of Kubernetes.
         ENVTEST_TOOL_DIR="${RUNNER_TOOL_CACHE}/envtest"
-        echo "Installing envtest assets for Kubernetes $VERSION"
-        setup-envtest use --bin-dir "$ENVTEST_TOOL_DIR" "$VERSION"
+        echo "Installing envtest assets for Kubernetes $K8S_VERSION"
+        setup-envtest use --bin-dir "$ENVTEST_TOOL_DIR" "$K8S_VERSION"
 
         # Export the path to the KUBEBUILDER_ASSETS environment variable.
         echo "Exporting KUBEBUILDER_ASSETS"
-        ENVTEST_ASSETS_PATH=$(setup-envtest use --bin-dir "$ENVTEST_TOOL_DIR" -i "$VERSION" -p path)
+        ENVTEST_ASSETS_PATH=$(setup-envtest use --bin-dir "$ENVTEST_TOOL_DIR" -i "$K8S_VERSION" -p path)
         echo "KUBEBUILDER_ASSETS='$ENVTEST_ASSETS_PATH'" >> "$GITHUB_ENV"
