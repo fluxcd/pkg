@@ -28,6 +28,8 @@ jobs:
         uses: ./actions/kubeconform
       - name: Setup envtest
         uses: ./actions/envtest
+        with:
+          version: c7e1dc9b5302d649d5531e19168dd7ea0013736d # remove this when https://github.com/kubernetes-sigs/controller-runtime/issues/2720 is fixed
       - name: Setup helm
         uses: ./actions/helm
       - name: Setup kubectl
