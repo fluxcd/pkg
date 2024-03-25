@@ -23,19 +23,22 @@ import json
 import sys
 import os
 import urllib.request
+from dataclasses import dataclass
+from typing import Any
 
-def iteritems(d):
-    if hasattr(dict, "iteritems"):
-        return d.iteritems()
-    else:
-        return iter(d.items())
 
+@dataclass
+class Schema:
+    kind: str
+    group: str
+    version: str
+    definition: dict[Any, Any]
 
 def additional_properties(data):
     "This recreates the behaviour of kubectl at https://github.com/kubernetes/kubernetes/blob/225b9119d6a8f03fcbe3cc3d590c261965d928d0/pkg/kubectl/validation/schema.go#L312"
     new = {}
     try:
-        for k, v in iteritems(data):
+        for k, v in data.items():
             new_v = v
             if isinstance(v, dict):
                 if "properties" in v:
@@ -53,7 +56,7 @@ def additional_properties(data):
 def replace_int_or_string(data):
     new = {}
     try:
-        for k, v in iteritems(data):
+        for k, v in data.items():
             new_v = v
             if isinstance(v, dict):
                 if "format" in v and v["format"] == "int-or-string":
@@ -75,7 +78,7 @@ def replace_int_or_string(data):
 def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
     new = {}
     try:
-        for k, v in iteritems(data):
+        for k, v in data.items():
             new_v = v
             if isinstance(v, dict):
                 new_v = allow_null_optional_fields(v, data, parent, k)
@@ -106,16 +109,13 @@ def append_no_duplicates(obj, key, value):
 
 
 def write_schema_file(schema, filename):
-    schemaJSON = ""
-
     schema = additional_properties(schema)
     schema = replace_int_or_string(schema)
-    schemaJSON = json.dumps(schema, indent=2)
 
     # Dealing with user input here..
     filename = os.path.basename(filename)
     f = open(filename, "w")
-    f.write(schemaJSON)
+    f.write(json.dumps(schema, indent=2))
     f.close()
     print("{filename}".format(filename=filename))
 
@@ -124,39 +124,69 @@ if len(sys.argv) == 0:
     print("missing file")
     exit(1)
 
+schemas: list[Schema] = []
+
 for crdFile in sys.argv[1:]:
     if crdFile.startswith("http"):
-      f = urllib.request.urlopen(crdFile)
+        f = urllib.request.urlopen(crdFile)
     else:
-      f = open(crdFile)
+        f = open(crdFile)
     with f:
+
         for y in yaml.load_all(f, Loader=yaml.SafeLoader):
             if "kind" not in y:
                 continue
             if y["kind"] != "CustomResourceDefinition":
                 continue
 
-            filename_format = os.getenv("FILENAME_FORMAT", "{kind}-{group}-{version}")
-            filename = ""
             if "spec" in y and "validation" in y["spec"] and "openAPIV3Schema" in y["spec"]["validation"]:
-                filename = filename_format.format(
+                schemas.append(Schema(
                     kind=y["spec"]["names"]["kind"],
-                    group=y["spec"]["group"].split(".")[0],
+                    group=y["spec"]["group"],
                     version=y["spec"]["version"],
-                ).lower() + ".json"
+                    definition=y["spec"]["validation"]["openAPIV3Schema"]
+                ))
 
-                schema = y["spec"]["validation"]["openAPIV3Schema"]
-                write_schema_file(schema, filename)
             elif "spec" in y and "versions" in y["spec"]:
                 for version in y["spec"]["versions"]:
                     if "schema" in version and "openAPIV3Schema" in version["schema"]:
-                        filename = filename_format.format(
+                        schemas.append(Schema(
                             kind=y["spec"]["names"]["kind"],
-                            group=y["spec"]["group"].split(".")[0],
+                            group=y["spec"]["group"],
                             version=version["name"],
-                        ).lower() + ".json"
+                            definition=version["schema"]["openAPIV3Schema"]
+                        ))
 
-                        schema = version["schema"]["openAPIV3Schema"]
-                        write_schema_file(schema, filename)
+
+filename_format = os.getenv("FILENAME_FORMAT", "{kind}-{group}-{version}")
+
+# Write down all separate schema files.
+for schema in schemas:
+    filename = filename_format.format(
+        kind=schema.kind,
+        group=schema.group.split(".")[0],
+        version=schema.version,
+    ).lower() + ".json"
+    write_schema_file(schema.definition, filename)
+
+
+# Make a single definitions file that has the enum field set for kind and apiVersion so we can have automatic matching
+# for JSON schema.
+with open('_definitions.json', 'w') as definitions_file:
+    definitions: dict[str, dict[Any, Any]] = {}
+
+    # NOTE: No deep copy is needed as we already wrote the schema files, so let's modify the original structures.
+    for schema in schemas:
+        append_no_duplicates(schema.definition['properties']['apiVersion'], 'enum', f'{schema.group}/{schema.version}')
+        append_no_duplicates(schema.definition['properties']['kind'], 'enum', schema.kind)
+        definitions[f'{schema.group}.{schema.version}.{schema.kind}'] = schema.definition
+
+    definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
+
+# Finally we write a flux2 main schema file that can be used to automatically validate any Flux2 schema using oneOf
+# semantics.
+with open('all.json', 'w') as all_file:
+    refs = [{'$ref': f'_definitions.json#/definitions/{schema.group}.{schema.version}.{schema.kind}'} for schema in schemas]
+    all_file.write(json.dumps({ "oneOf": refs }, indent=2))
 
 exit(0)
