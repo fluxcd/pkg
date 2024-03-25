@@ -18,7 +18,7 @@ jobs:
         working-directory: ./tools/reaper
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
         with:
           repository: fluxcd/test-infra
       - name: Setup Go
@@ -34,7 +34,7 @@ jobs:
         run: echo "GCRGC_VERSION=${GCRGC_VERSION}" >> $GITHUB_ENV
       - name: Cache gcrgc
         id: cache-gcrgc
-        uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2 # v4.0.0
+        uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
         with:
           path: ~/.local/bin/gcrgc
           key: gcrgc-${{ env.GCRGC_VERSION }}
@@ -65,7 +65,7 @@ jobs:
     if: false
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
         with:
           repository: fluxcd/test-infra
       - name: Setup Go
@@ -74,7 +74,7 @@ jobs:
           go-version: 1.20.x
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Authenticate to Azure
-        uses: Azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.4.6
+        uses: Azure/login@8c334a195cbb38e46038007b304988d888bf676a # v1.4.6
         with:
           creds: '{"clientId":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.CLEANUP_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.CLEANUP_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Run reaper
