@@ -91,6 +91,8 @@ func KubeConfig(in *rest.Config, opts KubeConfigOptions) *rest.Config {
 			KeyData:    in.TLSClientConfig.KeyData,
 		}
 
+		out.Proxy = in.Proxy
+
 		out.Username = in.Username
 		out.Password = in.Password
 		out.BearerToken = in.BearerToken
