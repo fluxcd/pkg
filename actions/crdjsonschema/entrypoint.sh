@@ -23,10 +23,7 @@ mkdir -p "$SPLIT_DIR"
 kubernetes-split-yaml --outdir "$SPLIT_DIR" "$CRD_PATH"
 
 ( cd "$WORK_DIR"
-  for f in "$SPLIT_DIR"/*
-  do
-    openapi2jsonschema "$f"
-  done
+  openapi2jsonschema "$SPLIT_DIR"/*
 )
 
 mv "$WORK_DIR"/*.json "$OUTPUT_DIR"
