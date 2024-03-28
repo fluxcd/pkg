@@ -137,6 +137,11 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 		return nil, err
 	}
 
+	// Short-circuit if an annotation is set to ignore the resource in-cluster.
+	if utils.AnyInMetadata(existingObj, o.ExclusionSelector) {
+		return NewDiffForUnstructured(obj, nil, DiffTypeExclude, nil), nil
+	}
+
 	dryRunObj := obj.DeepCopy()
 	patchOpts := []client.PatchOption{
 		client.DryRunAll,
