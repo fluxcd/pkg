@@ -22,7 +22,6 @@ jobs:
           - gitlab-ce
           - gitlab
           - github
-          - bitbucket-server
     steps:
       - name: Checkout
         uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
@@ -67,12 +66,6 @@ jobs:
               export GITLAB_USER="fluxcd-gitprovider-bot"
               export GITLAB_GROUP="fluxcd-testing"
               export GITLAB_PAT="${{ secrets.GITLAB_BOT_TOKEN }}"
-            elif [[ ${{ matrix.provider }} = "bitbucket-server" ]]; then
-              export GO_TEST_PREFIX="TestBitbucketServerE2E"
-              export STASH_PROJECT_KEY="GOG"
-              export STASH_TOKEN="${{ secrets.STASH_TOKEN }}"
-              export STASH_DOMAIN="${{ secrets.STASH_DOMAIN }}"
-              export STASH_USER="${{ secrets.STASH_USER }}"
             fi
           else
               run_e2e=false
