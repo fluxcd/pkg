@@ -20,16 +20,28 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 
+	"github.com/fluxcd/pkg/tar"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
-	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
 
-	"github.com/fluxcd/pkg/tar"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
+
+// const (
+// 	// thresholdForConcurrentPull is the maximum size of a layer to be extracted in one go.
+// 	// If the layer is larger than this, it will be downloaded in chunks.
+// 	thresholdForConcurrentPull = 100 * 1024 * 1024 // 100MB
+// 	// maxConcurrentPulls is the maximum number of concurrent downloads.
+// 	maxConcurrentPulls = 10
+// )
 
 var (
 	// gzipMagicHeader are bytes found at the start of gzip files
@@ -41,6 +53,9 @@ var (
 type PullOptions struct {
 	layerIndex int
 	layerType  LayerType
+	transport  http.RoundTripper
+	auth       authn.Authenticator
+	keychain   authn.Keychain
 }
 
 // PullOption is a function for configuring PullOptions.
@@ -60,22 +75,47 @@ func WithPullLayerIndex(i int) PullOption {
 	}
 }
 
+func WithTransport(t http.RoundTripper) PullOption {
+	return func(o *PullOptions) {
+		o.transport = t
+	}
+}
+
+func WithAuth(auth authn.Authenticator) PullOption {
+	return func(o *PullOptions) {
+		o.auth = auth
+	}
+}
+
+func WithKeychain(k authn.Keychain) PullOption {
+	return func(o *PullOptions) {
+		o.keychain = k
+	}
+}
+
 // Pull downloads an artifact from an OCI repository and extracts the content.
 // It untar or copies the content to the given outPath depending on the layerType.
 // If no layer type is given, it tries to determine the right type by checking compressed content of the layer.
-func (c *Client) Pull(ctx context.Context, url, outPath string, opts ...PullOption) (*Metadata, error) {
+func (c *Client) Pull(ctx context.Context, urlString, outPath string, opts ...PullOption) (*Metadata, error) {
 	o := &PullOptions{
 		layerIndex: 0,
 	}
+	o.keychain = authn.DefaultKeychain
 	for _, opt := range opts {
 		opt(o)
 	}
-	ref, err := name.ParseReference(url)
+
+	if o.transport == nil {
+		transport := remote.DefaultTransport.(*http.Transport).Clone()
+		o.transport = transport
+	}
+
+	ref, err := name.ParseReference(urlString)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
-	img, err := crane.Pull(url, c.optionsWithContext(ctx)...)
+	img, err := crane.Pull(urlString, c.optionsWithContext(ctx)...)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +131,7 @@ func (c *Client) Pull(ctx context.Context, url, outPath string, opts ...PullOpti
 	}
 
 	meta := MetadataFromAnnotations(manifest.Annotations)
-	meta.URL = url
+	meta.URL = urlString
 	meta.Digest = ref.Context().Digest(digest.String()).String()
 
 	layers, err := img.Layers()
@@ -107,15 +147,32 @@ func (c *Client) Pull(ctx context.Context, url, outPath string, opts ...PullOpti
 		return nil, fmt.Errorf("index '%d' out of bound for '%d' layers in artifact", o.layerIndex, len(layers))
 	}
 
-	err = extractLayer(layers[o.layerIndex], outPath, o.layerType)
+	size, err := layers[o.layerIndex].Size()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get layer size: %w", err)
 	}
+
+	if size > minChunkSize {
+		manager := newDownloader(ref, outPath, layers[o.layerIndex],
+			withTransport(o.transport), withKeychain(o.keychain), withAuth(o.auth))
+		err = manager.download(ctx)
+		if err != nil && !errors.Is(err, errRangeRequestNotSupported) {
+			return nil, fmt.Errorf("failed to download layer: %w", err)
+		}
+	}
+
+	if size <= minChunkSize || errors.Is(err, errRangeRequestNotSupported) {
+		err = extractLayer(layers[o.layerIndex], outPath, o.layerType)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return meta, nil
 }
 
 // extractLayer extracts the Layer to the path
-func extractLayer(layer gcrv1.Layer, path string, layerType LayerType) error {
+func extractLayer(layer v1.Layer, path string, layerType LayerType) error {
 	var blob io.Reader
 	blob, err := layer.Compressed()
 	if err != nil {
