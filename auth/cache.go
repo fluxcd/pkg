@@ -1,0 +1,53 @@
+/*
+Copyright 2023 The Flux authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package auth
+
+import (
+	"errors"
+	"time"
+)
+
+var cache Store
+
+var ErrCacheAlreadyInitialized = errors.New("cache already initialized; cannot be re-initialized")
+var ErrEmptyCache = errors.New("cannot initialize cache with an empty store")
+
+// InitCache intializes the pacakge cache with the provided cache object.
+// Consumers that want automatic caching when using `GetRegistryAuthenticator()`
+// or `GetGitCredentials()` must call this before. It should only be called once,
+// all subsequent calls will return an error.
+func InitCache(s Store) error {
+	if cache != nil {
+		return ErrCacheAlreadyInitialized
+	}
+	if s == nil {
+		return ErrEmptyCache
+	}
+	cache = s
+	return nil
+}
+
+// GetCache returns a handle to the package level cache.
+func GetCache() Store {
+	return cache
+}
+
+// Store is a general purpose key value store.
+type Store interface {
+	Set(key string, val interface{}, ttl time.Duration) error
+	Get(key string) (interface{}, bool)
+}
