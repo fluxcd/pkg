@@ -13,13 +13,13 @@ PKG?=$*
 GO_TEST_ARGS ?= -race
 
 # API generation utilities
-CONTROLLER_GEN_VERSION ?= v0.11.1
+CONTROLLER_GEN_VERSION ?= v0.14.0
 
 # Architecture to use envtest with
 ENVTEST_ARCH ?= amd64
 
 # Kubernetes versions to use envtest with
-ENVTEST_KUBERNETES_VERSION?=1.26
+ENVTEST_KUBERNETES_VERSION?=1.28
 
 all: tidy generate fmt vet
 
@@ -27,7 +27,7 @@ tidy:
 	$(MAKE) $(addprefix tidy-, $(MODULES))
 
 tidy-%:
-	cd $(subst :,/,$*); go mod tidy -compat=1.20
+	cd $(subst :,/,$*); go mod tidy -compat=1.22
 
 fmt:
 	$(MAKE) $(addprefix fmt-, $(MODULES))
