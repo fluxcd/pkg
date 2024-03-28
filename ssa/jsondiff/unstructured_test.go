@@ -176,6 +176,43 @@ func TestUnstructuredList(t *testing.T) {
 			},
 		},
 		{
+			name: "excludes resources with matching annotation set in the cluster",
+			paths: []string{
+				"testdata/deployment.yaml",
+				"testdata/service.yaml",
+			},
+			mutateCluster: func(obj *unstructured.Unstructured) {
+				if obj.GetKind() != "Service" {
+					return
+				}
+
+				annotations := obj.GetAnnotations()
+				if annotations == nil {
+					annotations = make(map[string]string)
+				}
+				annotations["exclude"] = "enabled"
+				obj.SetAnnotations(annotations)
+
+				_ = unstructured.SetNestedField(obj.Object, "NodePort", "spec", "type")
+			},
+			opts: []ListOption{
+				ExclusionSelector{"exclude": "enabled"},
+			},
+			want: func(desired, cluster []*unstructured.Unstructured) DiffSet {
+				return DiffSet{
+					&Diff{
+						Type:          DiffTypeNone,
+						DesiredObject: desired[0],
+						ClusterObject: cluster[0],
+					},
+					&Diff{
+						Type:          DiffTypeExclude,
+						DesiredObject: desired[1],
+					},
+				}
+			},
+		},
+		{
 			name: "ignores JSON pointers for resources matching selector",
 			paths: []string{
 				"testdata/deployment.yaml",
