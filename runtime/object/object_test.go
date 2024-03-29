@@ -23,8 +23,10 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/fluxcd/pkg/runtime/conditions/testdata"
+	"k8s.io/utils/ptr"
 )
 
 func TestGetStatusLastHandledReconcileAt(t *testing.T) {
@@ -85,4 +87,27 @@ func TestGetRequeueInterval(t *testing.T) {
 	obj2 := &corev1.Secret{}
 	_, err = GetRequeueInterval(obj2)
 	g.Expect(err).To(Equal(ErrRequeueIntervalNotFound))
+}
+
+func TestGetStatusArtifacts(t *testing.T) {
+	g := NewWithT(t)
+
+	// Get unset status observedGeneration.
+	obj := &testdata.Fake{}
+	_, err := GetStatusArtifact(obj)
+	g.Expect(err).To(Equal(ErrArtifactNotFound))
+
+	// Get set status observedGeneration.
+	obj.Status.Artifact = &testdata.FakeArtifact{
+		Path:     "path/to/artifact",
+		URL:      "https://example.com",
+		Revision: "main",
+		Size:     ptr.To(int64(1024)),
+	}
+	m, err := GetStatusArtifact(obj)
+	g.Expect(err).ToNot(HaveOccurred())
+	var artifact testdata.FakeArtifact
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(m, &artifact)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(artifact).To(Equal(*obj.Status.Artifact))
 }

@@ -44,6 +44,15 @@ var (
 	AddFakeToScheme = FakeSchemeBuilder.AddToScheme
 )
 
+type FakeArtifact struct {
+	Path           string      `json:"path",omitempty`
+	URL            string      `json:"url",omitempty`
+	Revision       string      `json:"revision",omitempty`
+	Digest         string      `json:"digest,omitempty"`
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	Size           *int64      `json:"size,omitempty"`
+}
+
 type FakeSpec struct {
 	Suspend  bool            `json:"suspend,omitempty"`
 	Value    string          `json:"value,omitempty"`
@@ -54,6 +63,7 @@ type FakeStatus struct {
 	ObservedGeneration          int64              `json:"observedGeneration,omitempty"`
 	Conditions                  []metav1.Condition `json:"conditions,omitempty"`
 	ObservedValue               string             `json:"observedValue,omitempty"`
+	Artifact                    *FakeArtifact      `json:"artifact,omitempty"`
 	meta.ReconcileRequestStatus `json:",inline"`
 }
 

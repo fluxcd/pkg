@@ -28,6 +28,7 @@ var (
 	ErrObservedGenerationNotFound     = errors.New("observed generation not found")
 	ErrLastHandledReconcileAtNotFound = errors.New("last handled reconcile at not found")
 	ErrRequeueIntervalNotFound        = errors.New("requeue interval not found")
+	ErrArtifactNotFound               = errors.New("artifact not found")
 )
 
 // toUnstructured converts a runtime object into Unstructured.
@@ -111,4 +112,22 @@ func GetRequeueInterval(obj runtime.Object) (time.Duration, error) {
 		return period, ErrRequeueIntervalNotFound
 	}
 	return time.ParseDuration(interval)
+}
+
+// GetStatusArtifact returns the status.artifact of a given runtime object, if present.
+// Warning: this function should only be used with objects that have a status.artifact field
+// of type sourcev1.Artifact.
+func GetStatusArtifact(obj runtime.Object) (map[string]any, error) {
+	u, err := toUnstructured(obj)
+	if err != nil {
+		return nil, err
+	}
+	artifact, found, err := unstructured.NestedMap(u.Object, "status", "artifact")
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, ErrArtifactNotFound
+	}
+	return artifact, nil
 }
