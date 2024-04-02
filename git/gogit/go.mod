@@ -14,12 +14,12 @@ require (
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v0.0.0-20231117061959-7cc037d33fb5
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/git v0.17.0
-	github.com/fluxcd/pkg/gittestserver v0.10.0
-	github.com/fluxcd/pkg/ssh v0.11.0
-	github.com/fluxcd/pkg/version v0.2.2
+	github.com/fluxcd/pkg/git v0.18.0
+	github.com/fluxcd/pkg/gittestserver v0.11.0
+	github.com/fluxcd/pkg/ssh v0.12.0
+	github.com/fluxcd/pkg/version v0.3.0
 	github.com/go-git/go-billy/v5 v5.5.0
-	github.com/go-git/go-git/v5 v5.11.0
+	github.com/go-git/go-git/v5 v5.12.0
 	github.com/onsi/gomega v1.32.0
 	golang.org/x/crypto v0.21.0
 )
@@ -38,7 +38,7 @@ require (
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
-	github.com/sergi/go-diff v1.3.1 // indirect
+	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.2.2 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/mod v0.16.0 // indirect

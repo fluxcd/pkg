@@ -9,8 +9,8 @@ replace (
 
 require (
 	github.com/drone/envsubst v1.0.3
-	github.com/fluxcd/pkg/apis/kustomize v1.3.0
-	github.com/fluxcd/pkg/sourceignore v0.5.0
+	github.com/fluxcd/pkg/apis/kustomize v1.4.0
+	github.com/fluxcd/pkg/sourceignore v0.6.0
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/onsi/gomega v1.32.0
 	github.com/otiai10/copy v1.14.0
