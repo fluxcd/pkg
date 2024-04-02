@@ -12,8 +12,8 @@ replace (
 replace github.com/opencontainers/go-digest => github.com/opencontainers/go-digest v1.0.1-0.20220411205349-bde1400a84be
 
 require (
-	github.com/fluxcd/pkg/tar v0.4.0
-	github.com/fluxcd/pkg/testserver v0.5.0
+	github.com/fluxcd/pkg/tar v0.6.0
+	github.com/fluxcd/pkg/testserver v0.6.0
 	github.com/go-logr/logr v1.4.1
 	github.com/hashicorp/go-retryablehttp v0.7.5
 	github.com/onsi/gomega v1.32.0
