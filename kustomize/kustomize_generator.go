@@ -45,6 +45,8 @@ import (
 const (
 	specField            = "spec"
 	targetNSField        = "targetNamespace"
+	namePrefixField      = "namePrefix"
+	nameSuffixField      = "nameSuffix"
 	patchesField         = "patches"
 	componentsField      = "components"
 	patchesSMField       = "patchesStrategicMerge"
@@ -163,6 +165,24 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 	}
 	if ok {
 		kus.Namespace = tg
+	}
+
+	prefix, ok, err := g.getNestedString(specField, namePrefixField)
+	if err != nil {
+		errf := CleanDirectory(dirPath, action)
+		return action, fmt.Errorf("%v %v", err, errf)
+	}
+	if ok {
+		kus.NamePrefix = prefix
+	}
+
+	suffix, ok, err := g.getNestedString(specField, nameSuffixField)
+	if err != nil {
+		errf := CleanDirectory(dirPath, action)
+		return action, fmt.Errorf("%v %v", err, errf)
+	}
+	if ok {
+		kus.NameSuffix = suffix
 	}
 
 	patches, err := g.getPatches()

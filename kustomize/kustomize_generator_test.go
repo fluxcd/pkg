@@ -59,6 +59,44 @@ func TestGenerator_EmptyDir(t *testing.T) {
 	g.Expect(resMap.Resources()).To(HaveLen(0))
 }
 
+func TestKustomizationGenerator_NameTransform(t *testing.T) {
+	t.Run("name transform", func(t *testing.T) {
+		g := NewWithT(t)
+		// Create a kustomization file with varsub
+		yamlKus, err := os.ReadFile("./testdata/kustomization_nt.yaml")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		clientObjects, err := readYamlObjects(strings.NewReader(string(yamlKus)))
+		g.Expect(err).NotTo(HaveOccurred())
+
+		var (
+			tmpDir string
+			resMap resmap.ResMap
+		)
+
+		//Get a generator
+		gen := kustomize.NewGenerator(tmpDir, clientObjects[0])
+		action, err := gen.WriteFile(resourcePath, kustomize.WithSaveOriginalKustomization())
+		g.Expect(err).NotTo(HaveOccurred())
+		defer kustomize.CleanDirectory(resourcePath, action)
+
+		// Get resource from directory
+		fs := filesys.MakeFsOnDisk()
+		resMap, err = kustomize.Build(fs, resourcePath)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		// Check that the resource has been substituted
+		resources, err := resMap.AsYaml()
+		g.Expect(err).NotTo(HaveOccurred())
+
+		//load expected result
+		expected, err := os.ReadFile("./testdata/kustomization_nt_expected.yaml")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		g.Expect(string(resources)).To(Equal(string(expected)))
+	})
+}
+
 func TestKustomizationGenerator(t *testing.T) {
 	tests := []struct {
 		name    string
