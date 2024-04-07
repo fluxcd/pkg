@@ -147,6 +147,12 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 		return action, fmt.Errorf("%v %v", err, errf)
 	}
 
+	if action == UnchangedAction && len(kus.Resources) == 0 {
+		// if there are no resources, set the build metadata
+		// to avoid "kustomization.yaml is empty" build error
+		kus.BuildMetadata = []string{"originAnnotations"}
+	}
+
 	// apply filters if any
 	if g.filter {
 		err = filterKsWithIgnoreFiles(&kus, dirPath, g.ignore)
