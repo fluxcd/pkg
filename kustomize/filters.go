@@ -22,15 +22,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fluxcd/pkg/sourceignore"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	kustypes "sigs.k8s.io/kustomize/api/types"
-)
 
-const (
-	crds       = "crds"
-	resources  = "resources"
-	components = "components"
+	"github.com/fluxcd/pkg/sourceignore"
 )
 
 // filter must return true if a file should not be included in the archive after inspecting the given path
@@ -61,19 +56,19 @@ func filterKsWithIgnoreFiles(ks *kustypes.Kustomization, dirPath string, ignore 
 	}
 
 	// filter resources first
-	err = filterSlice(ks, path, &ks.Resources, resources, ignoreFileFilter(ps, ignoreDomain))
+	err = filterSlice(ks, path, &ks.Resources, resourcesField, ignoreFileFilter(ps, ignoreDomain))
 	if err != nil {
 		return err
 	}
 
 	// filter components second
-	err = filterSlice(ks, path, &ks.Components, components, ignoreFileFilter(ps, ignoreDomain))
+	err = filterSlice(ks, path, &ks.Components, componentsField, ignoreFileFilter(ps, ignoreDomain))
 	if err != nil {
 		return err
 	}
 
 	// filter crds third
-	err = filterSlice(ks, path, &ks.Crds, crds, ignoreFileFilter(ps, ignoreDomain))
+	err = filterSlice(ks, path, &ks.Crds, crdsField, ignoreFileFilter(ps, ignoreDomain))
 	if err != nil {
 		return err
 	}
@@ -91,7 +86,7 @@ func filterSlice(ks *kustypes.Kustomization, path string, s *[]string, t string,
 	for _, res := range *s {
 		// check if we have a url and skip the source file filters
 		// this is not needed for crds as they are not allowed to be urls
-		if t == crds || !isUrl(res) {
+		if t == crdsField || !isUrl(res) {
 			f := filepath.Join(path, res)
 			info, err := os.Lstat(f)
 			if err != nil {

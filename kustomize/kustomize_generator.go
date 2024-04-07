@@ -45,8 +45,10 @@ import (
 const (
 	specField            = "spec"
 	targetNSField        = "targetNamespace"
+	resourcesField       = "resources"
 	patchesField         = "patches"
 	componentsField      = "components"
+	crdsField            = "crds"
 	patchesSMField       = "patchesStrategicMerge"
 	patchesJson6902Field = "patchesJson6902"
 	imagesField          = "images"
