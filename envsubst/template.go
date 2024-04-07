@@ -22,8 +22,9 @@ package envsubst
 
 import (
 	"bytes"
+	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 
 	"github.com/fluxcd/pkg/envsubst/parse"
 )
@@ -36,7 +37,7 @@ type state struct {
 	node     parse.Node // current node
 
 	// maps variable names to values
-	mapper func(string) string
+	mapper func(string) (value string, exists bool)
 }
 
 // Template is the representation of a parsed shell format string.
@@ -58,7 +59,7 @@ func Parse(s string) (t *Template, err error) {
 // ParseFile creates a new shell format template and parses the template
 // definition from the named file.
 func ParseFile(path string) (*Template, error) {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +67,7 @@ func ParseFile(path string) (*Template, error) {
 }
 
 // Execute applies a parsed template to the specified data mapping.
-func (t *Template) Execute(mapping func(string) string) (str string, err error) {
+func (t *Template) Execute(mapping func(string) (string, bool)) (str string, err error) {
 	b := new(bytes.Buffer)
 	s := new(state)
 	s.node = t.tree.Root
@@ -107,6 +108,8 @@ func (t *Template) evalList(s *state, node *parse.ListNode) (err error) {
 	return nil
 }
 
+var errVarNotSet = fmt.Errorf("variable not set (strict mode)")
+
 func (t *Template) evalFunc(s *state, node *parse.FuncNode) error {
 	var w = s.writer
 	var buf bytes.Buffer
@@ -126,8 +129,11 @@ func (t *Template) evalFunc(s *state, node *parse.FuncNode) error {
 	s.writer = w
 	s.node = node
 
-	v := s.mapper(node.Param)
+	v, exists := s.mapper(node.Param)
 
+	if node.Name == "" && !exists {
+		return fmt.Errorf("%w: %q", errVarNotSet, node.Param)
+	}
 	fn := lookupFunc(node.Name, len(args))
 
 	_, err := io.WriteString(s.writer, fn(v, args...))
