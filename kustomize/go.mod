@@ -4,14 +4,15 @@ go 1.22
 
 replace (
 	github.com/fluxcd/pkg/apis/kustomize => ../apis/kustomize
+	github.com/fluxcd/pkg/envsubst => ../envsubst
 	github.com/fluxcd/pkg/sourceignore => ../sourceignore
 )
 
 require (
-	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/pkg/apis/kustomize v1.4.0
+	github.com/fluxcd/pkg/envsubst v1.0.0
 	github.com/fluxcd/pkg/sourceignore v0.6.0
-	github.com/go-git/go-git/v5 v5.11.0
+	github.com/go-git/go-git/v5 v5.12.0
 	github.com/onsi/gomega v1.32.0
 	github.com/otiai10/copy v1.14.0
 	k8s.io/api v0.29.3

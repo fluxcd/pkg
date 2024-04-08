@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    environment: ${cluster_env:=dev}
+    region: ${cluster_region}
+  name: app-vars-strict
+  namespace: apps
+data:
+  missing: ${missing}

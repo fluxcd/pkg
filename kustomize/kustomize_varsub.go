@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Flux authors
+Copyright 2024 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/drone/envsubst"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,6 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/yaml"
+
+	"github.com/fluxcd/pkg/envsubst"
 )
 
 const (
@@ -48,16 +49,45 @@ const (
 	substituteAnnotationKey = "kustomize.toolkit.fluxcd.io/substitute"
 )
 
+// SubstituteOptions defines the options for the variable substitutions operation.
+type SubstituteOptions struct {
+	DryRun bool
+	Strict bool
+}
+
+type SubstituteOption func(a *SubstituteOptions)
+
+// SubstituteWithDryRun sets the dryRun option.
+// When dryRun is true, the substitution process will not attempt to talk to the cluster.
+func SubstituteWithDryRun(dryRun bool) SubstituteOption {
+	return func(a *SubstituteOptions) {
+		a.DryRun = dryRun
+	}
+}
+
+// SubstituteWithStrict sets the strict option.
+// When strict is true, the substitution process will fail if a var without a
+// default value is declared in files but is missing from the input vars.
+func SubstituteWithStrict(strict bool) SubstituteOption {
+	return func(a *SubstituteOptions) {
+		a.Strict = strict
+	}
+}
+
 // SubstituteVariables replaces the vars with their values in the specified resource.
 // If a resource is labeled or annotated with
 // 'kustomize.toolkit.fluxcd.io/substitute: disabled' the substitution is skipped.
-// if dryRun is true, this means we should not attempt to talk to the cluster.
 func SubstituteVariables(
 	ctx context.Context,
 	kubeClient client.Client,
 	kustomization unstructured.Unstructured,
 	res *resource.Resource,
-	dryRun bool) (*resource.Resource, error) {
+	opts ...SubstituteOption) (*resource.Resource, error) {
+	var options SubstituteOptions
+	for _, o := range opts {
+		o(&options)
+	}
+
 	resData, err := res.AsYAML()
 	if err != nil {
 		return nil, err
@@ -71,7 +101,7 @@ func SubstituteVariables(
 	// In dryRun mode this step is skipped. This might in different kind of errors.
 	// But if the user is using dryRun, he/she should know what he/she is doing, and we should comply.
 	var vars map[string]string
-	if !dryRun {
+	if !options.DryRun {
 		vars, err = loadVars(ctx, kubeClient, kustomization)
 		if err != nil {
 			return nil, err
@@ -94,9 +124,9 @@ func SubstituteVariables(
 
 	// run bash variable substitutions
 	if len(vars) > 0 {
-		jsonData, err := varSubstitution(resData, vars)
+		jsonData, err := varSubstitution(resData, vars, options.Strict)
 		if err != nil {
-			return nil, fmt.Errorf("YAMLToJSON: %w", err)
+			return nil, fmt.Errorf("envsubst error: %w", err)
 		}
 		err = res.UnmarshalJSON(jsonData)
 		if err != nil {
@@ -118,25 +148,25 @@ func loadVars(ctx context.Context, kubeClient client.Client, kustomization unstr
 		namespacedName := types.NamespacedName{Namespace: kustomization.GetNamespace(), Name: reference.Name}
 		switch reference.Kind {
 		case "ConfigMap":
-			resource := &corev1.ConfigMap{}
-			if err := kubeClient.Get(ctx, namespacedName, resource); err != nil {
+			cm := &corev1.ConfigMap{}
+			if err := kubeClient.Get(ctx, namespacedName, cm); err != nil {
 				if reference.Optional && apierrors.IsNotFound(err) {
 					continue
 				}
 				return nil, fmt.Errorf("substitute from 'ConfigMap/%s' error: %w", reference.Name, err)
 			}
-			for k, v := range resource.Data {
+			for k, v := range cm.Data {
 				vars[k] = strings.ReplaceAll(v, "\n", "")
 			}
 		case "Secret":
-			resource := &corev1.Secret{}
-			if err := kubeClient.Get(ctx, namespacedName, resource); err != nil {
+			secret := &corev1.Secret{}
+			if err := kubeClient.Get(ctx, namespacedName, secret); err != nil {
 				if reference.Optional && apierrors.IsNotFound(err) {
 					continue
 				}
 				return nil, fmt.Errorf("substitute from 'Secret/%s' error: %w", reference.Name, err)
 			}
-			for k, v := range resource.Data {
+			for k, v := range secret.Data {
 				vars[k] = strings.ReplaceAll(string(v), "\n", "")
 			}
 		}
@@ -145,7 +175,7 @@ func loadVars(ctx context.Context, kubeClient client.Client, kustomization unstr
 	return vars, nil
 }
 
-func varSubstitution(data []byte, vars map[string]string) ([]byte, error) {
+func varSubstitution(data []byte, vars map[string]string, strict bool) ([]byte, error) {
 	r, _ := regexp.Compile(varsubRegex)
 	for v := range vars {
 		if !r.MatchString(v) {
@@ -153,8 +183,12 @@ func varSubstitution(data []byte, vars map[string]string) ([]byte, error) {
 		}
 	}
 
-	output, err := envsubst.Eval(string(data), func(s string) string {
-		return vars[s]
+	output, err := envsubst.Eval(string(data), func(s string) (string, bool) {
+		if strict {
+			v, exists := vars[s]
+			return v, exists
+		}
+		return vars[s], true
 	})
 	if err != nil {
 		return nil, fmt.Errorf("variable substitution failed: %w", err)
@@ -194,5 +228,4 @@ func getSubstituteFrom(kustomization unstructured.Unstructured) ([]SubstituteRef
 	}
 
 	return nil, resultErr
-
 }

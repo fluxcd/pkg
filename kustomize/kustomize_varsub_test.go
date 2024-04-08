@@ -22,12 +22,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fluxcd/pkg/kustomize"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
+
+	"github.com/fluxcd/pkg/kustomize"
 )
 
-func TestKustomizationVarsub(t *testing.T) {
+func TestKustomization_Varsub(t *testing.T) {
 	g := NewWithT(t)
 
 	// Create a kustomization file with varsub
@@ -50,8 +51,8 @@ func TestKustomizationVarsub(t *testing.T) {
 	resMap, err := kustomize.Build(fs, "./testdata/resources/")
 	g.Expect(err).NotTo(HaveOccurred())
 	for _, res := range resMap.Resources() {
-		outRes, err := kustomize.SubstituteVariables(context.Background(), kubeClient, clientObjects[0], res, false)
-
+		outRes, err := kustomize.SubstituteVariables(context.Background(),
+			kubeClient, clientObjects[0], res)
 		g.Expect(err).NotTo(HaveOccurred())
 
 		if outRes != nil {
@@ -69,4 +70,17 @@ func TestKustomizationVarsub(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	g.Expect(string(resources)).To(Equal(string(expected)))
+
+	// Test with strict mode on
+	strictMapRes, err := kustomize.Build(fs, "./testdata/varsubstrict/")
+	g.Expect(err).NotTo(HaveOccurred())
+	_, err = kustomize.SubstituteVariables(context.Background(),
+		kubeClient, clientObjects[0], strictMapRes.Resources()[0], kustomize.SubstituteWithStrict(true))
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("variable not set"))
+
+	// Test with strict mode off
+	_, err = kustomize.SubstituteVariables(context.Background(),
+		kubeClient, clientObjects[0], strictMapRes.Resources()[0], kustomize.SubstituteWithStrict(false))
+	g.Expect(err).ToNot(HaveOccurred())
 }
