@@ -45,8 +45,10 @@ import (
 const (
 	specField            = "spec"
 	targetNSField        = "targetNamespace"
+	resourcesField       = "resources"
 	patchesField         = "patches"
 	componentsField      = "components"
+	crdsField            = "crds"
 	patchesSMField       = "patchesStrategicMerge"
 	patchesJson6902Field = "patchesJson6902"
 	imagesField          = "images"
@@ -145,6 +147,12 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 	if err := yaml.Unmarshal(data, &kus); err != nil {
 		errf := CleanDirectory(dirPath, action)
 		return action, fmt.Errorf("%v %v", err, errf)
+	}
+
+	if action == UnchangedAction && len(kus.Resources) == 0 {
+		// if there are no resources, set the build metadata
+		// to avoid "kustomization.yaml is empty" build error
+		kus.BuildMetadata = []string{"originAnnotations"}
 	}
 
 	// apply filters if any

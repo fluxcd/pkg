@@ -59,6 +59,29 @@ func TestGenerator_EmptyDir(t *testing.T) {
 	g.Expect(resMap.Resources()).To(HaveLen(0))
 }
 
+func TestGenerator_NoResources(t *testing.T) {
+	g := NewWithT(t)
+	dataKS, err := os.ReadFile("./testdata/noResources/ks.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	ks, err := readYamlObjects(strings.NewReader(string(dataKS)))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(copy.Copy("testdata/noResources", tmpDir)).To(Succeed())
+	_, err = kustomize.NewGenerator(tmpDir, ks[0]).WriteFile(tmpDir)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	resMap, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(resMap.Resources()).To(HaveLen(0))
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "kustomization.yaml"))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(string(data)).To(ContainSubstring("originAnnotations"))
+}
+
 func TestKustomizationGenerator(t *testing.T) {
 	tests := []struct {
 		name    string
