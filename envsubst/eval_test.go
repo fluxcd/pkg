@@ -271,12 +271,26 @@ func TestExpandStrict(t *testing.T) {
 			output:  "bar",
 			wantErr: nil,
 		},
+		// existing string empty
+		{
+			params:  map[string]string{"foo": ""},
+			input:   "${foo}",
+			output:  "",
+			wantErr: nil,
+		},
 		// missing
 		{
 			params:  map[string]string{},
 			input:   "${missing}",
 			output:  "",
 			wantErr: errVarNotSet,
+		},
+		// missing but has default
+		{
+			params:  map[string]string{"foo": "bar"},
+			input:   "${missing:=default}",
+			output:  "default",
+			wantErr: nil,
 		},
 	}
 
