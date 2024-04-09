@@ -77,6 +77,13 @@ func (d *Diff) GroupVersionKind() schema.GroupVersionKind {
 	return d.DesiredObject.GetObjectKind().GroupVersionKind()
 }
 
+// CopyPatch returns a copy of the Patch.
+func (d *Diff) CopyPatch() jsondiff.Patch {
+	patch := make(jsondiff.Patch, len(d.Patch))
+	_ = copy(patch, d.Patch)
+	return patch
+}
+
 // NewDiffForUnstructured creates a new Diff for the given unstructured object.
 func NewDiffForUnstructured(desired, cluster client.Object, t DiffType, p jsondiff.Patch) *Diff {
 	return &Diff{
