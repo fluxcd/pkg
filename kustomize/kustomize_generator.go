@@ -52,6 +52,8 @@ const (
 	patchesSMField       = "patchesStrategicMerge"
 	patchesJson6902Field = "patchesJson6902"
 	imagesField          = "images"
+	namePrefixField      = "namePrefix"
+	nameSuffixField      = "nameSuffix"
 )
 
 // Action is the action that was taken on the kustomization file
@@ -171,6 +173,24 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 	}
 	if ok {
 		kus.Namespace = tg
+	}
+
+	nprefix, ok, err := g.getNestedString(specField, namePrefixField)
+	if err != nil {
+		errf := CleanDirectory(dirPath, action)
+		return action, fmt.Errorf("%v %v", err, errf)
+	}
+	if ok {
+		kus.NamePrefix = nprefix
+	}
+
+	nsuffix, ok, err := g.getNestedString(specField, nameSuffixField)
+	if err != nil {
+		errf := CleanDirectory(dirPath, action)
+		return action, fmt.Errorf("%v %v", err, errf)
+	}
+	if ok {
+		kus.NameSuffix = nsuffix
 	}
 
 	patches, err := g.getPatches()

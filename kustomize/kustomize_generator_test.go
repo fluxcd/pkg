@@ -82,6 +82,27 @@ func TestGenerator_NoResources(t *testing.T) {
 	g.Expect(string(data)).To(ContainSubstring("originAnnotations"))
 }
 
+func TestGenerator_NameTransformer(t *testing.T) {
+	g := NewWithT(t)
+	dataKS, err := os.ReadFile("./testdata/name/ks.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	ks, err := readYamlObjects(strings.NewReader(string(dataKS)))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(copy.Copy("testdata/name", tmpDir)).To(Succeed())
+	_, err = kustomize.NewGenerator(tmpDir, ks[0]).WriteFile(tmpDir)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	resMap, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(resMap.Resources()).To(HaveLen(1))
+	g.Expect(resMap.Resources()[0].GetName()).To(ContainSubstring("prefix-test-configmap-suffix"))
+	g.Expect(resMap.Resources()[0].GetNamespace()).To(Equal("test-namespace"))
+}
+
 func TestKustomizationGenerator(t *testing.T) {
 	tests := []struct {
 		name    string
