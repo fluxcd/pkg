@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/gittestserver
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/cyphar/filepath-securejoin v0.2.4
@@ -29,7 +29,7 @@ require (
 	github.com/skeema/knownhosts v1.2.2 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/mod v0.16.0 // indirect
-	golang.org/x/net v0.22.0 // indirect
+	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
