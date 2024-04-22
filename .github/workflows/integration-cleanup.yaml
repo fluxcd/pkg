@@ -18,7 +18,7 @@ jobs:
         working-directory: ./tools/reaper
     steps:
       - name: Checkout
-        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+        uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4.1.3
         with:
           repository: fluxcd/test-infra
       - name: Setup Go
@@ -65,7 +65,7 @@ jobs:
     if: false
     steps:
       - name: Checkout
-        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+        uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4.1.3
         with:
           repository: fluxcd/test-infra
       - name: Setup Go
@@ -74,7 +74,7 @@ jobs:
           go-version: 1.22.x
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Authenticate to Azure
-        uses: Azure/login@8c334a195cbb38e46038007b304988d888bf676a # v1.4.6
+        uses: Azure/login@6b2456866fc08b011acb422a92a4aa20e2c4de32 # v1.4.6
         with:
           creds: '{"clientId":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.CLEANUP_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.CLEANUP_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Run reaper
