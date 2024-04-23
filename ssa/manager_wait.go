@@ -136,6 +136,12 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 			errs = append(errs, builder.String())
 		case errors.Is(ctx.Err(), context.DeadlineExceeded) && lastStatus[id].Status != status.CurrentStatus:
 			var builder strings.Builder
+			if utils.IsSuspended(lastStatus[id].Resource) {
+				// skip suspended resources that are not in a failed state
+				// as they are not expected to be reconciled and
+				// their observed generation will always be behind
+				continue
+			}
 			builder.WriteString(fmt.Sprintf("%s status: '%s'",
 				utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
 			if rs.Error != nil {
