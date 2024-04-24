@@ -13,9 +13,7 @@ require (
 	github.com/onsi/gomega v1.32.0
 	k8s.io/api v0.30.0
 	k8s.io/apimachinery v0.30.0
-	// Required due to breaking change in Kubernetes 1.30 client-go/tools/leaderelection
-	// Update to latest stable when https://github.com/kubernetes-sigs/controller-runtime/pull/2693 is released
-	sigs.k8s.io/controller-runtime v0.17.1-0.20240419092505-a92b9612b606
+	sigs.k8s.io/controller-runtime v0.18.0
 )
 
 require (

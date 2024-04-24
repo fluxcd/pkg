@@ -24,9 +24,7 @@ require (
 	github.com/onsi/gomega v1.32.0
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/sirupsen/logrus v1.9.3
-	// Required due to breaking change in Kubernetes 1.30 client-go/tools/leaderelection
-	// Update to latest stable when https://github.com/kubernetes-sigs/controller-runtime/pull/2693 is released
-	sigs.k8s.io/controller-runtime v0.17.1-0.20240419092505-a92b9612b606
+	sigs.k8s.io/controller-runtime v0.18.0
 )
 
 require (

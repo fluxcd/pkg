@@ -4,7 +4,7 @@ go 1.22.0
 
 require (
 	github.com/evanphx/json-patch/v5 v5.9.0
-	github.com/fluxcd/cli-utils v0.36.0-flux.6
+	github.com/fluxcd/cli-utils v0.36.0-flux.7
 	github.com/google/go-cmp v0.6.0
 	github.com/onsi/gomega v1.32.0
 	// TODO: unpin when https://github.com/wI2L/jsondiff/pull/14 has ended up in a release.
@@ -14,9 +14,7 @@ require (
 	k8s.io/apimachinery v0.30.0
 	k8s.io/client-go v0.30.0
 	k8s.io/utils v0.0.0-20240310230437-4693a0247e57
-	// Required due to breaking change in Kubernetes 1.30 client-go/tools/leaderelection
-	// Update to latest stable when https://github.com/kubernetes-sigs/controller-runtime/pull/2693 is released
-	sigs.k8s.io/controller-runtime v0.17.1-0.20240419092505-a92b9612b606
+	sigs.k8s.io/controller-runtime v0.18.0
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1
 	sigs.k8s.io/yaml v1.4.0
 )
