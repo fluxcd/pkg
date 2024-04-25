@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand/v2"
 	"sync"
@@ -581,4 +582,129 @@ func createObjectMap(num int) map[int]IdentifiableObject {
 		objMap[i] = obj
 	}
 	return objMap
+}
+
+type nameTag struct {
+	Name string `json:"name"`
+	Tag  string `json:"tag"`
+}
+
+func TestCache_WriteToBuf(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []nameTag
+		expected []*item[StoreObject[nameTag]]
+	}{
+		{
+			name:     "empty",
+			input:    []nameTag{},
+			expected: []*item[StoreObject[nameTag]]{},
+		},
+		{
+			name: "single item",
+			input: []nameTag{
+				{
+					Name: "test",
+					Tag:  "latest",
+				},
+			},
+			expected: []*item[StoreObject[nameTag]]{
+				{
+					key: "test",
+					object: StoreObject[nameTag]{
+						Key: "test",
+						Object: nameTag{
+							Name: "test",
+							Tag:  "latest",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple items",
+			input: []nameTag{
+				{
+					Name: "test",
+					Tag:  "latest",
+				},
+				{
+					Name: "test2",
+					Tag:  "latest",
+				},
+			},
+			expected: []*item[StoreObject[nameTag]]{
+				{
+					key: "test",
+					object: StoreObject[nameTag]{
+						Key: "test",
+						Object: nameTag{
+							Name: "test",
+							Tag:  "latest",
+						},
+					},
+				},
+				{
+					key: "test2",
+					object: StoreObject[nameTag]{
+						Key: "test2",
+						Object: nameTag{
+							Name: "test2",
+							Tag:  "latest",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			c, err := New[StoreObject[nameTag]](5, StoreObjectKeyFunc,
+				WithMetricsRegisterer[StoreObject[nameTag]](prometheus.NewPedanticRegistry()),
+				WithCleanupInterval[StoreObject[nameTag]](1*time.Second))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			for _, item := range tc.input {
+				obj := StoreObject[nameTag]{Key: item.Name, Object: item}
+				err = c.Set(obj)
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+
+			err = c.writeToBuf()
+			g.Expect(err).ToNot(HaveOccurred())
+			items, err := c.readFrom(bytes.NewReader(c.buf))
+			g.Expect(err).ToNot(HaveOccurred())
+			for i, item := range items {
+				g.Expect(item.key).To(Equal(tc.expected[i].key))
+				g.Expect(item.object).To(Equal(tc.expected[i].object))
+			}
+		})
+	}
+}
+
+func TestCache_Load(t *testing.T) {
+	path := "./testdata/cache.json"
+	g := NewWithT(t)
+
+	reg := prometheus.NewPedanticRegistry()
+	c, err := New[StoreObject[nameTag]](5, StoreObjectKeyFunc,
+		WithMetricsRegisterer[StoreObject[nameTag]](reg),
+		WithCleanupInterval[StoreObject[nameTag]](1*time.Second),
+		WithSnapshotPath[StoreObject[nameTag]](path))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	g.Expect(c.items).To(HaveLen(1))
+	g.Expect(c.items[0].key).To(Equal("test"))
+
+	validateMetrics(reg, `
+	# HELP gotk_cache_evictions_total Total number of cache evictions.
+	# TYPE gotk_cache_evictions_total counter
+	gotk_cache_evictions_total 0
+	# HELP gotk_cached_items Total number of items in the cache.
+	# TYPE gotk_cached_items gauge
+	gotk_cached_items 1
+`, t)
 }
