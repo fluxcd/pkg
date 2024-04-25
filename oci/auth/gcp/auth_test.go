@@ -77,7 +77,7 @@ func TestGetLoginAuth(t *testing.T) {
 			})
 
 			gc := NewClient().WithTokenURL(srv.URL)
-			a, err := gc.getLoginAuth(context.TODO())
+			a, _, err := gc.getLoginAuth(context.TODO())
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
 				g.Expect(a).To(Equal(tt.wantAuthConfig))

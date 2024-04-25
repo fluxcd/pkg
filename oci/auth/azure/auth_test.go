@@ -84,7 +84,7 @@ func TestGetAzureLoginAuth(t *testing.T) {
 				WithTokenCredential(tt.tokenCredential).
 				WithScheme("http")
 
-			auth, err := c.getLoginAuth(context.TODO(), srv.URL)
+			auth, _, err := c.getLoginAuth(context.TODO(), srv.URL)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
 				g.Expect(auth).To(Equal(tt.wantAuthConfig))

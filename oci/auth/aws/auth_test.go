@@ -183,7 +183,7 @@ func TestGetLoginAuth(t *testing.T) {
 			cfg.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
 			ec.WithConfig(cfg)
 
-			a, err := ec.getLoginAuth(context.TODO(), "us-east-1")
+			a, _, err := ec.getLoginAuth(context.TODO(), "us-east-1")
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
 				g.Expect(a).To(Equal(tt.wantAuthConfig))

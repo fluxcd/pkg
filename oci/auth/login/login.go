@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/oci"
 	"github.com/fluxcd/pkg/oci/auth/aws"
 	"github.com/fluxcd/pkg/oci/auth/azure"
@@ -69,6 +70,8 @@ type ProviderOptions struct {
 	// AzureAutoLogin enables automatic attempt to get credentials for images in
 	// ACR.
 	AzureAutoLogin bool
+	// Cache is a cache for storing auth configurations.
+	Cache cache.Expirable[cache.StoreObject[authn.Authenticator]]
 }
 
 // Manager is a login manager for various registry providers.
@@ -109,13 +112,44 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 // Login performs authentication against a registry and returns the Authenticator.
 // For generic registry provider, it is no-op.
 func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
+	if opts.Cache != nil {
+		auth, exists, err := getObjectFromCache(opts.Cache, url)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return auth, nil
+		}
+	}
+
 	switch ImageRegistryProvider(url, ref) {
 	case oci.ProviderAWS:
-		return m.ecr.Login(ctx, opts.AwsAutoLogin, url)
+		auth, expiresAt, err := m.ecr.LoginWithExpiry(ctx, opts.AwsAutoLogin, url)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			cacheObject(opts.Cache, auth, url, expiresAt)
+		}
+		return auth, nil
 	case oci.ProviderGCP:
-		return m.gcr.Login(ctx, opts.GcpAutoLogin, url, ref)
+		auth, expiresAt, err := m.gcr.LoginWithExpiry(ctx, opts.GcpAutoLogin, url, ref)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			cacheObject(opts.Cache, auth, url, expiresAt)
+		}
+		return auth, nil
 	case oci.ProviderAzure:
-		return m.acr.Login(ctx, opts.AzureAutoLogin, url, ref)
+		auth, expiresAt, err := m.acr.LoginWithExpiry(ctx, opts.AzureAutoLogin, url, ref)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			cacheObject(opts.Cache, auth, url, expiresAt)
+		}
+		return auth, nil
 	}
 	return nil, nil
 }
@@ -129,10 +163,16 @@ func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts Provid
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse registry url: %w", err)
 	}
-
 	provider := ImageRegistryProvider(u.Host, nil)
-	if err != nil {
-		return nil, fmt.Errorf("unable to set up provider: %w", err)
+	cacheKey := fmt.Sprintf("%s-%d", u.Host, provider)
+	if opts.Cache != nil {
+		auth, exists, err := getObjectFromCache(opts.Cache, cacheKey)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return auth, nil
+		}
 	}
 
 	switch provider {
@@ -141,19 +181,40 @@ func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts Provid
 			return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
 		log.FromContext(ctx).Info("logging in to AWS ECR for " + u.Host)
-		return m.ecr.OIDCLogin(ctx, u.Host)
+		auth, expiresAt, err := m.ecr.OIDCLoginWithExpiry(ctx, u.Host)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			cacheObject(opts.Cache, auth, cacheKey, expiresAt)
+		}
+		return auth, nil
 	case oci.ProviderGCP:
 		if !opts.GcpAutoLogin {
 			return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
 		log.FromContext(ctx).Info("logging in to GCP GCR for " + u.Host)
-		return m.gcr.OIDCLogin(ctx)
+		auth, expiresAt, err := m.gcr.OIDCLoginWithExpiry(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			cacheObject(opts.Cache, auth, cacheKey, expiresAt)
+		}
+		return auth, nil
 	case oci.ProviderAzure:
 		if !opts.AzureAutoLogin {
 			return nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
 		log.FromContext(ctx).Info("logging in to Azure ACR for " + u.Host)
-		return m.acr.OIDCLogin(ctx, fmt.Sprintf("%s://%s", u.Scheme, u.Host))
+		auth, expiresAt, err := m.acr.OIDCLoginWithExpiry(ctx, fmt.Sprintf("%s://%s", u.Scheme, u.Host))
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			cacheObject(opts.Cache, auth, cacheKey, expiresAt)
+		}
+		return auth, nil
 	}
 	return nil, nil
 }
