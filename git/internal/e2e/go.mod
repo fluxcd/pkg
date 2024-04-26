@@ -11,11 +11,11 @@ replace (
 )
 
 require (
-	github.com/fluxcd/go-git-providers v0.19.3
-	github.com/fluxcd/pkg/git v0.18.0
-	github.com/fluxcd/pkg/git/gogit v0.17.0
-	github.com/fluxcd/pkg/gittestserver v0.11.0
-	github.com/fluxcd/pkg/ssh v0.12.0
+	github.com/fluxcd/go-git-providers v0.20.1
+	github.com/fluxcd/pkg/git v0.19.0
+	github.com/fluxcd/pkg/git/gogit v0.18.0
+	github.com/fluxcd/pkg/gittestserver v0.12.0
+	github.com/fluxcd/pkg/ssh v0.13.0
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/go-logr/logr v1.4.1
 	github.com/google/uuid v1.6.0
@@ -31,7 +31,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fluxcd/gitkit v0.6.0 // indirect
-	github.com/fluxcd/pkg/version v0.3.0 // indirect
+	github.com/fluxcd/pkg/version v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.5.0 // indirect
@@ -39,7 +39,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/go-github/v57 v57.0.0 // indirect
+	github.com/google/go-github/v61 v61.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -51,13 +51,13 @@ require (
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.2.2 // indirect
-	github.com/xanzy/go-gitlab v0.96.0 // indirect
+	github.com/xanzy/go-gitlab v0.101.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
+	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/mod v0.16.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/oauth2 v0.16.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/oauth2 v0.18.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
