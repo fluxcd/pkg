@@ -17,9 +17,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.10
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.27.4
 	github.com/distribution/distribution/v3 v3.0.0-alpha.1
-	github.com/fluxcd/pkg/sourceignore v0.6.0
-	github.com/fluxcd/pkg/tar v0.6.0
-	github.com/fluxcd/pkg/version v0.3.0
+	github.com/fluxcd/pkg/sourceignore v0.7.0
+	github.com/fluxcd/pkg/tar v0.7.0
+	github.com/fluxcd/pkg/version v0.4.0
 	github.com/google/go-containerregistry v0.19.1
 	github.com/onsi/gomega v1.32.0
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
@@ -126,17 +126,16 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.21.0 // indirect
 	go.opentelemetry.io/otel/trace v1.21.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
+	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
-	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/oauth2 v0.16.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
+	golang.org/x/oauth2 v0.19.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/term v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
-	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/grpc v1.59.0 // indirect
