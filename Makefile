@@ -13,7 +13,7 @@ PKG?=$*
 GO_TEST_ARGS ?= -race
 
 # API generation utilities
-CONTROLLER_GEN_VERSION ?= v0.14.0
+CONTROLLER_GEN_VERSION ?= v0.15.0
 
 # Architecture to use envtest with
 ENVTEST_ARCH ?= amd64

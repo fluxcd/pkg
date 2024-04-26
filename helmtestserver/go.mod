@@ -1,13 +1,13 @@
 module github.com/fluxcd/pkg/helmtestserver
 
-go 1.22
+go 1.22.0
 
 replace github.com/fluxcd/pkg/testserver => ../testserver
 
 require (
 	github.com/ProtonMail/go-crypto v1.0.0
 	github.com/fluxcd/pkg/testserver v0.6.0
-	helm.sh/helm/v3 v3.14.3
+	helm.sh/helm/v3 v3.14.4
 	sigs.k8s.io/yaml v1.4.0
 )
 
