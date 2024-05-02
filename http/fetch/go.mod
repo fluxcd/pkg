@@ -16,7 +16,7 @@ require (
 	github.com/fluxcd/pkg/testserver v0.7.0
 	github.com/go-logr/logr v1.4.1
 	github.com/hashicorp/go-retryablehttp v0.7.5
-	github.com/onsi/gomega v1.32.0
+	github.com/onsi/gomega v1.33.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/go-digest/blake3 v0.0.0-20231025023718-d50d2fec9c98
 )

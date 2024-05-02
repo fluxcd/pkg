@@ -13,13 +13,13 @@ require (
 	github.com/fluxcd/pkg/envsubst v1.1.0
 	github.com/fluxcd/pkg/sourceignore v0.7.0
 	github.com/go-git/go-git/v5 v5.12.0
-	github.com/onsi/gomega v1.32.0
+	github.com/onsi/gomega v1.33.1
 	github.com/otiai10/copy v1.14.0
 	k8s.io/api v0.30.0
 	k8s.io/apiextensions-apiserver v0.30.0
 	k8s.io/apimachinery v0.30.0
 	k8s.io/client-go v0.30.0
-	sigs.k8s.io/controller-runtime v0.18.0
+	sigs.k8s.io/controller-runtime v0.18.1
 	sigs.k8s.io/kustomize/api v0.17.0
 	sigs.k8s.io/kustomize/kyaml v0.17.0
 	sigs.k8s.io/yaml v1.4.0
