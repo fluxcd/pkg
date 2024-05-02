@@ -6,15 +6,14 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.0
 	github.com/fluxcd/cli-utils v0.36.0-flux.7
 	github.com/google/go-cmp v0.6.0
-	github.com/onsi/gomega v1.32.0
-	// TODO: unpin when https://github.com/wI2L/jsondiff/pull/14 has ended up in a release.
-	github.com/wI2L/jsondiff v0.4.1-0.20230626084051-c85fb8ce3cac
+	github.com/onsi/gomega v1.33.1
+	github.com/wI2L/jsondiff v0.5.2
 	golang.org/x/sync v0.7.0
 	k8s.io/api v0.30.0
 	k8s.io/apimachinery v0.30.0
 	k8s.io/client-go v0.30.0
 	k8s.io/utils v0.0.0-20240310230437-4693a0247e57
-	sigs.k8s.io/controller-runtime v0.18.0
+	sigs.k8s.io/controller-runtime v0.18.1
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1
 	sigs.k8s.io/yaml v1.4.0
 )
@@ -64,6 +63,10 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/tidwall/gjson v1.17.1 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	golang.org/x/net v0.24.0 // indirect
