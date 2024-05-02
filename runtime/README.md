@@ -2,8 +2,8 @@
 
 [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime)
 
-runtime offers a set of standard controller runtime packages that can be used on their own, but are best (and at times,
-must be) used together to help with common operations.
+The `fluxcd/pkg/runtime` offers a set of standard controller runtime packages that can be used on their own,
+but are best (and at times, must be) used together to help with common operations.
 
 ### Goals
 
@@ -50,11 +50,13 @@ go get github.com/fluxcd/pkg/runtime
 Several packages are available to align common runtime configuration flags across a set of controllers, easing the
 end-user operator experience.
 
-| Package | Description | Reference |
-|---|---|---|
-| `client` | Kubernetes runtime client configurations like QPS and burst | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/client?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/client) |
+| Package          | Description                                                       | Reference                                                                                                                                                           |
+|------------------|-------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`         | Kubernetes runtime client configurations like QPS and burst       | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/client?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/client)                 |
+| `features`       | Feature gates configurations                                      | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/features?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/features)             |
+| `jiter`          | Runtime jiter configuration applied to reconciliation interval    | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/jiter?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/jiter)                   |
 | `leaderelection` | Kubernetes leader election configurations like the lease duration | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/leaderelection?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/leaderelection) |
-| `logger` | Runtime logger configurations like the encoding and log level | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/logger?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/logger) |
+| `logger`         | Runtime logger configurations like the encoding and log level     | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/logger?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/logger)                 |
 
 ### Working with Conditions
 
@@ -124,10 +126,11 @@ The [`controller`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller) 
 that can be embedded into a reconciler struct to provide them the capability to e.g. send Kubernetes Events and/or
 record metrics.
 
-| Helper | Description | Reference |
-|---|---|---|
-| `controller.Events` | Provides the capabilities to send Events to the Kubernetes API and an external event recorder | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Events) |
-| `controller.Metrics` | Provides the capabilities to record a set of common Prometheus metrics for a Kubernetes resource object | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Metrics) |
+| Helper                    | Description                                                                                             | Reference                                                                                                                                                                |
+|---------------------------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `controller.Events`       | Provides the capabilities to send Events to the Kubernetes API and an external event recorder           | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Events)       |
+| `controller.Metrics`      | Provides the capabilities to record a set of common Prometheus metrics for a Kubernetes resource object | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Metrics)      |
+| `controller.WatchOptions` | Provides the capabilities to configure sharding of the reconciler resources                             | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#WatchOptions) |
 
 ### Predicates
 
@@ -135,9 +138,9 @@ The [`predicates`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/predicates) 
 Toolkit](https://fluxcd.io/flux/components/) common controller-runtime predicates, for example to notice annotation
 changes.
 
-| Predicate | Description | Reference |
-|---|---|---|
-| `predicates.ReconcileRequestedPredicate` | Filter `meta.ReconcileRequestAnnotation` changes from update events |  [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/predicates?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/predicates#ReconcileRequestedPredicate) |
+| Predicate                                | Description                                                         | Reference                                                                                                                                                                               |
+|------------------------------------------|---------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `predicates.ReconcileRequestedPredicate` | Filter `meta.ReconcileRequestAnnotation` changes from update events | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/predicates?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/predicates#ReconcileRequestedPredicate) |
 
 ### Errors
 
