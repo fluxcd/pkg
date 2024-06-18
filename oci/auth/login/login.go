@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/oci"
 	"github.com/fluxcd/pkg/oci/auth/aws"
 	"github.com/fluxcd/pkg/oci/auth/azure"
@@ -69,6 +70,8 @@ type ProviderOptions struct {
 	// AzureAutoLogin enables automatic attempt to get credentials for images in
 	// ACR.
 	AzureAutoLogin bool
+	// Cache is a cache for storing auth configurations.
+	Cache cache.Expirable[cache.StoreObject[authn.Authenticator]]
 }
 
 // Manager is a login manager for various registry providers.
@@ -109,13 +112,54 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 // Login performs authentication against a registry and returns the Authenticator.
 // For generic registry provider, it is no-op.
 func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
+	log := log.FromContext(ctx)
+	if opts.Cache != nil {
+		auth, exists, err := getObjectFromCache(opts.Cache, url)
+		if err != nil {
+			log.Error(err, "failed to get auth object from cache")
+		}
+		if exists {
+			return auth, nil
+		}
+	}
+
 	switch ImageRegistryProvider(url, ref) {
 	case oci.ProviderAWS:
-		return m.ecr.Login(ctx, opts.AwsAutoLogin, url)
+		auth, expiresAt, err := m.ecr.LoginWithExpiry(ctx, opts.AwsAutoLogin, url)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			err := cacheObject(opts.Cache, auth, url, expiresAt)
+			if err != nil {
+				log.Error(err, "failed to cache auth object")
+			}
+		}
+		return auth, nil
 	case oci.ProviderGCP:
-		return m.gcr.Login(ctx, opts.GcpAutoLogin, url, ref)
+		auth, expiresAt, err := m.gcr.LoginWithExpiry(ctx, opts.GcpAutoLogin, url, ref)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			err := cacheObject(opts.Cache, auth, url, expiresAt)
+			if err != nil {
+				log.Error(err, "failed to cache auth object")
+			}
+		}
+		return auth, nil
 	case oci.ProviderAzure:
-		return m.acr.Login(ctx, opts.AzureAutoLogin, url, ref)
+		auth, expiresAt, err := m.acr.LoginWithExpiry(ctx, opts.AzureAutoLogin, url, ref)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Cache != nil {
+			err := cacheObject(opts.Cache, auth, url, expiresAt)
+			if err != nil {
+				log.Error(err, "failed to cache auth object")
+			}
+		}
+		return auth, nil
 	}
 	return nil, nil
 }
@@ -124,17 +168,14 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 //
 // If you want to construct an Authenticator based on an image reference,
 // you may want to use Login instead.
+//
+// Deprecated: Use Login instead.
 func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts ProviderOptions) (authn.Authenticator, error) {
 	u, err := url.Parse(registryURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse registry url: %w", err)
 	}
-
 	provider := ImageRegistryProvider(u.Host, nil)
-	if err != nil {
-		return nil, fmt.Errorf("unable to set up provider: %w", err)
-	}
-
 	switch provider {
 	case oci.ProviderAWS:
 		if !opts.AwsAutoLogin {

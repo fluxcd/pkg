@@ -18,9 +18,11 @@ package aws
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -99,6 +101,7 @@ func TestParseRegistry(t *testing.T) {
 }
 
 func TestGetLoginAuth(t *testing.T) {
+	authorizationData := fmt.Sprintf(`{"authorizationData": [{"authorizationToken": "c29tZS1rZXk6c29tZS1zZWNyZXQ=","expiresAt": %d}]}`, time.Now().Add(1*time.Hour).Unix())
 	tests := []struct {
 		name           string
 		responseBody   []byte
@@ -108,15 +111,9 @@ func TestGetLoginAuth(t *testing.T) {
 	}{
 		{
 			// NOTE: The authorizationToken is base64 encoded.
-			name: "success",
-			responseBody: []byte(`{
-	"authorizationData": [
-		{
-			"authorizationToken": "c29tZS1rZXk6c29tZS1zZWNyZXQ="
-		}
-	]
-}`),
-			statusCode: http.StatusOK,
+			name:         "success",
+			responseBody: []byte(authorizationData),
+			statusCode:   http.StatusOK,
 			wantAuthConfig: authn.AuthConfig{
 				Username: "some-key",
 				Password: "some-secret",
@@ -183,8 +180,11 @@ func TestGetLoginAuth(t *testing.T) {
 			cfg.Credentials = credentials.NewStaticCredentialsProvider("x", "y", "z")
 			ec.WithConfig(cfg)
 
-			a, err := ec.getLoginAuth(context.TODO(), "us-east-1")
+			a, expiresAt, err := ec.getLoginAuth(context.TODO(), "us-east-1")
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+			if !tt.wantErr {
+				g.Expect(expiresAt).To(BeTemporally("~", time.Now().Add(1*time.Hour), time.Second))
+			}
 			if tt.statusCode == http.StatusOK {
 				g.Expect(a).To(Equal(tt.wantAuthConfig))
 			}

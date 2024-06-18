@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -84,8 +85,11 @@ func TestGetAzureLoginAuth(t *testing.T) {
 				WithTokenCredential(tt.tokenCredential).
 				WithScheme("http")
 
-			auth, err := c.getLoginAuth(context.TODO(), srv.URL)
+			auth, expiresAt, err := c.getLoginAuth(context.TODO(), srv.URL)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+			if !tt.wantErr {
+				g.Expect(expiresAt).To(BeTemporally("~", time.Now().Add(defaultCacheExpirationInSeconds*time.Second), time.Second))
+			}
 			if tt.statusCode == http.StatusOK {
 				g.Expect(auth).To(Equal(tt.wantAuthConfig))
 			}

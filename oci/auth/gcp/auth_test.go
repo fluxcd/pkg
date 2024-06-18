@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -77,8 +78,11 @@ func TestGetLoginAuth(t *testing.T) {
 			})
 
 			gc := NewClient().WithTokenURL(srv.URL)
-			a, err := gc.getLoginAuth(context.TODO())
+			a, expiresAt, err := gc.getLoginAuth(context.TODO())
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+			if !tt.wantErr {
+				g.Expect(expiresAt).To(BeTemporally("~", time.Now().Add(10*time.Second), time.Second))
+			}
 			if tt.statusCode == http.StatusOK {
 				g.Expect(a).To(Equal(tt.wantAuthConfig))
 			}
