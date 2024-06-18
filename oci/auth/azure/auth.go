@@ -36,7 +36,7 @@ import (
 
 // Default cache expiration time in seconds for ACR refresh token.
 // TODO @souleb: This is copied from https://github.com/Azure/msi-acrpull/blob/0ca921a7740e561c7204d9c3b3b55c4e0b9bd7b9/pkg/authorizer/token_retriever.go#L21C2-L21C39
-// as it not provided by the Azure SDK. See with the Azure SDK team to see if there is a better way to get this value.
+// as it is not provided by the Azure SDK. Check with the Azure SDK team to see if there is a better way to get this value.
 const defaultCacheExpirationInSeconds = 600
 
 // Client is an Azure ACR client which can log into the registry and return
@@ -66,7 +66,7 @@ func (c *Client) WithScheme(scheme string) *Client {
 // getLoginAuth returns authentication for ACR. The details needed for authentication
 // are gotten from environment variable so there is no need to mount a host path.
 // The endpoint is the registry server and will be queried for OAuth authorization token.
-func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.AuthConfig, *time.Time, error) {
+func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.AuthConfig, time.Time, error) {
 	var authConfig authn.AuthConfig
 
 	// Use default credentials if no token credential is provided.
@@ -75,7 +75,7 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 	if c.credential == nil {
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return authConfig, nil, err
+			return authConfig, time.Time{}, err
 		}
 		c.credential = cred
 	}
@@ -86,14 +86,14 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 		Scopes: []string{configurationEnvironment.Services[cloud.ResourceManager].Endpoint + "/" + ".default"},
 	})
 	if err != nil {
-		return authConfig, nil, err
+		return authConfig, time.Time{}, err
 	}
 
 	// Obtain ACR access token using exchanger.
 	ex := newExchanger(registryURL)
 	accessToken, err := ex.ExchangeACRAccessToken(string(armToken.Token))
 	if err != nil {
-		return authConfig, nil, fmt.Errorf("error exchanging token: %w", err)
+		return authConfig, time.Time{}, fmt.Errorf("error exchanging token: %w", err)
 	}
 
 	expiresAt := time.Now().Add(defaultCacheExpirationInSeconds * time.Second)
@@ -103,7 +103,7 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 		// See documentation: https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
 		Username: "00000000-0000-0000-0000-000000000000",
 		Password: accessToken,
-	}, &expiresAt, nil
+	}, expiresAt, nil
 }
 
 // getCloudConfiguration returns the cloud configuration based on the registry URL.
@@ -133,7 +133,7 @@ func ValidHost(host string) bool {
 // LoginWithExpiry attempts to get the authentication material for ACR.
 // It returns the authentication material and the expiry time of the token.
 // The caller can ensure that the passed image is a valid ACR image using ValidHost().
-func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string, ref name.Reference) (authn.Authenticator, *time.Time, error) {
+func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string, ref name.Reference) (authn.Authenticator, time.Time, error) {
 	if autoLogin {
 		log.FromContext(ctx).Info("logging in to Azure ACR for " + image)
 		// get registry host from image
@@ -142,13 +142,13 @@ func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image stri
 		authConfig, expiresAt, err := c.getLoginAuth(ctx, endpoint)
 		if err != nil {
 			log.FromContext(ctx).Info("error logging into ACR " + err.Error())
-			return nil, nil, err
+			return nil, time.Time{}, err
 		}
 
 		auth := authn.FromConfig(authConfig)
 		return auth, expiresAt, nil
 	}
-	return nil, nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
+	return nil, time.Time{}, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }
 
 // Login attempts to get the authentication material for ACR. The caller can
@@ -158,27 +158,19 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 	return auth, err
 }
 
-// OIDCLoginWithExpiry attempts to get an Authenticator for the provided ACR registry URL endpoint.
-// It returns the Authenticator and the expiry time of the token.
-//
-// If you want to construct an Authenticator based on an image reference,
-// you may want to use Login instead.
-func (c *Client) OIDCLoginWithExpiry(ctx context.Context, registryUrl string) (authn.Authenticator, *time.Time, error) {
-	authConfig, expiresAt, err := c.getLoginAuth(ctx, registryUrl)
-	if err != nil {
-		log.FromContext(ctx).Info("error logging into ACR " + err.Error())
-		return nil, nil, err
-	}
-
-	auth := authn.FromConfig(authConfig)
-	return auth, expiresAt, nil
-}
-
 // OIDCLogin attempts to get an Authenticator for the provided ACR registry URL endpoint.
 //
 // If you want to construct an Authenticator based on an image reference,
 // you may want to use Login instead.
+//
+// Deprecated: Use LoginWithExpiry instead.
 func (c *Client) OIDCLogin(ctx context.Context, registryUrl string) (authn.Authenticator, error) {
-	auth, _, err := c.OIDCLoginWithExpiry(ctx, registryUrl)
-	return auth, err
+	authConfig, _, err := c.getLoginAuth(ctx, registryUrl)
+	if err != nil {
+		log.FromContext(ctx).Info("error logging into ACR " + err.Error())
+		return nil, err
+	}
+
+	auth := authn.FromConfig(authConfig)
+	return auth, nil
 }

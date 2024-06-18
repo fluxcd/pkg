@@ -67,12 +67,12 @@ func (c *Client) WithTokenURL(url string) *Client {
 // on GCP. This assumes that the pod has right to pull the image which would be
 // the case if it is hosted on GCP. It works with both service account and
 // workload identity enabled clusters.
-func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, *time.Time, error) {
+func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, time.Time, error) {
 	var authConfig authn.AuthConfig
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.tokenURL, nil)
 	if err != nil {
-		return authConfig, nil, err
+		return authConfig, time.Time{}, err
 	}
 
 	request.Header.Add("Metadata-Flavor", "Google")
@@ -80,19 +80,19 @@ func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, *time.Time
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		return authConfig, nil, err
+		return authConfig, time.Time{}, err
 	}
 	defer response.Body.Close()
 	defer io.Copy(io.Discard, response.Body)
 
 	if response.StatusCode != http.StatusOK {
-		return authConfig, nil, fmt.Errorf("unexpected status from metadata service: %s", response.Status)
+		return authConfig, time.Time{}, fmt.Errorf("unexpected status from metadata service: %s", response.Status)
 	}
 
 	var accessToken gceToken
 	decoder := json.NewDecoder(response.Body)
 	if err := decoder.Decode(&accessToken); err != nil {
-		return authConfig, nil, err
+		return authConfig, time.Time{}, err
 	}
 
 	authConfig = authn.AuthConfig{
@@ -100,28 +100,28 @@ func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, *time.Time
 		Password: accessToken.AccessToken,
 	}
 
-	// add expires_in seconds to the current time to get the expiry time
+	// add expiresIn seconds to the current time to get the expiry time
 	expiresAt := time.Now().Add(time.Duration(accessToken.ExpiresIn) * time.Second)
 
-	return authConfig, &expiresAt, nil
+	return authConfig, expiresAt, nil
 }
 
 // Login attempts to get the authentication material for GCR.
 // It returns the authentication material and the expiry time of the token.
 // The caller can ensure that the passed image is a valid GCR image using ValidHost().
-func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string, ref name.Reference) (authn.Authenticator, *time.Time, error) {
+func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string, ref name.Reference) (authn.Authenticator, time.Time, error) {
 	if autoLogin {
 		log.FromContext(ctx).Info("logging in to GCP GCR for " + image)
 		authConfig, expiresAt, err := c.getLoginAuth(ctx)
 		if err != nil {
 			log.FromContext(ctx).Info("error logging into GCP " + err.Error())
-			return nil, nil, err
+			return nil, time.Time{}, err
 		}
 
 		auth := authn.FromConfig(authConfig)
 		return auth, expiresAt, nil
 	}
-	return nil, nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
+	return nil, time.Time{}, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }
 
 // Login attempts to get the authentication material for GCR. The caller can
@@ -131,21 +131,16 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 	return auth, err
 }
 
-// OIDCLoginWithExpiry attempts to get the authentication material for GCR from the token url set in the client.
-// It returns the authentication material and the expiry time of the token.
-func (c *Client) OIDCLoginWithExpiry(ctx context.Context) (authn.Authenticator, *time.Time, error) {
-	authConfig, expiresAt, err := c.getLoginAuth(ctx)
+// OIDCLogin attempts to get the authentication material for GCR from the token url set in the client.
+//
+// Deprecated: Use LoginWithExpiry instead.
+func (c *Client) OIDCLogin(ctx context.Context) (authn.Authenticator, error) {
+	authConfig, _, err := c.getLoginAuth(ctx)
 	if err != nil {
 		log.FromContext(ctx).Info("error logging into GCP " + err.Error())
-		return nil, nil, err
+		return nil, err
 	}
 
 	auth := authn.FromConfig(authConfig)
-	return auth, expiresAt, nil
-}
-
-// OIDCLogin attempts to get the authentication material for GCR from the token url set in the client.
-func (c *Client) OIDCLogin(ctx context.Context) (authn.Authenticator, error) {
-	auth, _, err := c.OIDCLoginWithExpiry(ctx)
-	return auth, err
+	return auth, nil
 }

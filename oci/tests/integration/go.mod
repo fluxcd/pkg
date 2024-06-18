@@ -2,9 +2,13 @@ module github.com/fluxcd/pkg/oci/tests/integration
 
 go 1.22.0
 
-replace github.com/fluxcd/pkg/oci => ../../
+replace (
+	github.com/fluxcd/pkg/cache => ../../../cache
+	github.com/fluxcd/pkg/oci => ../../
+)
 
 require (
+	github.com/fluxcd/pkg/cache v0.0.1
 	github.com/fluxcd/pkg/oci v0.34.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240110132047-17651823b08c
 	github.com/google/go-containerregistry v0.19.1
@@ -50,7 +54,6 @@ require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/fluxcd/cli-utils v0.36.0-flux.7 // indirect
-	github.com/fluxcd/pkg/cache v0.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect

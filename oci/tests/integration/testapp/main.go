@@ -30,6 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/oci/auth/login"
 )
 
@@ -47,10 +48,16 @@ var (
 func main() {
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	cache, err := cache.New(5, cache.StoreObjectKeyFunc,
+		cache.WithCleanupInterval[cache.StoreObject[authn.Authenticator]](1*time.Second))
+	if err != nil {
+		panic(err)
+	}
 	opts := login.ProviderOptions{
 		AwsAutoLogin:   true,
 		GcpAutoLogin:   true,
 		AzureAutoLogin: true,
+		Cache:          cache,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -62,7 +69,6 @@ func main() {
 	var loginURL string
 	var auth authn.Authenticator
 	var ref name.Reference
-	var err error
 
 	if *registry != "" {
 		// Registry and repository are separate.

@@ -112,10 +112,11 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 // Login performs authentication against a registry and returns the Authenticator.
 // For generic registry provider, it is no-op.
 func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
+	log := log.FromContext(ctx)
 	if opts.Cache != nil {
 		auth, exists, err := getObjectFromCache(opts.Cache, url)
 		if err != nil {
-			return nil, err
+			log.Error(err, "failed to get auth object from cache")
 		}
 		if exists {
 			return auth, nil
@@ -129,7 +130,10 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 			return nil, err
 		}
 		if opts.Cache != nil {
-			cacheObject(opts.Cache, auth, url, expiresAt)
+			err := cacheObject(opts.Cache, auth, url, expiresAt)
+			if err != nil {
+				log.Error(err, "failed to cache auth object")
+			}
 		}
 		return auth, nil
 	case oci.ProviderGCP:
@@ -138,7 +142,10 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 			return nil, err
 		}
 		if opts.Cache != nil {
-			cacheObject(opts.Cache, auth, url, expiresAt)
+			err := cacheObject(opts.Cache, auth, url, expiresAt)
+			if err != nil {
+				log.Error(err, "failed to cache auth object")
+			}
 		}
 		return auth, nil
 	case oci.ProviderAzure:
@@ -147,7 +154,10 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 			return nil, err
 		}
 		if opts.Cache != nil {
-			cacheObject(opts.Cache, auth, url, expiresAt)
+			err := cacheObject(opts.Cache, auth, url, expiresAt)
+			if err != nil {
+				log.Error(err, "failed to cache auth object")
+			}
 		}
 		return auth, nil
 	}
@@ -158,63 +168,33 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 //
 // If you want to construct an Authenticator based on an image reference,
 // you may want to use Login instead.
+//
+// Deprecated: Use Login instead.
 func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts ProviderOptions) (authn.Authenticator, error) {
 	u, err := url.Parse(registryURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse registry url: %w", err)
 	}
 	provider := ImageRegistryProvider(u.Host, nil)
-	cacheKey := fmt.Sprintf("%s-%d", u.Host, provider)
-	if opts.Cache != nil {
-		auth, exists, err := getObjectFromCache(opts.Cache, cacheKey)
-		if err != nil {
-			return nil, err
-		}
-		if exists {
-			return auth, nil
-		}
-	}
-
 	switch provider {
 	case oci.ProviderAWS:
 		if !opts.AwsAutoLogin {
 			return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
 		log.FromContext(ctx).Info("logging in to AWS ECR for " + u.Host)
-		auth, expiresAt, err := m.ecr.OIDCLoginWithExpiry(ctx, u.Host)
-		if err != nil {
-			return nil, err
-		}
-		if opts.Cache != nil {
-			cacheObject(opts.Cache, auth, cacheKey, expiresAt)
-		}
-		return auth, nil
+		return m.ecr.OIDCLogin(ctx, u.Host)
 	case oci.ProviderGCP:
 		if !opts.GcpAutoLogin {
 			return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
 		log.FromContext(ctx).Info("logging in to GCP GCR for " + u.Host)
-		auth, expiresAt, err := m.gcr.OIDCLoginWithExpiry(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if opts.Cache != nil {
-			cacheObject(opts.Cache, auth, cacheKey, expiresAt)
-		}
-		return auth, nil
+		return m.gcr.OIDCLogin(ctx)
 	case oci.ProviderAzure:
 		if !opts.AzureAutoLogin {
 			return nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
 		log.FromContext(ctx).Info("logging in to Azure ACR for " + u.Host)
-		auth, expiresAt, err := m.acr.OIDCLoginWithExpiry(ctx, fmt.Sprintf("%s://%s", u.Scheme, u.Host))
-		if err != nil {
-			return nil, err
-		}
-		if opts.Cache != nil {
-			cacheObject(opts.Cache, auth, cacheKey, expiresAt)
-		}
-		return auth, nil
+		return m.acr.OIDCLogin(ctx, fmt.Sprintf("%s://%s", u.Scheme, u.Host))
 	}
 	return nil, nil
 }

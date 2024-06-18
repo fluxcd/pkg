@@ -79,7 +79,7 @@ func (c *Client) WithConfig(cfg *aws.Config) {
 // be the case if it's running in EKS, and may need additional setup
 // otherwise (visit https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
 // as a starting point).
-func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.AuthConfig, *time.Time, error) {
+func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.AuthConfig, time.Time, error) {
 	var authConfig authn.AuthConfig
 	var cfg aws.Config
 
@@ -91,7 +91,7 @@ func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.A
 		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(awsEcrRegion))
 		if err != nil {
 			c.mu.Unlock()
-			return authConfig, nil, fmt.Errorf("failed to load default configuration: %w", err)
+			return authConfig, time.Time{}, fmt.Errorf("failed to load default configuration: %w", err)
 		}
 		c.config = &cfg
 	}
@@ -102,52 +102,56 @@ func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.A
 	// pass nil input.
 	ecrToken, err := ecrService.GetAuthorizationToken(ctx, nil)
 	if err != nil {
-		return authConfig, nil, err
+		return authConfig, time.Time{}, err
 	}
 
 	// Validate the authorization data.
 	if len(ecrToken.AuthorizationData) == 0 {
-		return authConfig, nil, errors.New("no authorization data")
+		return authConfig, time.Time{}, errors.New("no authorization data")
 	}
 	if ecrToken.AuthorizationData[0].AuthorizationToken == nil {
-		return authConfig, nil, fmt.Errorf("no authorization token")
+		return authConfig, time.Time{}, fmt.Errorf("no authorization token")
 	}
 	token, err := base64.StdEncoding.DecodeString(*ecrToken.AuthorizationData[0].AuthorizationToken)
 	if err != nil {
-		return authConfig, nil, err
+		return authConfig, time.Time{}, err
 	}
 
 	tokenSplit := strings.Split(string(token), ":")
 	// Validate the tokens.
 	if len(tokenSplit) != 2 {
-		return authConfig, nil, fmt.Errorf("invalid authorization token, expected the token to have two parts separated by ':', got %d parts", len(tokenSplit))
+		return authConfig, time.Time{}, fmt.Errorf("invalid authorization token, expected the token to have two parts separated by ':', got %d parts", len(tokenSplit))
 	}
 	authConfig = authn.AuthConfig{
 		Username: tokenSplit[0],
 		Password: tokenSplit[1],
 	}
-	return authConfig, ecrToken.AuthorizationData[0].ExpiresAt, nil
+	expiresAt := ecrToken.AuthorizationData[0].ExpiresAt
+	if expiresAt == nil {
+		expiresAt = &time.Time{}
+	}
+	return authConfig, *expiresAt, nil
 }
 
 // LoginWithExpiry attempts to get the authentication material for ECR.
 // It returns the authentication material and the expiry time of the token.
-func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string) (authn.Authenticator, *time.Time, error) {
+func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string) (authn.Authenticator, time.Time, error) {
 	if autoLogin {
 		log.FromContext(ctx).Info("logging in to AWS ECR for " + image)
 		_, awsEcrRegion, ok := ParseRegistry(image)
 		if !ok {
-			return nil, nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
+			return nil, time.Time{}, errors.New("failed to parse AWS ECR image, invalid ECR image")
 		}
 
 		authConfig, expiresAt, err := c.getLoginAuth(ctx, awsEcrRegion)
 		if err != nil {
-			return nil, nil, err
+			return nil, time.Time{}, err
 		}
 
 		auth := authn.FromConfig(authConfig)
 		return auth, expiresAt, nil
 	}
-	return nil, nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
+	return nil, time.Time{}, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 }
 
 // Login attempts to get the authentication material for ECR.
@@ -156,25 +160,20 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string) (authn
 	return auth, err
 }
 
-// OIDCLoginWithExpiry attempts to get the authentication material for ECR.
-// It returns the authentication material and the expiry time of the token.
-func (c *Client) OIDCLoginWithExpiry(ctx context.Context, registryURL string) (authn.Authenticator, *time.Time, error) {
+// OIDCLogin attempts to get the authentication material for ECR.
+//
+// Deprecated: Use LoginWithExpiry instead.
+func (c *Client) OIDCLogin(ctx context.Context, registryURL string) (authn.Authenticator, error) {
 	_, awsEcrRegion, ok := ParseRegistry(registryURL)
 	if !ok {
-		return nil, nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
+		return nil, errors.New("failed to parse AWS ECR image, invalid ECR image")
 	}
 
-	authConfig, expiresAt, err := c.getLoginAuth(ctx, awsEcrRegion)
+	authConfig, _, err := c.getLoginAuth(ctx, awsEcrRegion)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	auth := authn.FromConfig(authConfig)
-	return auth, expiresAt, nil
-}
-
-// OIDCLogin attempts to get the authentication material for ECR.
-func (c *Client) OIDCLogin(ctx context.Context, registryURL string) (authn.Authenticator, error) {
-	auth, _, err := c.OIDCLoginWithExpiry(ctx, registryURL)
-	return auth, err
+	return auth, nil
 }
