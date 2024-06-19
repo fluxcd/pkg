@@ -42,6 +42,9 @@ type tarOpts struct {
 
 	// skipSymlinks ignores symlinks instead of failing the decompression.
 	skipSymlinks bool
+
+	// skipGzip skip gzip reader an un-tar a plain tar file.
+	skipGzip bool
 }
 
 // Untar reads the gzip-compressed tar file from r and writes it into dir.
@@ -78,11 +81,18 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 	}
 
 	madeDir := map[string]bool{}
-	zr, err := gzip.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("requires gzip-compressed body: %w", err)
+	var tr *tar.Reader
+	if opts.skipGzip {
+		tr = tar.NewReader(r)
+	} else {
+		zr, err := gzip.NewReader(r)
+		if err != nil {
+			return fmt.Errorf("requires gzip-compressed body: %w", err)
+		}
+
+		tr = tar.NewReader(zr)
 	}
-	tr := tar.NewReader(zr)
+
 	processedBytes := 0
 	t0 := time.Now()
 

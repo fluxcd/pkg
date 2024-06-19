@@ -34,6 +34,13 @@ func WithSkipSymlinks() TarOption {
 	}
 }
 
+// WithSkipGzip allows for un-taring plain tar files too, that aren't gzipped.
+func WithSkipGzip() TarOption {
+	return func(t *tarOpts) {
+		t.skipGzip = true
+	}
+}
+
 func (t *tarOpts) applyOpts(tarOpts ...TarOption) {
 	for _, clientOpt := range tarOpts {
 		clientOpt(t)
