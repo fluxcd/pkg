@@ -261,17 +261,50 @@ func TestLogin_WithCache(t *testing.T) {
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 			} else {
-				auth, exists, err := getObjectFromCache(cache, image)
+				key, err := mgr.keyFromURL(image, ImageRegistryProvider(image, ref))
+				g.Expect(err).ToNot(HaveOccurred())
+				auth, exists, err := getObjectFromCache(cache, key)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(exists).To(BeTrue())
 				g.Expect(auth).ToNot(BeNil())
-				obj, _, err := cache.GetByKey(image)
+				obj, _, err := cache.GetByKey(key)
 				g.Expect(err).ToNot(HaveOccurred())
 				expiration, err := cache.GetExpiration(obj)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(expiration).ToNot(BeZero())
 				g.Expect(expiration).To(BeTemporally("~", time.Unix(timestamp, 0), 1*time.Second))
 			}
+		})
+	}
+}
+
+func Test_keyFromURL(t *testing.T) {
+	tests := []struct {
+		name  string
+		image string
+		want  string
+	}{
+		{"gcr", "gcr.io/foo/bar:v1", "gcr.io/foo"},
+		{"ecr", "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1", "012345678901.dkr.ecr.us-east-1.amazonaws.com"},
+		{"ecr-root", "012345678901.dkr.ecr.us-east-1.amazonaws.com", "012345678901.dkr.ecr.us-east-1.amazonaws.com"},
+		{"ecr-root with slash", "012345678901.dkr.ecr.us-east-1.amazonaws.com/", "012345678901.dkr.ecr.us-east-1.amazonaws.com"},
+		{"gcr", "gcr.io/foo/bar:v1", "gcr.io/foo"},
+		{"gcr-root", "gcr.io", "gcr.io"},
+		{"acr", "foo.azurecr.io/bar:v1", "foo.azurecr.io"},
+		{"acr-root", "foo.azurecr.io", "foo.azurecr.io"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Trim suffix to allow parsing it as reference without modifying
+			// the given image address.
+			ref, err := name.ParseReference(strings.TrimSuffix(tt.image, "/"))
+			g.Expect(err).ToNot(HaveOccurred())
+			key, err := NewManager().keyFromURL(tt.image, ImageRegistryProvider(tt.image, ref))
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(key).To(Equal(tt.want))
 		})
 	}
 }
