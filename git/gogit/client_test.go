@@ -18,6 +18,7 @@ package gogit
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -27,8 +28,10 @@ import (
 
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	. "github.com/onsi/gomega"
 
+	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
@@ -733,6 +736,200 @@ func TestValidateUrl(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(BeNil())
 				g.Expect(err.Error()).To(ContainSubstring(tt.expectedError))
+			}
+		})
+	}
+}
+
+func TestProviderAuth(t *testing.T) {
+	expiresAt := time.Now().UTC().Add(time.Hour)
+	tests := []struct {
+		name              string
+		authOpts          *git.AuthOptions
+		proxy             transport.ProxyOptions
+		url               string
+		wantAuthErr       error
+		wantValidationErr error
+		wantBearerToken   string
+	}{
+		{
+			name:            "nil authopts",
+			url:             "https://url",
+			wantBearerToken: "",
+		},
+		{
+			name: "authopts with bearer token and no provider",
+			url:  "https://url",
+			authOpts: &git.AuthOptions{
+				BearerToken: "bearer-token",
+			},
+			wantBearerToken: "bearer-token",
+		},
+		{
+			name: "authopts with bearer token and provider",
+			url:  "https://url",
+			authOpts: &git.AuthOptions{
+				BearerToken: "bearer-token",
+				ProviderOpts: &git.ProviderOptions{
+					Name: git.ProviderAzure,
+					AzureOpts: []azure.OptFunc{
+						azure.WithCredential(&azure.FakeTokenCredential{
+							Token:     "ado-token",
+							ExpiresOn: expiresAt,
+						}),
+					},
+				},
+			},
+			wantBearerToken: "bearer-token",
+		},
+		{
+			name: "authopts with provider and no bearer token",
+			url:  "https://url",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name: git.ProviderAzure,
+					AzureOpts: []azure.OptFunc{
+						azure.WithCredential(&azure.FakeTokenCredential{
+							Token:     "ado-token",
+							ExpiresOn: expiresAt,
+						}),
+						azure.WithAzureDevOpsScope(),
+					},
+				},
+			},
+			wantBearerToken: "ado-token",
+		},
+		{
+			name: "authopts with provider and proxy",
+			url:  "https://url",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name: git.ProviderAzure,
+					AzureOpts: []azure.OptFunc{
+						azure.WithCredential(&azure.FakeTokenCredential{
+							Token:     "ado-token",
+							ExpiresOn: expiresAt,
+						}),
+						azure.WithAzureDevOpsScope(),
+					},
+				},
+			},
+			proxy: transport.ProxyOptions{
+				URL: "http://localhost:8080",
+			},
+			wantBearerToken: "ado-token",
+		},
+		{
+			name: "authopts with provider and error",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name: git.ProviderAzure,
+					AzureOpts: []azure.OptFunc{
+						azure.WithCredential(&azure.FakeTokenCredential{
+							Err: errors.New("oh no!"),
+						}),
+					},
+				},
+			},
+			wantAuthErr: errors.New("oh no!"),
+		},
+		{
+			name: "authopts with invalid provider",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name: "invalid provider",
+				},
+			},
+			wantAuthErr: errors.New("invalid provider"),
+		},
+		{
+			name: "authopts with provider and username/password/https",
+			url:  "https://url",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name: git.ProviderAzure,
+					AzureOpts: []azure.OptFunc{
+						azure.WithCredential(&azure.FakeTokenCredential{
+							Token:     "ado-token",
+							ExpiresOn: expiresAt,
+						}),
+						azure.WithAzureDevOpsScope(),
+					},
+				},
+				Username:  "user",
+				Password:  "password",
+				Transport: git.HTTPS,
+			},
+			wantBearerToken:   "ado-token",
+			wantValidationErr: errors.New("basic auth and bearer token cannot be set at the same time"),
+		},
+		{
+			name: "authopts with provider and username/password/http",
+			url:  "http://url",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name: git.ProviderAzure,
+					AzureOpts: []azure.OptFunc{
+						azure.WithCredential(&azure.FakeTokenCredential{
+							Token:     "ado-token",
+							ExpiresOn: expiresAt,
+						}),
+						azure.WithAzureDevOpsScope(),
+					},
+				},
+				Username:  "user",
+				Password:  "password",
+				Transport: git.HTTP,
+			},
+			wantBearerToken:   "ado-token",
+			wantValidationErr: errors.New("basic auth and bearer token cannot be set at the same time"),
+		},
+		{
+			name: "authopts with provider and http",
+			url:  "http://url",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name: git.ProviderAzure,
+					AzureOpts: []azure.OptFunc{
+						azure.WithCredential(&azure.FakeTokenCredential{
+							Token:     "ado-token",
+							ExpiresOn: expiresAt,
+						}),
+						azure.WithAzureDevOpsScope(),
+					},
+				},
+				Transport: git.HTTP,
+			},
+			wantBearerToken:   "ado-token",
+			wantValidationErr: errors.New("bearer token cannot be sent over HTTP"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			opts := []ClientOption{WithDiskStorage()}
+
+			ggc, err := NewClient(t.TempDir(), tt.authOpts, opts...)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			err = ggc.providerAuth(context.TODO())
+			if tt.wantAuthErr != nil {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err).To(Equal(tt.wantAuthErr))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				if tt.authOpts != nil {
+					g.Expect(tt.authOpts.BearerToken).To(Equal(tt.wantBearerToken))
+				}
+				err = ggc.validateUrl(tt.url)
+				if tt.wantValidationErr != nil {
+					g.Expect(err).To(HaveOccurred())
+					g.Expect(err).To(Equal(tt.wantValidationErr))
+				} else {
+					g.Expect(err).ToNot(HaveOccurred())
+				}
 			}
 		})
 	}
