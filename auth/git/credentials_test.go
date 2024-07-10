@@ -25,27 +25,27 @@ import (
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/cache"
 )
 
 func TestGetCredentials(t *testing.T) {
-	expiresAt := time.Now().UTC().Add(time.Hour)
-
 	tests := []struct {
 		name            string
-		authOpts        *auth.AuthOptions
+		url             string
+		authOpts        *AuthOptions
 		provider        string
 		wantCredentials *Credentials
 		wantScope       string
 	}{
 		{
 			name:     "get credentials from azure",
+			url:      "https://dev.azure.com/foo/bar/_git/baz",
 			provider: auth.ProviderAzure,
-			authOpts: &auth.AuthOptions{
-				ProviderOptions: auth.ProviderOptions{
+			authOpts: &AuthOptions{
+				ProviderOptions: ProviderOptions{
 					AzureOpts: []azure.ProviderOptFunc{
 						azure.WithCredential(&azure.FakeTokenCredential{
-							Token:     "ado-token",
-							ExpiresOn: expiresAt,
+							Token: "ado-token",
 						}),
 						azure.WithAzureDevOpsScope(),
 					},
@@ -62,7 +62,7 @@ func TestGetCredentials(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			ctx := context.WithValue(context.TODO(), "scope", pointer.String(""))
-			creds, err := GetCredentials(ctx, tt.provider, tt.authOpts)
+			creds, err := GetCredentials(ctx, tt.url, tt.provider, tt.authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			if tt.wantCredentials != nil {
@@ -79,6 +79,63 @@ func TestGetCredentials(t *testing.T) {
 			} else {
 				g.Expect(creds).To(BeNil())
 			}
+		})
+	}
+}
+
+func TestGetCredentialsWithCache(t *testing.T) {
+	expiresOn := time.Now().Add(10 * time.Second)
+	tests := []struct {
+		name            string
+		url             string
+		authOpts        *AuthOptions
+		provider        string
+		wantCredentials *Credentials
+		wantScope       string
+	}{
+		{
+			name:     "get credentials from azure",
+			url:      "https://dev.azure.com/foo/bar/_git/baz",
+			provider: auth.ProviderAzure,
+			authOpts: &AuthOptions{
+				ProviderOptions: ProviderOptions{
+					AzureOpts: []azure.ProviderOptFunc{
+						azure.WithCredential(&azure.FakeTokenCredential{
+							Token:     "ado-token",
+							ExpiresOn: expiresOn,
+						}),
+						azure.WithAzureDevOpsScope(),
+					},
+				},
+			},
+			wantCredentials: &Credentials{
+				BearerToken: "ado-token",
+			},
+			wantScope: "499b84ac-1321-427f-aa17-267ca6975798/.default",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			cache, err := cache.New(5, cache.StoreObjectKeyFunc,
+				cache.WithCleanupInterval[cache.StoreObject[Credentials]](1*time.Second))
+			g.Expect(err).ToNot(HaveOccurred())
+			tt.authOpts.Cache = cache
+
+			ctx := context.WithValue(context.TODO(), "scope", pointer.String(""))
+			_, err = GetCredentials(ctx, tt.url, tt.provider, tt.authOpts)
+			g.Expect(err).ToNot(HaveOccurred())
+			creds, exists, err := getObjectFromCache(cache, tt.url)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(exists).To(BeTrue())
+			g.Expect(creds).ToNot(BeNil())
+			obj, _, err := cache.GetByKey(tt.url)
+			g.Expect(err).ToNot(HaveOccurred())
+			expiration, err := cache.GetExpiration(obj)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(expiration).ToNot(BeZero())
+			g.Expect(expiration).To(BeTemporally("~", expiresOn, 1*time.Second))
 		})
 	}
 }

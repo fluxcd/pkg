@@ -19,7 +19,29 @@ import (
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+const (
+	ProviderAzure = "azure"
+)
+
+// AuthOptions contains options that can be used for authentication.
+type AuthOptions struct {
+	// ProviderOptions specifies the options to configure various authentication
+	// providers.
+	ProviderOptions ProviderOptions
+
+	// Cache is a cache for storing auth configurations.
+	Cache cache.Expirable[cache.StoreObject[Credentials]]
+}
+
+// ProviderOptions contains options to configure various authentication
+// providers.
+type ProviderOptions struct {
+	AzureOpts []azure.ProviderOptFunc
+}
 
 // Credentials contains authentication data needed in order to access a Git
 // repository.
@@ -41,8 +63,19 @@ func (c *Credentials) ToSecretData() map[string][]byte {
 
 // GetCredentials returns authentication credentials for accessing the provided
 // Git repository.
-func GetCredentials(ctx context.Context, provider string, authOpts *auth.AuthOptions) (*Credentials, error) {
+func GetCredentials(ctx context.Context, url string, provider string, authOpts *AuthOptions) (*Credentials, error) {
 	var creds Credentials
+	log := log.FromContext(ctx)
+
+	if authOpts.Cache != nil {
+		creds, exists, err := getObjectFromCache(authOpts.Cache, url)
+		if err != nil {
+			log.Error(err, "failed to get credential object from cache")
+		}
+		if exists {
+			return &creds, nil
+		}
+	}
 
 	switch provider {
 	case auth.ProviderAzure:
@@ -57,6 +90,12 @@ func GetCredentials(ctx context.Context, provider string, authOpts *auth.AuthOpt
 		}
 		creds = Credentials{
 			BearerToken: accessToken.Token,
+		}
+		if authOpts.Cache != nil {
+			err := cacheObject(authOpts.Cache, creds, url, accessToken.ExpiresOn)
+			if err != nil {
+				log.Error(err, "failed to cache auth object")
+			}
 		}
 	default:
 		return nil, nil
