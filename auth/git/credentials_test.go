@@ -124,12 +124,14 @@ func TestGetCredentialsWithCache(t *testing.T) {
 			tt.authOpts.Cache = cache
 
 			ctx := context.WithValue(context.TODO(), "scope", pointer.String(""))
-			_, err = GetCredentials(ctx, tt.url, tt.provider, tt.authOpts)
+			creds, err := GetCredentials(ctx, tt.url, tt.provider, tt.authOpts)
 			g.Expect(err).ToNot(HaveOccurred())
-			creds, exists, err := getObjectFromCache(cache, tt.url)
+			g.Expect(creds).ToNot(BeNil())
+			CacheCredentials(ctx, tt.url, tt.authOpts, creds)
+			cachedCreds, exists, err := getObjectFromCache(cache, tt.url)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(exists).To(BeTrue())
-			g.Expect(creds).ToNot(BeNil())
+			g.Expect(cachedCreds).ToNot(BeNil())
 			obj, _, err := cache.GetByKey(tt.url)
 			g.Expect(err).ToNot(HaveOccurred())
 			expiration, err := cache.GetExpiration(obj)

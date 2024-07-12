@@ -16,15 +16,12 @@ package git
 
 import (
 	"context"
+	"time"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-)
-
-const (
-	ProviderAzure = "azure"
 )
 
 // AuthOptions contains options that can be used for authentication.
@@ -47,6 +44,7 @@ type ProviderOptions struct {
 // repository.
 type Credentials struct {
 	BearerToken string `json:"bearerToken,omitempty"`
+	ExpiresOn   time.Time
 }
 
 // ToSecretData returns the Credentials object in the format of the data found
@@ -59,6 +57,16 @@ func (c *Credentials) ToSecretData() map[string][]byte {
 	}
 
 	return data
+}
+
+func CacheCredentials(ctx context.Context, url string, authOpts *AuthOptions, creds *Credentials) {
+	log := log.FromContext(ctx)
+	if authOpts.Cache != nil {
+		err := cacheObject(authOpts.Cache, *creds, url, creds.ExpiresOn)
+		if err != nil {
+			log.Error(err, "failed to cache credentials")
+		}
+	}
 }
 
 // GetCredentials returns authentication credentials for accessing the provided
@@ -90,12 +98,7 @@ func GetCredentials(ctx context.Context, url string, provider string, authOpts *
 		}
 		creds = Credentials{
 			BearerToken: accessToken.Token,
-		}
-		if authOpts.Cache != nil {
-			err := cacheObject(authOpts.Cache, creds, url, accessToken.ExpiresOn)
-			if err != nil {
-				log.Error(err, "failed to cache auth object")
-			}
+			ExpiresOn:   accessToken.ExpiresOn,
 		}
 	default:
 		return nil, nil
