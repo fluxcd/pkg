@@ -14,3 +14,7 @@ output "acr_registry_id" {
 output "workload_identity_client_id" {
   value = var.enable_wi ? azurerm_user_assigned_identity.wi-id[0].client_id : ""
 }
+
+output "workload_identity_object_id" {
+  value = var.enable_wi ? azurerm_user_assigned_identity.wi-id[0].principal_id : ""
+}

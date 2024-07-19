@@ -98,3 +98,11 @@ func getWISAAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]st
 		eksRoleArnAnnotation: iamARN,
 	}, nil
 }
+
+func getTestConfigAWS(outputs map[string]*tfjson.StateOutput) (*testConfig, error) {
+	return nil, fmt.Errorf("NotImplemented for AWS")
+}
+
+func givePermissionsToRepositoryAWS(output map[string]*tfjson.StateOutput) error {
+	return fmt.Errorf("NotImplemented for AWS")
+}

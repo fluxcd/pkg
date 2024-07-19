@@ -32,51 +32,89 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func TestImageRepositoryListTags(t *testing.T) {
+func TestOciImageRepositoryListTags(t *testing.T) {
+	if !enableOci {
+		t.Skip("Skipping oci feature tests, specify -category oci to enable")
+	}
+
 	for name, repo := range testRepos {
 		t.Run(name, func(t *testing.T) {
-			args := []string{fmt.Sprintf("-repo=%s", repo)}
-			testImageRepositoryListTags(t, args)
+			args := []string{
+				"-category=oci",
+				fmt.Sprintf("-repo=%s", repo),
+			}
+			testjobExecutionWithArgs(t, args)
 		})
 	}
 }
 
-func TestRepositoryRootLoginListTags(t *testing.T) {
+func TestOciRepositoryRootLoginListTags(t *testing.T) {
+	if !enableOci {
+		t.Skip("Skipping oci feature tests, specify -category oci to enable")
+	}
+
 	for name, repo := range testRepos {
 		t.Run(name, func(t *testing.T) {
 			parts := strings.SplitN(repo, "/", 2)
 			args := []string{
+				"-category=oci",
 				fmt.Sprintf("-registry=%s", parts[0]),
 				fmt.Sprintf("-repo=%s", parts[1]),
 			}
-			testImageRepositoryListTags(t, args)
+			testjobExecutionWithArgs(t, args)
 		})
 	}
 }
 
-func TestOIDCLoginListTags(t *testing.T) {
+func TestOciOIDCLoginListTags(t *testing.T) {
+	if !enableOci {
+		t.Skip("Skipping oci feature tests, specify -category oci to enable")
+	}
+
 	for name, repo := range testRepos {
 		t.Run(name, func(t *testing.T) {
 			// Registry only.
 			parts := strings.SplitN(repo, "/", 2)
 			args := []string{
+				"-category=oci",
 				"-oidc-login=true",
 				fmt.Sprintf("-registry=%s", parts[0]),
 				fmt.Sprintf("-repo=%s", parts[1]),
 			}
-			testImageRepositoryListTags(t, args)
+			testjobExecutionWithArgs(t, args)
 
 			// Registry + repo.
 			args = []string{
+				"-category=oci",
 				"-oidc-login=true",
 				fmt.Sprintf("-repo=%s", repo),
 			}
-			testImageRepositoryListTags(t, args)
+			testjobExecutionWithArgs(t, args)
 		})
 	}
 }
 
-func testImageRepositoryListTags(t *testing.T, args []string) {
+func TestGitCloneUsingProvider(t *testing.T) {
+	if !enableGit {
+		t.Skip("Skipping git feature tests, specify -category git to enable")
+	}
+
+	ctx := context.TODO()
+	tmpDir := t.TempDir()
+
+	setupGitRepository(ctx, tmpDir)
+	t.Run("Git oidc credential test", func(t *testing.T) {
+		args := []string{
+			"-category=git",
+			"-oidc-login=true",
+			fmt.Sprintf("-provider=%s", *targetProvider),
+			fmt.Sprintf("-repo=%s", cfg.applicationRepositoryWithoutUser),
+		}
+		testjobExecutionWithArgs(t, args)
+	})
+}
+
+func testjobExecutionWithArgs(t *testing.T, args []string) {
 	g := NewWithT(t)
 	ctx := context.TODO()
 

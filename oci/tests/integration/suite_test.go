@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/test-infra/tftestenv"
 )
 
@@ -46,7 +47,9 @@ const (
 	terraformPathAWS = "./terraform/aws"
 	// terraformPathAzure is the path to the terraform working directory
 	// containing the azure terraform configurations.
-	terraformPathAzure = "./terraform/azure"
+	terraformPathAzureOci = "./terraform/azure/oci"
+	terraformPathAzureGit = "./terraform/azure/git"
+
 	// terraformPathGCP is the path to the terraform working directory
 	// containing the gcp terraform configurations.
 	terraformPathGCP = "./terraform/gcp"
@@ -66,11 +69,26 @@ const (
 )
 
 var (
+	// supportedCategories are the test categories that can be run.
+	supportedCategories = []string{"oci", "git"}
+
+	// supportedOciProviders are the providers supported by the test.
+	supportedOciProviders = []string{"aws", "azure", "gcp"}
+
 	// supportedProviders are the providers supported by the test.
-	supportedProviders = []string{"aws", "azure", "gcp"}
+	supportedGitProviders = []string{"azure"}
 
 	// targetProvider is the name of the kubernetes provider to test against.
-	targetProvider = flag.String("provider", "", fmt.Sprintf("name of the provider %v", supportedProviders))
+	targetProvider = flag.String("provider", "", fmt.Sprintf("name of the provider %v for oci, %v for git", supportedOciProviders, supportedGitProviders))
+
+	// category is the name of the kubernetes provider to test against.
+	category = flag.String("category", "", fmt.Sprintf("name of the category %v", supportedCategories))
+
+	// enableOci is set to true when a supported provider is specified for category oci
+	enableOci bool
+
+	// enableGit is set to true when a supported provider is specified for category git
+	enableGit bool
 
 	// retain flag to prevent destroy and retaining the created infrastructure.
 	retain = flag.Bool("retain", false, "retain the infrastructure for debugging purposes")
@@ -106,8 +124,11 @@ var (
 	// identity. It is set from the terraform variable (`TF_VAR_k8s_serviceaccount_name`)
 	wiServiceAccount string
 
-	// enableWI is set to true when the TF_vAR_enable_wi is set to "true", so the tests run for Workload Identtty
+	// enableWI is set to true when the TF_VAR_enable_wi is set to "true", so the tests run for Workload Identtty
 	enableWI bool
+
+	// cfg is a struct containing different variables needed for the test.
+	cfg *testConfig
 )
 
 // registryLoginFunc is used to perform registry login against a provider based
@@ -126,6 +147,23 @@ type pushTestImages func(ctx context.Context, localImgs map[string]string, outpu
 // service account when workload identity is used on the cluster.
 type getWISAAnnotations func(output map[string]*tfjson.StateOutput) (map[string]string, error)
 
+// givePermissionsToRepository calls provider specific API to add additional permissions to the git repository/project
+type givePermissionsToRepository func(output map[string]*tfjson.StateOutput) error
+
+// getTestConfig gets the configuration for the tests
+type getTestConfig func(output map[string]*tfjson.StateOutput) (*testConfig, error)
+
+// testConfig hold different variable that will be needed by the different test functions.
+type testConfig struct {
+	// authentication info for git repositories
+	gitPat                           string
+	gitUsername                      string
+	defaultGitTransport              git.TransportType
+	defaultAuthOpts                  *git.AuthOptions
+	applicationRepository            string
+	applicationRepositoryWithoutUser string
+}
+
 // ProviderConfig is the test configuration of a supported cloud provider to run
 // the tests against.
 type ProviderConfig struct {
@@ -141,6 +179,10 @@ type ProviderConfig struct {
 	// getWISAAnnotations is used to return the provider specific annotations
 	// for the service account when using workload identity.
 	getWISAAnnotations getWISAAnnotations
+	// givePermissionsToRepository is used to give the identity access to the Git repository
+	givePermissionsToRepository givePermissionsToRepository
+	// getTestConfig is used to return provider specific test configuration
+	getTestConfig getTestConfig
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
@@ -157,6 +199,30 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 	ctx := context.TODO()
 
+	// Validate the test category.
+	if *category == "" {
+		log.Fatalf("-category flag must be set to one of %v", supportedCategories)
+	}
+
+	var supportedCategory bool
+	for _, p := range supportedCategories {
+		if p == *category {
+			supportedCategory = true
+		}
+	}
+	if !supportedCategory {
+		log.Fatalf("Unsupported category %q, must be one of %v", *category, supportedCategories)
+	}
+
+	var supportedProviders []string
+	if *category == "oci" {
+		supportedProviders = supportedOciProviders
+		enableOci = true
+	} else if *category == "git" {
+		supportedProviders = supportedOciProviders
+		enableGit = true
+	}
+
 	// Validate the provider.
 	if *targetProvider == "" {
 		log.Fatalf("-provider flag must be set to one of %v", supportedProviders)
@@ -169,6 +235,11 @@ func TestMain(m *testing.M) {
 	}
 	if !supported {
 		log.Fatalf("Unsupported provider %q, must be one of %v", *targetProvider, supportedProviders)
+	}
+
+	enableWI = os.Getenv("TF_VAR_enable_wi") == "true"
+	if enableGit && !enableWI {
+		log.Fatalf("Workload identity must be enabled to run git tests")
 	}
 
 	providerCfg := getProviderConfig(*targetProvider)
@@ -249,12 +320,84 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("Failed to get the terraform state output: %v", err))
 	}
 
-	testRepos, err = providerCfg.registryLogin(ctx, output)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to log into registry: %v", err))
+	if enableOci {
+		log.Println("OCI is enabled, push oci app and test images")
+		pushAppAndTestImagesOci(ctx, providerCfg, output, localImgs)
 	}
 
-	pushedImages, err := providerCfg.pushAppTestImages(ctx, localImgs, output)
+	if enableGit {
+		log.Println("Git is enabled, push git app image and get test config")
+		pushAppImageGit(ctx, providerCfg, output, localImgs)
+		cfg, err = providerCfg.getTestConfig(output)
+	}
+
+	if enableWI {
+		if enableGit {
+			// Call provider specific API to configure permisions for the git repository
+			log.Println("Giving permissions to workload identity to access repository")
+			providerCfg.givePermissionsToRepository(output)
+		}
+
+		log.Println("Workload identity is enabled, initializing service account with annotations")
+		annotations, err := providerCfg.getWISAAnnotations(output)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to get service account func for workload identity: %v", err))
+		}
+
+		if err := createWorkloadIDServiceAccount(ctx, annotations); err != nil {
+			panic(err)
+		}
+	}
+
+	exitCode = m.Run()
+}
+
+// getProviderConfig returns the test configuration of supported providers.
+func getProviderConfig(provider string) *ProviderConfig {
+	switch provider {
+	case "aws":
+		return &ProviderConfig{
+			terraformPath:               terraformPathAWS,
+			registryLogin:               registryLoginECR,
+			pushAppTestImages:           pushAppTestImagesECR,
+			createKubeconfig:            createKubeconfigEKS,
+			getWISAAnnotations:          getWISAAnnotationsAWS,
+			givePermissionsToRepository: givePermissionsToRepositoryAWS,
+			getTestConfig:               getTestConfigAWS,
+		}
+	case "azure":
+		providerCfg := &ProviderConfig{
+			registryLogin:               registryLoginACR,
+			pushAppTestImages:           pushAppTestImagesACR,
+			createKubeconfig:            createKubeConfigAKS,
+			getWISAAnnotations:          getWISAAnnotationsAzure,
+			givePermissionsToRepository: givePermissionsToRepositoryAzure,
+			getTestConfig:               getTestConfigAzure,
+		}
+		if enableOci {
+			providerCfg.terraformPath = terraformPathAzureOci
+		} else if enableGit {
+			providerCfg.terraformPath = terraformPathAzureGit
+		} else {
+			panic("Invalid configuration")
+		}
+		return providerCfg
+	case "gcp":
+		return &ProviderConfig{
+			terraformPath:               terraformPathGCP,
+			registryLogin:               registryLoginGCR,
+			pushAppTestImages:           pushAppTestImagesGCR,
+			createKubeconfig:            createKubeconfigGKE,
+			getWISAAnnotations:          getWISAAnnotationsGCP,
+			givePermissionsToRepository: givePermissionsToRepositoryGCP,
+			getTestConfig:               getTestConfigGCP,
+		}
+	}
+	return nil
+}
+
+func pushAppImage(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput, localImgs map[string]string) {
+	pushedImages, err := providerCfg.pushAppTestImages(ctx, localImgs, tfOutput)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to push test images: %v", err))
 	}
@@ -268,64 +411,33 @@ func TestMain(m *testing.M) {
 	} else {
 		testAppImage = appImg
 	}
+}
 
+func pushAppAndTestImagesOci(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput, localImgs map[string]string) {
+	testRepos, err := providerCfg.registryLogin(ctx, tfOutput)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to log into registry: %v", err))
+	}
+	pushAppImage(ctx, providerCfg, tfOutput, localImgs)
 	// Create and push test images.
 	if err := tftestenv.CreateAndPushImages(testRepos, testImageTags); err != nil {
 		panic(fmt.Sprintf("Failed to create and push images: %v", err))
 	}
-
-	enableWI = os.Getenv("TF_VAR_enable_wi") == "true"
-	if enableWI {
-		log.Println("Running tests with workload identity enabled")
-		annotations, err := providerCfg.getWISAAnnotations(output)
-		if err != nil {
-			panic(fmt.Sprintf("Failed to get service account func for workload identity: %v", err))
-		}
-
-		if err := creatWorkloadIDServiceAccount(ctx, annotations); err != nil {
-			panic(err)
-		}
-	}
-
-	exitCode = m.Run()
 }
 
-// getProviderConfig returns the test configuration of supported providers.
-func getProviderConfig(provider string) *ProviderConfig {
-	switch provider {
-	case "aws":
-		return &ProviderConfig{
-			terraformPath:      terraformPathAWS,
-			registryLogin:      registryLoginECR,
-			pushAppTestImages:  pushAppTestImagesECR,
-			createKubeconfig:   createKubeconfigEKS,
-			getWISAAnnotations: getWISAAnnotationsAWS,
-		}
-	case "azure":
-		return &ProviderConfig{
-			terraformPath:      terraformPathAzure,
-			registryLogin:      registryLoginACR,
-			pushAppTestImages:  pushAppTestImagesACR,
-			createKubeconfig:   createKubeConfigAKS,
-			getWISAAnnotations: getWISAAnnotationsAzure,
-		}
-	case "gcp":
-		return &ProviderConfig{
-			terraformPath:      terraformPathGCP,
-			registryLogin:      registryLoginGCR,
-			pushAppTestImages:  pushAppTestImagesGCR,
-			createKubeconfig:   createKubeconfigGKE,
-			getWISAAnnotations: getWISAAnnotationsGCP,
-		}
+func pushAppImageGit(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput, localImgs map[string]string) {
+	_, err := providerCfg.registryLogin(ctx, tfOutput)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to log into registry: %v", err))
 	}
-	return nil
+	pushAppImage(ctx, providerCfg, tfOutput, localImgs)
 }
 
 // creatWorkloadIDServiceAccount creates the service account (name and namespace specified in the terraform
 // variables) with the annotations passed into the function.
 //
 // TODO: move creation of serviceaccount to terraform
-func creatWorkloadIDServiceAccount(ctx context.Context, annotations map[string]string) error {
+func createWorkloadIDServiceAccount(ctx context.Context, annotations map[string]string) error {
 	wiServiceAccount = os.Getenv(envVarWISAName)
 	wiSANamespace := os.Getenv(envVarWISANamespace)
 	if wiServiceAccount == "" || wiSANamespace == "" {
