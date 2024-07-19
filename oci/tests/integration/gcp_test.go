@@ -90,3 +90,11 @@ func getWISAAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]st
 		gcpIAMAnnotation: saEmail,
 	}, nil
 }
+
+func getTestConfigGCP(outputs map[string]*tfjson.StateOutput) (*testConfig, error) {
+	return nil, fmt.Errorf("NotImplemented for GCP")
+}
+
+func givePermissionsToRepositoryGCP(output map[string]*tfjson.StateOutput) error {
+	return fmt.Errorf("NotImplemented for GCP")
+}
