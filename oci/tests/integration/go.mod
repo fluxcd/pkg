@@ -155,4 +155,4 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/fluxcd/pkg/auth => github.com/dipti-pai/pkg/auth v0.0.0-20240712195748-b7425e149afd
+replace github.com/fluxcd/pkg/auth => github.com/dipti-pai/pkg/auth v0.0.0-20240719210309-4635eced2659
