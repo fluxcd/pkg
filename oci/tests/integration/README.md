@@ -299,9 +299,7 @@ module "aws_gh_actions" {
   github_project         = "pkg"
   github_repo_branch_ref = "*"
 
-  github_secret_accound_id_name  = "OCI_E2E_AWS_ACCOUNT_ID"
   github_secret_assume_role_name = "OCI_E2E_AWS_ASSUME_ROLE_NAME"
-  github_variable_region_name    = "OCI_E2E_AWS_REGION"
 
   github_variable_custom = {
     "OCI_E2E_TF_VAR_cross_region" = "us-east-1"

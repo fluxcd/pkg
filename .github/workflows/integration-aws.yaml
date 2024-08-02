@@ -29,9 +29,9 @@ jobs:
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.OCI_E2E_AWS_ACCOUNT_ID }}:role/${{ secrets.OCI_E2E_AWS_ASSUME_ROLE_NAME }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.OCI_E2E_AWS_ASSUME_ROLE_NAME }}
           role-session-name: OCI_GH_Actions
-          aws-region: ${{ vars.OCI_E2E_AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION }}
       - name: Setup QEMU
         uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
       - name: Setup Docker Buildx
@@ -49,11 +49,11 @@ jobs:
       - name: Run tests
         run: . .env && make test-aws
         env:
-          AWS_REGION: ${{ vars.OCI_E2E_AWS_REGION }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
           TF_VAR_cross_region: ${{ vars.OCI_E2E_TF_VAR_cross_region }}
       - name: Ensure resource cleanup
         if: ${{ always() }}
         run: . .env && make destroy-aws
         env:
-          AWS_REGION: ${{ vars.OCI_E2E_AWS_REGION }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
           TF_VAR_cross_region: ${{ vars.OCI_E2E_TF_VAR_cross_region }}
