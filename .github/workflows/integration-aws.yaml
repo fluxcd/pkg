@@ -1,0 +1,59 @@
+name: integration-aws
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * *"
+  # push:
+  #   branches:
+  #     - main
+
+permissions:
+  contents: read
+  id-token: write # Required for obtaining AWS OIDC federated credential.
+
+jobs:
+  oci-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./oci/tests/integration
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - name: Setup Go
+        uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
+        with:
+          go-version: 1.22.x
+          cache-dependency-path: oci/tests/integration/go.sum
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.OCI_E2E_AWS_ASSUME_ROLE_NAME }}
+          role-session-name: OCI_GH_Actions
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb  # v3.3.0
+      - name: Set dynamic variables in .env
+        run: |
+          cat > .env <<EOF
+          export TF_VAR_rand=${RANDOM}
+          export TF_VAR_tags='{"environment"="github", "ci"="true", "repo"="pkg", "createdat"="$(date -u +x%Y-%m-%d_%Hh%Mm%Ss)"}'
+          EOF
+      - name: Print .env for dynamic tag value reference
+        run: cat .env
+      - name: Build test app
+        run: make docker-build
+      - name: Run tests
+        run: . .env && make test-aws
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          TF_VAR_cross_region: ${{ vars.OCI_E2E_TF_VAR_cross_region }}
+      - name: Ensure resource cleanup
+        if: ${{ always() }}
+        run: . .env && make destroy-aws
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          TF_VAR_cross_region: ${{ vars.OCI_E2E_TF_VAR_cross_region }}

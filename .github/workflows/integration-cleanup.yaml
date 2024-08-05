@@ -79,3 +79,28 @@ jobs:
           creds: '{"clientId":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.CLEANUP_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.CLEANUP_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.CLEANUP_E2E_AZ_ARM_TENANT_ID }}"}'
       - name: Run reaper
         run: go run ./ -provider azure -retention-period 1h -tags 'ci=true' -delete
+
+  aws:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./tools/reaper
+    if: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          repository: fluxcd/test-infra
+      - name: Setup Go
+        uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
+        with:
+          go-version: 1.22.x
+          cache-dependency-path: ./tools/reaper/go.sum
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.CLEANUP_E2E_AWS_ASSUME_ROLE_NAME }}
+          role-session-name: OCI_GH_Actions
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Run reaper
+        run: go run ./ -provider azure -retention-period 1h -tags 'ci=true' -delete
