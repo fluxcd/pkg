@@ -104,4 +104,4 @@ jobs:
           role-session-name: cleanup_GH_Actions
           aws-region: ${{ vars.AWS_REGION }}
       - name: Run reaper
-        run: go run ./ -provider aws -retention-period 1h -tags 'ci=true' -delete
+        run: go run ./ -provider aws-nuke -awsregions '${{ vars.AWS_REGION }},${{ vars.OCI_E2E_TF_VAR_cross_region }}' -retention-period 1h -tags 'ci=true' -delete
