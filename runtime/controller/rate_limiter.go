@@ -21,7 +21,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/ratelimiter"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -52,18 +52,14 @@ func (o *RateLimiterOptions) BindFlags(fs *pflag.FlagSet) {
 		"The maximum amount of time for which an object being reconciled will have to wait before a retry.")
 }
 
-// GetRateLimiter returns a new exponential failure ratelimiter.RateLimiter
+// GetRateLimiter returns a new exponential failure workqueue.TypedRateLimiter
 // based on RateLimiterOptions.
-func GetRateLimiter(opts RateLimiterOptions) ratelimiter.RateLimiter {
-	return workqueue.NewItemExponentialFailureRateLimiter(
-		opts.MinRetryDelay,
-		opts.MaxRetryDelay)
+func GetRateLimiter(opts RateLimiterOptions) workqueue.TypedRateLimiter[reconcile.Request] {
+	return workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](opts.MinRetryDelay, opts.MaxRetryDelay)
 }
 
 // GetDefaultRateLimiter returns a new exponential failure
-// ratelimiter.RateLimiter with the default configuration.
-func GetDefaultRateLimiter() ratelimiter.RateLimiter {
-	return workqueue.NewItemExponentialFailureRateLimiter(
-		defaultMinRetryDelay,
-		defaultMaxRetryDelay)
+// workqueue.TypedRateLimiter with the default configuration.
+func GetDefaultRateLimiter() workqueue.TypedRateLimiter[reconcile.Request] {
+	return workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](defaultMinRetryDelay, defaultMaxRetryDelay)
 }
