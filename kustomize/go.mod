@@ -9,9 +9,9 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/apis/kustomize v1.5.0
+	github.com/fluxcd/pkg/apis/kustomize v1.6.0
 	github.com/fluxcd/pkg/envsubst v1.1.0
-	github.com/fluxcd/pkg/sourceignore v0.7.0
+	github.com/fluxcd/pkg/sourceignore v0.8.0
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/onsi/gomega v1.34.1
 	github.com/otiai10/copy v1.14.0
@@ -25,7 +25,7 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-// Pin kustomize to v5.4.0
+// Pin kustomize to v5.4.3
 replace (
 	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.17.3
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.17.2
