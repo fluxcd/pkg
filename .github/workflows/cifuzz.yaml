@@ -16,7 +16,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
-        go-version: 1.22.x
+        go-version: 1.23.x
         # https://github.com/actions/setup-go/blob/main/docs/adrs/0000-caching-dependencies.md#example-of-real-use-cases
         cache-dependency-path: |
           **/go.sum
