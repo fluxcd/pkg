@@ -7,7 +7,7 @@ replace github.com/fluxcd/pkg/testserver => ../testserver
 require (
 	github.com/ProtonMail/go-crypto v1.0.0
 	github.com/fluxcd/pkg/testserver v0.7.0
-	helm.sh/helm/v3 v3.15.3
+	helm.sh/helm/v3 v3.15.4
 	sigs.k8s.io/yaml v1.4.0
 )
 
