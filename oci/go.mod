@@ -26,7 +26,7 @@ require (
 	github.com/onsi/gomega v1.34.1
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/sirupsen/logrus v1.9.3
-	sigs.k8s.io/controller-runtime v0.19.0-beta.0
+	sigs.k8s.io/controller-runtime v0.19.0
 )
 
 require (
@@ -61,7 +61,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fluxcd/cli-utils v0.36.0-flux.8 // indirect
+	github.com/fluxcd/cli-utils v0.36.0-flux.9 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
@@ -93,7 +93,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.17.4 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -105,7 +105,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_golang v1.19.1 // indirect
+	github.com/prometheus/client_golang v1.20.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
