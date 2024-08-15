@@ -10,7 +10,7 @@ replace (
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
-	github.com/fluxcd/cli-utils v0.36.0-flux.8
+	github.com/fluxcd/cli-utils v0.36.0-flux.9
 	github.com/fluxcd/pkg/apis/acl v0.3.0
 	github.com/fluxcd/pkg/apis/event v0.10.0
 	github.com/fluxcd/pkg/apis/meta v1.6.0
@@ -30,7 +30,7 @@ require (
 	k8s.io/client-go v0.31.0
 	k8s.io/component-base v0.31.0
 	k8s.io/klog/v2 v2.130.1
-	sigs.k8s.io/controller-runtime v0.19.0-beta.0
+	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/yaml v1.4.0
 )
 

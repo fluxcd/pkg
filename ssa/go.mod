@@ -4,7 +4,7 @@ go 1.22.0
 
 require (
 	github.com/evanphx/json-patch/v5 v5.9.0
-	github.com/fluxcd/cli-utils v0.36.0-flux.8
+	github.com/fluxcd/cli-utils v0.36.0-flux.9
 	github.com/google/go-cmp v0.6.0
 	github.com/onsi/gomega v1.34.1
 	github.com/wI2L/jsondiff v0.6.0
@@ -13,7 +13,7 @@ require (
 	k8s.io/apimachinery v0.31.0
 	k8s.io/client-go v0.31.0
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
-	sigs.k8s.io/controller-runtime v0.19.0-beta.0
+	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1
 	sigs.k8s.io/yaml v1.4.0
 )
