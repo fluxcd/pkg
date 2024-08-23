@@ -122,7 +122,7 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 		if err != nil {
 			logr.FromContextOrDiscard(ctx).Error(err, "failed to get cache key")
 		} else {
-			auth, exists, err := getObjectFromCache[authn.Authenticator](opts.Cache, key)
+			auth, exists, err := getObjectFromCache(opts.Cache, key)
 			if err != nil {
 				logr.FromContextOrDiscard(ctx).Error(err, "failed to get auth object from cache")
 			}
