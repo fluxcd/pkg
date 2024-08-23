@@ -21,7 +21,10 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +32,6 @@ import (
 	"github.com/distribution/distribution/v3/registry"
 	_ "github.com/distribution/distribution/v3/registry/auth/htpasswd"
 	_ "github.com/distribution/distribution/v3/registry/storage/driver/inmemory"
-	"github.com/phayes/freeport"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,16 +40,30 @@ var (
 )
 
 func setupRegistryServer(ctx context.Context) error {
+	// Find a free port
+	lis, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return fmt.Errorf("failed to create listener: %s", err)
+	}
+
+	addr := lis.Addr().String()
+	addrParts := strings.Split(addr, ":")
+	portStr := addrParts[len(addrParts)-1]
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse port: %s", err)
+	}
+
+	err = lis.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close listener: %s", err)
+	}
+
 	// Registry config
 	config := &configuration.Configuration{}
 	config.Log.AccessLog.Disabled = true
 	config.Log.Level = "error"
 	logrus.SetOutput(io.Discard)
-
-	port, err := freeport.GetFreePort()
-	if err != nil {
-		return fmt.Errorf("failed to get free port: %s", err)
-	}
 
 	dockerReg = fmt.Sprintf("localhost:%d", port)
 	config.HTTP.Addr = fmt.Sprintf("127.0.0.1:%d", port)
