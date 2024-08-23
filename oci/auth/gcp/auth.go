@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/oci"
 )
@@ -111,10 +111,10 @@ func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, time.Time,
 // The caller can ensure that the passed image is a valid GCR image using ValidHost().
 func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string, ref name.Reference) (authn.Authenticator, time.Time, error) {
 	if autoLogin {
-		log.FromContext(ctx).Info("logging in to GCP GCR for " + image)
+		logr.FromContextOrDiscard(ctx).Info("logging in to GCP GCR for " + image)
 		authConfig, expiresAt, err := c.getLoginAuth(ctx)
 		if err != nil {
-			log.FromContext(ctx).Info("error logging into GCP " + err.Error())
+			logr.FromContextOrDiscard(ctx).Info("error logging into GCP " + err.Error())
 			return nil, time.Time{}, err
 		}
 
@@ -137,7 +137,7 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 func (c *Client) OIDCLogin(ctx context.Context) (authn.Authenticator, error) {
 	authConfig, _, err := c.getLoginAuth(ctx)
 	if err != nil {
-		log.FromContext(ctx).Info("error logging into GCP " + err.Error())
+		logr.FromContextOrDiscard(ctx).Info("error logging into GCP " + err.Error())
 		return nil, err
 	}
 

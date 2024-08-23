@@ -22,9 +22,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/oci"
@@ -112,7 +112,6 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 // Login performs authentication against a registry and returns the Authenticator.
 // For generic registry provider, it is no-op.
 func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
-	log := log.FromContext(ctx)
 	provider := ImageRegistryProvider(url, ref)
 	var (
 		key string
@@ -121,11 +120,11 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 	if opts.Cache != nil {
 		key, err = m.keyFromURL(url, provider)
 		if err != nil {
-			log.Error(err, "failed to get cache key")
+			logr.FromContextOrDiscard(ctx).Error(err, "failed to get cache key")
 		} else {
-			auth, exists, err := getObjectFromCache(opts.Cache, key)
+			auth, exists, err := getObjectFromCache[authn.Authenticator](opts.Cache, key)
 			if err != nil {
-				log.Error(err, "failed to get auth object from cache")
+				logr.FromContextOrDiscard(ctx).Error(err, "failed to get auth object from cache")
 			}
 			if exists {
 				return auth, nil
@@ -142,7 +141,7 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 		if opts.Cache != nil {
 			err := cacheObject(opts.Cache, auth, key, expiresAt)
 			if err != nil {
-				log.Error(err, "failed to cache auth object")
+				logr.FromContextOrDiscard(ctx).Error(err, "failed to cache auth object")
 			}
 		}
 		return auth, nil
@@ -154,7 +153,7 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 		if opts.Cache != nil {
 			err := cacheObject(opts.Cache, auth, key, expiresAt)
 			if err != nil {
-				log.Error(err, "failed to cache auth object")
+				logr.FromContextOrDiscard(ctx).Error(err, "failed to cache auth object")
 			}
 		}
 		return auth, nil
@@ -166,7 +165,7 @@ func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opt
 		if opts.Cache != nil {
 			err := cacheObject(opts.Cache, auth, key, expiresAt)
 			if err != nil {
-				log.Error(err, "failed to cache auth object")
+				logr.FromContextOrDiscard(ctx).Error(err, "failed to cache auth object")
 			}
 		}
 		return auth, nil
@@ -191,19 +190,19 @@ func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts Provid
 		if !opts.AwsAutoLogin {
 			return nil, fmt.Errorf("ECR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
-		log.FromContext(ctx).Info("logging in to AWS ECR for " + u.Host)
+		logr.FromContextOrDiscard(ctx).Info("logging in to AWS ECR for " + u.Host)
 		return m.ecr.OIDCLogin(ctx, u.Host)
 	case oci.ProviderGCP:
 		if !opts.GcpAutoLogin {
 			return nil, fmt.Errorf("GCR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
-		log.FromContext(ctx).Info("logging in to GCP GCR for " + u.Host)
+		logr.FromContextOrDiscard(ctx).Info("logging in to GCP GCR for " + u.Host)
 		return m.gcr.OIDCLogin(ctx)
 	case oci.ProviderAzure:
 		if !opts.AzureAutoLogin {
 			return nil, fmt.Errorf("ACR authentication failed: %w", oci.ErrUnconfiguredProvider)
 		}
-		log.FromContext(ctx).Info("logging in to Azure ACR for " + u.Host)
+		logr.FromContextOrDiscard(ctx).Info("logging in to Azure ACR for " + u.Host)
 		return m.acr.OIDCLogin(ctx, fmt.Sprintf("%s://%s", u.Scheme, u.Host))
 	}
 	return nil, nil

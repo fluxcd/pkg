@@ -31,7 +31,6 @@ import (
 	_ "github.com/distribution/distribution/v3/registry/storage/driver/inmemory"
 	"github.com/phayes/freeport"
 	"github.com/sirupsen/logrus"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var (
@@ -66,7 +65,8 @@ func setupRegistryServer(ctx context.Context) error {
 }
 
 func TestMain(m *testing.M) {
-	ctx := ctrl.SetupSignalHandler()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	err := setupRegistryServer(ctx)
 	if err != nil {
 		panic(fmt.Sprintf("failed to start docker registry: %s", err))
