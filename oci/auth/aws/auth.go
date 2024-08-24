@@ -29,8 +29,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/oci"
 )
@@ -137,7 +137,7 @@ func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.A
 // It returns the authentication material and the expiry time of the token.
 func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string) (authn.Authenticator, time.Time, error) {
 	if autoLogin {
-		log.FromContext(ctx).Info("logging in to AWS ECR for " + image)
+		logr.FromContextOrDiscard(ctx).Info("logging in to AWS ECR for " + image)
 		_, awsEcrRegion, ok := ParseRegistry(image)
 		if !ok {
 			return nil, time.Time{}, errors.New("failed to parse AWS ECR image, invalid ECR image")

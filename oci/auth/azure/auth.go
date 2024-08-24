@@ -27,9 +27,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/oci"
 )
@@ -135,13 +135,13 @@ func ValidHost(host string) bool {
 // The caller can ensure that the passed image is a valid ACR image using ValidHost().
 func (c *Client) LoginWithExpiry(ctx context.Context, autoLogin bool, image string, ref name.Reference) (authn.Authenticator, time.Time, error) {
 	if autoLogin {
-		log.FromContext(ctx).Info("logging in to Azure ACR for " + image)
+		logr.FromContextOrDiscard(ctx).Info("logging in to Azure ACR for " + image)
 		// get registry host from image
 		strArr := strings.SplitN(image, "/", 2)
 		endpoint := fmt.Sprintf("%s://%s", c.scheme, strArr[0])
 		authConfig, expiresAt, err := c.getLoginAuth(ctx, endpoint)
 		if err != nil {
-			log.FromContext(ctx).Info("error logging into ACR " + err.Error())
+			logr.FromContextOrDiscard(ctx).Info("error logging into ACR " + err.Error())
 			return nil, time.Time{}, err
 		}
 
@@ -167,7 +167,7 @@ func (c *Client) Login(ctx context.Context, autoLogin bool, image string, ref na
 func (c *Client) OIDCLogin(ctx context.Context, registryUrl string) (authn.Authenticator, error) {
 	authConfig, _, err := c.getLoginAuth(ctx, registryUrl)
 	if err != nil {
-		log.FromContext(ctx).Info("error logging into ACR " + err.Error())
+		logr.FromContextOrDiscard(ctx).Info("error logging into ACR " + err.Error())
 		return nil, err
 	}
 
