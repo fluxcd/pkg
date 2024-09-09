@@ -81,13 +81,42 @@ type Manager struct {
 	acr *azure.Client
 }
 
+// Option is a functional option for configuring the manager.
+type Option func(*options)
+
+type options struct {
+	proxyURL *url.URL
+}
+
+// WithProxyURL sets the proxy URL for the manager.
+func WithProxyURL(proxyURL *url.URL) Option {
+	return func(o *options) {
+		o.proxyURL = proxyURL
+	}
+}
+
 // NewManager initializes a Manager with default registry clients
 // configurations.
-func NewManager() *Manager {
+func NewManager(opts ...Option) *Manager {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	var awsOpts []aws.Option
+	var gcpOpts []gcp.Option
+	var azureOpts []azure.Option
+
+	if o.proxyURL != nil {
+		awsOpts = append(awsOpts, aws.WithProxyURL(o.proxyURL))
+		gcpOpts = append(gcpOpts, gcp.WithProxyURL(o.proxyURL))
+		azureOpts = append(azureOpts, azure.WithProxyURL(o.proxyURL))
+	}
+
 	return &Manager{
-		ecr: aws.NewClient(),
-		gcr: gcp.NewClient(),
-		acr: azure.NewClient(),
+		ecr: aws.NewClient(awsOpts...),
+		gcr: gcp.NewClient(gcpOpts...),
+		acr: azure.NewClient(azureOpts...),
 	}
 }
 

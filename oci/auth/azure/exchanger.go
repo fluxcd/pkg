@@ -67,13 +67,15 @@ type acrError struct {
 
 type exchanger struct {
 	endpoint string
+	proxyURL *url.URL
 }
 
 // newExchanger returns an Azure Exchanger for Azure Container Registry with
 // a given endpoint, for example https://azurecr.io.
-func newExchanger(endpoint string) *exchanger {
+func newExchanger(endpoint string, proxyURL *url.URL) *exchanger {
 	return &exchanger{
 		endpoint: endpoint,
+		proxyURL: proxyURL,
 	}
 }
 
@@ -87,12 +89,20 @@ func (e *exchanger) ExchangeACRAccessToken(armToken string) (string, error) {
 	}
 	exchangeURL.Path = path.Join(exchangeURL.Path, "oauth2/exchange")
 
+	httpClient := &http.Client{}
+
+	if e.proxyURL != nil {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.Proxy = http.ProxyURL(e.proxyURL)
+		httpClient.Transport = transport
+	}
+
 	parameters := url.Values{}
 	parameters.Add("grant_type", "access_token")
 	parameters.Add("service", exchangeURL.Hostname())
 	parameters.Add("access_token", armToken)
 
-	resp, err := http.PostForm(exchangeURL.String(), parameters)
+	resp, err := httpClient.PostForm(exchangeURL.String(), parameters)
 	if err != nil {
 		return "", fmt.Errorf("failed to send token exchange request: %w", err)
 	}
