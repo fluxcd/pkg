@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -50,11 +51,26 @@ func ValidHost(host string) bool {
 // authorization information.
 type Client struct {
 	tokenURL string
+	proxyURL *url.URL
+}
+
+// Option is a functional option for configuring the client.
+type Option func(*Client)
+
+// WithProxyURL sets the proxy URL for the client.
+func WithProxyURL(proxyURL *url.URL) Option {
+	return func(c *Client) {
+		c.proxyURL = proxyURL
+	}
 }
 
 // NewClient creates a new GCR client with default configurations.
-func NewClient() *Client {
-	return &Client{tokenURL: GCP_TOKEN_URL}
+func NewClient(opts ...Option) *Client {
+	client := &Client{tokenURL: GCP_TOKEN_URL}
+	for _, opt := range opts {
+		opt(client)
+	}
+	return client
 }
 
 // WithTokenURL sets the token URL used by the GCR client.
@@ -77,7 +93,14 @@ func (c *Client) getLoginAuth(ctx context.Context) (authn.AuthConfig, time.Time,
 
 	request.Header.Add("Metadata-Flavor", "Google")
 
-	client := &http.Client{}
+	var transport http.RoundTripper
+	if c.proxyURL != nil {
+		t := http.DefaultTransport.(*http.Transport).Clone()
+		t.Proxy = http.ProxyURL(c.proxyURL)
+		transport = t
+	}
+
+	client := &http.Client{Transport: transport}
 	response, err := client.Do(request)
 	if err != nil {
 		return authConfig, time.Time{}, err

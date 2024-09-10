@@ -21,6 +21,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -51,8 +53,19 @@ func ParseRegistry(registry string) (accountId, awsEcrRegion string, ok bool) {
 // Client is a AWS ECR client which can log into the registry and return
 // authorization information.
 type Client struct {
-	config *aws.Config
-	mu     sync.Mutex
+	config   *aws.Config
+	mu       sync.Mutex
+	proxyURL *url.URL
+}
+
+// Option is a functional option for configuring the client.
+type Option func(*Client)
+
+// WithProxyURL sets the proxy URL for the client.
+func WithProxyURL(proxyURL *url.URL) Option {
+	return func(c *Client) {
+		c.proxyURL = proxyURL
+	}
 }
 
 // NewClient creates a new empty ECR client.
@@ -60,8 +73,12 @@ type Client struct {
 // config, return an empty Client. Client.getLoginAuth() loads the default
 // config if Client.config is nil. This also enables tests to configure the
 // Client with stub before calling the login method using Client.WithConfig().
-func NewClient() *Client {
-	return &Client{}
+func NewClient(opts ...Option) *Client {
+	client := &Client{}
+	for _, opt := range opts {
+		opt(client)
+	}
+	return client
 }
 
 // WithConfig allows setting the client config if it's uninitialized.
@@ -87,8 +104,16 @@ func (c *Client) getLoginAuth(ctx context.Context, awsEcrRegion string) (authn.A
 	if c.config != nil {
 		cfg = c.config.Copy()
 	} else {
+		var confOpts []func(*config.LoadOptions) error
+		confOpts = append(confOpts, config.WithRegion(awsEcrRegion))
+		if c.proxyURL != nil {
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.Proxy = http.ProxyURL(c.proxyURL)
+			confOpts = append(confOpts, config.WithHTTPClient(&http.Client{Transport: transport}))
+		}
+
 		var err error
-		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(awsEcrRegion))
+		cfg, err = config.LoadDefaultConfig(ctx, confOpts...)
 		if err != nil {
 			c.mu.Unlock()
 			return authConfig, time.Time{}, fmt.Errorf("failed to load default configuration: %w", err)

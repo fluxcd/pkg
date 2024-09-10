@@ -19,6 +19,8 @@ package azure
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -44,11 +46,26 @@ const defaultCacheExpirationInSeconds = 600
 type Client struct {
 	credential azcore.TokenCredential
 	scheme     string
+	proxyURL   *url.URL
+}
+
+// Option is a functional option for configuring the client.
+type Option func(*Client)
+
+// WithProxyURL sets the proxy URL for the client.
+func WithProxyURL(proxyURL *url.URL) Option {
+	return func(c *Client) {
+		c.proxyURL = proxyURL
+	}
 }
 
 // NewClient creates a new ACR client with default configurations.
-func NewClient() *Client {
-	return &Client{scheme: "https"}
+func NewClient(opts ...Option) *Client {
+	client := &Client{scheme: "https"}
+	for _, opt := range opts {
+		opt(client)
+	}
+	return client
 }
 
 // WithTokenCredential sets the token credential used by the ACR client.
@@ -73,7 +90,14 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 	// NOTE: NewDefaultAzureCredential() performs a lot of environment lookup
 	// for creating default token credential. Load it only when it's needed.
 	if c.credential == nil {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		opts := &azidentity.DefaultAzureCredentialOptions{}
+		if c.proxyURL != nil {
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.Proxy = http.ProxyURL(c.proxyURL)
+			opts.Transport = &http.Client{Transport: transport}
+		}
+
+		cred, err := azidentity.NewDefaultAzureCredential(opts)
 		if err != nil {
 			return authConfig, time.Time{}, err
 		}
@@ -90,7 +114,7 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 	}
 
 	// Obtain ACR access token using exchanger.
-	ex := newExchanger(registryURL)
+	ex := newExchanger(registryURL, c.proxyURL)
 	accessToken, err := ex.ExchangeACRAccessToken(string(armToken.Token))
 	if err != nil {
 		return authConfig, time.Time{}, fmt.Errorf("error exchanging token: %w", err)

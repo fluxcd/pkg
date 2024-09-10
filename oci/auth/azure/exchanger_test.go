@@ -84,7 +84,7 @@ func TestExchanger_ExchangeACRAccessToken(t *testing.T) {
 				srv.Close()
 			})
 
-			ex := newExchanger(srv.URL)
+			ex := newExchanger(srv.URL, nil /*proxyURL*/)
 			token, err := ex.ExchangeACRAccessToken("some-access-token")
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if tt.statusCode == http.StatusOK {
