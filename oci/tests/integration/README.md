@@ -1,7 +1,7 @@
-# OCI integration test
+# Integration tests
 
-OCI integration test uses a test application(`testapp/`) to test the
-oci package against each of the supported cloud providers.
+Integration tests uses a test application(`testapp/`) to test the
+oci and git package against each of the supported cloud providers.
 
 **NOTE:** Tests in this package aren't run automatically by the `test-*` make
 target at the root of `fluxcd/pkg` repo. These tests are more complicated than
@@ -16,13 +16,32 @@ runs the test app as a batch job which tries to log in and list tags from the
 test registry repository. A successful job indicates successful test. If the job
 fails, the test fails.
 
-Logs of a successful job run:
+Logs of a successful job run for oci:
 ```console
 $ kubectl logs test-job-93tbl-4jp2r
 2022/07/28 21:59:06 repo: xxx.dkr.ecr.us-east-2.amazonaws.com/test-repo-flux-test-heroic-ram
 1.659045546831094e+09   INFO    logging in to AWS ECR for xxx.dkr.ecr.us-east-2.amazonaws.com/test-repo-flux-test-heroic-ram
 2022/07/28 21:59:06 logged in
 2022/07/28 21:59:06 tags: [v0.1.4 v0.1.3 v0.1.0 v0.1.2]
+```
+
+Logs of a successful job run for git:
+```console
+$ kubectl logs test-job-dzful-jrcqw
+2024/08/27 22:28:22 Successfully cloned repository
+2024/08/27 22:28:22 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: foobar
+2024/08/27 22:28:22 Keys in cache  0 [https://dev.azure.com/xxx/fluxProjpopularosheepdog/_git/fluxRepopopularosheepdog]
+2024/08/27 22:28:22 Cache entry expiration  2024-08-28 22:28:21.335223377 +0000 UTC <nil>
+2024/08/27 22:28:22 Successfully cloned repository
+2024/08/27 22:28:22 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: foobar
+2024/08/27 22:28:22 Keys in cache  1 [https://dev.azure.com/xxx/fluxProjpopularosheepdog/_git/fluxRepopopularosheepdog]
+2024/08/27 22:28:22 Cache entry expiration  2024-08-28 22:28:21.335223377 +0000 UTC <nil>
 ```
 
 ## Requirements
@@ -316,6 +335,18 @@ module "aws_gh_actions" {
     workloads to access ACR.
 - Azure CLI, need to be logged in using `az login` as a User (not a Service
   Principal).
+- An Azure DevOps organization [connected to Microsoft
+  Entra](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/connect-organization-to-azure-ad?view=azure-devops),
+  personal access token for accessing repositories within the organization. The
+  scope required for the personal access token is:
+  - Project and Team - read, write and manage access
+  - Member Entitlement Management (Read & Write)
+  - Code - Full
+  - Please take a look at the [terraform
+    provider](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs/guides/authenticating_using_the_personal_access_token#create-a-personal-access-token)
+    for more explanation.
+  - A valid Azure devops configuration is needed even if git is not being
+    tested. 
 
   **NOTE:** To use Service Principal (for example in CI environment), set the
   `ARM-*` variables in `.env`, source it and authenticate Azure CLI with:
@@ -520,9 +551,10 @@ Run the test with `make test-*`, setting the test app image with variable
 $ make test-azure
 make test PROVIDER_ARG="-provider azure"
 docker image inspect fluxcd/testapp:test >/dev/null
-TEST_IMG=fluxcd/testapp:test go test -timeout 30m -v ./ -verbose -retain -provider azure --tags=integration
-2022/07/29 02:06:51 Terraform binary:  /usr/bin/terraform
-2022/07/29 02:06:51 Init Terraform
+TEST_IMG=fluxcd/testapp:test go test -timeout 30m -v ./ -run "^.*" -provider azure --tags=integration
+2024/08/26 23:39:13 Terraform binary:  /snap/bin/terraform
+2024/08/26 23:39:13 Init Terraform
+2024/08/26 23:39:15 Applying Terraform
 ...
 ```
 
@@ -532,7 +564,10 @@ the resources don't get deleted, the `make destroy-*` commands can be run for
 the respective provider. This will run terraform destroy in the respective
 provider's terraform configuration directory. This can be used to quickly
 destroy the infrastructure without going through the provision-test-destroy
-steps.
+steps. There is a known issue with Azure user not getting cleaned up if the
+infrastructure is retained and destroy is used for cleanup. The workaround is to
+manually delete the user from Azure DevOps Organization
+Settings->Users page. 
 
 ## Workload Identity
 
@@ -546,6 +581,8 @@ export TF_VAR_enable_wi=
 ```
 
 They have been included in the `.env.sample` and you can simply uncomment it.
+
+The git integration tests require workload identity to be enabled.
 
 ## Debugging the tests
 

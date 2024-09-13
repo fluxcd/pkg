@@ -25,3 +25,21 @@ variable "enable_wi" {
   default     = false
   description = "Enable workload identity on cluster and create federated identity"
 }
+
+variable "enable_git" {
+  type        = bool
+  default     = false
+  description = "Enable git repository creation"
+}
+
+variable "azuredevops_org" {
+  type        = string
+  description = "Azure Devops organization to create project and git repository"
+  default     = ""
+}
+
+variable "azuredevops_pat" {
+  type        = string
+  description = "Personal access token to create project and repository in azure devops"
+  default     = ""
+}

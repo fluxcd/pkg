@@ -9,7 +9,9 @@ resource "random_pet" "suffix" {
 }
 
 locals {
-  name = "fluxTest${random_pet.suffix.id}"
+  name         = "fluxTest${random_pet.suffix.id}"
+  project_name = "fluxProj${random_pet.suffix.id}"
+  repo_name    = "fluxRepo${random_pet.suffix.id}"
 }
 
 module "aks" {
@@ -54,4 +56,20 @@ resource "azurerm_federated_identity_credential" "federated-identity2" {
   subject             = "system:serviceaccount:${var.wi_k8s_sa_ns}:${var.wi_k8s_sa_name}"
 
   depends_on = [module.aks]
+}
+
+provider "azuredevops" {
+  org_service_url       = "https://dev.azure.com/${var.azuredevops_org}"
+  personal_access_token = var.azuredevops_pat
+}
+
+module "devops" {
+  count = var.enable_git ? 1 : 0
+  source = "git::https://github.com/fluxcd/test-infra.git//tf-modules/azure/devops"
+  providers = {
+    azuredevops = azuredevops
+  }
+
+  project_name    = local.project_name
+  repository_name = local.repo_name
 }
