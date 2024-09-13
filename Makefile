@@ -13,13 +13,13 @@ PKG?=$*
 GO_TEST_ARGS ?= -race
 
 # API generation utilities
-CONTROLLER_GEN_VERSION ?= v0.15.0
+CONTROLLER_GEN_VERSION ?= v0.16.1
 
 # Architecture to use envtest with
 ENVTEST_ARCH ?= amd64
 
 # Kubernetes versions to use envtest with
-ENVTEST_KUBERNETES_VERSION?=1.28
+ENVTEST_KUBERNETES_VERSION?=1.31
 
 all: tidy generate fmt vet
 
@@ -82,8 +82,7 @@ install-envtest: setup-envtest
 ENVTEST = $(GOBIN)/setup-envtest
 .PHONY: envtest
 setup-envtest: ## Download envtest-setup locally if necessary.
-	# replace the commit SHA with 'latest' when https://github.com/kubernetes-sigs/controller-runtime/issues/2720 is fixed
-	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@c7e1dc9b5302d649d5531e19168dd7ea0013736d)
+	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
 
 # go-install-tool will 'go install' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
