@@ -39,6 +39,7 @@ import (
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
 
+	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
 )
@@ -247,10 +248,18 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 }
 
 func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
+	if err := g.providerAuth(ctx); err != nil {
+		return nil, err
+	}
+
 	if err := g.validateUrl(url); err != nil {
 		return nil, err
 	}
 
+	return g.clone(ctx, url, cfg)
+}
+
+func (g *Client) clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
 	checkoutStrat := cfg.CheckoutStrategy
 	switch {
 	case checkoutStrat.Commit != "":
@@ -301,6 +310,31 @@ func (g *Client) validateUrl(u string) error {
 		} else if g.authOpts.BearerToken != "" {
 			return errors.New("bearer token cannot be sent over HTTP")
 		}
+	}
+
+	return nil
+}
+
+func (g *Client) providerAuth(ctx context.Context) error {
+	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" {
+		if g.proxy.URL != "" {
+			proxyURL, err := g.proxy.FullURL()
+			if err != nil {
+				return err
+			}
+			switch g.authOpts.ProviderOpts.Name {
+			case git.ProviderAzure:
+				g.authOpts.ProviderOpts.AzureOpts = append(g.authOpts.ProviderOpts.AzureOpts, azure.WithProxyURL(proxyURL))
+			default:
+				return fmt.Errorf("invalid provider")
+			}
+		}
+
+		providerCreds, _, err := git.GetCredentials(ctx, g.authOpts.ProviderOpts)
+		if err != nil {
+			return err
+		}
+		g.authOpts.BearerToken = providerCreds.BearerToken
 	}
 
 	return nil
