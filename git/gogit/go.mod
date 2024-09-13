@@ -15,11 +15,11 @@ require (
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v0.0.0-20240909085733-6741dbfc16a1
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000
+	github.com/fluxcd/pkg/auth v0.0.1
 	github.com/fluxcd/pkg/git v0.20.0
-	github.com/fluxcd/pkg/gittestserver v0.13.0
-	github.com/fluxcd/pkg/ssh v0.14.0
-	github.com/fluxcd/pkg/version v0.4.0
+	github.com/fluxcd/pkg/gittestserver v0.13.1
+	github.com/fluxcd/pkg/ssh v0.14.1
+	github.com/fluxcd/pkg/version v0.4.1
 	github.com/go-git/go-billy/v5 v5.5.0
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/onsi/gomega v1.34.2

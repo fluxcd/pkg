@@ -12,8 +12,8 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
 	github.com/fluxcd/cli-utils v0.36.0-flux.9
 	github.com/fluxcd/pkg/apis/acl v0.3.0
-	github.com/fluxcd/pkg/apis/event v0.10.0
-	github.com/fluxcd/pkg/apis/meta v1.6.0
+	github.com/fluxcd/pkg/apis/event v0.10.1
+	github.com/fluxcd/pkg/apis/meta v1.6.1
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.7

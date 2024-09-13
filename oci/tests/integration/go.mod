@@ -8,7 +8,7 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/cache v0.0.3
+	github.com/fluxcd/pkg/cache v0.0.4
 	github.com/fluxcd/pkg/oci v0.40.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240805120810-5b91964f964f
 	github.com/google/go-containerregistry v0.20.2
