@@ -7,7 +7,7 @@ replace github.com/fluxcd/pkg/auth => ../auth
 require (
 	github.com/ProtonMail/go-crypto v1.0.0
 	github.com/cyphar/filepath-securejoin v0.3.2
-	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000
+	github.com/fluxcd/pkg/auth v0.0.1
 	github.com/onsi/gomega v1.34.2
 )
 
