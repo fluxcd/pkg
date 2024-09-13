@@ -22,10 +22,19 @@ package integration
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"strings"
+	"time"
 
-	tfjson "github.com/hashicorp/terraform-json"
-
+	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/test-infra/tftestenv"
+	"github.com/google/uuid"
+	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/graph"
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/licensing"
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/memberentitlementmanagement"
 )
 
 const (
@@ -80,4 +89,144 @@ func getWISAAnnotationsAzure(output map[string]*tfjson.StateOutput) (map[string]
 	return map[string]string{
 		azureWIClientIdAnnotation: clientID,
 	}, nil
+}
+
+// Give managed identity permissions on the azure devops project. Refer
+// https://learn.microsoft.com/en-us/rest/api/azure/devops/memberentitlementmanagement/service-principal-entitlements/add?view=azure-devops-rest-7.1&tabs=HTTP.
+// This can be moved to terraform if/when this PR completes -
+// https://github.com/microsoft/terraform-provider-azuredevops/pull/1028
+// Returns a string representing the uuid of the entity that was granted permissions
+func grantPermissionsToGitRepositoryAzure(ctx context.Context, cfg *gitTestConfig, outputs map[string]*tfjson.StateOutput) error {
+	projectId := outputs["azure_devops_project_id"].Value.(string)
+	wiObjectId := outputs["workload_identity_object_id"].Value.(string)
+	var servicePrincipalID string
+
+	// Create a connection to the organization and create a new client
+	connection := azuredevops.NewPatConnection(fmt.Sprintf("https://dev.azure.com/%s", cfg.organization), cfg.gitPat)
+	client, err := memberentitlementmanagement.NewClient(ctx, connection)
+	if err != nil {
+		return err
+	}
+
+	uuid, err := uuid.Parse(projectId)
+	if err != nil {
+		return err
+	}
+	origin := "AAD"
+	kind := "servicePrincipal"
+	servicePrincipal := memberentitlementmanagement.ServicePrincipalEntitlement{
+		AccessLevel: &licensing.AccessLevel{
+			AccountLicenseType: &licensing.AccountLicenseTypeValues.Express,
+		},
+		ProjectEntitlements: &[]memberentitlementmanagement.ProjectEntitlement{
+			{
+				ProjectRef: &memberentitlementmanagement.ProjectRef{
+					Id: &uuid,
+				},
+				Group: &memberentitlementmanagement.Group{
+					GroupType: &memberentitlementmanagement.GroupTypeValues.ProjectContributor,
+				},
+			},
+		},
+		ServicePrincipal: &graph.GraphServicePrincipal{
+			Origin:      &origin,
+			OriginId:    &wiObjectId,
+			SubjectKind: &kind,
+		},
+	}
+
+	// First request to add new user fails, second request succeeds, add a retry
+	retryAttempts := 2
+	retryDelay := 1 * time.Second // 1 seconds delay
+	attempts := 0
+	for attempts < retryAttempts {
+		attempts++
+		responseValue, err := client.AddServicePrincipalEntitlement(ctx, memberentitlementmanagement.AddServicePrincipalEntitlementArgs{ServicePrincipalEntitlement: &servicePrincipal})
+		if err != nil {
+			return err
+		}
+
+		if !*responseValue.OperationResult.IsSuccess {
+			errMsg := getServicePrincipalEntitlementAPIErrorMessage(*responseValue.OperationResult)
+			if strings.Contains(errMsg, "VS403283: Could not add user") {
+				log.Println("Retryable error encountered", errMsg)
+				time.Sleep(retryDelay)
+				continue
+			} else {
+				return fmt.Errorf(errMsg)
+			}
+		}
+		uuid := responseValue.OperationResult.ServicePrincipalId
+		servicePrincipalID = uuid.String()
+		break
+	}
+
+	cfg.permissionID = servicePrincipalID
+	log.Println("Added service principal entitlement!")
+
+	return nil
+}
+
+func getServicePrincipalEntitlementAPIErrorMessage(operationResult memberentitlementmanagement.ServicePrincipalEntitlementOperationResult) string {
+	errMsg := "Unknown API error"
+	if operationResult.Errors != nil && len(*operationResult.Errors) > 0 {
+		var errorMessages []string
+		for _, err := range *operationResult.Errors {
+			errorMessages = append(errorMessages, fmt.Sprintf("(%v) %s", *err.Key, *err.Value))
+		}
+		errMsg = strings.Join(errorMessages, "\n")
+	}
+	return errMsg
+}
+
+// revokePermissionsToGitRepositoryAzure deletes the managed identity from users list in the organization.
+func revokePermissionsToGitRepositoryAzure(ctx context.Context, cfg *gitTestConfig, outputs map[string]*tfjson.StateOutput) error {
+	uuid, err := uuid.Parse(cfg.permissionID)
+	if err != nil {
+		return err
+	}
+
+	// Create a connection to the organization and create a new client
+	connection := azuredevops.NewPatConnection(fmt.Sprintf("https://dev.azure.com/%s", cfg.organization), cfg.gitPat)
+	client, err := memberentitlementmanagement.NewClient(ctx, connection)
+	if err != nil {
+		return err
+	}
+
+	err = client.DeleteServicePrincipalEntitlement(ctx, memberentitlementmanagement.DeleteServicePrincipalEntitlementArgs{ServicePrincipalId: &uuid})
+	if err != nil {
+		log.Fatal(err)
+	}
+	cfg.permissionID = ""
+
+	return nil
+}
+
+// getGitTestConfigAzure returns the test config used to setup the git repository
+func getGitTestConfigAzure(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
+	config := &gitTestConfig{
+		defaultGitTransport:   git.HTTP,
+		gitUsername:           git.DefaultPublicKeyAuthUser,
+		organization:          os.Getenv(envVarAzureDevOpsOrg),
+		gitPat:                os.Getenv(envVarAzureDevOpsPAT),
+		applicationRepository: outputs["git_repo_url"].Value.(string),
+	}
+
+	opts, err := getAuthOpts(config.applicationRepository, map[string][]byte{
+		"password": []byte(config.gitPat),
+		"username": []byte(git.DefaultPublicKeyAuthUser),
+	})
+	if err != nil {
+		return nil, err
+	}
+	config.defaultAuthOpts = opts
+
+	parts := strings.Split(config.applicationRepository, "@")
+	// Check if the URL contains the "@" symbol
+	if len(parts) > 1 {
+		// Reconstruct the URL without the username
+		config.applicationRepositoryWithoutUser = "https://" + parts[1]
+	}
+
+	return config, nil
 }

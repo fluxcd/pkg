@@ -1,4 +1,5 @@
 GO_TEST_ARGS ?=
+GO_TEST_PREFIX ?=
 PROVIDER_ARG ?=
 TEST_TIMEOUT ?= 30m
 GOARCH ?= amd64
@@ -15,13 +16,19 @@ docker-build: app
 
 test:
 	docker image inspect $(TEST_IMG) >/dev/null
-	TEST_IMG=$(TEST_IMG) go test -timeout $(TEST_TIMEOUT) -v ./ $(GO_TEST_ARGS) $(PROVIDER_ARG) --tags=integration
+	TEST_IMG=$(TEST_IMG) go test -timeout $(TEST_TIMEOUT) -v ./ -run "^$(GO_TEST_PREFIX).*" $(GO_TEST_ARGS) $(PROVIDER_ARG) --tags=integration
 
 test-aws:
 	$(MAKE) test PROVIDER_ARG="-provider aws"
 
 test-azure:
 	$(MAKE) test PROVIDER_ARG="-provider azure"
+
+test-azure-git:
+	$(MAKE) test PROVIDER_ARG="-provider azure" GO_TEST_PREFIX="TestGit"
+
+test-azure-oci:
+	$(MAKE) test PROVIDER_ARG="-provider azure" GO_TEST_PREFIX="TestOci"
 
 test-gcp:
 	$(MAKE) test PROVIDER_ARG="-provider gcp"

@@ -21,8 +21,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -32,51 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func TestImageRepositoryListTags(t *testing.T) {
-	for name, repo := range testRepos {
-		t.Run(name, func(t *testing.T) {
-			args := []string{fmt.Sprintf("-repo=%s", repo)}
-			testImageRepositoryListTags(t, args)
-		})
-	}
-}
-
-func TestRepositoryRootLoginListTags(t *testing.T) {
-	for name, repo := range testRepos {
-		t.Run(name, func(t *testing.T) {
-			parts := strings.SplitN(repo, "/", 2)
-			args := []string{
-				fmt.Sprintf("-registry=%s", parts[0]),
-				fmt.Sprintf("-repo=%s", parts[1]),
-			}
-			testImageRepositoryListTags(t, args)
-		})
-	}
-}
-
-func TestOIDCLoginListTags(t *testing.T) {
-	for name, repo := range testRepos {
-		t.Run(name, func(t *testing.T) {
-			// Registry only.
-			parts := strings.SplitN(repo, "/", 2)
-			args := []string{
-				"-oidc-login=true",
-				fmt.Sprintf("-registry=%s", parts[0]),
-				fmt.Sprintf("-repo=%s", parts[1]),
-			}
-			testImageRepositoryListTags(t, args)
-
-			// Registry + repo.
-			args = []string{
-				"-oidc-login=true",
-				fmt.Sprintf("-repo=%s", repo),
-			}
-			testImageRepositoryListTags(t, args)
-		})
-	}
-}
-
-func testImageRepositoryListTags(t *testing.T, args []string) {
+func testjobExecutionWithArgs(t *testing.T, args []string) {
+	t.Helper()
 	g := NewWithT(t)
 	ctx := context.TODO()
 
@@ -107,10 +62,12 @@ func testImageRepositoryListTags(t *testing.T, args []string) {
 	key := client.ObjectKeyFromObject(job)
 
 	g.Expect(testEnv.Client.Create(ctx, job)).To(Succeed())
+
 	defer func() {
 		background := metav1.DeletePropagationBackground
 		g.Expect(testEnv.Client.Delete(ctx, job, &client.DeleteOptions{PropagationPolicy: &background})).To(Succeed())
 	}()
+
 	g.Eventually(func() bool {
 		if err := testEnv.Client.Get(ctx, key, job); err != nil {
 			return false
