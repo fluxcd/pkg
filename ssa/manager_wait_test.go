@@ -42,6 +42,9 @@ func TestWaitForSet(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	waitOps := DefaultWaitOptions()
+	waitOps.Timeout = timeout
+
 	id := generateName("wait")
 	objects, err := readManifest("testdata/test5.yaml", id)
 	if err != nil {
@@ -99,7 +102,41 @@ func TestWaitForSet(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := manager.WaitForSet(changeSet.ToObjMetadataSet(), DefaultWaitOptions()); err != nil {
+		if err := manager.WaitForSet(changeSet.ToObjMetadataSet(), waitOps); err != nil {
+			t.Errorf("wait error: %v", err)
+		}
+	})
+
+	t.Run("skips suspended CRs", func(t *testing.T) {
+		clusterCR := &unstructured.Unstructured{}
+		clusterCR.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "testing.fluxcd.io",
+			Kind:    "ClusterTest",
+			Version: "v1",
+		})
+		if err := manager.client.Get(ctx, client.ObjectKeyFromObject(cr), clusterCR); err != nil {
+			t.Fatal(err)
+		}
+
+		clusterCR.SetManagedFields(nil)
+		err = unstructured.SetNestedField(clusterCR.Object, true, "spec", "suspend")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		opts := &client.SubResourcePatchOptions{
+			PatchOptions: client.PatchOptions{
+				FieldManager: manager.owner.Field,
+			},
+		}
+
+		// Suspend the CR and thus bumping the generation.
+		if err := manager.client.Patch(ctx, clusterCR, client.Apply, opts); err != nil {
+			t.Fatal(err)
+		}
+
+		metaSet := object.UnstructuredSetToObjMetadataSet([]*unstructured.Unstructured{clusterCR})
+		if err := manager.WaitForSet(metaSet, waitOps); err != nil {
 			t.Errorf("wait error: %v", err)
 		}
 	})
