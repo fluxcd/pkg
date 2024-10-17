@@ -23,94 +23,68 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fluxcd/cli-utils/pkg/object"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	kc "k8s.io/client-go/tools/cache"
 )
 
 func TestCache(t *testing.T) {
 	t.Run("Add and update keys", func(t *testing.T) {
 		g := NewWithT(t)
 		// create a cache that can hold 2 items and have no cleanup
-		cache, err := New(3, kc.MetaNamespaceKeyFunc,
-			WithMetricsRegisterer[any](prometheus.NewPedanticRegistry()),
-			WithCleanupInterval[any](1*time.Second))
+		cache, err := New[string](3,
+			WithMetricsRegisterer(prometheus.NewPedanticRegistry()),
+			WithCleanupInterval(1*time.Second))
 		g.Expect(err).ToNot(HaveOccurred())
-
-		obj := &metav1.PartialObjectMetadata{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "TestObject",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "test-ns",
-				Name:      "test",
-			},
-		}
 
 		// Get an Item from the cache
-		_, found, err := cache.Get(obj)
+		key1 := "key1"
+		value1 := "val1"
+		got, err := cache.Get(key1)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(found).To(BeFalse())
+		g.Expect(got).To(BeNil())
 
 		// Add an item to the cache
-		err = cache.Set(obj)
+		err = cache.Set(key1, value1)
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Get the item from the cache
-		item, found, err := cache.Get(obj)
+		got, err = cache.Get(key1)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(found).To(BeTrue())
-		g.Expect(item).To(Equal(obj))
+		g.Expect(*got).To(Equal(value1))
 
-		obj2 := &metav1.PartialObjectMetadata{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "TestObject",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "test-ns",
-				Name:      "test2",
-			},
-		}
+		// Writing to the obtained value doesn't update the cache.
+		*got = "val2"
+		got2, err := cache.Get(key1)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(*got2).To(Equal(value1))
+
 		// Add another item to the cache
-		err = cache.Set(obj2)
+		key2 := "key2"
+		value2 := "val2"
+		err = cache.Set(key2, value2)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(cache.ListKeys()).To(ConsistOf("test-ns/test", "test-ns/test2"))
+		g.Expect(cache.ListKeys()).To(ConsistOf(key1, key2))
 
 		// Get the item from the cache
-		item, found, err = cache.GetByKey("test-ns/test2")
+		got, err = cache.Get(key2)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(found).To(BeTrue())
-		g.Expect(item).To(Equal(obj2))
+		g.Expect(*got).To(Equal(value2))
 
-		//Update an item in the cache
-		obj3 := &metav1.PartialObjectMetadata{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "TestObject",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "test-ns",
-				Name:      "test3",
-			},
-		}
-		err = cache.Set(obj3)
+		// Update an item in the cache
+		key3 := "key3"
+		value3 := "val3"
+		value4 := "val4"
+		err = cache.Set(key3, value3)
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Replace an item in the cache
-		obj3.Labels = map[string]string{"pp.kubernetes.io/created-by: ": "flux"}
-		err = cache.Set(obj3)
+		err = cache.Set(key3, value4)
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Get the item from the cache
-		item, found, err = cache.Get(obj3)
+		got, err = cache.Get(key3)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(found).To(BeTrue())
-		g.Expect(item).To(Equal(obj3))
+		g.Expect(*got).To(Equal(value4))
 
 		// cleanup the cache
 		cache.Clear()
@@ -124,183 +98,134 @@ func TestCache(t *testing.T) {
 	t.Run("Add expiring keys", func(t *testing.T) {
 		g := NewWithT(t)
 		// new cache with a cleanup interval of 1 second
-		cache, err := New(2, IdentifiableObjectKeyFunc,
-			WithCleanupInterval[IdentifiableObject](1*time.Second),
-			WithMetricsRegisterer[IdentifiableObject](prometheus.NewPedanticRegistry()))
+
+		cache, err := New[string](2,
+			WithCleanupInterval(1*time.Second),
+			WithMetricsRegisterer(prometheus.NewPedanticRegistry()))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Add an object representing an expiring token
-		obj := IdentifiableObject{
-			ObjMetadata: object.ObjMetadata{
-				Namespace: "test-ns",
-				Name:      "test",
-				GroupKind: schema.GroupKind{
-					Group: "test-group",
-					Kind:  "TestObject",
-				},
-			},
-			Object: struct {
-				token string
-			}{
-				token: "test-token",
-			},
-		}
+		key := "key1"
+		value := "val1"
 
-		err = cache.Set(obj)
+		err = cache.Set(key, value)
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// set expiration time to 2 seconds
-		err = cache.SetExpiration(obj, time.Now().Add(2*time.Second))
+		err = cache.SetExpiration(key, time.Now().Add(2*time.Second))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Get the item from the cache
-		item, found, err := cache.Get(obj)
+		item, err := cache.Get(key)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(found).To(BeTrue())
-		g.Expect(item).To(Equal(obj))
+		g.Expect(*item).To(Equal(value))
 
 		// wait for the item to expire
 		time.Sleep(3 * time.Second)
 
 		// Get the item from the cache
-		item, found, err = cache.Get(obj)
+		item, err = cache.Get(key)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(found).To(BeFalse())
-		g.Expect(item.Object).To(BeNil())
+		g.Expect(item).To(BeNil())
+	})
+
+	t.Run("Cache of integer value", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cache, err := New[int](3, WithMetricsRegisterer(prometheus.NewPedanticRegistry()))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		key := "key1"
+		g.Expect(cache.Set(key, 4)).To(Succeed())
+
+		got, err := cache.Get(key)
+		g.Expect(err).To(Succeed())
+		g.Expect(*got).To(Equal(4))
 	})
 }
 
-func Test_Cache_Add(t *testing.T) {
+func Test_Cache_Set(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := New[IdentifiableObject](1, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg),
-		WithCleanupInterval[IdentifiableObject](10*time.Millisecond))
+	cache, err := New[string](1,
+		WithMetricsRegisterer(reg),
+		WithCleanupInterval(10*time.Millisecond))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Add an object representing an expiring token
-	obj := IdentifiableObject{
-		ObjMetadata: object.ObjMetadata{
-			Namespace: "test-ns",
-			Name:      "test",
-			GroupKind: schema.GroupKind{
-				Group: "test-group",
-				Kind:  "TestObject",
-			},
-		},
-		Object: "test-token",
-	}
-	err = cache.Set(obj)
+	key1 := "key1"
+	value1 := "val1"
+	err = cache.Set(key1, value1)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = cache.SetExpiration(obj, time.Now().Add(10*time.Millisecond))
+	err = cache.SetExpiration(key1, time.Now().Add(10*time.Millisecond))
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test_test-group_TestObject"))
+	g.Expect(cache.ListKeys()).To(ConsistOf(key1))
 
 	// try adding the same object again, it should overwrite the existing one
-	err = cache.Set(obj)
+	err = cache.Set(key1, value1)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// wait for the item to expire
 	time.Sleep(20 * time.Millisecond)
-	ok, err := cache.HasExpired(obj)
+	ok, err := cache.HasExpired(key1)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(ok).To(BeTrue())
 
 	// add another object
-	obj.Name = "test2"
-	err = cache.Set(obj)
+	key2 := "key2"
+	value2 := "val2"
+	err = cache.Set(key2, value2)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test2_test-group_TestObject"))
+	g.Expect(cache.ListKeys()).To(ConsistOf(key2))
 
-	// validate metrics
-	validateMetrics(reg, `
-	# HELP gotk_cache_evictions_total Total number of cache evictions.
-	# TYPE gotk_cache_evictions_total counter
-	gotk_cache_evictions_total 1
-	# HELP gotk_cache_requests_total Total number of cache requests partioned by success or failure.
-	# TYPE gotk_cache_requests_total counter
-	gotk_cache_requests_total{status="success"} 7
-	# HELP gotk_cached_items Total number of items in the cache.
-	# TYPE gotk_cached_items gauge
-	gotk_cached_items 1
-`, t)
-}
-
-func Test_Cache_Update(t *testing.T) {
-	g := NewWithT(t)
-	reg := prometheus.NewPedanticRegistry()
-	cache, err := New[IdentifiableObject](1, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg))
+	// Update the value of existing item.
+	value3 := "val3"
+	err = cache.Set(key2, value3)
 	g.Expect(err).ToNot(HaveOccurred())
-
-	// Add an object representing an expiring token
-	obj := IdentifiableObject{
-		ObjMetadata: object.ObjMetadata{
-			Namespace: "test-ns",
-			Name:      "test",
-			GroupKind: schema.GroupKind{
-				Group: "test-group",
-				Kind:  "TestObject",
-			},
-		},
-		Object: "test-token",
-	}
-	err = cache.Set(obj)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test_test-group_TestObject"))
-
-	obj.Object = "test-token2"
-	err = cache.Set(obj)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test_test-group_TestObject"))
-	g.Expect(cache.index["test-ns_test_test-group_TestObject"].object.Object).To(Equal("test-token2"))
+	g.Expect(cache.ListKeys()).To(ConsistOf(key2))
+	g.Expect(cache.index[key2].value).To(Equal(value3))
 
 	// validate metrics
 	validateMetrics(reg, `
 		# HELP gotk_cache_evictions_total Total number of cache evictions.
 		# TYPE gotk_cache_evictions_total counter
-		gotk_cache_evictions_total 0
+		gotk_cache_evictions_total 1
 		# HELP gotk_cache_requests_total Total number of cache requests partioned by success or failure.
 		# TYPE gotk_cache_requests_total counter
-		gotk_cache_requests_total{status="success"} 4
+		gotk_cache_requests_total{status="success"} 9
 		# HELP gotk_cached_items Total number of items in the cache.
 		# TYPE gotk_cached_items gauge
 		gotk_cached_items 1
-	`, t)
+`, t)
 }
 
 func Test_Cache_Get(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := New[IdentifiableObject](5, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg),
-		WithMetricsLabels[IdentifiableObject](IdentifiableObjectLabels, IdentifiableObjectLVSFunc))
+	cache, err := New[string](5, WithMetricsRegisterer(reg))
 	g.Expect(err).ToNot(HaveOccurred())
+
+	// Reconciling object label values for cache event metric.
+	recObjKind := "TestObject"
+	recObjName := "test"
+	recObjNamespace := "test-ns"
 
 	// Add an object representing an expiring token
-	obj := IdentifiableObject{
-		ObjMetadata: object.ObjMetadata{
-			Namespace: "test-ns",
-			Name:      "test",
-			GroupKind: schema.GroupKind{
-				Group: "test-group",
-				Kind:  "TestObject",
-			},
-		},
-		Object: "test-token",
-	}
+	key := "key1"
+	value := "val1"
 
-	_, found, err := cache.Get(obj)
+	got, err := cache.Get(key)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(found).To(BeFalse())
+	g.Expect(got).To(BeNil())
+	cache.RecordCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace)
 
-	err = cache.Set(obj)
+	err = cache.Set(key, value)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	item, found, err := cache.Get(obj)
+	got, err = cache.Get(key)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(found).To(BeTrue())
-	g.Expect(item).To(Equal(obj))
+	g.Expect(*got).To(Equal(value))
+	cache.RecordCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace)
 
 	validateMetrics(reg, `
 	# HELP gotk_cache_events_total Total number of cache retrieval events for a Gitops Toolkit resource reconciliation.
@@ -317,34 +242,41 @@ func Test_Cache_Get(t *testing.T) {
 	# TYPE gotk_cached_items gauge
 	gotk_cached_items 1
 `, t)
+
+	cache.DeleteCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace)
+	cache.DeleteCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace)
+
+	validateMetrics(reg, `
+	# HELP gotk_cache_evictions_total Total number of cache evictions.
+	# TYPE gotk_cache_evictions_total counter
+	gotk_cache_evictions_total 0
+	# HELP gotk_cache_requests_total Total number of cache requests partioned by success or failure.
+	# TYPE gotk_cache_requests_total counter
+	gotk_cache_requests_total{status="success"} 3
+	# HELP gotk_cached_items Total number of items in the cache.
+	# TYPE gotk_cached_items gauge
+	gotk_cached_items 1
+`, t)
+
 }
 
 func Test_Cache_Delete(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := New[IdentifiableObject](5, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg),
-		WithCleanupInterval[IdentifiableObject](1*time.Millisecond))
+	cache, err := New[string](5,
+		WithMetricsRegisterer(reg),
+		WithCleanupInterval(1*time.Millisecond))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Add an object representing an expiring token
-	obj := IdentifiableObject{
-		ObjMetadata: object.ObjMetadata{
-			Namespace: "test-ns",
-			Name:      "test",
-			GroupKind: schema.GroupKind{
-				Group: "test-group",
-				Kind:  "TestObject",
-			},
-		},
-		Object: "test-token",
-	}
+	key := "key1"
+	value := "value1"
 
-	err = cache.Set(obj)
+	err = cache.Set(key, value)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test_test-group_TestObject"))
+	g.Expect(cache.ListKeys()).To(ConsistOf(key))
 
-	err = cache.Delete(obj)
+	err = cache.Delete(key)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	time.Sleep(5 * time.Millisecond)
@@ -365,7 +297,8 @@ func Test_Cache_Delete(t *testing.T) {
 
 func Test_Cache_deleteExpired(t *testing.T) {
 	type expiringItem struct {
-		object    StoreObject[string]
+		key       string
+		value     string
 		expiresAt time.Time
 		expire    bool
 	}
@@ -378,17 +311,13 @@ func Test_Cache_deleteExpired(t *testing.T) {
 			name: "non expiring items",
 			items: []expiringItem{
 				{
-					object: StoreObject[string]{
-						Object: "test-token",
-						Key:    "test",
-					},
+					key:       "test",
+					value:     "test-token",
 					expiresAt: time.Now().Add(noExpiration),
 				},
 				{
-					object: StoreObject[string]{
-						Object: "test-token2",
-						Key:    "test2",
-					},
+					key:       "test2",
+					value:     "test-token2",
 					expiresAt: time.Now().Add(noExpiration),
 				},
 			},
@@ -398,18 +327,14 @@ func Test_Cache_deleteExpired(t *testing.T) {
 			name: "expiring items",
 			items: []expiringItem{
 				{
-					object: StoreObject[string]{
-						Object: "test-token",
-						Key:    "test",
-					},
+					key:       "test",
+					value:     "test-token",
 					expiresAt: time.Now().Add(1 * time.Millisecond),
 					expire:    true,
 				},
 				{
-					object: StoreObject[string]{
-						Object: "test-token2",
-						Key:    "test2",
-					},
+					key:       "test2",
+					value:     "test-token2",
 					expiresAt: time.Now().Add(1 * time.Millisecond),
 					expire:    true,
 				},
@@ -420,25 +345,19 @@ func Test_Cache_deleteExpired(t *testing.T) {
 			name: "mixed items",
 			items: []expiringItem{
 				{
-					object: StoreObject[string]{
-						Object: "test-token",
-						Key:    "test",
-					},
+					key:       "test",
+					value:     "test-token",
 					expiresAt: time.Now().Add(1 * time.Millisecond),
 					expire:    true,
 				},
 				{
-					object: StoreObject[string]{
-						Object: "test-token2",
-						Key:    "test2",
-					},
+					key:       "test2",
+					value:     "test-token2",
 					expiresAt: time.Now().Add(noExpiration),
 				},
 				{
-					object: StoreObject[string]{
-						Object: "test-token3",
-						Key:    "test3",
-					},
+					key:       "test3",
+					value:     "test-token3",
 					expiresAt: time.Now().Add(1 * time.Minute),
 					expire:    true,
 				},
@@ -451,16 +370,16 @@ func Test_Cache_deleteExpired(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			reg := prometheus.NewPedanticRegistry()
-			cache, err := New[StoreObject[string]](5, StoreObjectKeyFunc,
-				WithMetricsRegisterer[StoreObject[string]](reg),
-				WithCleanupInterval[StoreObject[string]](1*time.Millisecond))
+			cache, err := New[string](5,
+				WithMetricsRegisterer(reg),
+				WithCleanupInterval(1*time.Millisecond))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			for _, item := range tt.items {
-				err := cache.Set(item.object)
+				err := cache.Set(item.key, item.value)
 				g.Expect(err).ToNot(HaveOccurred())
 				if item.expire {
-					err = cache.SetExpiration(item.object, item.expiresAt)
+					err = cache.SetExpiration(item.key, item.expiresAt)
 					g.Expect(err).ToNot(HaveOccurred())
 				}
 			}
@@ -477,26 +396,18 @@ func Test_Cache_Resize(t *testing.T) {
 	n := 100
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := New[IdentifiableObject](n, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg),
-		WithCleanupInterval[IdentifiableObject](10*time.Millisecond))
+
+	cache, err := New[string](n,
+		WithMetricsRegisterer(reg),
+		WithCleanupInterval(10*time.Millisecond))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	for i := range n {
-		obj := IdentifiableObject{
-			ObjMetadata: object.ObjMetadata{
-				Namespace: "test-ns",
-				Name:      fmt.Sprintf("test-%d", i),
-				GroupKind: schema.GroupKind{
-					Group: "test-group",
-					Kind:  "TestObject",
-				},
-			},
-			Object: "test-token",
-		}
-		err = cache.Set(obj)
+		key := fmt.Sprintf("test-%d", i)
+		value := "test-token"
+		err = cache.Set(key, value)
 		g.Expect(err).ToNot(HaveOccurred())
-		err = cache.SetExpiration(obj, time.Now().Add(10*time.Minute))
+		err = cache.SetExpiration(key, time.Now().Add(10*time.Minute))
 		g.Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -520,12 +431,16 @@ func TestCache_Concurrent(t *testing.T) {
 	)
 	g := NewWithT(t)
 	// create a cache that can hold 10 items and have no cleanup
-	cache, err := New(10, IdentifiableObjectKeyFunc,
-		WithCleanupInterval[IdentifiableObject](1*time.Second),
-		WithMetricsRegisterer[IdentifiableObject](prometheus.NewPedanticRegistry()))
+	cache, err := New[string](10,
+		WithCleanupInterval(1*time.Second),
+		WithMetricsRegisterer(prometheus.NewPedanticRegistry()))
 	g.Expect(err).ToNot(HaveOccurred())
 
-	objmap := createObjectMap(keysNum)
+	keymap := map[int]string{}
+	for i := 0; i < keysNum; i++ {
+		key := fmt.Sprintf("test-%d", i)
+		keymap[i] = key
+	}
 
 	wg := sync.WaitGroup{}
 	run := make(chan bool)
@@ -536,13 +451,13 @@ func TestCache_Concurrent(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			_ = cache.Set(objmap[key])
+			_ = cache.Set(keymap[key], "test-token")
 		}()
 		go func() {
 			defer wg.Done()
 			<-run
-			_, _, _ = cache.Get(objmap[key])
-			_ = cache.SetExpiration(objmap[key], time.Now().Add(noExpiration))
+			_, _ = cache.Get(keymap[key])
+			_ = cache.SetExpiration(keymap[key], time.Now().Add(noExpiration))
 		}()
 	}
 	close(run)
@@ -550,35 +465,12 @@ func TestCache_Concurrent(t *testing.T) {
 
 	keys, err := cache.ListKeys()
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(len(keys)).To(Equal(len(objmap)))
+	g.Expect(len(keys)).To(Equal(len(keymap)))
 
-	for _, obj := range objmap {
-		val, found, err := cache.Get(obj)
+	for _, key := range keymap {
+		val, err := cache.Get(key)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(found).To(BeTrue(), "object %s not found", obj.Name)
-		g.Expect(val).To(Equal(obj))
+		g.Expect(val).ToNot(BeNil(), "object %s not found", key)
+		g.Expect(*val).To(Equal("test-token"))
 	}
-}
-
-func createObjectMap(num int) map[int]IdentifiableObject {
-	objMap := make(map[int]IdentifiableObject)
-	for i := 0; i < num; i++ {
-		obj := IdentifiableObject{
-			ObjMetadata: object.ObjMetadata{
-				Namespace: "test-ns",
-				Name:      fmt.Sprintf("test-%d", i),
-				GroupKind: schema.GroupKind{
-					Group: "test-group",
-					Kind:  "TestObject",
-				},
-			},
-			Object: struct {
-				token string
-			}{
-				token: "test-token",
-			},
-		}
-		objMap[i] = obj
-	}
-	return objMap
 }
