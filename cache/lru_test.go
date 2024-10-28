@@ -103,7 +103,8 @@ func Test_LRU_Set(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
 	cache, err := NewLRU[string](1,
-		WithMetricsRegisterer(reg))
+		WithMetricsRegisterer(reg),
+		WithMetricsPrefix("gotk_"))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Add an object representing an expiring token
@@ -149,7 +150,8 @@ func Test_LRU_Get(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
 	cache, err := NewLRU[string](5,
-		WithMetricsRegisterer(reg))
+		WithMetricsRegisterer(reg),
+		WithMetricsPrefix("gotk_"))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Reconciling object label values for cache event metric.
@@ -209,7 +211,8 @@ func Test_LRU_Delete(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
 	cache, err := NewLRU[string](5,
-		WithMetricsRegisterer(reg))
+		WithMetricsRegisterer(reg),
+		WithMetricsPrefix("gotk_"))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Add an object representing an expiring token
