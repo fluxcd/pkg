@@ -135,6 +135,7 @@ func Test_Cache_Set(t *testing.T) {
 	reg := prometheus.NewPedanticRegistry()
 	cache, err := New[string](1,
 		WithMetricsRegisterer(reg),
+		WithMetricsPrefix("gotk_"),
 		WithCleanupInterval(10*time.Millisecond))
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -189,7 +190,7 @@ func Test_Cache_Set(t *testing.T) {
 func Test_Cache_Get(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := New[string](5, WithMetricsRegisterer(reg))
+	cache, err := New[string](5, WithMetricsRegisterer(reg), WithMetricsPrefix("gotk_"))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Reconciling object label values for cache event metric.
@@ -252,6 +253,7 @@ func Test_Cache_Delete(t *testing.T) {
 	reg := prometheus.NewPedanticRegistry()
 	cache, err := New[string](5,
 		WithMetricsRegisterer(reg),
+		WithMetricsPrefix("gotk_"),
 		WithCleanupInterval(1*time.Millisecond))
 	g.Expect(err).ToNot(HaveOccurred())
 

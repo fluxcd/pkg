@@ -28,7 +28,7 @@ import (
 func TestCacheMetrics(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	m := newCacheMetrics(reg)
+	m := newCacheMetrics("gotk_", reg)
 	g.Expect(m).ToNot(BeNil())
 
 	// CounterVec is a collection of counters and is not exported until it has counters in it.

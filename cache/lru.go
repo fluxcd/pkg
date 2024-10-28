@@ -94,7 +94,7 @@ func NewLRU[T any](capacity int, opts ...Options) (*LRU[T], error) {
 	}
 
 	if opt.registerer != nil {
-		lru.metrics = newCacheMetrics(opt.registerer)
+		lru.metrics = newCacheMetrics(opt.metricsPrefix, opt.registerer)
 	}
 
 	return lru, nil

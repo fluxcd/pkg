@@ -44,8 +44,9 @@ type Expirable[T any] interface {
 }
 
 type storeOptions struct {
-	interval   time.Duration
-	registerer prometheus.Registerer
+	interval      time.Duration
+	registerer    prometheus.Registerer
+	metricsPrefix string
 }
 
 // Options is a function that sets the store options.
@@ -63,6 +64,14 @@ func WithCleanupInterval(interval time.Duration) Options {
 func WithMetricsRegisterer(r prometheus.Registerer) Options {
 	return func(o *storeOptions) error {
 		o.registerer = r
+		return nil
+	}
+}
+
+// WithMetricsPrefix sets the metrics prefix for the cache metrics.
+func WithMetricsPrefix(prefix string) Options {
+	return func(o *storeOptions) error {
+		o.metricsPrefix = prefix
 		return nil
 	}
 }

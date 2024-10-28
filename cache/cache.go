@@ -85,7 +85,7 @@ func New[T any](capacity int, opts ...Options) (*Cache[T], error) {
 	}
 
 	if opt.registerer != nil {
-		c.metrics = newCacheMetrics(opt.registerer)
+		c.metrics = newCacheMetrics(opt.metricsPrefix, opt.registerer)
 	}
 
 	C := &Cache[T]{cache: c}

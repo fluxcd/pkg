@@ -17,6 +17,8 @@ limitations under the License.
 package cache
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -41,32 +43,32 @@ type cacheMetrics struct {
 }
 
 // newcacheMetrics returns a new cacheMetrics.
-func newCacheMetrics(reg prometheus.Registerer) *cacheMetrics {
+func newCacheMetrics(prefix string, reg prometheus.Registerer) *cacheMetrics {
 	labels := []string{"event_type", "kind", "name", "namespace"}
 	return &cacheMetrics{
 		cacheEventsCounter: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "gotk_cache_events_total",
+				Name: fmt.Sprintf("%scache_events_total", prefix),
 				Help: "Total number of cache retrieval events for a Gitops Toolkit resource reconciliation.",
 			},
 			labels,
 		),
 		cacheItemsGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
-				Name: "gotk_cached_items",
+				Name: fmt.Sprintf("%scached_items", prefix),
 				Help: "Total number of items in the cache.",
 			},
 		),
 		cacheRequestsCounter: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "gotk_cache_requests_total",
+				Name: fmt.Sprintf("%scache_requests_total", prefix),
 				Help: "Total number of cache requests partioned by success or failure.",
 			},
 			[]string{"status"},
 		),
 		cacheEvictionCounter: promauto.With(reg).NewCounter(
 			prometheus.CounterOpts{
-				Name: "gotk_cache_evictions_total",
+				Name: fmt.Sprintf("%scache_evictions_total", prefix),
 				Help: "Total number of cache evictions.",
 			},
 		),
