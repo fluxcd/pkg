@@ -28,12 +28,12 @@ import (
 func TestCacheMetrics(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	m := newCacheMetrics(reg, IdentifiableObjectLabels...)
+	m := newCacheMetrics("gotk_", reg)
 	g.Expect(m).ToNot(BeNil())
 
 	// CounterVec is a collection of counters and is not exported until it has counters in it.
-	m.incCacheEvents(CacheEventTypeHit, []string{"test", "test-ns", "TestObject"}...)
-	m.incCacheEvents(CacheEventTypeMiss, []string{"test", "test-ns", "TestObject"}...)
+	m.incCacheEvents(CacheEventTypeHit, []string{"TestObject", "test", "test-ns"}...)
+	m.incCacheEvents(CacheEventTypeMiss, []string{"TestObject", "test", "test-ns"}...)
 	m.incCacheRequests("success")
 	m.incCacheRequests("failure")
 
