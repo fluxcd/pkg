@@ -21,6 +21,7 @@ import (
 	"net/url"
 
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth/github"
 )
 
 const (
@@ -54,8 +55,9 @@ type AuthOptions struct {
 // ProviderOptions contains options to configure various authentication
 // providers.
 type ProviderOptions struct {
-	Name      string
-	AzureOpts []azure.OptFunc
+	Name       string
+	AzureOpts  []azure.OptFunc
+	GitHubOpts []github.OptFunc
 }
 
 // KexAlgos hosts the key exchange algorithms to be used for SSH connections.

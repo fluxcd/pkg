@@ -61,6 +61,9 @@ jobs:
               export GITHUB_USER="fluxcd-gitprovider-bot"
               export GITHUB_ORG="fluxcd-testing"
               export GITHUB_TOKEN="${{ secrets.GITPROVIDER_BOT_TOKEN }}"
+              export GHAPP_ID="${{ secrets.GHAPP_ID }}"
+              export GHAPP_INSTALL_ID="${{ secrets.GHAPP_INSTALL_ID }}"
+              export GHAPP_PRIVATE_KEY="${{ secrets.GHAPP_PRIVATE_KEY }}"
             elif [[ ${{ matrix.provider }} = "gitlab" ]]; then
               export GO_TEST_PREFIX="TestGitLabE2E"
               export GITLAB_USER="fluxcd-gitprovider-bot"

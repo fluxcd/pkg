@@ -18,8 +18,11 @@ package gogit
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,6 +35,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth/github"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
@@ -741,7 +745,7 @@ func TestValidateUrl(t *testing.T) {
 	}
 }
 
-func TestProviderAuth(t *testing.T) {
+func TestProviderAuthValidations(t *testing.T) {
 	expiresAt := time.Now().UTC().Add(time.Hour)
 	tests := []struct {
 		name              string
@@ -751,6 +755,8 @@ func TestProviderAuth(t *testing.T) {
 		wantAuthErr       error
 		wantValidationErr error
 		wantBearerToken   string
+		wantUsername      string
+		wantPassword      string
 	}{
 		{
 			name:            "nil authopts",
@@ -821,6 +827,7 @@ func TestProviderAuth(t *testing.T) {
 		},
 		{
 			name: "authopts with provider and error",
+			url:  "https://url",
 			authOpts: &git.AuthOptions{
 				ProviderOpts: &git.ProviderOptions{
 					Name: git.ProviderAzure,
@@ -843,7 +850,7 @@ func TestProviderAuth(t *testing.T) {
 			wantAuthErr: errors.New("invalid provider"),
 		},
 		{
-			name: "authopts with provider and username/password/https",
+			name: "authopts with azure provider and username/password/https",
 			url:  "https://url",
 			authOpts: &git.AuthOptions{
 				ProviderOpts: &git.ProviderOptions{
@@ -860,11 +867,10 @@ func TestProviderAuth(t *testing.T) {
 				Password:  "password",
 				Transport: git.HTTPS,
 			},
-			wantBearerToken:   "ado-token",
-			wantValidationErr: errors.New("basic auth and bearer token cannot be set at the same time"),
+			wantValidationErr: errors.New("basic auth and provider cannot be set at the same time"),
 		},
 		{
-			name: "authopts with provider and username/password/http",
+			name: "authopts with azure provider and username/password/http",
 			url:  "http://url",
 			authOpts: &git.AuthOptions{
 				ProviderOpts: &git.ProviderOptions{
@@ -881,11 +887,10 @@ func TestProviderAuth(t *testing.T) {
 				Password:  "password",
 				Transport: git.HTTP,
 			},
-			wantBearerToken:   "ado-token",
-			wantValidationErr: errors.New("basic auth and bearer token cannot be set at the same time"),
+			wantValidationErr: errors.New("basic auth and provider cannot be set at the same time"),
 		},
 		{
-			name: "authopts with provider and http",
+			name: "authopts with azure provider and http",
 			url:  "http://url",
 			authOpts: &git.AuthOptions{
 				ProviderOpts: &git.ProviderOptions{
@@ -900,8 +905,34 @@ func TestProviderAuth(t *testing.T) {
 				},
 				Transport: git.HTTP,
 			},
-			wantBearerToken:   "ado-token",
 			wantValidationErr: errors.New("bearer token cannot be sent over HTTP"),
+		},
+		{
+			name: "authopts with github provider and username/password/https",
+			url:  "https://url",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name:       git.ProviderGitHub,
+					GitHubOpts: []github.OptFunc{},
+				},
+				Username:  "user",
+				Password:  "password",
+				Transport: git.HTTPS,
+			},
+			wantUsername: "user",
+			wantPassword: "password",
+		},
+		{
+			name: "authopts with github provider and http",
+			url:  "http://url",
+			authOpts: &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name:       git.ProviderGitHub,
+					GitHubOpts: []github.OptFunc{},
+				},
+				Transport: git.HTTP,
+			},
+			wantValidationErr: errors.New("basic auth cannot be sent over HTTP"),
 		},
 	}
 
@@ -914,22 +945,103 @@ func TestProviderAuth(t *testing.T) {
 			ggc, err := NewClient(t.TempDir(), tt.authOpts, opts...)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			err = ggc.providerAuth(context.TODO())
-			if tt.wantAuthErr != nil {
+			err = ggc.validateUrl(tt.url)
+			if tt.wantValidationErr != nil {
 				g.Expect(err).To(HaveOccurred())
-				g.Expect(err).To(Equal(tt.wantAuthErr))
+				g.Expect(err).To(Equal(tt.wantValidationErr))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				if tt.authOpts != nil {
-					g.Expect(tt.authOpts.BearerToken).To(Equal(tt.wantBearerToken))
-				}
-				err = ggc.validateUrl(tt.url)
-				if tt.wantValidationErr != nil {
+				err = ggc.providerAuth(context.TODO())
+				if tt.wantAuthErr != nil {
 					g.Expect(err).To(HaveOccurred())
-					g.Expect(err).To(Equal(tt.wantValidationErr))
+					g.Expect(err).To(Equal(tt.wantAuthErr))
 				} else {
 					g.Expect(err).ToNot(HaveOccurred())
+					if tt.wantBearerToken != "" {
+						g.Expect(tt.authOpts.BearerToken).To(Equal(tt.wantBearerToken))
+					}
+					if tt.wantUsername != "" {
+						g.Expect(tt.authOpts.Username).To(Equal(tt.wantUsername))
+					}
+					if tt.wantPassword != "" {
+						g.Expect(tt.authOpts.Password).To(Equal(tt.authOpts.Password))
+					}
 				}
+			}
+		})
+	}
+}
+
+func TestProviderAuth_GitHub(t *testing.T) {
+	expiresAt := time.Now().UTC().Add(time.Hour)
+	tests := []struct {
+		name         string
+		statusCode   int
+		accessToken  *github.FakeAccessToken
+		wantUsername string
+		wantPassword string
+		wantErr      bool
+	}{
+		{
+			name:       "test git provider auth success",
+			statusCode: http.StatusOK,
+			accessToken: &github.FakeAccessToken{
+				Token:     "access-token",
+				ExpiresAt: expiresAt,
+			},
+			wantUsername: git.GitHubAccessTokenUsername,
+			wantPassword: "access-token",
+		},
+		{
+			name:       "test git provider auth failure",
+			statusCode: http.StatusInternalServerError,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				var response []byte
+				var err error
+				if tt.accessToken != nil {
+					response, err = json.Marshal(tt.accessToken)
+					g.Expect(err).ToNot(HaveOccurred())
+				}
+				w.Write(response)
+			}
+			srv := httptest.NewServer(http.HandlerFunc(handler))
+			t.Cleanup(func() {
+				srv.Close()
+			})
+
+			pk, err := github.CreateTestPrivateKey()
+			g.Expect(err).ToNot(HaveOccurred())
+			authOpts := &git.AuthOptions{
+				ProviderOpts: &git.ProviderOptions{
+					Name: git.ProviderGitHub,
+					GitHubOpts: []github.OptFunc{github.WithApiURL(srv.URL), github.WithAppID(123),
+						github.WithInstllationID(456), github.WithPrivateKey(pk)},
+				},
+				Transport: git.HTTP,
+			}
+
+			opts := []ClientOption{WithDiskStorage()}
+			ggc, err := NewClient(t.TempDir(), authOpts, opts...)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			err = ggc.providerAuth(context.TODO())
+			if tt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(authOpts.Username).To(Equal(""))
+				g.Expect(authOpts.Password).To(Equal(""))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(authOpts.Username).To(Equal(tt.wantUsername))
+				g.Expect(authOpts.Password).To(Equal(tt.wantPassword))
 			}
 		})
 	}

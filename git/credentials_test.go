@@ -18,11 +18,15 @@ package git
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth/github"
 	. "github.com/onsi/gomega"
 )
 
@@ -97,4 +101,77 @@ func TestGetCredentials(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetCredentials_GitHub(t *testing.T) {
+	expiresAt := time.Now().UTC().Add(time.Hour)
+	tests := []struct {
+		name            string
+		accessToken     *github.FakeAccessToken
+		statusCode      int
+		wantCredentials *Credentials
+		wantErr         bool
+	}{
+		{
+			name:       "get credentials from github success",
+			statusCode: http.StatusOK,
+			accessToken: &github.FakeAccessToken{
+				Token:     "access-token",
+				ExpiresAt: expiresAt,
+			},
+			wantCredentials: &Credentials{
+				Username: GitHubAccessTokenUsername,
+				Password: "access-token",
+			},
+		},
+		{
+			name:       "get credentials from github failure",
+			statusCode: http.StatusInternalServerError,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				var response []byte
+				var err error
+				if tt.accessToken != nil {
+					response, err = json.Marshal(tt.accessToken)
+					g.Expect(err).ToNot(HaveOccurred())
+				}
+				w.Write(response)
+			}
+			srv := httptest.NewServer(http.HandlerFunc(handler))
+			t.Cleanup(func() {
+				srv.Close()
+			})
+
+			pk, err := github.CreateTestPrivateKey()
+			g.Expect(err).ToNot(HaveOccurred())
+
+			providerOpts := &ProviderOptions{
+				Name: ProviderGitHub,
+				GitHubOpts: []github.OptFunc{github.WithApiURL(srv.URL), github.WithAppID(123),
+					github.WithInstllationID(456), github.WithPrivateKey(pk)},
+			}
+
+			creds, expiry, err := GetCredentials(context.TODO(), providerOpts)
+			if tt.wantCredentials != nil {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(*creds).To(Equal(*tt.wantCredentials))
+
+				g.Expect(creds.Username).To(Equal(tt.wantCredentials.Username))
+				g.Expect(creds.Password).To(Equal(tt.wantCredentials.Password))
+				g.Expect(expiry).To(Equal(expiresAt))
+			} else {
+				g.Expect(creds).To(BeNil())
+				g.Expect(err).To(HaveOccurred())
+			}
+		})
+	}
+
 }

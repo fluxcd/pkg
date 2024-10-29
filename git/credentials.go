@@ -22,16 +22,22 @@ import (
 	"time"
 
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth/github"
 )
 
 const (
-	ProviderAzure = "azure"
+	ProviderAzure  = "azure"
+	ProviderGitHub = "github"
+
+	GitHubAccessTokenUsername = "x-access-token"
 )
 
 // Credentials contains authentication data needed in order to access a Git
 // repository.
 type Credentials struct {
 	BearerToken string
+	Username    string
+	Password    string
 }
 
 // GetCredentials returns authentication credentials for accessing the provided
@@ -67,6 +73,25 @@ func GetCredentials(ctx context.Context, providerOpts *ProviderOptions) (*Creden
 			BearerToken: accessToken.Token,
 		}
 		return &creds, accessToken.ExpiresOn, nil
+	case ProviderGitHub:
+		opts := providerOpts.GitHubOpts
+		if providerOpts.GitHubOpts == nil {
+			return nil, expiresOn, fmt.Errorf("provider options are not specified for GitHub")
+		}
+		client, err := github.New(opts...)
+		if err != nil {
+			return nil, expiresOn, err
+		}
+		appToken, err := client.GetToken(ctx)
+		if err != nil {
+			return nil, expiresOn, err
+		}
+
+		creds = Credentials{
+			Username: GitHubAccessTokenUsername,
+			Password: appToken.Token,
+		}
+		return &creds, appToken.ExpiresAt, nil
 	default:
 		return nil, expiresOn, fmt.Errorf("invalid provider")
 	}
