@@ -18,49 +18,51 @@ package gcp
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	. "github.com/onsi/gomega"
+	"golang.org/x/oauth2"
 )
 
 const testValidGCRImage = "gcr.io/foo/bar:v1"
 
+type fakeTokenSource struct {
+	token *oauth2.Token
+	err   error
+}
+
+func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
+	return f.token, f.err
+}
+
 func TestGetLoginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
-		responseBody   string
-		statusCode     int
+		token          *oauth2.Token
+		tokenErr       error
 		wantErr        bool
 		wantAuthConfig authn.AuthConfig
 	}{
 		{
 			name: "success",
-			responseBody: `{
-	"access_token": "some-token",
-	"expires_in": 10,
-	"token_type": "foo"
-}`,
-			statusCode: http.StatusOK,
+			token: &oauth2.Token{
+				AccessToken: "some-token",
+				TokenType:   "Bearer",
+				Expiry:      time.Now().Add(10 * time.Second),
+			},
 			wantAuthConfig: authn.AuthConfig{
 				Username: "oauth2accesstoken",
 				Password: "some-token",
 			},
 		},
 		{
-			name:       "fail",
-			statusCode: http.StatusInternalServerError,
-			wantErr:    true,
-		},
-		{
-			name:         "invalid response",
-			responseBody: "foo",
-			statusCode:   http.StatusOK,
-			wantErr:      true,
+			name:     "fail",
+			tokenErr: fmt.Errorf("token error"),
+			wantErr:  true,
 		},
 	}
 
@@ -68,22 +70,17 @@ func TestGetLoginAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			handler := func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.responseBody))
+			// Create fake token source
+			fakeTS := &fakeTokenSource{
+				token: tt.token,
+				err:   tt.tokenErr,
 			}
-			srv := httptest.NewServer(http.HandlerFunc(handler))
-			t.Cleanup(func() {
-				srv.Close()
-			})
 
-			gc := NewClient().WithTokenURL(srv.URL)
+			gc := NewClient().WithTokenSource(fakeTS)
 			a, expiresAt, err := gc.getLoginAuth(context.TODO())
 			g.Expect(err != nil).To(Equal(tt.wantErr))
 			if !tt.wantErr {
-				g.Expect(expiresAt).To(BeTemporally("~", time.Now().Add(10*time.Second), time.Second))
-			}
-			if tt.statusCode == http.StatusOK {
+				g.Expect(expiresAt).To(BeTemporally("~", tt.token.Expiry, time.Second))
 				g.Expect(a).To(Equal(tt.wantAuthConfig))
 			}
 		})
@@ -111,40 +108,48 @@ func TestValidHost(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	tests := []struct {
-		name       string
-		autoLogin  bool
-		image      string
-		statusCode int
-		testOIDC   bool
-		wantErr    bool
+		name      string
+		autoLogin bool
+		image     string
+		token     *oauth2.Token
+		tokenErr  error
+		testOIDC  bool
+		wantErr   bool
 	}{
 		{
-			name:       "no auto login",
-			autoLogin:  false,
-			image:      testValidGCRImage,
-			statusCode: http.StatusOK,
-			wantErr:    true,
+			name:      "no auto login",
+			autoLogin: false,
+			image:     testValidGCRImage,
+			wantErr:   true,
 		},
 		{
-			name:       "with auto login",
-			autoLogin:  true,
-			image:      testValidGCRImage,
-			testOIDC:   true,
-			statusCode: http.StatusOK,
+			name:      "with auto login",
+			autoLogin: true,
+			image:     testValidGCRImage,
+			testOIDC:  true,
+			token: &oauth2.Token{
+				AccessToken: "some-token",
+				TokenType:   "Bearer",
+				Expiry:      time.Now().Add(10 * time.Second),
+			},
 		},
 		{
-			name:       "login failure",
-			autoLogin:  true,
-			image:      testValidGCRImage,
-			statusCode: http.StatusInternalServerError,
-			testOIDC:   true,
-			wantErr:    true,
+			name:      "login failure",
+			autoLogin: true,
+			image:     testValidGCRImage,
+			tokenErr:  fmt.Errorf("token error"),
+			testOIDC:  true,
+			wantErr:   true,
 		},
 		{
-			name:       "non GCR image",
-			autoLogin:  true,
-			image:      "foo/bar:v1",
-			statusCode: http.StatusOK,
+			name:      "non GCR image",
+			autoLogin: true,
+			image:     "foo/bar:v1",
+			token: &oauth2.Token{
+				AccessToken: "some-token",
+				TokenType:   "Bearer",
+				Expiry:      time.Now().Add(10 * time.Second),
+			},
 		},
 	}
 
@@ -152,19 +157,16 @@ func TestLogin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			handler := func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(`{"access_token": "some-token","expires_in": 10, "token_type": "foo"}`))
-			}
-			srv := httptest.NewServer(http.HandlerFunc(handler))
-			t.Cleanup(func() {
-				srv.Close()
-			})
-
 			ref, err := name.ParseReference(tt.image)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			gc := NewClient().WithTokenURL(srv.URL)
+			// Create fake token source
+			fakeTS := &fakeTokenSource{
+				token: tt.token,
+				err:   tt.tokenErr,
+			}
+
+			gc := NewClient().WithTokenSource(fakeTS)
 
 			_, err = gc.Login(context.TODO(), tt.autoLogin, tt.image, ref)
 			g.Expect(err != nil).To(Equal(tt.wantErr))
