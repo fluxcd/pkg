@@ -15,11 +15,11 @@ require (
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/onsi/gomega v1.34.2
 	github.com/otiai10/copy v1.14.0
-	k8s.io/api v0.31.1
-	k8s.io/apiextensions-apiserver v0.31.1
-	k8s.io/apimachinery v0.31.1
-	k8s.io/client-go v0.31.1
-	sigs.k8s.io/controller-runtime v0.19.0
+	k8s.io/api v0.31.3
+	k8s.io/apiextensions-apiserver v0.31.3
+	k8s.io/apimachinery v0.31.3
+	k8s.io/client-go v0.31.3
+	sigs.k8s.io/controller-runtime v0.19.2
 	sigs.k8s.io/kustomize/api v0.17.3
 	sigs.k8s.io/kustomize/kyaml v0.17.2
 	sigs.k8s.io/yaml v1.4.0
