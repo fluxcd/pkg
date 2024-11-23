@@ -64,12 +64,18 @@ func FromUnstructuredWithScheme(object *unstructured.Unstructured, scheme *runti
 
 // ToUnstructured converts a typed Kubernetes resource into the Unstructured
 // equivalent.
-func ToUnstructured(object metav1.Object) (*unstructured.Unstructured, error) {
-	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(object)
+func ToUnstructured(obj metav1.Object) (*unstructured.Unstructured, error) {
+	// If the incoming object is already unstructured, perform a deep copy first
+	// otherwise DefaultUnstructuredConverter ends up returning the inner map without
+	// making a copy.
+	if unstructuredObj, ok := obj.(runtime.Unstructured); ok {
+		obj = unstructuredObj.DeepCopyObject().(metav1.Object)
+	}
+	rawMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {
 		return nil, err
 	}
-	return &unstructured.Unstructured{Object: u}, nil
+	return &unstructured.Unstructured{Object: rawMap}, nil
 }
 
 // UnstructuredList normalizes a list of Unstructured objects by
