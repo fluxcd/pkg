@@ -47,24 +47,31 @@ func ScanHostKey(host string, timeout time.Duration, clientHostKeyAlgos []string
 		config.HostKeyAlgorithms = clientHostKeyAlgos
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	// support for ALL_PROXY ENV varaible
-	conn, err := proxy.Dial(ctx, "tcp", host)
-	if err != nil {
-		return nil, err
-	}
-	c, chans, reqs, err := ssh.NewClientConn(conn, host, config)
-	if err != nil {
-		return nil, err
-	}
-	client := ssh.NewClient(c, chans, reqs)
-	defer client.Close()
+	err := sshDial(host, config)
 
 	if len(col.knownKeys) > 0 {
 		return col.knownKeys, nil
 	}
+
 	return col.knownKeys, err
+}
+
+func sshDial(host string, config *ssh.ClientConfig) error {
+	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+	defer cancel()
+	// this reads the ALL_PROXY environment varaible
+	conn, err := proxy.Dial(ctx, "tcp", host)
+	if err != nil {
+		return err
+	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, host, config)
+	if err != nil {
+		return err
+	}
+	client := ssh.NewClient(c, chans, reqs)
+	defer client.Close()
+
+	return nil
 }
 
 // HostKeyCollector offers a StoreKey method which provides an
