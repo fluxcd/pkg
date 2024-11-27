@@ -39,10 +39,10 @@ limitations under the License.
 //	// Handle any error.
 //	...
 //
-//	if got != nil {
-//	  cache.RecordCacheEvent(CacheEventTypeHit, "GitRepository", "repoA", "testNS")
-//	} else {
+//	if err == ErrNotFound {
 //	  cache.RecordCacheEvent(CacheEventTypeMiss, "GitRepository", "repoA", "testNS")
+//	} else {
+//	  cache.RecordCacheEvent(CacheEventTypeHit, "GitRepository", "repoA", "testNS")
 //	}
 //
 // When the Flux object associated with the cache metrics is deleted, the

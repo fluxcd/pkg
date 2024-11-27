@@ -27,7 +27,7 @@ type Store[T any] interface {
 	// Set adds an item to the store for the given key.
 	Set(key string, value T) error
 	// Get returns an item stored in the store for the given key.
-	Get(key string) (*T, error)
+	Get(key string) (T, error)
 	// Delete deletes an item in the store for the given key.
 	Delete(key string) error
 }

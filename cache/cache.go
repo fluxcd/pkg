@@ -168,35 +168,34 @@ func (c *cache[T]) set(key string, value T) {
 	c.items = append(c.items, &item)
 }
 
-// Get returns a pointer to an item in the cache for the given key. If no item
-// is found, it's a nil pointer.
+// Get returns an item in the cache for the given key. If no item is found, an
+// error is returned.
 // The caller can record cache hit or miss based on the result with
 // Cache.RecordCacheEvent().
-func (c *Cache[T]) Get(key string) (*T, error) {
+func (c *Cache[T]) Get(key string) (T, error) {
+	var res T
 	c.mu.RLock()
 	if c.closed {
 		c.mu.RUnlock()
 		recordRequest(c.metrics, StatusFailure)
-		return nil, ErrCacheClosed
+		return res, ErrCacheClosed
 	}
 	item, found := c.index[key]
 	if !found {
 		c.mu.RUnlock()
 		recordRequest(c.metrics, StatusSuccess)
-		return nil, nil
+		return res, ErrNotFound
 	}
 	if !item.expiresAt.IsZero() {
 		if item.expiresAt.Compare(time.Now()) < 0 {
 			c.mu.RUnlock()
 			recordRequest(c.metrics, StatusSuccess)
-			return nil, nil
+			return res, ErrNotFound
 		}
 	}
 	c.mu.RUnlock()
 	recordRequest(c.metrics, StatusSuccess)
-	// Copy the value to prevent writes to the cached item.
-	r := item.value
-	return &r, nil
+	return item.value, nil
 }
 
 // Delete an item from the cache. Does nothing if the key is not in the cache.

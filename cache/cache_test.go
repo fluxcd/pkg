@@ -40,8 +40,8 @@ func TestCache(t *testing.T) {
 		key1 := "key1"
 		value1 := "val1"
 		got, err := cache.Get(key1)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(got).To(BeNil())
+		g.Expect(err).To(Equal(ErrNotFound))
+		g.Expect(got).To(BeEmpty())
 
 		// Add an item to the cache
 		err = cache.Set(key1, value1)
@@ -50,13 +50,13 @@ func TestCache(t *testing.T) {
 		// Get the item from the cache
 		got, err = cache.Get(key1)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(*got).To(Equal(value1))
+		g.Expect(got).To(Equal(value1))
 
 		// Writing to the obtained value doesn't update the cache.
-		*got = "val2"
+		got = "val2"
 		got2, err := cache.Get(key1)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(*got2).To(Equal(value1))
+		g.Expect(got2).To(Equal(value1))
 
 		// Add another item to the cache
 		key2 := "key2"
@@ -68,7 +68,7 @@ func TestCache(t *testing.T) {
 		// Get the item from the cache
 		got, err = cache.Get(key2)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(*got).To(Equal(value2))
+		g.Expect(got).To(Equal(value2))
 
 		// Update an item in the cache
 		key3 := "key3"
@@ -84,7 +84,7 @@ func TestCache(t *testing.T) {
 		// Get the item from the cache
 		got, err = cache.Get(key3)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(*got).To(Equal(value4))
+		g.Expect(got).To(Equal(value4))
 
 		// cleanup the cache
 		cache.Clear()
@@ -118,15 +118,15 @@ func TestCache(t *testing.T) {
 		// Get the item from the cache
 		item, err := cache.Get(key)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(*item).To(Equal(value))
+		g.Expect(item).To(Equal(value))
 
 		// wait for the item to expire
 		time.Sleep(3 * time.Second)
 
 		// Get the item from the cache
 		item, err = cache.Get(key)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(item).To(BeNil())
+		g.Expect(err).To(Equal(ErrNotFound))
+		g.Expect(item).To(BeEmpty())
 	})
 
 	t.Run("Cache of integer value", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestCache(t *testing.T) {
 
 		got, err := cache.Get(key)
 		g.Expect(err).To(Succeed())
-		g.Expect(*got).To(Equal(4))
+		g.Expect(got).To(Equal(4))
 	})
 }
 
@@ -216,8 +216,8 @@ func Test_Cache_Get(t *testing.T) {
 	value := "val1"
 
 	got, err := cache.Get(key)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(got).To(BeNil())
+	g.Expect(err).To(Equal(ErrNotFound))
+	g.Expect(got).To(BeEmpty())
 	cache.RecordCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace)
 
 	err = cache.Set(key, value)
@@ -225,7 +225,7 @@ func Test_Cache_Get(t *testing.T) {
 
 	got, err = cache.Get(key)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(*got).To(Equal(value))
+	g.Expect(got).To(Equal(value))
 	cache.RecordCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace)
 
 	validateMetrics(reg, `
@@ -472,7 +472,6 @@ func TestCache_Concurrent(t *testing.T) {
 	for _, key := range keymap {
 		val, err := cache.Get(key)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(val).ToNot(BeNil(), "object %s not found", key)
-		g.Expect(*val).To(Equal("test-token"))
+		g.Expect(val).To(Equal("test-token"))
 	}
 }

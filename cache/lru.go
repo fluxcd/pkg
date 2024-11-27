@@ -170,25 +170,24 @@ func (c *LRU[T]) delete(node *node[T]) {
 	delete(c.cache, node.key)
 }
 
-// Get returns a pointer to an item in the cache for the given key. If no item
-// is found, it's a nil pointer.
+// Get returns an item in the cache for the given key. If no item is found, an
+// error is returned.
 // The caller can record cache hit or miss based on the result with
 // LRU.RecordCacheEvent().
-func (c *LRU[T]) Get(key string) (*T, error) {
+func (c *LRU[T]) Get(key string) (T, error) {
+	var res T
 	c.mu.Lock()
 	node, ok := c.cache[key]
 	if !ok {
 		c.mu.Unlock()
 		recordRequest(c.metrics, StatusSuccess)
-		return nil, nil
+		return res, ErrNotFound
 	}
 	c.delete(node)
 	_ = c.add(node)
 	c.mu.Unlock()
 	recordRequest(c.metrics, StatusSuccess)
-	// Copy the value to prevent writes to the cached item.
-	r := node.value
-	return &r, nil
+	return node.value, nil
 }
 
 // ListKeys returns a list of keys in the cache.

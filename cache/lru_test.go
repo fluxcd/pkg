@@ -163,8 +163,8 @@ func Test_LRU_Get(t *testing.T) {
 	key1 := "key1"
 	value1 := "val1"
 	got, err := cache.Get(key1)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(got).To(BeNil())
+	g.Expect(err).To(Equal(ErrNotFound))
+	g.Expect(got).To(BeEmpty())
 	cache.RecordCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace)
 
 	err = cache.Set(key1, value1)
@@ -172,7 +172,7 @@ func Test_LRU_Get(t *testing.T) {
 
 	got, err = cache.Get(key1)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(*got).To(Equal(value1))
+	g.Expect(got).To(Equal(value1))
 	cache.RecordCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace)
 
 	validateMetrics(reg, `
@@ -309,8 +309,7 @@ func TestLRU_Concurrent(t *testing.T) {
 	for _, key := range keymap {
 		val, err := cache.Get(key)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(val).ToNot(BeNil(), "object %s not found", key)
-		g.Expect(*val).To(Equal("test-token"))
+		g.Expect(val).To(Equal("test-token"))
 	}
 }
 
@@ -325,5 +324,5 @@ func TestLRU_int(t *testing.T) {
 
 	got, err := cache.Get(key)
 	g.Expect(err).To(Succeed())
-	g.Expect(*got).To(Equal(4))
+	g.Expect(got).To(Equal(4))
 }
