@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/ssh
 
-go 1.22.0
+go 1.22.7
 
 require (
 	github.com/onsi/gomega v1.34.2
