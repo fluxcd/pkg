@@ -30,6 +30,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	. "github.com/onsi/gomega"
+	"golang.org/x/oauth2"
 
 	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/oci"
@@ -37,6 +38,15 @@ import (
 	"github.com/fluxcd/pkg/oci/auth/azure"
 	"github.com/fluxcd/pkg/oci/auth/gcp"
 )
+
+type fakeTokenSource struct {
+	token *oauth2.Token
+	err   error
+}
+
+func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
+	return f.token, f.err
+}
 
 func TestImageRegistryProvider(t *testing.T) {
 	tests := []struct {
@@ -100,11 +110,18 @@ func TestLogin(t *testing.T) {
 		},
 		{
 			name:         "gcr",
-			responseBody: `{"access_token": "some-token","expires_in": 10, "token_type": "foo"}`,
 			providerOpts: ProviderOptions{GcpAutoLogin: true},
 			beforeFunc: func(serverURL string, mgr *Manager, image *string) {
-				// Create GCR client and configure the manager.
-				gcrClient := gcp.NewClient().WithTokenURL(serverURL)
+				// Create fake token source
+				fakeTS := &fakeTokenSource{
+					token: &oauth2.Token{
+						AccessToken: "some-token",
+						TokenType:   "Bearer",
+						Expiry:      time.Now().Add(10 * time.Second),
+					},
+				}
+				// Create GCR client with fake token source
+				gcrClient := gcp.NewClient().WithTokenSource(fakeTS)
 				mgr.WithGCRClient(gcrClient)
 
 				*image = "gcr.io/foo/bar:v1"
@@ -122,8 +139,8 @@ func TestLogin(t *testing.T) {
 			},
 			// NOTE: This fails because the azure exchanger uses the image host
 			// to exchange token which can't be modified here without
-			// interfering image name based categorization of the login
-			// provider, that's actually being tested here. This is tested in
+			// interfering with image name based categorization of the login
+			// provider that's actually being tested here. This is tested in
 			// detail in the azure package.
 			wantErr: true,
 		},
@@ -140,21 +157,28 @@ func TestLogin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			// Create test server.
-			handler := func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(tt.responseBody))
+			// Create test server if responseBody is set.
+			var srv *httptest.Server
+			if tt.responseBody != "" {
+				handler := func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(tt.responseBody))
+				}
+				srv = httptest.NewServer(http.HandlerFunc(handler))
+				t.Cleanup(func() {
+					srv.Close()
+				})
 			}
-			srv := httptest.NewServer(http.HandlerFunc(handler))
-			t.Cleanup(func() {
-				srv.Close()
-			})
 
 			mgr := NewManager()
 			var image string
 
 			if tt.beforeFunc != nil {
-				tt.beforeFunc(srv.URL, mgr, &image)
+				serverURL := ""
+				if srv != nil {
+					serverURL = srv.URL
+				}
+				tt.beforeFunc(serverURL, mgr, &image)
 			}
 
 			ref, err := name.ParseReference(image)
@@ -167,7 +191,7 @@ func TestLogin(t *testing.T) {
 }
 
 func TestLogin_WithCache(t *testing.T) {
-	timestamp := time.Now().Add(10 * time.Second).Unix()
+	timestamp := time.Now().Add(10 * time.Second)
 	tests := []struct {
 		name         string
 		responseBody string
@@ -178,7 +202,7 @@ func TestLogin_WithCache(t *testing.T) {
 	}{
 		{
 			name:         "ecr",
-			responseBody: fmt.Sprintf(`{"authorizationData": [{"authorizationToken": "c29tZS1rZXk6c29tZS1zZWNyZXQ=","expiresAt": %d}]}`, timestamp),
+			responseBody: fmt.Sprintf(`{"authorizationData": [{"authorizationToken": "c29tZS1rZXk6c29tZS1zZWNyZXQ=","expiresAt": %d}]}`, timestamp.Unix()),
 			providerOpts: ProviderOptions{AwsAutoLogin: true},
 			beforeFunc: func(serverURL string, mgr *Manager, image *string) {
 				// Create ECR client and configure the manager.
@@ -198,11 +222,18 @@ func TestLogin_WithCache(t *testing.T) {
 		},
 		{
 			name:         "gcr",
-			responseBody: `{"access_token": "some-token","expires_in": 10, "token_type": "foo"}`,
 			providerOpts: ProviderOptions{GcpAutoLogin: true},
 			beforeFunc: func(serverURL string, mgr *Manager, image *string) {
-				// Create GCR client and configure the manager.
-				gcrClient := gcp.NewClient().WithTokenURL(serverURL)
+				// Create fake token source
+				fakeTS := &fakeTokenSource{
+					token: &oauth2.Token{
+						AccessToken: "some-token",
+						TokenType:   "Bearer",
+						Expiry:      timestamp,
+					},
+				}
+				// Create GCR client with fake token source
+				gcrClient := gcp.NewClient().WithTokenSource(fakeTS)
 				mgr.WithGCRClient(gcrClient)
 
 				*image = "gcr.io/foo/bar:v1"
@@ -213,6 +244,7 @@ func TestLogin_WithCache(t *testing.T) {
 			responseBody: `{"refresh_token": "bbbbb"}`,
 			providerOpts: ProviderOptions{AzureAutoLogin: true},
 			beforeFunc: func(serverURL string, mgr *Manager, image *string) {
+				// Create ACR client and configure the manager.
 				acrClient := azure.NewClient().WithTokenCredential(&azure.FakeTokenCredential{Token: "foo"}).WithScheme("http")
 				mgr.WithACRClient(acrClient)
 
@@ -231,21 +263,28 @@ func TestLogin_WithCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			// Create test server.
-			handler := func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(tt.responseBody))
+			// Create test server if responseBody is set.
+			var srv *httptest.Server
+			if tt.responseBody != "" {
+				handler := func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(tt.responseBody))
+				}
+				srv = httptest.NewServer(http.HandlerFunc(handler))
+				t.Cleanup(func() {
+					srv.Close()
+				})
 			}
-			srv := httptest.NewServer(http.HandlerFunc(handler))
-			t.Cleanup(func() {
-				srv.Close()
-			})
 
 			mgr := NewManager()
 			var image string
 
 			if tt.beforeFunc != nil {
-				tt.beforeFunc(srv.URL, mgr, &image)
+				serverURL := ""
+				if srv != nil {
+					serverURL = srv.URL
+				}
+				tt.beforeFunc(serverURL, mgr, &image)
 			}
 
 			ref, err := name.ParseReference(image)
@@ -272,7 +311,7 @@ func TestLogin_WithCache(t *testing.T) {
 				expiration, err := cache.GetExpiration(obj)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(expiration).ToNot(BeZero())
-				g.Expect(expiration).To(BeTemporally("~", time.Unix(timestamp, 0), 1*time.Second))
+				g.Expect(expiration).To(BeTemporally("~", timestamp, 1*time.Second))
 			}
 		})
 	}
