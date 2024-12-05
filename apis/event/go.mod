@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/apis/event
 
-go 1.22.0
+go 1.22.7
 
 require (
 	k8s.io/api v0.31.3
