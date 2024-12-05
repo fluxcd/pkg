@@ -21,12 +21,12 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 
-	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/oci"
 	"github.com/fluxcd/pkg/oci/auth/aws"
 	"github.com/fluxcd/pkg/oci/auth/azure"
@@ -70,8 +70,6 @@ type ProviderOptions struct {
 	// AzureAutoLogin enables automatic attempt to get credentials for images in
 	// ACR.
 	AzureAutoLogin bool
-	// Cache is a cache for storing auth configurations.
-	Cache cache.Expirable[cache.StoreObject[authn.Authenticator]]
 }
 
 // Manager is a login manager for various registry providers.
@@ -141,65 +139,24 @@ func (m *Manager) WithACRClient(c *azure.Client) *Manager {
 // Login performs authentication against a registry and returns the Authenticator.
 // For generic registry provider, it is no-op.
 func (m *Manager) Login(ctx context.Context, url string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, error) {
-	provider := ImageRegistryProvider(url, ref)
-	var (
-		key string
-		err error
-	)
-	if opts.Cache != nil {
-		key, err = m.keyFromURL(url, provider)
-		if err != nil {
-			logr.FromContextOrDiscard(ctx).Error(err, "failed to get cache key")
-		} else {
-			auth, exists, err := getObjectFromCache(opts.Cache, key)
-			if err != nil {
-				logr.FromContextOrDiscard(ctx).Error(err, "failed to get auth object from cache")
-			}
-			if exists {
-				return auth, nil
-			}
-		}
-	}
+	auth, _, err := m.LoginWithExpiry(ctx, url, ref, opts)
+	return auth, err
+}
 
+// LoginWithExpiry performs authentication against a registry and returns the
+// Authenticator along with the auth expiry time.
+// For generic registry provider, it is no-op.
+func (m *Manager) LoginWithExpiry(ctx context.Context, url string, ref name.Reference, opts ProviderOptions) (authn.Authenticator, time.Time, error) {
+	provider := ImageRegistryProvider(url, ref)
 	switch provider {
 	case oci.ProviderAWS:
-		auth, expiresAt, err := m.ecr.LoginWithExpiry(ctx, opts.AwsAutoLogin, url)
-		if err != nil {
-			return nil, err
-		}
-		if opts.Cache != nil {
-			err := cacheObject(opts.Cache, auth, key, expiresAt)
-			if err != nil {
-				logr.FromContextOrDiscard(ctx).Error(err, "failed to cache auth object")
-			}
-		}
-		return auth, nil
+		return m.ecr.LoginWithExpiry(ctx, opts.AwsAutoLogin, url)
 	case oci.ProviderGCP:
-		auth, expiresAt, err := m.gcr.LoginWithExpiry(ctx, opts.GcpAutoLogin, url, ref)
-		if err != nil {
-			return nil, err
-		}
-		if opts.Cache != nil {
-			err := cacheObject(opts.Cache, auth, key, expiresAt)
-			if err != nil {
-				logr.FromContextOrDiscard(ctx).Error(err, "failed to cache auth object")
-			}
-		}
-		return auth, nil
+		return m.gcr.LoginWithExpiry(ctx, opts.GcpAutoLogin, url, ref)
 	case oci.ProviderAzure:
-		auth, expiresAt, err := m.acr.LoginWithExpiry(ctx, opts.AzureAutoLogin, url, ref)
-		if err != nil {
-			return nil, err
-		}
-		if opts.Cache != nil {
-			err := cacheObject(opts.Cache, auth, key, expiresAt)
-			if err != nil {
-				logr.FromContextOrDiscard(ctx).Error(err, "failed to cache auth object")
-			}
-		}
-		return auth, nil
+		return m.acr.LoginWithExpiry(ctx, opts.AzureAutoLogin, url, ref)
 	}
-	return nil, nil
+	return nil, time.Time{}, nil
 }
 
 // OIDCLogin attempts to get an Authenticator for the provided URL endpoint.
@@ -235,29 +192,4 @@ func (m *Manager) OIDCLogin(ctx context.Context, registryURL string, opts Provid
 		return m.acr.OIDCLogin(ctx, fmt.Sprintf("%s://%s", u.Scheme, u.Host))
 	}
 	return nil, nil
-}
-
-// keyFromURL returns a key for the cache based on the URL and provider.
-// Use this when you don't want to cache the full URL,
-// but instead want to cache based on the provider secific way of identifying
-// the authentication principal, i.e. the Domain for AWS and Azure, Project for GCP.
-func (m *Manager) keyFromURL(ref string, provider oci.Provider) (string, error) {
-	if !strings.Contains(ref, "://") {
-		ref = fmt.Sprintf("//%s", ref)
-	}
-	u, err := url.Parse(ref)
-	if err != nil {
-		return "", err
-	}
-	switch provider {
-	case oci.ProviderAWS, oci.ProviderAzure:
-		return u.Host, nil
-	case oci.ProviderGCP:
-		paths := strings.Split(u.Path, "/")
-		if len(paths) > 1 {
-			return fmt.Sprintf("%s/%s", u.Host, paths[1]), nil
-		}
-		return u.Host, nil
-	}
-	return "", nil
 }

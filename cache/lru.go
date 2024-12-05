@@ -24,10 +24,10 @@ import (
 // node is a node in a doubly linked list
 // that is used to implement an LRU cache
 type node[T any] struct {
-	object T
-	key    string
-	prev   *node[T]
-	next   *node[T]
+	value T
+	key   string
+	prev  *node[T]
+	next  *node[T]
 }
 
 func (n *node[T]) addNext(node *node[T]) {
@@ -38,7 +38,7 @@ func (n *node[T]) addPrev(node *node[T]) {
 	n.prev = node
 }
 
-// LRU is a thread-safe in-memory key/object store.
+// LRU is a thread-safe in-memory key/value store.
 // All methods are safe for concurrent use.
 // All operations are O(1). The hash map lookup is O(1) and so is the doubly
 // linked list insertion/deletion.
@@ -62,25 +62,20 @@ func (n *node[T]) addPrev(node *node[T]) {
 //	           │                                                   │
 //	           └───────────────────────────────────────────────────┘
 //
-// A function to extract the key from the object must be provided.
 // Use the NewLRU function to create a new cache that is ready to use.
 type LRU[T any] struct {
 	cache    map[string]*node[T]
 	capacity int
-	// keyFunc is used to make the key for objects stored in and retrieved from items, and
-	// should be deterministic.
-	keyFunc    KeyFunc[T]
-	metrics    *cacheMetrics
-	labelsFunc GetLvsFunc[T]
-	head       *node[T]
-	tail       *node[T]
-	mu         sync.RWMutex
+	metrics  *cacheMetrics
+	head     *node[T]
+	tail     *node[T]
+	mu       sync.RWMutex
 }
 
 var _ Store[any] = &LRU[any]{}
 
-// NewLRU creates a new LRU cache with the given capacity and keyFunc.
-func NewLRU[T any](capacity int, keyFunc KeyFunc[T], opts ...Options[T]) (*LRU[T], error) {
+// NewLRU creates a new LRU cache with the given capacity.
+func NewLRU[T any](capacity int, opts ...Options) (*LRU[T], error) {
 	opt, err := makeOptions(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply options: %w", err)
@@ -92,41 +87,33 @@ func NewLRU[T any](capacity int, keyFunc KeyFunc[T], opts ...Options[T]) (*LRU[T
 	tail.addPrev(head)
 
 	lru := &LRU[T]{
-		cache:      make(map[string]*node[T]),
-		keyFunc:    keyFunc,
-		labelsFunc: opt.labelsFunc,
-		capacity:   capacity,
-		head:       head,
-		tail:       tail,
+		cache:    make(map[string]*node[T]),
+		capacity: capacity,
+		head:     head,
+		tail:     tail,
 	}
 
 	if opt.registerer != nil {
-		lru.metrics = newCacheMetrics(opt.registerer, opt.extraLabels...)
+		lru.metrics = newCacheMetrics(opt.metricsPrefix, opt.registerer)
 	}
 
 	return lru, nil
 }
 
 // Set an item in the cache, existing index will be overwritten.
-func (c *LRU[T]) Set(object T) error {
-	key, err := c.keyFunc(object)
-	if err != nil {
-		recordRequest(c.metrics, StatusFailure)
-		return &CacheError{Reason: ErrInvalidKey, Err: err}
-	}
-
+func (c *LRU[T]) Set(key string, value T) error {
 	// if node is already in cache, return error
 	c.mu.Lock()
 	newNode, ok := c.cache[key]
 	if ok {
 		c.delete(newNode)
-		_ = c.add(&node[T]{key: key, object: object})
+		_ = c.add(&node[T]{key: key, value: value})
 		c.mu.Unlock()
 		recordRequest(c.metrics, StatusSuccess)
 		return nil
 	}
 
-	evicted := c.add(&node[T]{key: key, object: object})
+	evicted := c.add(&node[T]{key: key, value: value})
 	c.mu.Unlock()
 	recordRequest(c.metrics, StatusSuccess)
 	if evicted {
@@ -154,13 +141,7 @@ func (c *LRU[T]) add(node *node[T]) (evicted bool) {
 }
 
 // Delete removes a node from the list
-func (c *LRU[T]) Delete(object T) error {
-	key, err := c.keyFunc(object)
-	if err != nil {
-		recordRequest(c.metrics, StatusFailure)
-		return &CacheError{Reason: ErrInvalidKey, Err: err}
-	}
-
+func (c *LRU[T]) Delete(key string) error {
 	// if node is head or tail, do nothing
 	if key == c.head.key || key == c.tail.key {
 		recordRequest(c.metrics, StatusSuccess)
@@ -189,66 +170,24 @@ func (c *LRU[T]) delete(node *node[T]) {
 	delete(c.cache, node.key)
 }
 
-// Get returns the given object from the cache.
-// If the object is not in the cache, it returns false.
-func (c *LRU[T]) Get(object T) (item T, exists bool, err error) {
-	var res T
-	lvs := []string{}
-	if c.labelsFunc != nil {
-		lvs, err = c.labelsFunc(object, len(c.metrics.getExtraLabels()))
-		if err != nil {
-			recordRequest(c.metrics, StatusFailure)
-			return res, false, &CacheError{Reason: ErrInvalidLabels, Err: err}
-		}
-	}
-	key, err := c.keyFunc(object)
-	if err != nil {
-		recordRequest(c.metrics, StatusFailure)
-		return item, false, &CacheError{Reason: ErrInvalidKey, Err: err}
-	}
-
-	item, exists, err = c.get(key)
-	if err != nil {
-		return res, false, ErrInvalidKey
-	}
-	if !exists {
-		recordEvent(c.metrics, CacheEventTypeMiss, lvs...)
-		return res, false, nil
-	}
-	recordEvent(c.metrics, CacheEventTypeHit, lvs...)
-	return item, true, nil
-}
-
-// GetByKey returns the object for the given key.
-func (c *LRU[T]) GetByKey(key string) (T, bool, error) {
-	var res T
-	item, found, err := c.get(key)
-	if err != nil {
-		return res, false, err
-	}
-	if !found {
-		recordEvent(c.metrics, CacheEventTypeMiss)
-		return res, false, nil
-	}
-
-	recordEvent(c.metrics, CacheEventTypeHit)
-	return item, true, nil
-}
-
-func (c *LRU[T]) get(key string) (item T, exists bool, err error) {
+// Get returns an item in the cache for the given key. If no item is found, an
+// error is returned.
+// The caller can record cache hit or miss based on the result with
+// LRU.RecordCacheEvent().
+func (c *LRU[T]) Get(key string) (T, error) {
 	var res T
 	c.mu.Lock()
 	node, ok := c.cache[key]
 	if !ok {
 		c.mu.Unlock()
 		recordRequest(c.metrics, StatusSuccess)
-		return res, false, nil
+		return res, ErrNotFound
 	}
 	c.delete(node)
 	_ = c.add(node)
 	c.mu.Unlock()
 	recordRequest(c.metrics, StatusSuccess)
-	return node.object, true, nil
+	return node.value, nil
 }
 
 // ListKeys returns a list of keys in the cache.
@@ -287,4 +226,16 @@ func (c *LRU[T]) Resize(size int) (int, error) {
 	c.mu.Unlock()
 	recordRequest(c.metrics, StatusSuccess)
 	return overflow, nil
+}
+
+// RecordCacheEvent records a cache event (cache_miss or cache_hit) with kind,
+// name and namespace of the associated object being reconciled.
+func (c *LRU[T]) RecordCacheEvent(event, kind, name, namespace string) {
+	recordCacheEvent(c.metrics, event, kind, name, namespace)
+}
+
+// DeleteCacheEvent deletes the cache event (cache_miss or cache_hit) metric for
+// the associated object being reconciled, given their kind, name and namespace.
+func (c *LRU[T]) DeleteCacheEvent(event, kind, name, namespace string) {
+	deleteCacheEvent(c.metrics, event, kind, name, namespace)
 }

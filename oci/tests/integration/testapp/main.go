@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/fluxcd/pkg/auth/azure"
-	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
 	"github.com/fluxcd/pkg/git/repository"
@@ -69,16 +68,10 @@ func main() {
 }
 
 func checkOci(ctx context.Context) {
-	cache, err := cache.New(5, cache.StoreObjectKeyFunc,
-		cache.WithCleanupInterval[cache.StoreObject[authn.Authenticator]](1*time.Second))
-	if err != nil {
-		panic(err)
-	}
 	opts := login.ProviderOptions{
 		AwsAutoLogin:   true,
 		GcpAutoLogin:   true,
 		AzureAutoLogin: true,
-		Cache:          cache,
 	}
 
 	if *repo == "" {
@@ -88,6 +81,7 @@ func checkOci(ctx context.Context) {
 	var loginURL string
 	var auth authn.Authenticator
 	var ref name.Reference
+	var err error
 
 	if *registry != "" {
 		// Registry and repository are separate.
