@@ -2,8 +2,6 @@ module github.com/fluxcd/pkg/git
 
 go 1.22.7
 
-toolchain go1.23.0
-
 replace github.com/fluxcd/pkg/auth => ../auth
 
 require (
@@ -11,7 +9,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.3.4
 	github.com/fluxcd/pkg/auth v0.0.1
 	github.com/fluxcd/pkg/ssh v0.14.1
-	github.com/onsi/gomega v1.34.2
+	github.com/onsi/gomega v1.36.0
 )
 
 require (

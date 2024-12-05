@@ -22,7 +22,7 @@ require (
 	github.com/fluxcd/pkg/version v0.4.1
 	github.com/go-git/go-billy/v5 v5.6.0
 	github.com/go-git/go-git/v5 v5.12.0
-	github.com/onsi/gomega v1.34.2
+	github.com/onsi/gomega v1.36.0
 	golang.org/x/crypto v0.30.0
 )
 
