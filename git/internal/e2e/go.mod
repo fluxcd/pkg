@@ -22,7 +22,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-github/v64 v64.0.0
 	github.com/google/uuid v1.6.0
-	github.com/onsi/gomega v1.34.2
+	github.com/onsi/gomega v1.36.0
 )
 
 require (
