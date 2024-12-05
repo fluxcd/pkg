@@ -45,6 +45,8 @@ type Store[T any] interface {
 }
 
 // Expirable is an interface for a cache store that supports expiration.
+// It extends the Store interface.
+// It also provides disk persistence.
 type Expirable[T any] interface {
 	Store[T]
 	// SetExpiration sets the expiration time for the object.
@@ -55,11 +57,18 @@ type Expirable[T any] interface {
 	HasExpired(object T) (bool, error)
 }
 
+// Persistable is an interface for a cache store that supports disk persistence.
+type Persistable interface {
+	// Persist persists the cache to disk.
+	Persist() error
+}
+
 type storeOptions[T any] struct {
-	interval    time.Duration
-	registerer  prometheus.Registerer
-	extraLabels []string
-	labelsFunc  GetLvsFunc[T]
+	interval     time.Duration
+	registerer   prometheus.Registerer
+	extraLabels  []string
+	labelsFunc   GetLvsFunc[T]
+	snapshotPath string
 }
 
 // Options is a function that sets the store options.
@@ -89,6 +98,13 @@ func WithCleanupInterval[T any](interval time.Duration) Options[T] {
 func WithMetricsRegisterer[T any](r prometheus.Registerer) Options[T] {
 	return func(o *storeOptions[T]) error {
 		o.registerer = r
+		return nil
+	}
+}
+
+func WithSnapshotPath[T any](path string) Options[T] {
+	return func(o *storeOptions[T]) error {
+		o.snapshotPath = path
 		return nil
 	}
 }
