@@ -37,7 +37,9 @@ import (
 	"github.com/fluxcd/pkg/oci"
 )
 
-var registryPartRe = regexp.MustCompile(`([0-9+]*).dkr.ecr(?:-fips)?\.([^/.]*)\.(amazonaws\.com[.cn]*)`)
+// We cannot put "amazonaws.com" at the end of the regex because some AWS partitions do not use "amazonaws.com" as their domain name.
+// However, we can assume the structure <Account ID>.dkr.ecr<-fips?>.<Region>.<Partition API domain> is consistent everywhere.
+var registryPartRe = regexp.MustCompile(`([0-9+]+).dkr.ecr(?:-fips)?\.([^/.]*)\.`)
 
 // ParseRegistry returns the AWS account ID and region and `true` if
 // the image registry/repository is hosted in AWS's Elastic Container Registry,
