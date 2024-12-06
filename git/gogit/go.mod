@@ -15,11 +15,11 @@ require (
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v0.0.0-20240909085733-6741dbfc16a1
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/auth v0.0.1
+	github.com/fluxcd/pkg/auth v0.1.0
 	github.com/fluxcd/pkg/git v0.21.0
-	github.com/fluxcd/pkg/gittestserver v0.13.1
-	github.com/fluxcd/pkg/ssh v0.14.1
-	github.com/fluxcd/pkg/version v0.4.1
+	github.com/fluxcd/pkg/gittestserver v0.14.0
+	github.com/fluxcd/pkg/ssh v0.15.0
+	github.com/fluxcd/pkg/version v0.5.0
 	github.com/go-git/go-billy/v5 v5.6.0
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/onsi/gomega v1.36.0
@@ -36,7 +36,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.1.3 // indirect
 	github.com/bradleyfalzon/ghinstallation/v2 v2.12.0 // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
-	github.com/cyphar/filepath-securejoin v0.3.4 // indirect
+	github.com/cyphar/filepath-securejoin v0.3.5 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
