@@ -11,10 +11,10 @@ replace (
 
 require (
 	github.com/fluxcd/pkg/auth v0.1.0
-	github.com/fluxcd/pkg/git v0.21.0
-	github.com/fluxcd/pkg/git/gogit v0.19.0
-	github.com/fluxcd/pkg/oci v0.40.0
-	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240805120810-5b91964f964f
+	github.com/fluxcd/pkg/git v0.22.0
+	github.com/fluxcd/pkg/git/gogit v0.21.0
+	github.com/fluxcd/pkg/oci v0.41.1
+	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/google/go-containerregistry v0.20.2
 	github.com/google/uuid v1.6.0
