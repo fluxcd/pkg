@@ -31,6 +31,8 @@ spec:
             spec:
               description: TestSpec defines the desired state of a test run
               properties:
+                suspend:
+                  type: boolean
                 type:
                   description: Type of test
                   type: string
