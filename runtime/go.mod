@@ -13,7 +13,7 @@ require (
 	github.com/fluxcd/cli-utils v0.36.0-flux.10
 	github.com/fluxcd/pkg/apis/acl v0.4.0
 	github.com/fluxcd/pkg/apis/event v0.11.0
-	github.com/fluxcd/pkg/apis/meta v1.7.0
+	github.com/fluxcd/pkg/apis/meta v1.8.0
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
