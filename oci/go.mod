@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/oci
 
-go 1.22.7
+go 1.23.0
 
 replace (
 	github.com/fluxcd/pkg/sourceignore => ../sourceignore
@@ -22,7 +22,7 @@ require (
 	github.com/fluxcd/pkg/version v0.5.0
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-containerregistry v0.20.2
-	github.com/onsi/gomega v1.36.0
+	github.com/onsi/gomega v1.36.1
 	github.com/sirupsen/logrus v1.9.3
 )
 
@@ -112,7 +112,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.29.0 // indirect
 	go.opentelemetry.io/otel/trace v1.29.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
-	golang.org/x/crypto v0.30.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/net v0.32.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect

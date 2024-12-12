@@ -1,13 +1,15 @@
 module github.com/fluxcd/pkg/auth
 
-go 1.22.7
+go 1.23.0
+
+replace github.com/fluxcd/pkg/ssh => ../ssh
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.16.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.12.0
-	github.com/fluxcd/pkg/ssh v0.14.1
-	github.com/onsi/gomega v1.36.0
+	github.com/fluxcd/pkg/ssh v0.15.0
+	github.com/onsi/gomega v1.36.1
 	golang.org/x/net v0.32.0
 )
 
@@ -24,7 +26,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	golang.org/x/crypto v0.30.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

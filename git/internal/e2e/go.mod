@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/git/internal/e2e
 
-go 1.22.7
+go 1.23.0
 
 replace (
 	github.com/fluxcd/pkg/auth => ../../../auth
@@ -22,7 +22,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-github/v64 v64.0.0
 	github.com/google/uuid v1.6.0
-	github.com/onsi/gomega v1.36.0
+	github.com/onsi/gomega v1.36.1
 )
 
 require (
@@ -65,7 +65,7 @@ require (
 	github.com/xanzy/go-gitlab v0.107.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.30.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/net v0.32.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
