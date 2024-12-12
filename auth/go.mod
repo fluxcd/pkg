@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.16.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.12.0
-	github.com/fluxcd/pkg/ssh v0.15.0
+	github.com/fluxcd/pkg/ssh v0.16.0
 	github.com/onsi/gomega v1.36.1
 	golang.org/x/net v0.32.0
 )
