@@ -10,8 +10,8 @@ replace (
 require (
 	github.com/ProtonMail/go-crypto v1.1.3
 	github.com/cyphar/filepath-securejoin v0.3.5
-	github.com/fluxcd/pkg/auth v0.1.0
-	github.com/fluxcd/pkg/ssh v0.15.0
+	github.com/fluxcd/pkg/auth v0.2.0
+	github.com/fluxcd/pkg/ssh v0.16.0
 	github.com/onsi/gomega v1.36.1
 )
 

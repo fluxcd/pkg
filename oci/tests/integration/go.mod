@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/auth v0.1.0
+	github.com/fluxcd/pkg/auth v0.2.0
 	github.com/fluxcd/pkg/git v0.22.0
 	github.com/fluxcd/pkg/git/gogit v0.21.0
 	github.com/fluxcd/pkg/oci v0.41.1
@@ -65,8 +65,8 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
-	github.com/fluxcd/pkg/ssh v0.15.0 // indirect
-	github.com/fluxcd/pkg/version v0.5.0 // indirect
+	github.com/fluxcd/pkg/ssh v0.16.0 // indirect
+	github.com/fluxcd/pkg/version v0.6.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.0 // indirect
