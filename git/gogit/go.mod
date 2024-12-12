@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/git/gogit
 
-go 1.22.7
+go 1.23.0
 
 replace (
 	github.com/fluxcd/pkg/auth => ../../auth
@@ -22,8 +22,8 @@ require (
 	github.com/fluxcd/pkg/version v0.5.0
 	github.com/go-git/go-billy/v5 v5.6.0
 	github.com/go-git/go-git/v5 v5.12.0
-	github.com/onsi/gomega v1.36.0
-	golang.org/x/crypto v0.30.0
+	github.com/onsi/gomega v1.36.1
+	golang.org/x/crypto v0.31.0
 )
 
 require (

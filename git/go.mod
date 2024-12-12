@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/git
 
-go 1.22.7
+go 1.23.0
 
 replace (
 	github.com/fluxcd/pkg/auth => ../auth
@@ -12,7 +12,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.3.5
 	github.com/fluxcd/pkg/auth v0.1.0
 	github.com/fluxcd/pkg/ssh v0.15.0
-	github.com/onsi/gomega v1.36.0
+	github.com/onsi/gomega v1.36.1
 )
 
 require (
@@ -30,7 +30,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
-	golang.org/x/crypto v0.30.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/net v0.32.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
