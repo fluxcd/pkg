@@ -104,6 +104,33 @@ func NewRecorder(mgr ctrl.Manager, log logr.Logger, webhook, reportingController
 	}, nil
 }
 
+// NewRecorderForScheme creates an event Recorder with a Kubernetes event recorder and an external event recorder based on the
+// given webhook. The recorder performs automatic retries for connection errors and 500-range response codes from the
+// external recorder.
+func NewRecorderForScheme(scheme *runtime.Scheme,
+	eventRecorder kuberecorder.EventRecorder,
+	log logr.Logger, webhook, reportingController string) (*Recorder, error) {
+	if webhook != "" {
+		if _, err := url.Parse(webhook); err != nil {
+			return nil, err
+		}
+	}
+
+	httpClient := retryablehttp.NewClient()
+	httpClient.HTTPClient.Timeout = 5 * time.Second
+	httpClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
+	httpClient.Logger = nil
+
+	return &Recorder{
+		Scheme:              scheme,
+		Webhook:             webhook,
+		ReportingController: reportingController,
+		Client:              httpClient,
+		EventRecorder:       eventRecorder,
+		Log:                 log,
+	}, nil
+}
+
 // Event records an event in the webhook address.
 func (r *Recorder) Event(object runtime.Object, eventtype, reason, message string) {
 	r.AnnotatedEventf(object, nil, eventtype, reason, message)
