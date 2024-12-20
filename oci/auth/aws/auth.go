@@ -37,7 +37,9 @@ import (
 	"github.com/fluxcd/pkg/oci"
 )
 
-var registryPartRe = regexp.MustCompile(`([0-9+]*).dkr.ecr(?:-fips)?\.([^/.]*)\.(amazonaws\.com[.cn]*)`)
+// This regex is sourced from the AWS ECR Credential Helper (https://github.com/awslabs/amazon-ecr-credential-helper).
+// It covers both public AWS partitions like amazonaws.com, China partitions like amazonaws.com.cn, and non-public partitions.
+var registryPartRe = regexp.MustCompile(`(\d{12})\.dkr\.ecr(\-fips)?\.([a-zA-Z0-9][a-zA-Z0-9-_]*)\.(amazonaws\.com(\.cn)?|sc2s\.sgov\.gov|c2s\.ic\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov)`)
 
 // ParseRegistry returns the AWS account ID and region and `true` if
 // the image registry/repository is hosted in AWS's Elastic Container Registry,
@@ -47,7 +49,7 @@ func ParseRegistry(registry string) (accountId, awsEcrRegion string, ok bool) {
 	if len(registryParts) < 1 || len(registryParts[0]) < 3 {
 		return "", "", false
 	}
-	return registryParts[0][1], registryParts[0][2], true
+	return registryParts[0][1], registryParts[0][3], true
 }
 
 // Client is a AWS ECR client which can log into the registry and return
