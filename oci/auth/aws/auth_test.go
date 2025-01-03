@@ -77,6 +77,30 @@ func TestParseRegistry(t *testing.T) {
 			wantRegion:    "us-gov-west-1",
 			wantOK:        true,
 		},
+		{
+			registry:      "012345678901.dkr.ecr.us-secret-region.sc2s.sgov.gov",
+			wantAccountID: "012345678901",
+			wantRegion:    "us-secret-region",
+			wantOK:        true,
+		},
+		{
+			registry:      "012345678901.dkr.ecr-fips.us-ts-region.c2s.ic.gov",
+			wantAccountID: "012345678901",
+			wantRegion:    "us-ts-region",
+			wantOK:        true,
+		},
+		{
+			registry:      "012345678901.dkr.ecr.uk-region.cloud.adc-e.uk",
+			wantAccountID: "012345678901",
+			wantRegion:    "uk-region",
+			wantOK:        true,
+		},
+		{
+			registry:      "012345678901.dkr.ecr.us-ts-region.csp.hci.ic.gov",
+			wantAccountID: "012345678901",
+			wantRegion:    "us-ts-region",
+			wantOK:        true,
+		},
 		// TODO: Fix: this invalid registry is allowed by the regex.
 		// {
 		// 	registry: ".dkr.ecr.error.amazonaws.com",
