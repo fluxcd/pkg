@@ -51,6 +51,10 @@ type CloneConfig struct {
 	// ShallowClone defines if the repository should be shallow cloned,
 	// not supported by all implementations
 	ShallowClone bool
+
+	// SparseCheckoutDirectories defines a list of directories to sparse-checkout
+	// when cloning the repository. If provided, only listed directories are checked out.
+	SparseCheckoutDirectories []string
 }
 
 // PushConfig provides configuration options for a Git push.
