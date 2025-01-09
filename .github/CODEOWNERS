@@ -5,9 +5,9 @@
 # The following have a bit more specific owners and require e.g.
 # specific domain expertise.
 /actions/           @stefanprodan
-/apis/              @darkowlzz @hiddeco @stefanprodan
+/apis/              @hiddeco @stefanprodan
 /ssa/               @stefanprodan
-/runtime/           @darkowlzz @hiddeco @stefanprodan
+/runtime/           @hiddeco @stefanprodan
 /sourceignore/      @hiddeco
 /kustomize/         @stefanprodan
 /git/               @aryan9600 @hiddeco
