@@ -21,6 +21,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Group is the API Group for the Event API.
+const Group = "event.toolkit.fluxcd.io"
+
 // These constants define valid event severity values.
 const (
 	// EventSeverityTrace represents a trace event, usually

@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -145,13 +147,23 @@ func (r *Recorder) Eventf(object runtime.Object, eventtype, reason, messageFmt s
 // It also logs the event if debug logs are enabled in the logger.
 func (r *Recorder) AnnotatedEventf(
 	object runtime.Object,
-	annotations map[string]string,
+	inputAnnotations map[string]string,
 	eventtype, reason string,
 	messageFmt string, args ...interface{}) {
 
 	ref, err := reference.GetReference(r.Scheme, object)
 	if err != nil {
 		r.Log.Error(err, "failed to get object reference")
+	}
+
+	// Add object annotations to the annotations.
+	annotations := maps.Clone(inputAnnotations)
+	if annotatedObject, ok := object.(interface{ GetAnnotations() map[string]string }); ok {
+		for k, v := range annotatedObject.GetAnnotations() {
+			if strings.HasPrefix(k, eventv1.Group+"/") {
+				annotations[k] = v
+			}
+		}
 	}
 
 	// Add object info in the logger.
