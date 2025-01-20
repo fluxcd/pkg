@@ -20,6 +20,8 @@ package v1beta1
 const (
 	// MetaRevisionKey is the key used to hold the source artifact revision.
 	MetaRevisionKey string = "revision"
+	// MetaOriginRevisionKey is the key used to hold the source artifact origin revision.
+	MetaOriginRevisionKey string = "originRevision"
 	// MetaChecksumKey is the key used to hold the source artifact checksum.
 	// Deprecated: in favor of MetaDigestKey.
 	MetaChecksumKey string = "checksum"
