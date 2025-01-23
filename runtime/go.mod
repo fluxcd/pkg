@@ -5,16 +5,19 @@ go 1.23.0
 replace (
 	github.com/fluxcd/pkg/apis/acl => ../apis/acl
 	github.com/fluxcd/pkg/apis/event => ../apis/event
+	github.com/fluxcd/pkg/apis/kustomize => ../apis/kustomize
 	github.com/fluxcd/pkg/apis/meta => ../apis/meta
 )
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6
 	github.com/fluxcd/cli-utils v0.36.0-flux.12
-	github.com/fluxcd/pkg/apis/acl v0.5.0
-	github.com/fluxcd/pkg/apis/event v0.15.0
-	github.com/fluxcd/pkg/apis/meta v1.9.0
+	github.com/fluxcd/pkg/apis/acl v0.6.0
+	github.com/fluxcd/pkg/apis/event v0.16.0
+	github.com/fluxcd/pkg/apis/kustomize v1.9.0
+	github.com/fluxcd/pkg/apis/meta v1.10.0
 	github.com/go-logr/logr v1.4.2
+	github.com/google/cel-go v0.23.1
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/kylelemons/godebug v1.1.0
@@ -38,8 +41,10 @@ require (
 replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
 
 require (
+	cel.dev/expr v0.19.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -86,9 +91,11 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/cobra v1.8.1 // indirect
+	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
@@ -96,6 +103,8 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240826202546-f6391c0de4c7 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240826202546-f6391c0de4c7 // indirect
 	google.golang.org/protobuf v1.36.4 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
