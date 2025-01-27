@@ -3,8 +3,8 @@ module github.com/fluxcd/pkg/ssh
 go 1.23.0
 
 require (
-  github.com/onsi/gomega v1.36.1
-  golang.org/x/crypto v0.31.0
+	github.com/onsi/gomega v1.36.1
+	golang.org/x/crypto v0.31.0
 	golang.org/x/net v0.32.0
 )
 
