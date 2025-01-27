@@ -148,6 +148,10 @@ const (
 	// ReconciliationFailedReason represents the fact that
 	// the reconciliation failed.
 	ReconciliationFailedReason string = "ReconciliationFailed"
+
+	// InvalidCELExpressionReason represents the fact that a CEL expression
+	// in the configuration is invalid.
+	InvalidCELExpressionReason string = "InvalidCELExpression"
 )
 
 // ObjectWithConditions describes a Kubernetes resource object with status conditions.
