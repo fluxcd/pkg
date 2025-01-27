@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -104,6 +106,33 @@ func NewRecorder(mgr ctrl.Manager, log logr.Logger, webhook, reportingController
 	}, nil
 }
 
+// NewRecorderForScheme creates an event Recorder with a Kubernetes event recorder and an external event recorder based on the
+// given webhook. The recorder performs automatic retries for connection errors and 500-range response codes from the
+// external recorder.
+func NewRecorderForScheme(scheme *runtime.Scheme,
+	eventRecorder kuberecorder.EventRecorder,
+	log logr.Logger, webhook, reportingController string) (*Recorder, error) {
+	if webhook != "" {
+		if _, err := url.Parse(webhook); err != nil {
+			return nil, err
+		}
+	}
+
+	httpClient := retryablehttp.NewClient()
+	httpClient.HTTPClient.Timeout = 5 * time.Second
+	httpClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
+	httpClient.Logger = nil
+
+	return &Recorder{
+		Scheme:              scheme,
+		Webhook:             webhook,
+		ReportingController: reportingController,
+		Client:              httpClient,
+		EventRecorder:       eventRecorder,
+		Log:                 log,
+	}, nil
+}
+
 // Event records an event in the webhook address.
 func (r *Recorder) Event(object runtime.Object, eventtype, reason, message string) {
 	r.AnnotatedEventf(object, nil, eventtype, reason, message)
@@ -118,13 +147,23 @@ func (r *Recorder) Eventf(object runtime.Object, eventtype, reason, messageFmt s
 // It also logs the event if debug logs are enabled in the logger.
 func (r *Recorder) AnnotatedEventf(
 	object runtime.Object,
-	annotations map[string]string,
+	inputAnnotations map[string]string,
 	eventtype, reason string,
 	messageFmt string, args ...interface{}) {
 
 	ref, err := reference.GetReference(r.Scheme, object)
 	if err != nil {
 		r.Log.Error(err, "failed to get object reference")
+	}
+
+	// Add object annotations to the annotations.
+	annotations := maps.Clone(inputAnnotations)
+	if annotatedObject, ok := object.(interface{ GetAnnotations() map[string]string }); ok {
+		for k, v := range annotatedObject.GetAnnotations() {
+			if strings.HasPrefix(k, eventv1.Group+"/") {
+				annotations[k] = v
+			}
+		}
 	}
 
 	// Add object info in the logger.

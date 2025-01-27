@@ -102,7 +102,7 @@ func SubstituteVariables(
 	// But if the user is using dryRun, he/she should know what he/she is doing, and we should comply.
 	var vars map[string]string
 	if !options.DryRun {
-		vars, err = loadVars(ctx, kubeClient, kustomization)
+		vars, err = LoadVariables(ctx, kubeClient, kustomization)
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +137,9 @@ func SubstituteVariables(
 	return res, nil
 }
 
-func loadVars(ctx context.Context, kubeClient client.Client, kustomization unstructured.Unstructured) (map[string]string, error) {
+// LoadVariables reads the in-line variables set in the Flux Kustomization and merges them with
+// the vars referred in ConfigMaps and Secrets data keys.
+func LoadVariables(ctx context.Context, kubeClient client.Client, kustomization unstructured.Unstructured) (map[string]string, error) {
 	vars := make(map[string]string)
 	substituteFrom, err := getSubstituteFrom(kustomization)
 	if err != nil {

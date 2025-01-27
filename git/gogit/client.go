@@ -40,6 +40,7 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth/github"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
 )
@@ -207,7 +208,7 @@ func WithProxy(opts transport.ProxyOptions) ClientOption {
 }
 
 func (g *Client) Init(ctx context.Context, url, branch string) error {
-	if err := g.validateUrl(url); err != nil {
+	if err := g.validateUrlAndAuthOptions(url); err != nil {
 		return err
 	}
 
@@ -248,11 +249,11 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 }
 
 func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
-	if err := g.providerAuth(ctx); err != nil {
+	if err := g.validateUrlAndAuthOptions(url); err != nil {
 		return nil, err
 	}
 
-	if err := g.validateUrl(url); err != nil {
+	if err := g.providerAuth(ctx); err != nil {
 		return nil, err
 	}
 
@@ -279,12 +280,17 @@ func (g *Client) clone(ctx context.Context, url string, cfg repository.CloneConf
 	}
 }
 
-func (g *Client) validateUrl(u string) error {
+// validateUrlAndAuthOptions performs validations on the input url and auth options.
+// Validations are performed taking into consideration that ProviderAzure sets
+// the bearer token in authOpts and ProviderGitHub sets username/password in
+// authOpts.
+func (g *Client) validateUrlAndAuthOptions(u string) error {
 	ru, err := url.Parse(u)
 	if err != nil {
 		return fmt.Errorf("cannot parse url: %w", err)
 	}
 
+	hasAzureProvider := g.hasProvider(git.ProviderAzure)
 	if g.authOpts != nil {
 		httpOrHttps := g.authOpts.Transport == git.HTTP || g.authOpts.Transport == git.HTTPS
 		hasUsernameOrPassword := g.authOpts.Username != "" || g.authOpts.Password != ""
@@ -292,6 +298,10 @@ func (g *Client) validateUrl(u string) error {
 
 		if httpOrHttps && hasBearerToken && hasUsernameOrPassword {
 			return errors.New("basic auth and bearer token cannot be set at the same time")
+		}
+
+		if httpOrHttps && hasUsernameOrPassword && hasAzureProvider {
+			return errors.New("basic auth and provider cannot be set at the same time")
 		}
 	}
 
@@ -309,14 +319,23 @@ func (g *Client) validateUrl(u string) error {
 			return errors.New("basic auth cannot be sent over HTTP")
 		} else if g.authOpts.BearerToken != "" {
 			return errors.New("bearer token cannot be sent over HTTP")
+		} else if g.hasProvider(git.ProviderGitHub) {
+			return errors.New("github provider cannot be used with HTTP")
+		} else if hasAzureProvider {
+			return errors.New("azure provider cannot be used with HTTP")
 		}
 	}
 
 	return nil
 }
 
+func (g *Client) hasProvider(name string) bool {
+	return g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.ProviderOpts.Name == name
+}
+
 func (g *Client) providerAuth(ctx context.Context) error {
-	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" {
+	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" &&
+		g.authOpts.Username == "" && g.authOpts.Password == "" {
 		if g.proxy.URL != "" {
 			proxyURL, err := g.proxy.FullURL()
 			if err != nil {
@@ -325,6 +344,8 @@ func (g *Client) providerAuth(ctx context.Context) error {
 			switch g.authOpts.ProviderOpts.Name {
 			case git.ProviderAzure:
 				g.authOpts.ProviderOpts.AzureOpts = append(g.authOpts.ProviderOpts.AzureOpts, azure.WithProxyURL(proxyURL))
+			case git.ProviderGitHub:
+				g.authOpts.ProviderOpts.GitHubOpts = append(g.authOpts.ProviderOpts.GitHubOpts, github.WithProxyURL(proxyURL))
 			default:
 				return fmt.Errorf("invalid provider")
 			}
@@ -335,6 +356,8 @@ func (g *Client) providerAuth(ctx context.Context) error {
 			return err
 		}
 		g.authOpts.BearerToken = providerCreds.BearerToken
+		g.authOpts.Username = providerCreds.Username
+		g.authOpts.Password = providerCreds.Password
 	}
 
 	return nil
@@ -417,6 +440,10 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
+	}
+
+	if err := g.providerAuth(ctx); err != nil {
+		return err
 	}
 
 	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)

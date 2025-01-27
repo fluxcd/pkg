@@ -21,6 +21,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Group is the API Group for the Event API.
+const Group = "event.toolkit.fluxcd.io"
+
 // These constants define valid event severity values.
 const (
 	// EventSeverityTrace represents a trace event, usually
@@ -87,4 +90,16 @@ func (in *Event) HasMetadata(key string, val string) bool {
 		return true
 	}
 	return false
+}
+
+// GetRevision looks up for the MetaOriginRevisionKey and MetaRevisionKey
+// keys in the Metadata and returns the first it finds.
+func (in *Event) GetRevision() (string, bool) {
+	if r, ok := in.Metadata[MetaOriginRevisionKey]; ok {
+		return r, true
+	}
+	if r, ok := in.Metadata[MetaRevisionKey]; ok {
+		return r, true
+	}
+	return "", false
 }

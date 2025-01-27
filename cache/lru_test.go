@@ -22,195 +22,57 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fluxcd/cli-utils/pkg/object"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	kc "k8s.io/client-go/tools/cache"
 )
 
 func Test_LRU(t *testing.T) {
+	type keyVal struct {
+		key   string
+		value string
+	}
 	testCases := []struct {
 		name          string
-		inputs        []*metav1.PartialObjectMetadata
-		expectedCache map[string]*node[metav1.PartialObjectMetadata]
+		inputs        []keyVal
+		expectedCache map[string]*node[string]
 	}{
 		{
 			name:          "empty cache",
-			inputs:        []*metav1.PartialObjectMetadata{},
-			expectedCache: map[string]*node[metav1.PartialObjectMetadata]{},
+			inputs:        []keyVal{},
+			expectedCache: map[string]*node[string]{},
 		},
 		{
 			name: "add one node",
-			inputs: []*metav1.PartialObjectMetadata{
+			inputs: []keyVal{
 				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "TestObject",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-						Name:      "test",
-					},
+					key:   "test",
+					value: "test-token",
 				},
 			},
-			expectedCache: map[string]*node[metav1.PartialObjectMetadata]{
-				"test-ns/test": {
-					object: metav1.PartialObjectMetadata{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "TestObject",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "test-ns",
-							Name:      "test",
-						},
-					},
-					key: "test-ns/test",
+			expectedCache: map[string]*node[string]{
+				"test": {
+					key:   "test",
+					value: "test-token",
 				},
 			},
 		},
 		{
 			name: "add seven nodes",
-			inputs: []*metav1.PartialObjectMetadata{
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "TestObject",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-						Name:      "test",
-					},
-				},
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "TestObject",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-						Name:      "test2",
-					},
-				},
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "TestObject",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-						Name:      "test3",
-					},
-				},
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "TestObject",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-						Name:      "test4",
-					},
-				},
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "TestObject",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-						Name:      "test5",
-					},
-				},
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "TestObject",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-						Name:      "test6",
-					},
-				},
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "TestObject",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-						Name:      "test7",
-					},
-				},
+			inputs: []keyVal{
+				{key: "test", value: "test-token"},
+				{key: "test2", value: "test-token"},
+				{key: "test3", value: "test-token"},
+				{key: "test4", value: "test-token"},
+				{key: "test5", value: "test-token"},
+				{key: "test6", value: "test-token"},
+				{key: "test7", value: "test-token"},
 			},
-			expectedCache: map[string]*node[metav1.PartialObjectMetadata]{
-				"test-ns/test3": {
-					object: metav1.PartialObjectMetadata{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "TestObject",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "test-ns",
-							Name:      "test3",
-						},
-					},
-					key: "test-ns/test3",
-				},
-				"test-ns/test4": {
-					object: metav1.PartialObjectMetadata{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "TestObject",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "test-ns",
-							Name:      "test4",
-						},
-					},
-					key: "test-ns/test4",
-				},
-				"test-ns/test5": {
-					object: metav1.PartialObjectMetadata{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "TestObject",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "test-ns",
-							Name:      "test5",
-						},
-					},
-					key: "test-ns/test5",
-				},
-				"test-ns/test6": {
-					object: metav1.PartialObjectMetadata{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "TestObject",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "test-ns",
-							Name:      "test6",
-						},
-					},
-					key: "test-ns/test6",
-				},
-				"test-ns/test7": {
-					object: metav1.PartialObjectMetadata{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "TestObject",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "test-ns",
-							Name:      "test7",
-						},
-					},
-					key: "test-ns/test7",
-				},
+			expectedCache: map[string]*node[string]{
+				"test3": {key: "test3", value: "test-token"},
+				"test4": {key: "test4", value: "test-token"},
+				"test5": {key: "test5", value: "test-token"},
+				"test6": {key: "test6", value: "test-token"},
+				"test7": {key: "test7", value: "test-token"},
 			},
 		},
 	}
@@ -218,11 +80,11 @@ func Test_LRU(t *testing.T) {
 	for _, v := range testCases {
 		t.Run(v.name, func(t *testing.T) {
 			g := NewWithT(t)
-			cache, err := NewLRU(5, kc.MetaNamespaceKeyFunc,
-				WithMetricsRegisterer[any](prometheus.NewPedanticRegistry()))
+			cache, err := NewLRU[string](5,
+				WithMetricsRegisterer(prometheus.NewPedanticRegistry()))
 			g.Expect(err).ToNot(HaveOccurred())
 			for _, input := range v.inputs {
-				err := cache.Set(input)
+				err := cache.Set(input.key, input.value)
 				g.Expect(err).ToNot(HaveOccurred())
 			}
 
@@ -237,38 +99,38 @@ func Test_LRU(t *testing.T) {
 	}
 }
 
-func Test_LRU_Add(t *testing.T) {
+func Test_LRU_Set(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := NewLRU[IdentifiableObject](1, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg))
+	cache, err := NewLRU[string](1,
+		WithMetricsRegisterer(reg),
+		WithMetricsPrefix("gotk_"))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Add an object representing an expiring token
-	obj := IdentifiableObject{
-		ObjMetadata: object.ObjMetadata{
-			Namespace: "test-ns",
-			Name:      "test",
-			GroupKind: schema.GroupKind{
-				Group: "test-group",
-				Kind:  "TestObject",
-			},
-		},
-		Object: "test-token",
-	}
-	err = cache.Set(obj)
+	key1 := "key1"
+	value1 := "val1"
+	err = cache.Set(key1, value1)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test_test-group_TestObject"))
+	g.Expect(cache.ListKeys()).To(ConsistOf(key1))
 
 	// try adding the same object again, it should overwrite the existing one
-	err = cache.Set(obj)
+	err = cache.Set(key1, value1)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// add another object
-	obj.Name = "test2"
-	err = cache.Set(obj)
+	key2 := "key2"
+	value2 := "val2"
+	err = cache.Set(key2, value2)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test2_test-group_TestObject"))
+	g.Expect(cache.ListKeys()).To(ConsistOf(key2))
+
+	// Update the value of existing item.
+	value3 := "val3"
+	err = cache.Set(key2, value3)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cache.ListKeys()).To(ConsistOf(key2))
+	g.Expect(cache.cache[key2].value).To(Equal(value3))
 
 	// validate metrics
 	validateMetrics(reg, `
@@ -277,88 +139,41 @@ func Test_LRU_Add(t *testing.T) {
 	gotk_cache_evictions_total 1
 	# HELP gotk_cache_requests_total Total number of cache requests partioned by success or failure.
 	# TYPE gotk_cache_requests_total counter
-	gotk_cache_requests_total{status="success"} 5
+	gotk_cache_requests_total{status="success"} 7
 	# HELP gotk_cached_items Total number of items in the cache.
 	# TYPE gotk_cached_items gauge
 	gotk_cached_items 1
 `, t)
 }
 
-func Test_LRU_Update(t *testing.T) {
-	g := NewWithT(t)
-	reg := prometheus.NewPedanticRegistry()
-	cache, err := NewLRU[IdentifiableObject](1, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg))
-	g.Expect(err).ToNot(HaveOccurred())
-
-	// Add an object representing an expiring token
-	obj := IdentifiableObject{
-		ObjMetadata: object.ObjMetadata{
-			Namespace: "test-ns",
-			Name:      "test",
-			GroupKind: schema.GroupKind{
-				Group: "test-group",
-				Kind:  "TestObject",
-			},
-		},
-		Object: "test-token",
-	}
-	err = cache.Set(obj)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test_test-group_TestObject"))
-
-	obj.Object = "test-token2"
-	err = cache.Set(obj)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cache.ListKeys()).To(ConsistOf("test-ns_test_test-group_TestObject"))
-	g.Expect(cache.cache["test-ns_test_test-group_TestObject"].object.Object).To(Equal("test-token2"))
-
-	// validate metrics
-	validateMetrics(reg, `
-		# HELP gotk_cache_evictions_total Total number of cache evictions.
-		# TYPE gotk_cache_evictions_total counter
-		gotk_cache_evictions_total 0
-		# HELP gotk_cache_requests_total Total number of cache requests partioned by success or failure.
-		# TYPE gotk_cache_requests_total counter
-		gotk_cache_requests_total{status="success"} 4
-		# HELP gotk_cached_items Total number of items in the cache.
-		# TYPE gotk_cached_items gauge
-		gotk_cached_items 1
-	`, t)
-}
-
 func Test_LRU_Get(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := NewLRU[IdentifiableObject](5, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg),
-		WithMetricsLabels[IdentifiableObject](IdentifiableObjectLabels, IdentifiableObjectLVSFunc))
+	cache, err := NewLRU[string](5,
+		WithMetricsRegisterer(reg),
+		WithMetricsPrefix("gotk_"))
 	g.Expect(err).ToNot(HaveOccurred())
+
+	// Reconciling object label values for cache event metric.
+	recObjKind := "TestObject"
+	recObjName := "test"
+	recObjNamespace := "test-ns"
 
 	// Add an object representing an expiring token
-	obj := IdentifiableObject{
-		ObjMetadata: object.ObjMetadata{
-			Namespace: "test-ns",
-			Name:      "test",
-			GroupKind: schema.GroupKind{
-				Group: "test-group",
-				Kind:  "TestObject",
-			},
-		},
-		Object: "test-token",
-	}
+	key1 := "key1"
+	value1 := "val1"
+	got, err := cache.Get(key1)
+	g.Expect(err).To(Equal(ErrNotFound))
+	g.Expect(got).To(BeEmpty())
+	cache.RecordCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace)
 
-	_, found, err := cache.Get(obj)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(found).To(BeFalse())
-
-	err = cache.Set(obj)
+	err = cache.Set(key1, value1)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	item, found, err := cache.Get(obj)
+	got, err = cache.Get(key1)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(found).To(BeTrue())
-	g.Expect(item).To(Equal(obj))
+	g.Expect(got).To(Equal(value1))
+	cache.RecordCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace)
 
 	validateMetrics(reg, `
 	# HELP gotk_cache_events_total Total number of cache retrieval events for a Gitops Toolkit resource reconciliation.
@@ -375,32 +190,38 @@ func Test_LRU_Get(t *testing.T) {
 	# TYPE gotk_cached_items gauge
 	gotk_cached_items 1
 `, t)
+
+	cache.DeleteCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace)
+	cache.DeleteCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace)
+
+	validateMetrics(reg, `
+	# HELP gotk_cache_evictions_total Total number of cache evictions.
+	# TYPE gotk_cache_evictions_total counter
+	gotk_cache_evictions_total 0
+	# HELP gotk_cache_requests_total Total number of cache requests partioned by success or failure.
+	# TYPE gotk_cache_requests_total counter
+	gotk_cache_requests_total{status="success"} 3
+	# HELP gotk_cached_items Total number of items in the cache.
+	# TYPE gotk_cached_items gauge
+	gotk_cached_items 1
+`, t)
 }
 
 func Test_LRU_Delete(t *testing.T) {
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := NewLRU[IdentifiableObject](5, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg))
+	cache, err := NewLRU[string](5,
+		WithMetricsRegisterer(reg),
+		WithMetricsPrefix("gotk_"))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Add an object representing an expiring token
-	obj := IdentifiableObject{
-		ObjMetadata: object.ObjMetadata{
-			Namespace: "test-ns",
-			Name:      "test",
-			GroupKind: schema.GroupKind{
-				Group: "test-group",
-				Kind:  "TestObject",
-			},
-		},
-		Object: "test-token",
-	}
-
-	err = cache.Set(obj)
+	key := "key1"
+	value := "val1"
+	err = cache.Set(key, value)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	err = cache.Delete(obj)
+	err = cache.Delete(key)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(cache.ListKeys()).To(BeEmpty())
 
@@ -421,23 +242,13 @@ func Test_LRU_Resize(t *testing.T) {
 	n := 100
 	g := NewWithT(t)
 	reg := prometheus.NewPedanticRegistry()
-	cache, err := NewLRU[IdentifiableObject](n, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](reg))
+	cache, err := NewLRU[string](n,
+		WithMetricsRegisterer(reg))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	for i := range n {
-		obj := IdentifiableObject{
-			ObjMetadata: object.ObjMetadata{
-				Namespace: "test-ns",
-				Name:      fmt.Sprintf("test-%d", i),
-				GroupKind: schema.GroupKind{
-					Group: "test-group",
-					Kind:  "TestObject",
-				},
-			},
-			Object: "test-token",
-		}
-		err = cache.Set(obj)
+		key := fmt.Sprintf("test-%d", i)
+		err = cache.Set(key, "test-token")
 		g.Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -461,11 +272,15 @@ func TestLRU_Concurrent(t *testing.T) {
 	)
 	g := NewWithT(t)
 	// create a cache that can hold 10 items and have no cleanup
-	cache, err := NewLRU(10, IdentifiableObjectKeyFunc,
-		WithMetricsRegisterer[IdentifiableObject](prometheus.NewPedanticRegistry()))
+	cache, err := NewLRU[string](10,
+		WithMetricsRegisterer(prometheus.NewPedanticRegistry()))
 	g.Expect(err).ToNot(HaveOccurred())
 
-	objmap := createObjectMap(keysNum)
+	keymap := map[int]string{}
+	for i := 0; i < keysNum; i++ {
+		key := fmt.Sprintf("test-%d", i)
+		keymap[i] = key
+	}
 
 	wg := sync.WaitGroup{}
 	run := make(chan bool)
@@ -476,12 +291,12 @@ func TestLRU_Concurrent(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			_ = cache.Set(objmap[key])
+			_ = cache.Set(keymap[key], "test-token")
 		}()
 		go func() {
 			defer wg.Done()
 			<-run
-			_, _, _ = cache.Get(objmap[key])
+			_, _ = cache.Get(keymap[key])
 		}()
 	}
 	close(run)
@@ -489,12 +304,25 @@ func TestLRU_Concurrent(t *testing.T) {
 
 	keys, err := cache.ListKeys()
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(len(keys)).To(Equal(len(objmap)))
+	g.Expect(len(keys)).To(Equal(len(keymap)))
 
-	for _, obj := range objmap {
-		val, found, err := cache.Get(obj)
+	for _, key := range keymap {
+		val, err := cache.Get(key)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(found).To(BeTrue(), "object %s not found", obj.Name)
-		g.Expect(val).To(Equal(obj))
+		g.Expect(val).To(Equal("test-token"))
 	}
+}
+
+func TestLRU_int(t *testing.T) {
+	g := NewWithT(t)
+
+	cache, err := NewLRU[int](3, WithMetricsRegisterer(prometheus.NewPedanticRegistry()))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	key := "key1"
+	g.Expect(cache.Set(key, 4)).To(Succeed())
+
+	got, err := cache.Get(key)
+	g.Expect(err).To(Succeed())
+	g.Expect(got).To(Equal(4))
 }

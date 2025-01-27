@@ -33,18 +33,43 @@ GO_TEST_PREFIX='TestGitLabCEE2E' ./run.sh
 
 ### GitHub
 
-You need to create a PAT (classic) associated with your account. You can do so by following this
+You need to create a PAT (classic) associated with your account. This is used to
+create and delete test repositories and to grant permissions to the github app.
+You can do so by following this
 [guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token).
 The token should have the following permission scopes:
 * `repo`: Full control of private repositories
 * `admin:public_key`: Full control of user public keys
 * `delete_repo`: Delete repositories
 
-Specify the token, username and org name as environment variables for the script. Please make sure that the
-org already exists as it won't be created by the script itself.
+You need to
+[register](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
+a new GitHub App and [generate a private
+key](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/managing-private-keys-for-github-apps)
+for the app by following the linked guides. The GitHub App is used for
+authenticating as an app when cloning and pushing the git repository. The app
+should be granted the following repository permissions:
+* `Contents`: Read and Write access 
+
+[Install](https://docs.github.com/en/apps/using-github-apps/installing-your-own-github-app)
+the app in the organization/account. Get the following information:
+* Get the App ID from the app settings page at
+  `https://github.com/settings/apps/<app-name>`. 
+* Get the App Installation ID from the app installations page at
+`https://github.com/settings/installations`. Click the installed app, the URL
+will contain the installation ID
+`https://github.com/settings/installations/<installation-id>`. For
+organizations, the first part of the URL may be different, but it follows the
+same pattern.
+* The private key that was generated in a previous step.
+
+Specify the token, username, org name, github app id, github installation id and
+private key as environment variables for the script. The private key can be
+stored in a file and read into the environment variable. Please make sure that
+the org already exists as it won't be created by the script itself.
 
 ```shell
-GO_TEST_PREFIX='TestGitHubE2E' GITHUB_USER='***' GITHUB_ORG='***' GITHUB_TOKEN='***' ./run.sh 
+GO_TEST_PREFIX='TestGitHubE2E' GITHUB_USER='***' GITHUB_ORG='***' GITHUB_TOKEN='***' GHAPP_ID='***' GHAPP_INSTALL_ID='***' GHAPP_PRIVATE_KEY=`cat private-key-file.pem` ./run.sh 
 ```
 
 ### GitLab

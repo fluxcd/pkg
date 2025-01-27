@@ -64,11 +64,8 @@ func (e *CacheError) Unwrap() error {
 }
 
 var (
-	ErrNotFound      = CacheErrorReason{"NotFound", "object not found"}
-	ErrAlreadyExists = CacheErrorReason{"AlreadyRxists", "object already exists"}
-	ErrCacheClosed   = CacheErrorReason{"CacheClosed", "cache is closed"}
-	ErrCacheFull     = CacheErrorReason{"CacheFull", "cache is full"}
-	ErrInvalidSize   = CacheErrorReason{"InvalidSize", "invalid size"}
-	ErrInvalidKey    = CacheErrorReason{"InvalidKey", "invalid key"}
-	ErrInvalidLabels = CacheErrorReason{"InvalidLabels", "invalid labels"}
+	ErrNotFound    = CacheErrorReason{"NotFound", "object not found"}
+	ErrCacheClosed = CacheErrorReason{"CacheClosed", "cache is closed"}
+	ErrCacheFull   = CacheErrorReason{"CacheFull", "cache is full"}
+	ErrInvalidSize = CacheErrorReason{"InvalidSize", "invalid size"}
 )

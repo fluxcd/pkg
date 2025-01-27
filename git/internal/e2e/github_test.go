@@ -24,31 +24,41 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/go-git-providers/github"
 	"github.com/fluxcd/go-git-providers/gitprovider"
+	authgithub "github.com/fluxcd/pkg/auth/github"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
+	gogithub "github.com/google/go-github/v66/github"
 )
 
 const (
-	githubSSHHost  = "ssh://" + git.DefaultPublicKeyAuthUser + "@" + github.DefaultDomain
-	githubHTTPHost = "https://" + github.DefaultDomain
-	githubUser     = "GITHUB_USER"
-	githubOrg      = "GITHUB_ORG"
+	githubSSHHost         = "ssh://" + git.DefaultPublicKeyAuthUser + "@" + github.DefaultDomain
+	githubHTTPHost        = "https://" + github.DefaultDomain
+	githubUser            = "GITHUB_USER"
+	githubOrg             = "GITHUB_ORG"
+	githubAppIDEnv        = "GHAPP_ID"
+	githubAppInstallIDEnv = "GHAPP_INSTALL_ID"
+	githubAppPKEnv        = "GHAPP_PRIVATE_KEY"
 )
 
 var (
-	githubOAuth2Token string
-	githubUsername    string
-	githubOrgname     string
+	githubOAuth2Token       string
+	githubUsername          string
+	githubOrgname           string
+	githubAppID             int
+	githubAppInstallationID int
+	githubAppPrivateKey     []byte
 )
 
 func TestGitHubE2E(t *testing.T) {
 	g := NewWithT(t)
+	var err error
 	githubOAuth2Token = os.Getenv(github.TokenVariable)
 	if githubOAuth2Token == "" {
 		t.Fatalf("could not read github oauth2 token")
@@ -61,12 +71,45 @@ func TestGitHubE2E(t *testing.T) {
 	if githubOrgname == "" {
 		t.Fatalf("could not read github org name")
 	}
+	githubAppID := os.Getenv(githubAppIDEnv)
+	if githubAppID == "" {
+		t.Fatalf("could not read github app id")
+	}
+
+	githubAppInstallID := os.Getenv(githubAppInstallIDEnv)
+	if githubAppInstallID == "" {
+		t.Fatalf("could not read github app installation id")
+	}
+
+	githubAppPrivateKey := []byte(os.Getenv(githubAppPKEnv))
+	if len(githubAppPrivateKey) == 0 {
+		t.Fatalf("could not read github app private key")
+	}
 
 	c, err := github.NewClient(gitprovider.WithDestructiveAPICalls(true), gitprovider.WithOAuth2Token(githubOAuth2Token))
 	g.Expect(err).ToNot(HaveOccurred())
 	orgClient := c.OrgRepositories()
 
-	repoInfo := func(proto git.TransportType, repo gitprovider.OrgRepository) (*url.URL, *git.AuthOptions, error) {
+	grantPermissionsToApp := func(repo gitprovider.OrgRepository) error {
+		ctx := context.Background()
+		githubClient := c.Raw().(*gogithub.Client)
+		ghRepo, _, err := githubClient.Repositories.Get(ctx, githubOrgname, repo.Repository().GetRepository())
+		if err != nil {
+			return err
+		}
+		installID, err := strconv.Atoi(githubAppInstallID)
+		if err != nil {
+			return err
+		}
+		_, _, err = githubClient.Apps.AddRepository(ctx, int64(installID), ghRepo.GetID())
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	repoInfo := func(proto git.TransportType, repo gitprovider.OrgRepository, authMethod string) (*url.URL, *git.AuthOptions, error) {
 		var repoURL *url.URL
 		var authOptions *git.AuthOptions
 		var err error
@@ -101,10 +144,24 @@ func TestGitHubE2E(t *testing.T) {
 			if err != nil {
 				return nil, nil, err
 			}
-			authOptions, err = git.NewAuthOptions(*repoURL, map[string][]byte{
-				"username": []byte(githubUsername),
-				"password": []byte(githubOAuth2Token),
-			})
+
+			if authMethod == "app" {
+				var data map[string][]byte
+				authOptions, err = git.NewAuthOptions(*repoURL, data)
+				authOptions.ProviderOpts = &git.ProviderOptions{
+					Name: git.ProviderGitHub,
+					GitHubOpts: []authgithub.OptFunc{
+						authgithub.WithAppID(githubAppID),
+						authgithub.WithInstllationID(githubAppInstallID),
+						authgithub.WithPrivateKey(githubAppPrivateKey),
+					},
+				}
+			} else {
+				authOptions, err = git.NewAuthOptions(*repoURL, map[string][]byte{
+					"username": []byte(githubUsername),
+					"password": []byte(githubOAuth2Token),
+				})
+			}
 			if err != nil {
 				return nil, nil, err
 			}
@@ -115,11 +172,11 @@ func TestGitHubE2E(t *testing.T) {
 	protocols := []git.TransportType{git.HTTP, git.SSH}
 	clients := []string{gogit.ClientName}
 
-	testFunc := func(t *testing.T, proto git.TransportType, gitClient string) {
-		t.Run(fmt.Sprintf("repo created using Clone/%s/%s", gitClient, proto), func(t *testing.T) {
+	testFunc := func(t *testing.T, proto git.TransportType, gitClient string, authMethod string) {
+		t.Run(fmt.Sprintf("repo created using Clone/%s/%s", authMethod, proto), func(t *testing.T) {
 			g := NewWithT(t)
 
-			repoName := fmt.Sprintf("github-e2e-checkout-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
+			repoName := fmt.Sprintf("github-e2e-checkout-%s-%s-%s", proto, authMethod, randStringRunes(5))
 			upstreamRepoURL := githubHTTPHost + "/" + githubOrgname + "/" + repoName
 
 			ref, err := gitprovider.ParseOrgRepositoryURL(upstreamRepoURL)
@@ -129,9 +186,14 @@ func TestGitHubE2E(t *testing.T) {
 
 			defer repo.Delete(context.TODO())
 
+			if authMethod == "app" {
+				err := grantPermissionsToApp(repo)
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+
 			err = initRepo(t.TempDir(), upstreamRepoURL, "main", "../../testdata/git/repo", githubUsername, githubOAuth2Token)
 			g.Expect(err).ToNot(HaveOccurred())
-			repoURL, authOptions, err := repoInfo(proto, repo)
+			repoURL, authOptions, err := repoInfo(proto, repo, authMethod)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			client, err := newClient(gitClient, t.TempDir(), authOptions, false)
@@ -145,10 +207,10 @@ func TestGitHubE2E(t *testing.T) {
 			})
 		})
 
-		t.Run(fmt.Sprintf("repo created using Init/%s/%s", gitClient, proto), func(t *testing.T) {
+		t.Run(fmt.Sprintf("repo created using Init/%s/%s", authMethod, proto), func(t *testing.T) {
 			g := NewWithT(t)
 
-			repoName := fmt.Sprintf("github-e2e-checkout-%s-%s-%s", string(proto), string(gitClient), randStringRunes(5))
+			repoName := fmt.Sprintf("github-e2e-checkout-%s-%s-%s", proto, authMethod, randStringRunes(5))
 			upstreamRepoURL := githubHTTPHost + "/" + githubOrgname + "/" + repoName
 
 			ref, err := gitprovider.ParseOrgRepositoryURL(upstreamRepoURL)
@@ -158,7 +220,12 @@ func TestGitHubE2E(t *testing.T) {
 
 			defer repo.Delete(context.TODO())
 
-			repoURL, authOptions, err := repoInfo(proto, repo)
+			if authMethod == "app" {
+				err := grantPermissionsToApp(repo)
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+
+			repoURL, authOptions, err := repoInfo(proto, repo, authMethod)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			client, err := newClient(gitClient, t.TempDir(), authOptions, false)
@@ -175,7 +242,10 @@ func TestGitHubE2E(t *testing.T) {
 
 	for _, client := range clients {
 		for _, protocol := range protocols {
-			testFunc(t, protocol, client)
+			// test client with all protocols without githubApp authentication
+			testFunc(t, protocol, client, "user")
 		}
+		// test client with HTTPS protocol with githubApp authentication
+		testFunc(t, git.HTTP, client, "app")
 	}
 }

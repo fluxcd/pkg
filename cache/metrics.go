@@ -40,45 +40,39 @@ type cacheMetrics struct {
 	cacheItemsGauge      prometheus.Gauge
 	cacheRequestsCounter *prometheus.CounterVec
 	cacheEvictionCounter prometheus.Counter
-	extraLabels          []string
 }
 
 // newcacheMetrics returns a new cacheMetrics.
-func newCacheMetrics(reg prometheus.Registerer, extraLabels ...string) *cacheMetrics {
-	labels := append([]string{"event_type"}, extraLabels...)
+func newCacheMetrics(prefix string, reg prometheus.Registerer) *cacheMetrics {
+	labels := []string{"event_type", "kind", "name", "namespace"}
 	return &cacheMetrics{
 		cacheEventsCounter: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "gotk_cache_events_total",
+				Name: fmt.Sprintf("%scache_events_total", prefix),
 				Help: "Total number of cache retrieval events for a Gitops Toolkit resource reconciliation.",
 			},
 			labels,
 		),
 		cacheItemsGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
-				Name: "gotk_cached_items",
+				Name: fmt.Sprintf("%scached_items", prefix),
 				Help: "Total number of items in the cache.",
 			},
 		),
 		cacheRequestsCounter: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "gotk_cache_requests_total",
+				Name: fmt.Sprintf("%scache_requests_total", prefix),
 				Help: "Total number of cache requests partioned by success or failure.",
 			},
 			[]string{"status"},
 		),
 		cacheEvictionCounter: promauto.With(reg).NewCounter(
 			prometheus.CounterOpts{
-				Name: "gotk_cache_evictions_total",
+				Name: fmt.Sprintf("%scache_evictions_total", prefix),
 				Help: "Total number of cache evictions.",
 			},
 		),
-		extraLabels: extraLabels,
 	}
-}
-
-func (m *cacheMetrics) getExtraLabels() []string {
-	return m.extraLabels
 }
 
 // collectors returns the metrics.Collector objects for the cacheMetrics.
@@ -151,34 +145,20 @@ func recordDecrement(metrics *cacheMetrics) {
 	}
 }
 
-func recordEvent(metrics *cacheMetrics, event string, lvs ...string) {
-	if metrics != nil {
-		metrics.incCacheEvents(event, lvs...)
-	}
-}
-
 func recordItemIncrement(metrics *cacheMetrics) {
 	if metrics != nil {
 		metrics.incCacheItems()
 	}
 }
 
-// IdentifiableObjectLabels are the labels for an IdentifiableObject.
-var IdentifiableObjectLabels []string = []string{"name", "namespace", "kind"}
-
-// GetLvsFunc is a function that returns the label's values for a metric.
-type GetLvsFunc[T any] func(obj T, cardinality int) ([]string, error)
-
-// IdentifiableObjectLVSFunc returns the label's values for a metric for an IdentifiableObject.
-func IdentifiableObjectLVSFunc[T any](object T, cardinality int) ([]string, error) {
-	n, ok := any(object).(IdentifiableObject)
-	if !ok {
-		return nil, fmt.Errorf("object is not an IdentifiableObject")
+func recordCacheEvent(metrics *cacheMetrics, event, kind, name, namespace string) {
+	if metrics != nil {
+		metrics.incCacheEvents(event, kind, name, namespace)
 	}
-	lvs := []string{n.Name, n.Namespace, n.GroupKind.Kind}
-	if len(lvs) != cardinality {
-		return nil, fmt.Errorf("expected cardinality %d, got %d", cardinality, len(lvs))
-	}
+}
 
-	return []string{n.Name, n.Namespace, n.GroupKind.Kind}, nil
+func deleteCacheEvent(metrics *cacheMetrics, event, kind, name, namespace string) {
+	if metrics != nil {
+		metrics.deleteCacheEvent(event, kind, name, namespace)
+	}
 }

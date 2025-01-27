@@ -41,7 +41,7 @@ jobs:
               - 'git/**'
       - name: Setup Go
         if: ${{ steps.filter.outputs.git == 'true' || steps.filter.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           go-version: 1.23.x
           # https://github.com/actions/setup-go/blob/main/docs/adrs/0000-caching-dependencies.md#example-of-real-use-cases
@@ -61,6 +61,9 @@ jobs:
               export GITHUB_USER="fluxcd-gitprovider-bot"
               export GITHUB_ORG="fluxcd-testing"
               export GITHUB_TOKEN="${{ secrets.GITPROVIDER_BOT_TOKEN }}"
+              export GHAPP_ID="${{ secrets.GHAPP_ID }}"
+              export GHAPP_INSTALL_ID="${{ secrets.GHAPP_INSTALL_ID }}"
+              export GHAPP_PRIVATE_KEY="${{ secrets.GHAPP_PRIVATE_KEY }}"
             elif [[ ${{ matrix.provider }} = "gitlab" ]]; then
               export GO_TEST_PREFIX="TestGitLabE2E"
               export GITLAB_USER="fluxcd-gitprovider-bot"
