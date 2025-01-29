@@ -13,15 +13,15 @@ replace (
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
-	github.com/elazarl/goproxy v0.0.0-20240909085733-6741dbfc16a1
+	github.com/elazarl/goproxy v1.2.3
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/auth v0.2.0
 	github.com/fluxcd/pkg/git v0.22.0
 	github.com/fluxcd/pkg/gittestserver v0.15.0
 	github.com/fluxcd/pkg/ssh v0.16.0
 	github.com/fluxcd/pkg/version v0.6.0
-	github.com/go-git/go-billy/v5 v5.6.0
-	github.com/go-git/go-git/v5 v5.12.0
+	github.com/go-git/go-billy/v5 v5.6.1
+	github.com/go-git/go-git/v5 v5.13.1
 	github.com/onsi/gomega v1.36.1
 	golang.org/x/crypto v0.31.0
 )
@@ -36,7 +36,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.1.3 // indirect
 	github.com/bradleyfalzon/ghinstallation/v2 v2.12.0 // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
-	github.com/cyphar/filepath-securejoin v0.3.5 // indirect
+	github.com/cyphar/filepath-securejoin v0.3.6 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
@@ -56,7 +56,7 @@ require (
 	github.com/skeema/knownhosts v1.3.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect

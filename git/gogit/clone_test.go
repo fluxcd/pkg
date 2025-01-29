@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -757,6 +759,348 @@ func Test_cloneSubmodule(t *testing.T) {
 	g.Expect(c).To(Equal(len(expectedPaths)))
 }
 
+func Test_sparseCheckout(t *testing.T) {
+	repo, repoPath, err := initRepo(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	firstCommit, err := commitFiles(repo, map[string]string{"dir1/branch": "init1", "dir2/branch": "init2", "dir3/branch": "init3"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = createBranch(repo, "test"); err != nil {
+		t.Fatal(err)
+	}
+
+	secondCommit, err := commitFiles(repo, map[string]string{"dir1/branch": "second1", "dir2/branch": "second2", "dir3/branch": "second3"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	thirdCommit, err := commitFiles(repo, map[string]string{"dir1/branch": "third1", "dir2/branch": "third2", "dir3/branch": "third3"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tag(repo, thirdCommit, false, "testtag", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fourthCommit, err := commitFiles(repo, map[string]string{"dir1/branch": "fourth1", "dir2/branch": "fourth2", "dir3/branch": "fourth3"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tag(repo, fourthCommit, true, "annotated", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// for semver tests
+	if err = createBranch(repo, "semver"); err != nil {
+		t.Fatal(err)
+	}
+
+	semver1, err := commitFiles(repo, map[string]string{"dir1/branch": "semver1", "dir2/branch": "semver1", "dir3/branch": "semver1"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tag(repo, semver1, false, "v0.1.0", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	semver2, err := commitFiles(repo, map[string]string{"dir1/branch": "semver2", "dir2/branch": "semver2", "dir3/branch": "semver3"}, time.Now().Add(10*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tag(repo, semver2, true, "v0.1.0+build-1", time.Now().Add(2*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	semver3, err := commitFiles(repo, map[string]string{"dir1/branch": "semver3", "dir2/branch": "semver3", "dir3/branch": "semver3"}, time.Now().Add(30*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tag(repo, semver3, false, "v0.1.0+build-2", time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	semver4, err := commitFiles(repo, map[string]string{"dir1/branch": "semver4", "dir2/branch": "semver4", "dir3/branch": "semver4"}, time.Now().Add(1*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tag(repo, semver4, false, "v0.1.0+build-3", time.Now().Add(1*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	semver5, err := commitFiles(repo, map[string]string{"dir1/branch": "semver5", "dir2/branch": "semver5", "dir3/branch": "semver5"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tag(repo, semver5, true, "0.2.0", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, emptyRepoPath, err := initRepo(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		testType                  string
+		name                      string
+		branch                    string
+		commit                    string
+		tag                       string
+		constraint                string
+		annotatedTag              bool
+		filesCreated              map[string]string
+		lastRevision              string
+		sparseCheckoutDirectories []string
+		expectedCommit            string
+		expectedFile              string
+		expectedNoCloneFiles      []string
+		expectedConcreteCommit    bool
+		expectedTag               string
+		expectedErr               string
+		expectedEmpty             bool
+	}{
+		{
+			testType:                  "branch",
+			name:                      "Default branch",
+			branch:                    "master",
+			filesCreated:              map[string]string{"dir1/branch": "init1"},
+			sparseCheckoutDirectories: []string{"dir1"},
+			expectedCommit:            firstCommit.String(),
+			expectedConcreteCommit:    true,
+			expectedNoCloneFiles:      []string{"dir2/branch", "dir3/branch"},
+		},
+		{
+			testType:                  "branch",
+			name:                      "Default branch - checkout multiple directories",
+			branch:                    "master",
+			filesCreated:              map[string]string{"dir1/branch": "init1", "dir2/branch": "init2"},
+			sparseCheckoutDirectories: []string{"dir1", "dir2"},
+			expectedCommit:            firstCommit.String(),
+			expectedConcreteCommit:    true,
+			expectedNoCloneFiles:      []string{"dir3/branch"},
+		},
+		{
+			testType:                  "branch",
+			name:                      "Other branch - revision has changed",
+			branch:                    "test",
+			filesCreated:              map[string]string{"dir2/branch": "fourth2"},
+			lastRevision:              fmt.Sprintf("master@%s", git.Hash(firstCommit.String()).Digest()),
+			sparseCheckoutDirectories: []string{"dir2"},
+			expectedCommit:            fourthCommit.String(),
+			expectedConcreteCommit:    true,
+			expectedNoCloneFiles:      []string{"dir1/branch"},
+		},
+		{
+			testType:                  "branch",
+			name:                      "Other branch - revision has changed (legacy)",
+			branch:                    "test",
+			filesCreated:              map[string]string{"dir2/branch": "fourth2"},
+			lastRevision:              fmt.Sprintf("master/%s", firstCommit.String()),
+			sparseCheckoutDirectories: []string{"dir2"},
+			expectedCommit:            fourthCommit.String(),
+			expectedConcreteCommit:    true,
+			expectedNoCloneFiles:      []string{"dir1/branch"},
+		},
+		{
+			testType:                  "commit",
+			name:                      "Commit",
+			commit:                    firstCommit.String(),
+			filesCreated:              map[string]string{"dir1/branch": "init1"},
+			sparseCheckoutDirectories: []string{"dir1"},
+			expectedCommit:            git.HashTypeSHA1 + ":" + firstCommit.String(),
+			expectedNoCloneFiles:      []string{"dir2/branch", "dir3/branch"},
+		},
+		{
+			testType:                  "commit",
+			name:                      "Commit - checkout multiple directories",
+			commit:                    firstCommit.String(),
+			filesCreated:              map[string]string{"dir1/branch": "init1", "dir2/branch": "init2"},
+			sparseCheckoutDirectories: []string{"dir1", "dir2"},
+			expectedCommit:            git.HashTypeSHA1 + ":" + firstCommit.String(),
+			expectedNoCloneFiles:      []string{"dir3/branch"},
+		},
+		{
+			testType:                  "commit",
+			name:                      "Commit in specific branch",
+			branch:                    "test",
+			commit:                    secondCommit.String(),
+			filesCreated:              map[string]string{"dir1/branch": "second1"},
+			sparseCheckoutDirectories: []string{"dir1"},
+			expectedCommit:            "test@" + git.HashTypeSHA1 + ":" + secondCommit.String(),
+			expectedNoCloneFiles:      []string{"dir2/branch"},
+		},
+		{
+			testType:                  "tag",
+			name:                      "Tag",
+			annotatedTag:              false,
+			tag:                       "testtag",
+			filesCreated:              map[string]string{"dir1/branch": "third1"},
+			sparseCheckoutDirectories: []string{"dir1"},
+			expectedCommit:            thirdCommit.String(),
+			expectedNoCloneFiles:      []string{"dir2/branch", "dir3/branch"},
+		},
+		{
+			testType:                  "tag",
+			name:                      "Tag - checkout multiple directories",
+			annotatedTag:              false,
+			tag:                       "testtag",
+			filesCreated:              map[string]string{"dir1/branch": "third1", "dir2/branch": "third2"},
+			sparseCheckoutDirectories: []string{"dir1", "dir2"},
+			expectedCommit:            thirdCommit.String(),
+			expectedNoCloneFiles:      []string{"dir3/branch"},
+		},
+		{
+			testType:                  "tag",
+			name:                      "Annotated",
+			annotatedTag:              true,
+			tag:                       "annotated",
+			filesCreated:              map[string]string{"dir1/branch": "fourth1"},
+			sparseCheckoutDirectories: []string{"dir1"},
+			expectedCommit:            fourthCommit.String(),
+			expectedNoCloneFiles:      []string{"dir2/branch"},
+		},
+		{
+			testType:                  "semver",
+			name:                      "Orders by SemVer",
+			constraint:                ">0.1.0",
+			annotatedTag:              true,
+			filesCreated:              map[string]string{"dir1/branch": "semver5"},
+			sparseCheckoutDirectories: []string{"dir1"},
+			expectedTag:               "0.2.0",
+			expectedCommit:            semver5.String(),
+			expectedNoCloneFiles:      []string{"dir2/branch", "dir3/branch"},
+		},
+		{
+			testType:                  "semver",
+			name:                      "Orders by SemVer - checkout multiple directories",
+			constraint:                ">0.1.0",
+			annotatedTag:              true,
+			filesCreated:              map[string]string{"dir1/branch": "semver5", "dir2/branch": "semver5"},
+			sparseCheckoutDirectories: []string{"dir1", "dir2"},
+			expectedTag:               "0.2.0",
+			expectedCommit:            semver5.String(),
+			expectedNoCloneFiles:      []string{"dir3/branch"},
+		},
+		{
+			testType:                  "semver",
+			name:                      "Orders by SemVer and timestamp",
+			constraint:                "<0.2.0",
+			annotatedTag:              false,
+			filesCreated:              map[string]string{"dir1/branch": "semver4"},
+			sparseCheckoutDirectories: []string{"dir1"},
+			expectedTag:               "v0.1.0+build-3",
+			expectedCommit:            semver4.String(),
+			expectedNoCloneFiles:      []string{"dir2/branch"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			tmpDir := t.TempDir()
+			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			g.Expect(err).ToNot(HaveOccurred())
+
+			var upstreamPath string
+			if tt.expectedEmpty {
+				upstreamPath = emptyRepoPath
+			} else {
+				upstreamPath = repoPath
+			}
+
+			cc, err := ggc.Clone(context.TODO(), upstreamPath, repository.CloneConfig{
+				CheckoutStrategy: repository.CheckoutStrategy{
+					Branch: tt.branch,
+					Commit: tt.commit,
+					Tag:    tt.tag,
+					SemVer: tt.constraint,
+				},
+				ShallowClone:              true,
+				LastObservedCommit:        tt.lastRevision,
+				SparseCheckoutDirectories: tt.sparseCheckoutDirectories,
+			})
+
+			for _, noCloneFile := range tt.expectedNoCloneFiles {
+				g.Expect(filepath.Join(tmpDir, noCloneFile)).ToNot(BeAnExistingFile())
+			}
+
+			switch tt.testType {
+			case "branch":
+				if tt.expectedErr != "" {
+					g.Expect(err).To(HaveOccurred())
+					g.Expect(err.Error()).To(ContainSubstring(tt.expectedErr))
+					g.Expect(cc).To(BeNil())
+					return
+				}
+
+				if tt.expectedEmpty {
+					g.Expect(cc).To(BeNil())
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(filepath.Join(ggc.path, ".git")).To(BeADirectory())
+					return
+				}
+
+				g.Expect(err).ToNot(HaveOccurred())
+				if tt.commit == "" && tt.branch != "" {
+					g.Expect(cc.String()).To(Equal(tt.branch + "@" + git.HashTypeSHA1 + ":" + tt.expectedCommit))
+					g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectedConcreteCommit))
+				}
+
+				if tt.expectedConcreteCommit {
+					for k, v := range tt.filesCreated {
+						g.Expect(filepath.Join(tmpDir, k)).To(BeARegularFile())
+						g.Expect(os.ReadFile(filepath.Join(tmpDir, k))).To(BeEquivalentTo(v))
+					}
+				}
+			case "commit":
+				g.Expect(cc.String()).To(Equal(tt.expectedCommit))
+				for k, v := range tt.filesCreated {
+					g.Expect(filepath.Join(tmpDir, k)).To(BeARegularFile())
+					g.Expect(os.ReadFile(filepath.Join(tmpDir, k))).To(BeEquivalentTo(v))
+				}
+			case "tag":
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cc.String()).To(Equal(tt.tag + "@" + git.HashTypeSHA1 + ":" + tt.expectedCommit))
+
+				g.Expect(cc.ReferencingTag).ToNot(BeNil())
+				if tt.annotatedTag {
+					g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeTrue())
+					g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tt.tag)))
+				} else {
+					g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeFalse())
+				}
+				for k, v := range tt.filesCreated {
+					g.Expect(filepath.Join(tmpDir, k)).To(BeARegularFile())
+					g.Expect(os.ReadFile(filepath.Join(tmpDir, k))).To(BeEquivalentTo(v))
+				}
+			case "semver":
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cc.String()).To(Equal(tt.expectedTag + "@" + git.HashTypeSHA1 + ":" + tt.expectedCommit))
+				for k, v := range tt.filesCreated {
+					g.Expect(filepath.Join(tmpDir, k)).To(BeARegularFile())
+					g.Expect(os.ReadFile(filepath.Join(tmpDir, k))).To(BeEquivalentTo(v))
+				}
+				g.Expect(cc.ReferencingTag).ToNot(BeNil())
+				if tt.annotatedTag {
+					g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeTrue())
+					g.Expect(cc.ReferencingTag.Message).To(Equal(fmt.Sprintf("Annotated tag for: %s\n", tt.expectedTag)))
+				} else {
+					g.Expect(git.IsAnnotatedTag(*cc.ReferencingTag)).To(BeFalse())
+				}
+			}
+		})
+	}
+}
+
 // Test_ssh_KeyTypes assures support for the different types of keys
 // for SSH Authentication supported by Flux.
 func Test_ssh_KeyTypes(t *testing.T) {
@@ -1273,7 +1617,6 @@ func Test_getRemoteHEAD(t *testing.T) {
 }
 
 func Test_filterRefs(t *testing.T) {
-
 	refStrings := []string{"refs/heads/main", "refs/tags/v1.0.0", "refs/pull/1/head", "refs/tags/v1.1.0", "refs/tags/v1.0.0" + tagDereferenceSuffix}
 	dummyHash := "84d9be20ca15d29bebc629e5b6f29dab78cc69ba"
 	annotatedTagHash := "9000be6daa3323cb7009075259bb7bd62498d32f"
@@ -1562,6 +1905,33 @@ func commitFile(repo *extgogit.Repository, path, content string, time time.Time)
 		return plumbing.Hash{}, err
 	}
 	return wt.Commit("Adding: "+path, &extgogit.CommitOptions{
+		Author:    mockSignature(time),
+		Committer: mockSignature(time),
+	})
+}
+
+func commitFiles(repo *extgogit.Repository, files map[string]string, time time.Time) (plumbing.Hash, error) {
+	wt, err := repo.Worktree()
+	if err != nil {
+		return plumbing.Hash{}, err
+	}
+	for path, content := range files {
+		f, err := wt.Filesystem.Create(path)
+		if err != nil {
+			return plumbing.Hash{}, err
+		}
+		if _, err = f.Write([]byte(content)); err != nil {
+			f.Close()
+			return plumbing.Hash{}, err
+		}
+		if err = f.Close(); err != nil {
+			return plumbing.Hash{}, err
+		}
+		if _, err = wt.Add(path); err != nil {
+			return plumbing.Hash{}, err
+		}
+	}
+	return wt.Commit(fmt.Sprintf("Adding files:\n%s", strings.Join(slices.Collect(maps.Keys(files)), "\n")), &extgogit.CommitOptions{
 		Author:    mockSignature(time),
 		Committer: mockSignature(time),
 	})

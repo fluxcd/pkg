@@ -18,7 +18,7 @@ require (
 	github.com/fluxcd/pkg/git/gogit v0.22.0
 	github.com/fluxcd/pkg/gittestserver v0.15.0
 	github.com/fluxcd/pkg/ssh v0.16.0
-	github.com/go-git/go-git/v5 v5.12.0
+	github.com/go-git/go-git/v5 v5.13.1
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-github/v66 v66.0.0
 	github.com/google/uuid v1.6.0
@@ -36,13 +36,13 @@ require (
 	github.com/ProtonMail/go-crypto v1.1.3 // indirect
 	github.com/bradleyfalzon/ghinstallation/v2 v2.12.0 // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
-	github.com/cyphar/filepath-securejoin v0.3.5 // indirect
+	github.com/cyphar/filepath-securejoin v0.3.6 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fluxcd/gitkit v0.6.0 // indirect
 	github.com/fluxcd/pkg/version v0.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.6.0 // indirect
+	github.com/go-git/go-billy/v5 v5.6.1 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
@@ -65,7 +65,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect

@@ -78,7 +78,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		RemoteName:        git.DefaultRemote,
 		ReferenceName:     plumbing.NewBranchReferenceName(branch),
 		SingleBranch:      g.singleBranch,
-		NoCheckout:        false,
+		NoCheckout:        len(opts.SparseCheckoutDirectories) != 0,
 		Depth:             depth,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
@@ -107,6 +107,20 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		}
 		if err != nil {
 			return nil, fmt.Errorf("unable to clone '%s': %w", url, err)
+		}
+	}
+
+	if len(opts.SparseCheckoutDirectories) != 0 {
+		w, err := repo.Worktree()
+		if err != nil {
+			return nil, fmt.Errorf("unable to open repo worktree: %w", err)
+		}
+		err = w.Checkout(&extgogit.CheckoutOptions{
+			Branch:                    ref,
+			SparseCheckoutDirectories: opts.SparseCheckoutDirectories,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to sparse checkout branch '%s': %w", branch, err)
 		}
 	}
 
@@ -161,7 +175,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		RemoteName:        git.DefaultRemote,
 		ReferenceName:     plumbing.NewTagReferenceName(tag),
 		SingleBranch:      g.singleBranch,
-		NoCheckout:        false,
+		NoCheckout:        len(opts.SparseCheckoutDirectories) != 0,
 		Depth:             depth,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
@@ -180,6 +194,20 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 			}
 		}
 		return nil, fmt.Errorf("unable to clone '%s': %w", url, err)
+	}
+
+	if len(opts.SparseCheckoutDirectories) != 0 {
+		w, err := repo.Worktree()
+		if err != nil {
+			return nil, fmt.Errorf("unable to open repo worktree: %w", err)
+		}
+		err = w.Checkout(&extgogit.CheckoutOptions{
+			Branch:                    ref,
+			SparseCheckoutDirectories: opts.SparseCheckoutDirectories,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to sparse checkout tag '%s': %w", tag, err)
+		}
 	}
 
 	head, err := repo.Head()
@@ -222,7 +250,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		Auth:              authMethod,
 		RemoteName:        git.DefaultRemote,
 		SingleBranch:      false,
-		NoCheckout:        true,
+		NoCheckout:        len(opts.SparseCheckoutDirectories) != 0,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
 		Tags:              tagStrategy,
@@ -255,8 +283,9 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		return nil, fmt.Errorf("unable to resolve commit object for '%s': %w", commit, err)
 	}
 	err = w.Checkout(&extgogit.CheckoutOptions{
-		Hash:  cc.Hash,
-		Force: true,
+		Hash:                      cc.Hash,
+		Force:                     true,
+		SparseCheckoutDirectories: opts.SparseCheckoutDirectories,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to checkout commit '%s': %w", commit, err)
@@ -288,7 +317,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 		URL:               url,
 		Auth:              authMethod,
 		RemoteName:        git.DefaultRemote,
-		NoCheckout:        false,
+		NoCheckout:        len(opts.SparseCheckoutDirectories) != 0,
 		Depth:             depth,
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
@@ -376,7 +405,8 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 		return nil, fmt.Errorf("unable to find reference for tag '%s': %w", t, err)
 	}
 	err = w.Checkout(&extgogit.CheckoutOptions{
-		Branch: tagRef.Name(),
+		Branch:                    tagRef.Name(),
+		SparseCheckoutDirectories: opts.SparseCheckoutDirectories,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to checkout tag '%s': %w", t, err)
@@ -458,7 +488,8 @@ func recurseSubmodules(recurse bool) extgogit.SubmoduleRescursivity {
 }
 
 func (g *Client) getRemoteHEAD(ctx context.Context, url string, ref plumbing.ReferenceName,
-	authMethod transport.AuthMethod) (string, error) {
+	authMethod transport.AuthMethod,
+) (string, error) {
 	// ref: https://git-scm.com/docs/git-check-ref-format#_description; point no. 6
 	if strings.HasPrefix(ref.String(), "/") || strings.HasSuffix(ref.String(), "/") {
 		return "", fmt.Errorf("ref %s is invalid; Git refs cannot begin or end with a slash '/'", ref.String())
