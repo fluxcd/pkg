@@ -32,10 +32,12 @@ import (
 // DiffOptions contains options for server-side dry-run apply requests.
 type DiffOptions struct {
 	// Exclusions determines which in-cluster objects are skipped from dry-run apply
-	// based on the specified key-value pairs.
-	// A nil Exclusions map means all objects are applied
-	// regardless of their metadata labels and annotations.
+	// based on the matching labels or annotations.
 	Exclusions map[string]string `json:"exclusions"`
+
+	// IfNotPresentSelector determines which in-cluster objects are skipped from dry-run apply
+	// based on the matching labels or annotations.
+	IfNotPresentSelector map[string]string `json:"ifNotPresentSelector"`
 }
 
 // DefaultDiffOptions returns the default dry-run apply options.
@@ -57,7 +59,7 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 	existingObject.SetGroupVersionKind(object.GroupVersionKind())
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-	if existingObject != nil && utils.AnyInMetadata(existingObject, opts.Exclusions) {
+	if m.shouldSkipDiff(object, existingObject, opts) {
 		return m.changeSetEntry(existingObject, SkippedAction), nil, nil, nil
 	}
 
@@ -122,4 +124,23 @@ func prepareObjectForDiff(object *unstructured.Unstructured) *unstructured.Unstr
 		return object
 	}
 	return deepCopy
+}
+
+// shouldSkipDiff determines based on the object metadata and DiffOptions if the object should be skipped.
+// An object is not applied if it contains a label or annotation
+// which matches the DiffOptions.Exclusions or DiffOptions.IfNotPresentSelector.
+func (m *ResourceManager) shouldSkipDiff(desiredObject *unstructured.Unstructured,
+	existingObject *unstructured.Unstructured, opts DiffOptions) bool {
+	if utils.AnyInMetadata(desiredObject, opts.Exclusions) ||
+		(existingObject != nil && utils.AnyInMetadata(existingObject, opts.Exclusions)) {
+		return true
+	}
+
+	if existingObject != nil &&
+		existingObject.GetUID() != "" &&
+		utils.AnyInMetadata(desiredObject, opts.IfNotPresentSelector) {
+		return true
+	}
+
+	return false
 }
