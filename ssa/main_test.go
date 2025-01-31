@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +36,10 @@ import (
 	"github.com/fluxcd/pkg/ssa/utils"
 )
 
-var manager *ResourceManager
+var (
+	manager    *ResourceManager
+	restMapper meta.RESTMapper
+)
 
 func TestMain(m *testing.M) {
 	testEnv := &envtest.Environment{}
@@ -49,7 +53,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	restMapper, err := apiutil.NewDynamicRESTMapper(cfg, httpClient)
+	restMapper, err = apiutil.NewDynamicRESTMapper(cfg, httpClient)
 	if err != nil {
 		panic(err)
 	}

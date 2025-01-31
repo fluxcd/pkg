@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +32,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
+	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/engine"
+	kstatusreaders "github.com/fluxcd/cli-utils/pkg/kstatus/polling/statusreaders"
 	"github.com/fluxcd/cli-utils/pkg/kstatus/status"
 	"github.com/fluxcd/cli-utils/pkg/object"
 
@@ -230,4 +234,46 @@ func TestWaitForSet_failFast(t *testing.T) {
 			t.Fatal("expected error to not contain InProgress resources", err.Error())
 		}
 	})
+}
+
+func TestWaitForSet_ErrorOnReaderError(t *testing.T) {
+	g := NewWithT(t)
+
+	err := manager.client.Create(context.Background(), &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]any{
+				"name":      "test",
+				"namespace": "default",
+			},
+			"data": map[string]any{
+				"foo": "bar",
+			},
+		},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	manager.poller = polling.NewStatusPoller(manager.client, restMapper, polling.Options{
+		CustomStatusReaders: []engine.StatusReader{
+			kstatusreaders.NewGenericStatusReader(restMapper,
+				func(*unstructured.Unstructured) (*status.Result, error) {
+					return nil, fmt.Errorf("error reading status")
+				},
+			),
+		},
+	})
+
+	set := []object.ObjMetadata{{
+		Name:      "test",
+		Namespace: "default",
+		GroupKind: schema.GroupKind{Group: "", Kind: "ConfigMap"},
+	}}
+	err = manager.WaitForSet(set, WaitOptions{
+		Interval: 40 * time.Millisecond,
+		Timeout:  100 * time.Millisecond,
+	})
+
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(Equal("timeout waiting for: [ConfigMap/default/test status: 'Unknown': error reading status]"))
 }
