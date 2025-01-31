@@ -132,3 +132,32 @@ type JSON6902Patch struct {
 	// +required
 	Target Selector `json:"target"`
 }
+
+// CustomHealthCheck defines the health check for custom resources.
+type CustomHealthCheck struct {
+	// APIVersion of the custom resource under evaluation.
+	// +required
+	APIVersion string `json:"apiVersion"`
+	// Kind of the custom resource under evaluation.
+	// +required
+	Kind string `json:"kind"`
+
+	HealthCheckExpressions `json:",inline"`
+}
+
+// HealthCheckExpressions defines the CEL expressions for determining the health status
+// of custom resources.
+type HealthCheckExpressions struct {
+	// Current is the CEL expression that determines if the status
+	// of the custom resource has reached the desired state.
+	// +required
+	Current string `json:"current"`
+	// InProgress is the CEL expression that determines if the status
+	// of the custom resource has not yet reached the desired state.
+	// +optional
+	InProgress string `json:"inProgress,omitempty"`
+	// Failed is the CEL expression that determines if the status
+	// of the custom resource has failed to reach the desired state.
+	// +optional
+	Failed string `json:"failed,omitempty"`
+}
