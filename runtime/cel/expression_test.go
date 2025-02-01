@@ -158,19 +158,19 @@ func TestExpression_EvaluateBoolean(t *testing.T) {
 			name: "non-boolean literal",
 			expr: "'some-value'",
 			data: map[string]any{},
-			err:  "failed to evaluate CEL expression as boolean: ''some-value''",
+			err:  "failed to evaluate CEL expression ''some-value'' as bool: types.String",
 		},
 		{
 			name: "non-boolean field",
 			expr: "foo",
 			data: map[string]any{"foo": "some-value"},
-			err:  "failed to evaluate CEL expression as boolean: 'foo'",
+			err:  "failed to evaluate CEL expression 'foo' as bool: types.String",
 		},
 		{
 			name: "nested non-boolean field",
 			expr: "foo.bar",
 			data: map[string]any{"foo": map[string]any{"bar": "some-value"}},
-			err:  "failed to evaluate CEL expression as boolean: 'foo.bar'",
+			err:  "failed to evaluate CEL expression 'foo.bar' as bool: types.String",
 		},
 		{
 			name:   "complex expression evaluating true",
@@ -215,6 +215,87 @@ func TestExpression_EvaluateBoolean(t *testing.T) {
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result).To(Equal(tt.result))
+			}
+		})
+	}
+}
+
+func TestExpression_EvaluateBytes(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		expr   string
+		opts   []cel.Option
+		data   map[string]any
+		result string
+		err    string
+	}{
+		{
+			name: "YAML values from Secret",
+			expr: "data['values.yaml']",
+			data: map[string]any{
+				"data": map[string]any{
+					"values.yaml": []byte("foo:\n  bar: baz"),
+				},
+			},
+			result: "foo:\n  bar: baz",
+		},
+		{
+			name: "YAML values from ConfigMap",
+			expr: "data['values.yaml']",
+			data: map[string]any{
+				"data": map[string]any{
+					"values.yaml": "foo:\n  bar: baz",
+				},
+			},
+			result: "foo:\n  bar: baz",
+		},
+		{
+			name: "marshaled YAML values from Deployment (function style)",
+			expr: "yaml(spec)",
+			data: map[string]any{
+				"spec": map[string]any{
+					"replicas": 3,
+				},
+			},
+			result: "replicas: 3\n",
+		},
+		{
+			name: "marshaled YAML values from Deployment (method style)",
+			expr: "spec.yaml()",
+			data: map[string]any{
+				"spec": map[string]any{
+					"replicas": 3,
+				},
+			},
+			result: "replicas: 3\n",
+		},
+		{
+			name: "crafted YAML values from Deployment",
+			expr: "'replicas: ' + string(spec.replicas)",
+			data: map[string]any{
+				"spec": map[string]any{
+					"replicas": 3,
+				},
+			},
+			result: "replicas: 3",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			g := NewWithT(t)
+
+			e, err := cel.NewExpression(tt.expr, tt.opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			result, err := e.EvaluateBytes(context.Background(), tt.data)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(string(result)).To(Equal(tt.result))
 			}
 		})
 	}

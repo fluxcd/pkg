@@ -19,10 +19,13 @@ package cel
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
+	"sigs.k8s.io/yaml"
 )
 
 // Expression represents a parsed CEL expression.
@@ -85,6 +88,7 @@ func NewExpression(expr string, opts ...Option) (*Expression, error) {
 		ext.Strings(),
 		ext.Sets(),
 		ext.Encoders(),
+		cel.Lib(celLib{}),
 	}, o.variables...)
 
 	env, err := cel.NewEnv(envOpts...)
@@ -132,7 +136,57 @@ func (e *Expression) EvaluateBoolean(ctx context.Context, data map[string]any) (
 	}
 	result, ok := val.(types.Bool)
 	if !ok {
-		return false, fmt.Errorf("failed to evaluate CEL expression as boolean: '%s'", e.expr)
+		return false, fmt.Errorf("failed to evaluate CEL expression '%s' as bool: %T", e.expr, val)
 	}
 	return bool(result), nil
+}
+
+// EvaluateBytes evaluates the expression with the given data and returns the result as a []byte.
+func (e *Expression) EvaluateBytes(ctx context.Context, data map[string]any) ([]byte, error) {
+	val, _, err := e.prog.ContextEval(ctx, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate the CEL expression '%s': %w", e.expr, err)
+	}
+	if result, ok := val.(types.Bytes); ok {
+		return result, nil
+	}
+	if result, ok := val.(types.String); ok {
+		return []byte(result), nil
+	}
+	return nil, fmt.Errorf("failed to evaluate CEL expression '%s' as []byte: %T", e.expr, val)
+}
+
+type celLib struct{}
+
+// LibraryName implements the SingletonLibrary interface method.
+func (celLib) LibraryName() string {
+	return "fluxcd.pkg.runtime.cel"
+}
+
+// CompileOptions implements the Library interface method.
+func (celLib) CompileOptions() []cel.EnvOption {
+	return []cel.EnvOption{
+		cel.Function("yaml",
+			cel.MemberOverload("yaml_dyn", []*cel.Type{cel.DynType}, cel.StringType,
+				cel.UnaryBinding(toYAML))),
+	}
+}
+
+// ProgramOptions implements the Library interface method.
+func (celLib) ProgramOptions() []cel.ProgramOption {
+	return []cel.ProgramOption{}
+}
+
+func toYAML(v ref.Val) ref.Val {
+	native, err := v.ConvertToNative(reflect.TypeOf((*any)(nil)).Elem())
+	if err != nil {
+		return types.NewErr("failed to convert to native: %w", err)
+	}
+
+	data, err := yaml.Marshal(native)
+	if err != nil {
+		return types.NewErr("failed to marshal to YAML: %w", err)
+	}
+
+	return types.String(data)
 }
