@@ -17,7 +17,7 @@ require (
 	github.com/fluxcd/pkg/apis/kustomize v1.9.0
 	github.com/fluxcd/pkg/apis/meta v1.10.0
 	github.com/go-logr/logr v1.4.2
-	github.com/google/cel-go v0.23.1
+	github.com/google/cel-go v0.22.0
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/kylelemons/godebug v1.1.0
@@ -41,7 +41,7 @@ require (
 replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
 
 require (
-	cel.dev/expr v0.19.1 // indirect
+	cel.dev/expr v0.18.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
