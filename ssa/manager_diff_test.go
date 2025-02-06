@@ -230,6 +230,174 @@ func TestDiff_Exclusions(t *testing.T) {
 	})
 }
 
+func TestDiff_IfNotPresent_OnExisting(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("ifnotpresentonexisting")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta := map[string]string{
+		"fluxcd.io/ignore": "true",
+	}
+
+	_, configMap := getFirstObject(objects, "ConfigMap", id)
+	configMap.SetAnnotations(meta)
+
+	if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := DefaultDiffOptions()
+	opts.IfNotPresentSelector = meta
+
+	t.Run("diffs skips", func(t *testing.T) {
+		entry, _, _, err := manager.Diff(ctx, configMap, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if entry.Action != SkippedAction && entry.Subject == utils.FmtUnstructured(configMap) {
+			t.Errorf("Expected %s, got %s", SkippedAction, entry.Action)
+		}
+	})
+
+	t.Run("diffs applies without meta", func(t *testing.T) {
+		// mutate in-cluster object
+		configMapClone := configMap.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(configMapClone), configMapClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = unstructured.SetNestedField(configMapClone.Object, "public-second-key", "data", "secondKey")
+		if err != nil {
+			t.Fatal(err)
+		}
+		configMapClone.SetAnnotations(map[string]string{"fluxcd.io/ignore": ""})
+		configMapClone.SetManagedFields(nil)
+		entry, _, _, err := manager.Diff(ctx, configMapClone, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if entry.Action != ConfiguredAction && entry.Subject == utils.FmtUnstructured(configMapClone) {
+			t.Errorf("Expected %s, got %s", ConfiguredAction, entry.Action)
+		}
+	})
+
+	t.Run("diffs skips with meta", func(t *testing.T) {
+		// mutate in-cluster object
+		configMapClone := configMap.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(configMapClone), configMapClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = unstructured.SetNestedField(configMapClone.Object, "public-second-key", "data", "secondKey")
+		if err != nil {
+			t.Fatal(err)
+		}
+		configMapClone.SetManagedFields(nil)
+
+		entry, _, _, err := manager.Diff(ctx, configMapClone, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if entry.Action != SkippedAction && entry.Subject == utils.FmtUnstructured(configMapClone) {
+			t.Errorf("Expected %s, got %s", SkippedAction, entry.Action)
+		}
+	})
+}
+
+func TestDiff_IfNotPresent_OnObject(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("ifnotpresentonobject")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, configMap := getFirstObject(objects, "ConfigMap", id)
+
+	if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
+		t.Fatal(err)
+	}
+
+	meta := map[string]string{
+		"fluxcd.io/ignore": "true",
+	}
+	opts := DefaultDiffOptions()
+	opts.IfNotPresentSelector = meta
+
+	t.Run("diffs unchanged", func(t *testing.T) {
+		entry, _, _, err := manager.Diff(ctx, configMap, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if entry.Action != UnchangedAction && entry.Subject == utils.FmtUnstructured(configMap) {
+			t.Errorf("Expected %s, got %s", UnchangedAction, entry.Action)
+		}
+	})
+
+	t.Run("diffs skips with meta", func(t *testing.T) {
+		// mutate in-cluster object
+		configMapClone := configMap.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(configMapClone), configMapClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		configMapClone.SetAnnotations(meta)
+		err = unstructured.SetNestedField(configMapClone.Object, "public-second-key", "data", "secondKey")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		entry, _, _, err := manager.Diff(ctx, configMapClone, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if entry.Action != SkippedAction && entry.Subject == utils.FmtUnstructured(configMapClone) {
+			t.Errorf("Expected %s, got %s", SkippedAction, entry.Action)
+		}
+	})
+
+	t.Run("diffs configures without meta", func(t *testing.T) {
+		// mutate in-cluster object
+		configMapClone := configMap.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(configMapClone), configMapClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = unstructured.SetNestedField(configMapClone.Object, "public-second-key", "data", "secondKey")
+		if err != nil {
+			t.Fatal(err)
+		}
+		configMapClone.SetManagedFields(nil)
+
+		entry, _, _, err := manager.Diff(ctx, configMapClone, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if entry.Action != ConfiguredAction && entry.Subject == utils.FmtUnstructured(configMapClone) {
+			t.Errorf("Expected %s, got %s", ConfiguredAction, entry.Action)
+		}
+	})
+}
+
 func TestDiff_Removals(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
