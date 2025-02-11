@@ -161,6 +161,9 @@ func (r *Recorder) AnnotatedEventf(
 	if annotatedObject, ok := object.(interface{ GetAnnotations() map[string]string }); ok {
 		for k, v := range annotatedObject.GetAnnotations() {
 			if strings.HasPrefix(k, eventv1.Group+"/") {
+				if annotations == nil {
+					annotations = make(map[string]string)
+				}
 				annotations[k] = v
 			}
 		}
