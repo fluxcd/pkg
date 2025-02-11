@@ -36,6 +36,7 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
 		object           runtime.Object
+		inputAnnotations map[string]string
 		expectedMetadata map[string]string
 	}{
 		{
@@ -50,8 +51,27 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 					},
 				},
 			},
+			inputAnnotations: map[string]string{"test": "true"},
 			expectedMetadata: map[string]string{
 				"test":                                 "true",
+				"event.toolkit.fluxcd.io/deploymentID": "e076e315-5a48-41c3-81c8-8d8bdee7d74d",
+				"event.toolkit.fluxcd.io/image":        "ghcr.io/stefanprodan/podinfo:6.5.0",
+			},
+		},
+		{
+			name: "event with ConfigMap does not panic with nil inputAnnotations",
+			object: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "webapp",
+					Namespace: "gitops-system",
+					Annotations: map[string]string{
+						"event.toolkit.fluxcd.io/deploymentID": "e076e315-5a48-41c3-81c8-8d8bdee7d74d",
+						"event.toolkit.fluxcd.io/image":        "ghcr.io/stefanprodan/podinfo:6.5.0",
+					},
+				},
+			},
+			inputAnnotations: nil,
+			expectedMetadata: map[string]string{
 				"event.toolkit.fluxcd.io/deploymentID": "e076e315-5a48-41c3-81c8-8d8bdee7d74d",
 				"event.toolkit.fluxcd.io/image":        "ghcr.io/stefanprodan/podinfo:6.5.0",
 			},
@@ -63,9 +83,8 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 				Namespace: "gitops-system",
 				Kind:      "ConfigMap",
 			},
-			expectedMetadata: map[string]string{
-				"test": "true",
-			},
+			inputAnnotations: map[string]string{"test": "true"},
+			expectedMetadata: map[string]string{"test": "true"},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -96,17 +115,13 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 
 			obj := tt.object
 
-			meta := map[string]string{
-				"test": "true",
-			}
-
 			const msg = "sync object"
 
-			eventRecorder.AnnotatedEventf(obj, meta, corev1.EventTypeNormal, "sync", "%s", msg)
+			eventRecorder.AnnotatedEventf(obj, tt.inputAnnotations, corev1.EventTypeNormal, "sync", "%s", msg)
 			require.Equal(t, 2, requestCount)
 
 			// When a trace event is sent, it's dropped, no new request.
-			eventRecorder.AnnotatedEventf(obj, meta, eventv1.EventTypeTrace, "sync", "%s", msg)
+			eventRecorder.AnnotatedEventf(obj, tt.inputAnnotations, eventv1.EventTypeTrace, "sync", "%s", msg)
 			require.Equal(t, 2, requestCount)
 		})
 	}
