@@ -76,6 +76,14 @@ func (c *ChangeSet) String() string {
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
+func (c *ChangeSet) ToGroupedMap() map[Action][]string {
+	res := make(map[Action][]string)
+	for _, entry := range c.Entries {
+		res[entry.Action] = append(res[entry.Action], entry.Subject)
+	}
+	return res
+}
+
 func (c *ChangeSet) ToMap() map[string]Action {
 	res := make(map[string]Action, len(c.Entries))
 	for _, entry := range c.Entries {
