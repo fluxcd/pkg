@@ -17,8 +17,11 @@ limitations under the License.
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sync"
+
+	"github.com/go-logr/logr"
 )
 
 // node is a node in a doubly linked list
@@ -122,6 +125,83 @@ func (c *LRU[T]) Set(key string, value T) error {
 	}
 	recordItemIncrement(c.metrics)
 	return nil
+}
+
+// GetIfOrSet returns an item in the cache for the given key if present and
+// if the condition is satisfied, or calls the fetch function to get a new
+// item and stores it in the cache. The operation is thread-safe and atomic.
+// The boolean return value indicates whether the item was retrieved from
+// the cache.
+func (c *LRU[T]) GetIfOrSet(ctx context.Context,
+	key string,
+	condition func(T) bool,
+	fetch func(context.Context) (T, error),
+	opts ...Options,
+) (value T, ok bool, err error) {
+
+	var evicted bool
+
+	c.mu.Lock()
+	defer func() {
+		c.mu.Unlock()
+
+		var o storeOptions
+		o.apply(opts...)
+
+		// Record metrics.
+		status := StatusSuccess
+		event := CacheEventTypeMiss
+		switch {
+		case ok:
+			event = CacheEventTypeHit
+		case evicted:
+			recordEviction(c.metrics)
+		case err == nil:
+			recordItemIncrement(c.metrics)
+		default:
+			status = StatusFailure
+		}
+		recordRequest(c.metrics, status)
+		if obj := o.involvedObject; obj != nil {
+			c.RecordCacheEvent(event, obj.Kind, obj.Name, obj.Namespace)
+		}
+
+		// Print debug logs. The involved object should already be set in the context logger.
+		switch l := logr.FromContextOrDiscard(ctx).V(1).WithValues("key", key); {
+		case err != nil:
+			l.Info("item refresh failed", "error", err)
+		case !ok:
+			l := l
+			if o.debugKey != "" {
+				l = l.WithValues(o.debugKey, o.debugValueFunc(value))
+			}
+			l.Info("item refreshed")
+		}
+	}()
+
+	var curNode *node[T]
+	curNode, ok = c.cache[key]
+
+	if ok {
+		c.delete(curNode)
+		if condition(curNode.value) {
+			_ = c.add(curNode)
+			value = curNode.value
+			return
+		}
+		ok = false
+	}
+
+	value, err = fetch(ctx)
+	if err != nil {
+		var zero T
+		value = zero
+		return
+	}
+
+	evicted = c.add(&node[T]{key: key, value: value})
+
+	return
 }
 
 func (c *LRU[T]) add(node *node[T]) (evicted bool) {
