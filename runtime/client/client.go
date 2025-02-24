@@ -21,9 +21,10 @@ import (
 
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/fluxcd/cli-utils/pkg/flowcontrol"
 )
@@ -91,13 +92,15 @@ func GetConfigOrDie(opts Options) *rest.Config {
 // the config. The returned RESTMapper dynamically discovers resource types
 // at runtime.
 func NewDynamicRESTMapper(restConfig *rest.Config) (meta.RESTMapper, error) {
-	httpClient, err := rest.HTTPClientFor(restConfig)
+	dc, err := discovery.NewDiscoveryClientForConfig(restConfig)
 	if err != nil {
 		return nil, err
 	}
-	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
+
+	gr, err := restmapper.GetAPIGroupResources(dc)
 	if err != nil {
 		return nil, err
 	}
-	return restMapper, nil
+
+	return restmapper.NewDiscoveryRESTMapper(gr), nil
 }
