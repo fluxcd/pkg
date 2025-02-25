@@ -37,7 +37,6 @@ import (
 // Impersonator holds the state for impersonating a Kubernetes account.
 type Impersonator struct {
 	rc.Client
-	statusPoller          *polling.StatusPoller
 	pollingOpts           polling.Options
 	kubeConfigRef         *meta.KubeConfigReference
 	kubeConfigOpts        KubeConfigOptions
@@ -49,19 +48,17 @@ type Impersonator struct {
 
 // NewImpersonator creates an Impersonator from the given arguments.
 func NewImpersonator(kubeClient rc.Client,
-	statusPoller *polling.StatusPoller,
 	pollingOpts polling.Options,
 	kubeConfigRef *meta.KubeConfigReference,
 	kubeConfigOpts KubeConfigOptions,
 	defaultServiceAccount string,
 	serviceAccountName string,
 	namespace string) *Impersonator {
-	return NewImpersonatorWithScheme(kubeClient, statusPoller, pollingOpts, kubeConfigRef, kubeConfigOpts, defaultServiceAccount, serviceAccountName, namespace, kubeClient.Scheme())
+	return NewImpersonatorWithScheme(kubeClient, pollingOpts, kubeConfigRef, kubeConfigOpts, defaultServiceAccount, serviceAccountName, namespace, kubeClient.Scheme())
 }
 
 // NewImpersonatorWithScheme creates an Impersonator from the given arguments with a client runtime scheme.
 func NewImpersonatorWithScheme(kubeClient rc.Client,
-	statusPoller *polling.StatusPoller,
 	pollingOpts polling.Options,
 	kubeConfigRef *meta.KubeConfigReference,
 	kubeConfigOpts KubeConfigOptions,
@@ -71,7 +68,6 @@ func NewImpersonatorWithScheme(kubeClient rc.Client,
 	scheme *runtime.Scheme) *Impersonator {
 	return &Impersonator{
 		Client:                kubeClient,
-		statusPoller:          statusPoller,
 		pollingOpts:           pollingOpts,
 		kubeConfigRef:         kubeConfigRef,
 		kubeConfigOpts:        kubeConfigOpts,
@@ -94,7 +90,7 @@ func (i *Impersonator) GetClient(ctx context.Context) (rc.Client, *polling.Statu
 	case i.defaultServiceAccount != "" || i.serviceAccountName != "":
 		return i.clientForServiceAccountOrDefault()
 	default:
-		return i.Client, i.statusPoller, nil
+		return i.defaultClient()
 	}
 }
 
@@ -147,7 +143,29 @@ func (i *Impersonator) clientForServiceAccountOrDefault() (rc.Client, *polling.S
 
 	statusPoller := polling.NewStatusPoller(client, restMapper, i.pollingOpts)
 	return client, statusPoller, err
+}
 
+func (i *Impersonator) defaultClient() (rc.Client, *polling.StatusPoller, error) {
+	restConfig, err := config.GetConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	restMapper, err := NewDynamicRESTMapper(restConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client, err := rc.New(restConfig, rc.Options{
+		Scheme: i.scheme,
+		Mapper: restMapper,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	statusPoller := polling.NewStatusPoller(client, restMapper, i.pollingOpts)
+	return client, statusPoller, err
 }
 
 func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *polling.StatusPoller, error) {
