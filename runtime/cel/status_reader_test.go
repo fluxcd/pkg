@@ -34,47 +34,6 @@ import (
 	"github.com/fluxcd/pkg/runtime/cel"
 )
 
-func TestNewStatusReader(t *testing.T) {
-	for _, tt := range []struct {
-		name  string
-		exprs kustomize.HealthCheckExpressions
-		err   string
-	}{
-		{
-			name: "success",
-			exprs: kustomize.HealthCheckExpressions{
-				Current:    "something",
-				InProgress: "something",
-				Failed:     "something",
-			},
-		},
-		{
-			name: "errors if object evaluator constructor errors",
-			exprs: kustomize.HealthCheckExpressions{
-				Current: "something.",
-			},
-			err: "failed to parse the expression",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			g := NewWithT(t)
-
-			sr, err := cel.NewStatusReader(context.Background(), nil, schema.GroupKind{}, &tt.exprs)
-
-			if tt.err != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(tt.err))
-				g.Expect(sr).To(BeNil())
-			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(sr).NotTo(BeNil())
-			}
-		})
-	}
-}
-
 func TestStatusReader_Supports(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
@@ -112,10 +71,12 @@ func TestStatusReader_Supports(t *testing.T) {
 
 			g := NewWithT(t)
 
-			sr, err := cel.NewStatusReader(context.Background(), nil, tt.supportedGK, &kustomize.HealthCheckExpressions{
+			se, err := cel.NewStatusEvaluator(&kustomize.HealthCheckExpressions{
 				Current: "something",
 			})
 			g.Expect(err).NotTo(HaveOccurred())
+
+			sr := cel.NewStatusReader(context.Background(), nil, tt.supportedGK, se)
 
 			result := sr.Supports(tt.gk)
 			g.Expect(result).To(Equal(tt.result))
@@ -187,8 +148,10 @@ func TestStatusReader_ReadStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			sr, err := cel.NewStatusReader(context.Background(), mapper, gk, &tt.exprs)
+			se, err := cel.NewStatusEvaluator(&tt.exprs)
 			g.Expect(err).NotTo(HaveOccurred())
+
+			sr := cel.NewStatusReader(context.Background(), mapper, gk, se)
 
 			result, err := sr.ReadStatus(ctx, clusterReader, object.ObjMetadata{
 				Name:      objName,
@@ -242,8 +205,10 @@ func TestStatusReader_ReadStatusForObject(t *testing.T) {
 
 			g := NewWithT(t)
 
-			sr, err := cel.NewStatusReader(context.Background(), nil, gk, &tt.exprs)
+			se, err := cel.NewStatusEvaluator(&tt.exprs)
 			g.Expect(err).NotTo(HaveOccurred())
+
+			sr := cel.NewStatusReader(context.Background(), nil, gk, se)
 
 			result, err := sr.ReadStatusForObject(context.Background(), nil, &unstructured.Unstructured{
 				Object: map[string]any{
