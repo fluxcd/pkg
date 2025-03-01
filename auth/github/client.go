@@ -18,14 +18,18 @@ package github
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"golang.org/x/net/http/httpproxy"
+
+	"github.com/fluxcd/pkg/cache"
 )
 
 const (
@@ -43,6 +47,10 @@ type Client struct {
 	apiURL         string
 	proxyURL       *url.URL
 	ghTransport    *ghinstallation.Transport
+	cache          *cache.TokenCache
+	kind           string
+	name           string
+	namespace      string
 }
 
 // OptFunc enables specifying options for the provider.
@@ -158,28 +166,76 @@ func WithProxyURL(proxyURL *url.URL) OptFunc {
 	}
 }
 
+// WithCache sets the token cache and the object involved in the operation for
+// recording cache events.
+func WithCache(cache *cache.TokenCache, kind, name, namespace string) OptFunc {
+	return func(p *Client) {
+		p.cache = cache
+		p.kind = kind
+		p.name = name
+		p.namespace = namespace
+	}
+}
+
 // AppToken contains a GitHub App installation token and its expiry.
 type AppToken struct {
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// GetDuration returns the duration until the token expires.
+func (at *AppToken) GetDuration() time.Duration {
+	return time.Until(at.ExpiresAt)
+}
+
 // GetToken returns the token that can be used to authenticate
 // as a GitHub App installation.
 // Ref: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
 func (p *Client) GetToken(ctx context.Context) (*AppToken, error) {
-	token, err := p.ghTransport.Token(ctx)
+	newToken := func(ctx context.Context) (cache.Token, error) {
+		token, err := p.ghTransport.Token(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		expiresAt, _, err := p.ghTransport.Expiry()
+		if err != nil {
+			return nil, err
+		}
+
+		return &AppToken{
+			Token:     token,
+			ExpiresAt: expiresAt,
+		}, nil
+	}
+
+	if p.cache == nil {
+		token, err := newToken(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return token.(*AppToken), nil
+	}
+
+	var opts []cache.Options
+	if p.kind != "" && p.name != "" && p.namespace != "" {
+		opts = append(opts, cache.WithInvolvedObject(p.kind, p.name, p.namespace))
+	}
+
+	token, _, err := p.cache.GetOrSet(ctx, p.buildCacheKey(), newToken, opts...)
 	if err != nil {
 		return nil, err
 	}
+	return token.(*AppToken), nil
+}
 
-	expiresAt, _, err := p.ghTransport.Expiry()
-	if err != nil {
-		return nil, err
+func (p *Client) buildCacheKey() string {
+	privateKeyDigest := sha256.Sum256(p.privateKey)
+	keyParts := []string{
+		fmt.Sprintf("%s=%s", AppIDKey, p.appID),
+		fmt.Sprintf("%s=%s", AppInstallationIDKey, p.installationID),
+		fmt.Sprintf("%s=%s", AppBaseUrlKey, p.apiURL),
+		fmt.Sprintf("%sDigest=%x", AppPrivateKey, privateKeyDigest),
 	}
-
-	return &AppToken{
-		Token:     token,
-		ExpiresAt: expiresAt,
-	}, nil
+	return strings.Join(keyParts, ",")
 }

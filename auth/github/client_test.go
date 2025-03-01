@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/ssh"
 	. "github.com/onsi/gomega"
 )
@@ -158,6 +159,7 @@ func TestClient_GetToken(t *testing.T) {
 	expiresAt := time.Now().UTC().Add(time.Hour)
 	tests := []struct {
 		name         string
+		opts         []OptFunc
 		accessToken  *AppToken
 		statusCode   int
 		wantErr      bool
@@ -170,6 +172,24 @@ func TestClient_GetToken(t *testing.T) {
 				ExpiresAt: expiresAt,
 			},
 			statusCode: http.StatusOK,
+			wantAppToken: &AppToken{
+				Token:     "access-token",
+				ExpiresAt: expiresAt,
+			},
+		},
+		{
+			name: "Get cached token",
+			opts: []OptFunc{func(client *Client) {
+				c := cache.NewTokenCache(1)
+				c.GetOrSet(context.Background(), client.buildCacheKey(), func(context.Context) (cache.Token, error) {
+					return &AppToken{
+						Token:     "access-token",
+						ExpiresAt: expiresAt,
+					}, nil
+				})
+				client.cache = c
+			}},
+			statusCode: http.StatusInternalServerError, // error status code to make the test fail if the token is not cached
 			wantAppToken: &AppToken{
 				Token:     "access-token",
 				ExpiresAt: expiresAt,
@@ -206,6 +226,7 @@ func TestClient_GetToken(t *testing.T) {
 			opts := []OptFunc{
 				WithAppBaseURL(srv.URL), WithInstllationID("123"), WithAppID("456"), WithPrivateKey(kp.PrivateKey),
 			}
+			opts = append(opts, tt.opts...)
 
 			provider, err := New(opts...)
 			g.Expect(err).ToNot(HaveOccurred())
