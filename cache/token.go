@@ -21,6 +21,11 @@ import (
 	"time"
 )
 
+// TokenMaxDuration is the maximum duration that a token can have in the
+// TokenCache. This is used to cap the duration of tokens to avoid storing
+// tokens that are valid for too long.
+const TokenMaxDuration = time.Hour
+
 // Token is an interface that represents an access token that can be used
 // to authenticate with a cloud provider. The only common method is to get the
 // duration of the token, because different providers may have different ways to
@@ -45,7 +50,8 @@ type Token interface {
 // lifetime, which is the same strategy used by kubelet for rotating
 // ServiceAccount tokens.
 type TokenCache struct {
-	cache *LRU[*tokenItem]
+	cache       *LRU[*tokenItem]
+	maxDuration time.Duration
 }
 
 type tokenItem struct {
@@ -55,9 +61,20 @@ type tokenItem struct {
 }
 
 // NewTokenCache returns a new TokenCache with the given capacity.
-func NewTokenCache(capacity int, opts ...Options) *TokenCache {
-	cache, _ := NewLRU[*tokenItem](capacity, opts...)
-	return &TokenCache{cache: cache}
+func NewTokenCache(capacity int, opts ...Options) (*TokenCache, error) {
+	o := storeOptions{maxDuration: TokenMaxDuration}
+	o.apply(opts...)
+
+	if o.maxDuration > TokenMaxDuration {
+		o.maxDuration = TokenMaxDuration
+	}
+
+	cache, err := NewLRU[*tokenItem](capacity, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TokenCache{cache, o.maxDuration}, nil
 }
 
 // GetOrSet returns the token for the given key if present and not expired, or
@@ -111,6 +128,10 @@ func (c *TokenCache) newItem(token Token) *tokenItem {
 	//
 	// Ref: https://github.com/kubernetes/kubernetes/blob/4032177faf21ae2f99a2012634167def2376b370/pkg/kubelet/token/token_manager.go#L172-L174
 	d := (token.GetDuration() * 8) / 10
+
+	if m := c.maxDuration; d > m {
+		d = m
+	}
 
 	mono := time.Now().Add(d)
 	unix := time.Unix(mono.Unix(), 0)
