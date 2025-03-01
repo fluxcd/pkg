@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"sync"
@@ -325,4 +326,97 @@ func TestLRU_int(t *testing.T) {
 	got, err := cache.Get(key)
 	g.Expect(err).To(Succeed())
 	g.Expect(got).To(Equal(4))
+}
+
+func TestLRU_GetIfOrSet(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		cap           int
+		seed          map[string]int
+		key           string
+		condition     func(int) bool
+		fetch         func(context.Context) (int, error)
+		expectedValue int
+		expectedOk    bool
+		expectedErr   string
+	}{
+		{
+			name:          "cache hit",
+			cap:           1,
+			seed:          map[string]int{"key": 42},
+			key:           "key",
+			condition:     func(int) bool { return true },
+			expectedValue: 42,
+			expectedOk:    true,
+		},
+		{
+			name:        "cache hit but condition not satisfied, refresh fails",
+			cap:         1,
+			seed:        map[string]int{"key": 42},
+			key:         "key",
+			condition:   func(int) bool { return false },
+			fetch:       func(context.Context) (int, error) { return 0, fmt.Errorf("failed") },
+			expectedErr: "failed",
+		},
+		{
+			name:          "cache hit but condition not satisfied, refresh succeeds",
+			cap:           1,
+			seed:          map[string]int{"key": 42},
+			key:           "key",
+			condition:     func(int) bool { return false },
+			fetch:         func(context.Context) (int, error) { return 53, nil },
+			expectedValue: 53,
+			expectedOk:    false,
+		},
+		{
+			name:        "cache miss, refresh fails",
+			cap:         1,
+			seed:        map[string]int{},
+			key:         "key",
+			fetch:       func(context.Context) (int, error) { return 0, fmt.Errorf("failed") },
+			expectedErr: "failed",
+		},
+		{
+			name:          "cache miss, refresh succeeds",
+			cap:           1,
+			seed:          map[string]int{},
+			key:           "key",
+			fetch:         func(context.Context) (int, error) { return 42, nil },
+			expectedValue: 42,
+			expectedOk:    false,
+		},
+		{
+			name:          "cache miss, refresh succeeds, key evicted",
+			cap:           1,
+			seed:          map[string]int{"key": 42},
+			key:           "key2",
+			fetch:         func(context.Context) (int, error) { return 53, nil },
+			expectedValue: 53,
+			expectedOk:    false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			cache, err := NewLRU[int](tt.cap)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			for k, v := range tt.seed {
+				g.Expect(cache.Set(k, v)).To(Succeed())
+			}
+
+			ctx := context.Background()
+			value, ok, err := cache.GetIfOrSet(ctx, tt.key, tt.condition, tt.fetch)
+
+			if tt.expectedErr == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(value).To(Equal(tt.expectedValue))
+				g.Expect(ok).To(Equal(tt.expectedOk))
+			} else {
+				g.Expect(err).To(MatchError(tt.expectedErr))
+				g.Expect(value).To(BeZero())
+				g.Expect(ok).To(BeFalse())
+			}
+		})
+	}
 }

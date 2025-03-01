@@ -44,9 +44,21 @@ type Expirable[T any] interface {
 }
 
 type storeOptions struct {
-	interval      time.Duration
-	registerer    prometheus.Registerer
-	metricsPrefix string
+	interval       time.Duration
+	registerer     prometheus.Registerer
+	metricsPrefix  string
+	involvedObject *InvolvedObject
+	debugKey       string
+	debugValueFunc func(any) any
+}
+
+func (o *storeOptions) apply(opts ...Options) error {
+	for _, opt := range opts {
+		if err := opt(o); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Options is a function that sets the store options.
@@ -72,6 +84,18 @@ func WithMetricsRegisterer(r prometheus.Registerer) Options {
 func WithMetricsPrefix(prefix string) Options {
 	return func(o *storeOptions) error {
 		o.metricsPrefix = prefix
+		return nil
+	}
+}
+
+// WithInvolvedObject sets the involved object for the cache metrics.
+func WithInvolvedObject(kind, name, namespace string) Options {
+	return func(o *storeOptions) error {
+		o.involvedObject = &InvolvedObject{
+			Kind:      kind,
+			Name:      name,
+			Namespace: namespace,
+		}
 		return nil
 	}
 }
