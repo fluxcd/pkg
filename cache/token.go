@@ -55,7 +55,10 @@ type tokenItem struct {
 }
 
 // NewTokenCache returns a new TokenCache with the given capacity.
+// The only supported option is WithMetricsRegisterer. The metrics
+// prefix is set to "token_".
 func NewTokenCache(capacity int, opts ...Options) *TokenCache {
+	opts = append(opts, WithMetricsPrefix("token_"))
 	cache, _ := NewLRU[*tokenItem](capacity, opts...)
 	return &TokenCache{cache: cache}
 }
