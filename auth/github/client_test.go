@@ -156,6 +156,8 @@ func TestClient_Options(t *testing.T) {
 }
 
 func TestClient_GetToken(t *testing.T) {
+	g := NewWithT(t)
+
 	expiresAt := time.Now().UTC().Add(time.Hour)
 	tests := []struct {
 		name         string
@@ -180,14 +182,17 @@ func TestClient_GetToken(t *testing.T) {
 		{
 			name: "Get cached token",
 			opts: []OptFunc{func(client *Client) {
-				c := cache.NewTokenCache(1)
-				c.GetOrSet(context.Background(), client.buildCacheKey(), func(context.Context) (cache.Token, error) {
+				c, err := cache.NewTokenCache(1)
+				g.Expect(err).NotTo(HaveOccurred())
+				_, ok, err := c.GetOrSet(context.Background(), client.buildCacheKey(), func(context.Context) (cache.Token, error) {
 					return &AppToken{
 						Token:     "access-token",
 						ExpiresAt: expiresAt,
 					}, nil
 				})
-				client.cache = c
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(ok).To(BeFalse())
+				WithCache(c, "", "", "")(client)
 			}},
 			statusCode: http.StatusInternalServerError, // error status code to make the test fail if the token is not cached
 			wantAppToken: &AppToken{

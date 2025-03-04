@@ -47,6 +47,7 @@ type storeOptions struct {
 	interval       time.Duration
 	registerer     prometheus.Registerer
 	metricsPrefix  string
+	maxDuration    time.Duration
 	involvedObject *InvolvedObject
 	debugKey       string
 	debugValueFunc func(any) any
@@ -84,6 +85,14 @@ func WithMetricsRegisterer(r prometheus.Registerer) Options {
 func WithMetricsPrefix(prefix string) Options {
 	return func(o *storeOptions) error {
 		o.metricsPrefix = prefix
+		return nil
+	}
+}
+
+// WithMaxDuration sets the maximum duration for the cache items.
+func WithMaxDuration(duration time.Duration) Options {
+	return func(o *storeOptions) error {
+		o.maxDuration = duration
 		return nil
 	}
 }

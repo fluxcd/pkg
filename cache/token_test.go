@@ -18,6 +18,7 @@ package cache_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -35,11 +36,14 @@ func (t *testToken) GetDuration() time.Duration {
 }
 
 func TestTokenCache_Lifecycle(t *testing.T) {
+	t.Parallel()
+
 	g := NewWithT(t)
 
 	ctx := context.Background()
 
-	tc := cache.NewTokenCache(1)
+	tc, err := cache.NewTokenCache(1)
+	g.Expect(err).NotTo(HaveOccurred())
 
 	token, retrieved, err := tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) {
 		return &testToken{duration: 2 * time.Second}, nil
@@ -48,19 +52,108 @@ func TestTokenCache_Lifecycle(t *testing.T) {
 	g.Expect(retrieved).To(BeFalse())
 	g.Expect(err).To(BeNil())
 
-	time.Sleep(4 * time.Second)
+	token, retrieved, err = tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) { return nil, nil })
 
-	token, retrieved, err = tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) {
-		return &testToken{duration: 100 * time.Second}, nil
-	})
-	g.Expect(token).To(Equal(&testToken{duration: 100 * time.Second}))
-	g.Expect(retrieved).To(BeFalse())
-	g.Expect(err).To(BeNil())
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&testToken{duration: 2 * time.Second}))
+	g.Expect(retrieved).To(BeTrue())
 
 	time.Sleep(2 * time.Second)
 
-	token, retrieved, err = tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) { return nil, nil })
-	g.Expect(token).To(Equal(&testToken{duration: 100 * time.Second}))
-	g.Expect(retrieved).To(BeTrue())
+	token, retrieved, err = tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) {
+		return &testToken{duration: time.Hour}, nil
+	})
+	g.Expect(token).To(Equal(&testToken{duration: time.Hour}))
+	g.Expect(retrieved).To(BeFalse())
 	g.Expect(err).To(BeNil())
+}
+
+func TestTokenCache_80PercentLifetime(t *testing.T) {
+	t.Parallel()
+
+	g := NewWithT(t)
+
+	ctx := context.Background()
+
+	tc, err := cache.NewTokenCache(1)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	token, retrieved, err := tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) {
+		return &testToken{duration: 5 * time.Second}, nil
+	})
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&testToken{duration: 5 * time.Second}))
+	g.Expect(retrieved).To(BeFalse())
+
+	token, retrieved, err = tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) { return nil, nil })
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&testToken{duration: 5 * time.Second}))
+	g.Expect(retrieved).To(BeTrue())
+
+	time.Sleep(4 * time.Second)
+
+	token, retrieved, err = tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) {
+		return &testToken{duration: time.Hour}, nil
+	})
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&testToken{duration: time.Hour}))
+	g.Expect(retrieved).To(BeFalse())
+}
+
+func TestTokenCache_MaxDuration(t *testing.T) {
+	t.Parallel()
+
+	g := NewWithT(t)
+
+	ctx := context.Background()
+
+	tc, err := cache.NewTokenCache(1, cache.WithMaxDuration(time.Second))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	token, retrieved, err := tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) {
+		return &testToken{duration: time.Hour}, nil
+	})
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&testToken{duration: time.Hour}))
+	g.Expect(retrieved).To(BeFalse())
+
+	token, retrieved, err = tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) { return nil, nil })
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&testToken{duration: time.Hour}))
+	g.Expect(retrieved).To(BeTrue())
+
+	time.Sleep(2 * time.Second)
+
+	token, retrieved, err = tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) {
+		return &testToken{duration: 10 * time.Millisecond}, nil
+	})
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&testToken{duration: 10 * time.Millisecond}))
+	g.Expect(retrieved).To(BeFalse())
+}
+
+func TestTokenCache_GetOrSet_Error(t *testing.T) {
+	t.Parallel()
+
+	g := NewWithT(t)
+
+	ctx := context.Background()
+
+	tc, err := cache.NewTokenCache(1)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	token, retrieved, err := tc.GetOrSet(ctx, "test", func(context.Context) (cache.Token, error) {
+		return nil, fmt.Errorf("failed")
+	})
+
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err).To(MatchError("failed"))
+	g.Expect(token).To(BeNil())
+	g.Expect(retrieved).To(BeFalse())
 }

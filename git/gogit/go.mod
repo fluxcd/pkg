@@ -4,6 +4,7 @@ go 1.23.0
 
 replace (
 	github.com/fluxcd/pkg/auth => ../../auth
+	github.com/fluxcd/pkg/cache => ../../cache
 	github.com/fluxcd/pkg/git => ../../git
 	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
 	github.com/fluxcd/pkg/ssh => ../../ssh
@@ -40,7 +41,7 @@ require (
 	github.com/cloudflare/circl v1.5.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/fluxcd/pkg/cache v0.4.0 // indirect
+	github.com/fluxcd/pkg/cache v0.5.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
