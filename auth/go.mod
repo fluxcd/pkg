@@ -11,7 +11,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/bradleyfalzon/ghinstallation/v2 v2.14.0
-	github.com/fluxcd/pkg/cache v0.5.0
+	github.com/fluxcd/pkg/cache v0.6.0
 	github.com/fluxcd/pkg/ssh v0.17.0
 	github.com/onsi/gomega v1.36.2
 	golang.org/x/net v0.35.0

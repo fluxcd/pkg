@@ -66,7 +66,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
-	github.com/fluxcd/pkg/cache v0.5.0 // indirect
+	github.com/fluxcd/pkg/cache v0.6.0 // indirect
 	github.com/fluxcd/pkg/ssh v0.17.0 // indirect
 	github.com/fluxcd/pkg/version v0.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

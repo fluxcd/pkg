@@ -25,7 +25,7 @@ require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.14.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
-	github.com/fluxcd/pkg/cache v0.5.0 // indirect
+	github.com/fluxcd/pkg/cache v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect

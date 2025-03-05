@@ -103,7 +103,7 @@ func (c *TokenCache) GetOrSet(ctx context.Context,
 		so.debugKey = "token"
 		so.debugValueFunc = func(v any) any {
 			return map[string]any{
-				"duration": v.(*tokenItem).token.GetDuration(),
+				"duration": v.(*tokenItem).token.GetDuration().String(),
 			}
 		}
 		return nil

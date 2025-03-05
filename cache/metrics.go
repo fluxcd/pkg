@@ -43,8 +43,11 @@ type cacheMetrics struct {
 }
 
 // newcacheMetrics returns a new cacheMetrics.
-func newCacheMetrics(prefix string, reg prometheus.Registerer) *cacheMetrics {
-	labels := []string{"event_type", "kind", "name", "namespace"}
+func newCacheMetrics(prefix string, reg prometheus.Registerer, opts ...Options) *cacheMetrics {
+	o := storeOptions{eventNamespaceLabel: "namespace"}
+	o.apply(opts...)
+
+	labels := []string{"event_type", "kind", "name", o.eventNamespaceLabel}
 	return &cacheMetrics{
 		cacheEventsCounter: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{

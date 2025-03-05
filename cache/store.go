@@ -44,13 +44,14 @@ type Expirable[T any] interface {
 }
 
 type storeOptions struct {
-	interval       time.Duration
-	registerer     prometheus.Registerer
-	metricsPrefix  string
-	maxDuration    time.Duration
-	involvedObject *InvolvedObject
-	debugKey       string
-	debugValueFunc func(any) any
+	interval            time.Duration
+	registerer          prometheus.Registerer
+	metricsPrefix       string
+	maxDuration         time.Duration
+	involvedObject      *InvolvedObject
+	debugKey            string
+	debugValueFunc      func(any) any
+	eventNamespaceLabel string
 }
 
 func (o *storeOptions) apply(opts ...Options) error {
@@ -105,6 +106,14 @@ func WithInvolvedObject(kind, name, namespace string) Options {
 			Name:      name,
 			Namespace: namespace,
 		}
+		return nil
+	}
+}
+
+// WithEventNamespaceLabel sets the namespace label for the cache events.
+func WithEventNamespaceLabel(label string) Options {
+	return func(o *storeOptions) error {
+		o.eventNamespaceLabel = label
 		return nil
 	}
 }
