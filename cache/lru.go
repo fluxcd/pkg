@@ -97,7 +97,7 @@ func NewLRU[T any](capacity int, opts ...Options) (*LRU[T], error) {
 	}
 
 	if opt.registerer != nil {
-		lru.metrics = newCacheMetrics(opt.metricsPrefix, opt.registerer)
+		lru.metrics = newCacheMetrics(opt.metricsPrefix, opt.registerer, opts...)
 	}
 
 	return lru, nil
@@ -139,7 +139,7 @@ func (c *LRU[T]) GetIfOrSet(ctx context.Context,
 	opts ...Options,
 ) (value T, ok bool, err error) {
 
-	var evicted bool
+	var existed, evicted bool
 
 	c.mu.Lock()
 	defer func() {
@@ -150,20 +150,21 @@ func (c *LRU[T]) GetIfOrSet(ctx context.Context,
 
 		// Record metrics.
 		status := StatusSuccess
-		event := CacheEventTypeMiss
-		switch {
-		case ok:
-			event = CacheEventTypeHit
-		case evicted:
-			recordEviction(c.metrics)
-		case err == nil:
-			recordItemIncrement(c.metrics)
-		default:
+		if err != nil {
 			status = StatusFailure
 		}
 		recordRequest(c.metrics, status)
+		event := CacheEventTypeMiss
+		if ok {
+			event = CacheEventTypeHit
+		}
 		if obj := o.involvedObject; obj != nil {
 			c.RecordCacheEvent(event, obj.Kind, obj.Name, obj.Namespace)
+		}
+		if evicted {
+			recordEviction(c.metrics)
+		} else if !existed && err == nil {
+			recordItemIncrement(c.metrics)
 		}
 
 		// Print debug logs. The involved object should already be set in the context logger.
@@ -180,16 +181,15 @@ func (c *LRU[T]) GetIfOrSet(ctx context.Context,
 	}()
 
 	var curNode *node[T]
-	curNode, ok = c.cache[key]
+	curNode, existed = c.cache[key]
 
-	if ok {
+	if existed {
 		c.delete(curNode)
 		if condition(curNode.value) {
 			_ = c.add(curNode)
-			value = curNode.value
+			value, ok = curNode.value, true
 			return
 		}
-		ok = false
 	}
 
 	value, err = fetch(ctx)
