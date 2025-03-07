@@ -11,7 +11,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/bradleyfalzon/ghinstallation/v2 v2.14.0
-	github.com/fluxcd/pkg/cache v0.6.0
+	github.com/fluxcd/pkg/cache v0.7.0
 	github.com/fluxcd/pkg/ssh v0.17.0
 	github.com/onsi/gomega v1.36.2
 	golang.org/x/net v0.35.0
@@ -38,6 +38,7 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	golang.org/x/crypto v0.34.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
