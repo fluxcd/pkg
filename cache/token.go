@@ -19,6 +19,8 @@ package cache
 import (
 	"context"
 	"time"
+
+	"github.com/spf13/pflag"
 )
 
 // TokenMaxDuration is the maximum duration that a token can have in the
@@ -52,6 +54,12 @@ type Token interface {
 type TokenCache struct {
 	cache       *LRU[*tokenItem]
 	maxDuration time.Duration
+}
+
+// TokenFlags contains the CLI flags that can be used to configure the TokenCache.
+type TokenFlags struct {
+	MaxSize     int
+	MaxDuration time.Duration
 }
 
 type tokenItem struct {
@@ -116,10 +124,15 @@ func (c *TokenCache) GetOrSet(ctx context.Context,
 	return item.token, ok, nil
 }
 
-// DeleteCacheEvent deletes the cache event (cache_miss or cache_hit) metric for
-// the associated object being reconciled, given their kind, name and namespace.
-func (c *TokenCache) DeleteCacheEvent(event, kind, name, namespace string) {
-	c.cache.DeleteCacheEvent(event, kind, name, namespace)
+// DeleteEventsForObject deletes all cache events (cache_miss and cache_hit) for
+// the associated object being deleted, given its kind, name and namespace.
+func (c *TokenCache) DeleteEventsForObject(kind, name, namespace string) {
+	if c == nil {
+		return
+	}
+	for _, eventType := range allEventTypes {
+		c.cache.DeleteCacheEvent(eventType, kind, name, namespace)
+	}
 }
 
 func (c *TokenCache) newItem(token Token) *tokenItem {
@@ -146,4 +159,11 @@ func (c *TokenCache) newItem(token Token) *tokenItem {
 func (ti *tokenItem) expired() bool {
 	now := time.Now()
 	return !ti.mono.After(now) || !ti.unix.After(now)
+}
+
+func (f *TokenFlags) BindFlags(fs *pflag.FlagSet, defaultMaxSize int) {
+	fs.IntVar(&f.MaxSize, "token-cache-max-size", defaultMaxSize,
+		"The maximum size of the cache in number of tokens.")
+	fs.DurationVar(&f.MaxDuration, "token-cache-max-duration", TokenMaxDuration,
+		"The maximum duration a token is cached.")
 }

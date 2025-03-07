@@ -34,6 +34,11 @@ const (
 	StatusFailure = "failure"
 )
 
+var allEventTypes = []string{
+	CacheEventTypeMiss,
+	CacheEventTypeHit,
+}
+
 type cacheMetrics struct {
 	// cacheEventsCounter is a counter for cache events.
 	cacheEventsCounter   *prometheus.CounterVec
