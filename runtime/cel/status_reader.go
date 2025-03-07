@@ -27,8 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/fluxcd/pkg/apis/kustomize"
 )
 
 // StatusReader implements the engine.StatusReader interface for a specific GroupKind and
@@ -42,22 +40,17 @@ type StatusReader struct {
 // The context is used to control the execution of the underlying operations performed by the
 // the reader.
 func NewStatusReader(ctx context.Context, mapper meta.RESTMapper, gk schema.GroupKind,
-	exprs *kustomize.HealthCheckExpressions) (engine.StatusReader, error) {
-
-	s, err := NewStatusEvaluator(exprs)
-	if err != nil {
-		return nil, err
-	}
+	se *StatusEvaluator) engine.StatusReader {
 
 	statusFunc := func(u *unstructured.Unstructured) (*status.Result, error) {
-		return s.Evaluate(ctx, u)
+		return se.Evaluate(ctx, u)
 	}
 
 	genericStatusReader := kstatusreaders.NewGenericStatusReader(mapper, statusFunc)
 	return &StatusReader{
 		genericStatusReader: genericStatusReader,
 		gk:                  gk,
-	}, nil
+	}
 }
 
 // Supports returns true if the StatusReader supports the given GroupKind.
