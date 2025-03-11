@@ -219,3 +219,143 @@ func TestExpression_EvaluateBoolean(t *testing.T) {
 		})
 	}
 }
+
+func TestExpression_EvaluateString(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		expr   string
+		opts   []cel.Option
+		data   map[string]any
+		result string
+		err    string
+	}{
+		{
+			name: "non-existent field",
+			expr: "foo",
+			data: map[string]any{},
+			err:  "failed to evaluate the CEL expression 'foo': no such attribute(s): foo",
+		},
+		{
+			name:   "string field",
+			expr:   "foo",
+			data:   map[string]any{"foo": "some-value"},
+			result: "some-value",
+		},
+		{
+			name: "non-string field",
+			expr: "foo",
+			data: map[string]any{"foo": 123},
+			err:  "failed to evaluate CEL expression as string: 'foo'",
+		},
+		{
+			name:   "nested string field",
+			expr:   "foo.bar",
+			data:   map[string]any{"foo": map[string]any{"bar": "some-value"}},
+			result: "some-value",
+		},
+		{
+			name:   "compiled expression returning string",
+			expr:   "foo.bar",
+			opts:   []cel.Option{cel.WithCompile(), cel.WithStructVariables("foo")},
+			data:   map[string]any{"foo": map[string]any{"bar": "some-value"}},
+			result: "some-value",
+		},
+		{
+			name: "compiled expression returning string multiple variables",
+			expr: "foo.bar + '/' + foo.baz + '/' + bar.biz",
+			opts: []cel.Option{
+				cel.WithCompile(),
+				cel.WithStructVariables("foo", "bar"),
+			},
+			data: map[string]any{
+				"foo": map[string]any{
+					"bar": "some-value",
+					"baz": "some-other-value"},
+				"bar": map[string]any{
+					"biz": "some-third-value",
+				},
+			},
+			result: "some-value/some-other-value/some-third-value",
+		},
+		{
+			name: "compiled expression with string manipulation and zero index",
+			expr: "foo.bar + '/' + foo.baz + '/' + bar.uid.split('-')[0].lowerAscii()",
+			opts: []cel.Option{
+				cel.WithCompile(),
+				cel.WithStructVariables("foo", "bar"),
+			},
+			data: map[string]any{
+				"foo": map[string]any{
+					"bar": "some-value",
+					"baz": "some-other-value"},
+				"bar": map[string]any{
+					"uid": "AKS2J23-DAFLSDD-123J5LS",
+				},
+			},
+			result: "some-value/some-other-value/aks2j23",
+		},
+		{
+			name: "compiled expression with string manipulation and first",
+			expr: "foo.bar + '/' + foo.baz + '/' + bar.uid.split('-').first().value().lowerAscii()",
+			opts: []cel.Option{
+				cel.WithCompile(),
+				cel.WithStructVariables("foo", "bar"),
+			},
+			data: map[string]any{
+				"foo": map[string]any{
+					"bar": "some-value",
+					"baz": "some-other-value"},
+				"bar": map[string]any{
+					"uid": "AKS2J23-DAFLSDD-123J5LS",
+				},
+			},
+			result: "some-value/some-other-value/aks2j23",
+		},
+		{
+			name: "compiled expression with first",
+			expr: "foo.bar.split('-').first().value()",
+			opts: []cel.Option{cel.WithCompile(), cel.WithStructVariables("foo")},
+			data: map[string]any{
+				"foo": map[string]any{"bar": "hello-world-testing-123"},
+			},
+			result: "hello",
+		},
+		{
+			name: "compiled expression with last",
+			expr: "foo.bar.split('-').last().value()",
+			opts: []cel.Option{cel.WithCompile(), cel.WithStructVariables("foo")},
+			data: map[string]any{
+				"foo": map[string]any{"bar": "hello-world-testing-123"},
+			},
+			result: "123",
+		},
+		{
+			name: "error without value method",
+			expr: "foo.bar.split('-').first()",
+			opts: []cel.Option{cel.WithCompile(), cel.WithStructVariables("foo")},
+			data: map[string]any{
+				"foo": map[string]any{"bar": "hello-world-testing-123"},
+			},
+			err: "failed to evaluate CEL expression as string: 'foo.bar.split('-').first()'",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			g := NewWithT(t)
+
+			e, err := cel.NewExpression(tt.expr, tt.opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			result, err := e.EvaluateString(context.Background(), tt.data)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(result).To(Equal(tt.result))
+			}
+		})
+	}
+}
