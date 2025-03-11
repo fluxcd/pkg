@@ -136,3 +136,16 @@ func (e *Expression) EvaluateBoolean(ctx context.Context, data map[string]any) (
 	}
 	return bool(result), nil
 }
+
+// EvaluateString evaluates the expression with the given data and returns the result as a string.
+func (e *Expression) EvaluateString(ctx context.Context, data map[string]any) (string, error) {
+	val, _, err := e.prog.ContextEval(ctx, data)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate the CEL expression '%s': %w", e.expr, err)
+	}
+	result, ok := val.(types.String)
+	if !ok {
+		return "", fmt.Errorf("failed to evaluate CEL expression as string: '%s'", e.expr)
+	}
+	return string(result), nil
+}
