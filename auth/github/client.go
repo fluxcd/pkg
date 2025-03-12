@@ -230,12 +230,13 @@ func (p *Client) GetToken(ctx context.Context) (*AppToken, error) {
 }
 
 func (p *Client) buildCacheKey() string {
-	privateKeyDigest := sha256.Sum256(p.privateKey)
 	keyParts := []string{
 		fmt.Sprintf("%s=%s", AppIDKey, p.appID),
 		fmt.Sprintf("%s=%s", AppInstallationIDKey, p.installationID),
 		fmt.Sprintf("%s=%s", AppBaseUrlKey, p.apiURL),
-		fmt.Sprintf("%sDigest=%x", AppPrivateKey, privateKeyDigest),
+		fmt.Sprintf("%s=%s", AppPrivateKey, string(p.privateKey)),
 	}
-	return strings.Join(keyParts, ",")
+	rawKey := strings.Join(keyParts, ",")
+	hash := sha256.Sum256([]byte(rawKey))
+	return fmt.Sprintf("%x", hash)
 }
