@@ -10,10 +10,13 @@ replace (
 
 require (
 	github.com/ProtonMail/go-crypto v1.1.5
+	github.com/bradleyfalzon/ghinstallation/v2 v2.14.0
 	github.com/cyphar/filepath-securejoin v0.4.1
 	github.com/fluxcd/pkg/auth v0.2.0
+	github.com/fluxcd/pkg/cache v0.7.0
 	github.com/fluxcd/pkg/ssh v0.17.0
 	github.com/onsi/gomega v1.36.2
+	golang.org/x/net v0.35.0
 )
 
 require (
@@ -22,10 +25,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bradleyfalzon/ghinstallation/v2 v2.14.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
-	github.com/fluxcd/pkg/cache v0.7.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
@@ -42,7 +43,6 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	golang.org/x/crypto v0.34.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/protobuf v1.36.1 // indirect

@@ -21,7 +21,7 @@ import (
 	"net/url"
 
 	"github.com/fluxcd/pkg/auth/azure"
-	"github.com/fluxcd/pkg/auth/github"
+	"github.com/fluxcd/pkg/git/github"
 )
 
 const (

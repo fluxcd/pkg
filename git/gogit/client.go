@@ -40,8 +40,8 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/auth/azure"
-	"github.com/fluxcd/pkg/auth/github"
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/git/repository"
 )
 
