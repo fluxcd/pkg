@@ -31,8 +31,8 @@ import (
 
 	"github.com/fluxcd/go-git-providers/github"
 	"github.com/fluxcd/go-git-providers/gitprovider"
-	authgithub "github.com/fluxcd/pkg/auth/github"
 	"github.com/fluxcd/pkg/git"
+	pkggithub "github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/git/gogit"
 	gogithub "github.com/google/go-github/v66/github"
 )
@@ -150,10 +150,10 @@ func TestGitHubE2E(t *testing.T) {
 				authOptions, err = git.NewAuthOptions(*repoURL, data)
 				authOptions.ProviderOpts = &git.ProviderOptions{
 					Name: git.ProviderGitHub,
-					GitHubOpts: []authgithub.OptFunc{
-						authgithub.WithAppID(githubAppID),
-						authgithub.WithInstllationID(githubAppInstallID),
-						authgithub.WithPrivateKey(githubAppPrivateKey),
+					GitHubOpts: []pkggithub.OptFunc{
+						pkggithub.WithAppID(githubAppID),
+						pkggithub.WithInstllationID(githubAppInstallID),
+						pkggithub.WithPrivateKey(githubAppPrivateKey),
 					},
 				}
 			} else {

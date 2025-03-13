@@ -35,8 +35,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/auth/azure"
-	"github.com/fluxcd/pkg/auth/github"
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/gittestserver"
 	"github.com/fluxcd/pkg/ssh"

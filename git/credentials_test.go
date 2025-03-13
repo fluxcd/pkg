@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/fluxcd/pkg/auth/azure"
-	"github.com/fluxcd/pkg/auth/github"
+	"github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/ssh"
 	. "github.com/onsi/gomega"
 )
