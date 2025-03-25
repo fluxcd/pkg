@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/fluxcd/cli-utils/pkg/flowcontrol"
 )
@@ -95,7 +96,7 @@ func NewDynamicRESTMapper(restConfig *rest.Config) (meta.RESTMapper, error) {
 		return nil, err
 	}
 
-	restMapper, err := NewLazyRESTMapper(restConfig, httpClient)
+	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
 	if err != nil {
 		return nil, err
 	}
