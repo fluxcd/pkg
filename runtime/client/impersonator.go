@@ -39,15 +39,16 @@ import (
 
 // Impersonator holds the state for impersonating a Kubernetes account.
 type Impersonator struct {
-	client                rc.Client
-	kubeConfigRef         *meta.KubeConfigReference
-	kubeConfigOpts        KubeConfigOptions
-	defaultServiceAccount string
-	serviceAccountName    string
-	namespace             string
-	scheme                *runtime.Scheme
-	pollingOpts           *polling.Options
-	pollingReaders        []func(apimeta.RESTMapper) engine.StatusReader
+	client                  rc.Client
+	kubeConfigRef           *meta.KubeConfigReference
+	kubeConfigOpts          KubeConfigOptions
+	kubeConfigNamespace     string
+	defaultServiceAccount   string
+	serviceAccountName      string
+	serviceAccountNamespace string
+	scheme                  *runtime.Scheme
+	pollingOpts             *polling.Options
+	pollingReaders          []func(apimeta.RESTMapper) engine.StatusReader
 }
 
 // NewImpersonator creates an Impersonator from the given arguments.
@@ -92,7 +93,7 @@ func (i *Impersonator) CanImpersonate(ctx context.Context) bool {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: i.namespace,
+			Namespace: i.serviceAccountNamespace,
 		},
 	}
 	if err := i.client.Get(ctx, rc.ObjectKeyFromObject(sa), sa); err != nil {
@@ -187,7 +188,7 @@ func (i *Impersonator) getKubeConfig(ctx context.Context) ([]byte, error) {
 	}
 
 	secretName := types.NamespacedName{
-		Namespace: i.namespace,
+		Namespace: i.kubeConfigNamespace,
 		Name:      i.kubeConfigRef.SecretRef.Name,
 	}
 
@@ -222,7 +223,7 @@ func (i *Impersonator) setImpersonationConfig(restConfig *rest.Config) {
 		name = sa
 	}
 	if name != "" {
-		username := fmt.Sprintf("system:serviceaccount:%s:%s", i.namespace, name)
+		username := fmt.Sprintf("system:serviceaccount:%s:%s", i.serviceAccountNamespace, name)
 		restConfig.Impersonate = rest.ImpersonationConfig{UserName: username}
 	}
 }
