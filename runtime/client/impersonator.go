@@ -228,11 +228,11 @@ func (i *Impersonator) setImpersonationConfig(restConfig *rest.Config) {
 }
 
 func (i *Impersonator) newStatusPoller(reader rc.Reader, restMapper apimeta.RESTMapper) *polling.StatusPoller {
-	if i.pollingOpts == nil {
-		return nil
-	}
+	var opts polling.Options
 
-	opts := *i.pollingOpts
+	if i.pollingOpts != nil {
+		opts = *i.pollingOpts
+	}
 
 	pollingReaders := append(i.pollingReaders, statusreaders.NewCustomJobStatusReader)
 	for _, ctor := range pollingReaders {
