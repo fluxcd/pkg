@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/engine"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,36 +27,35 @@ import (
 	"github.com/fluxcd/pkg/apis/kustomize"
 )
 
-// PollerWithCustomHealthChecks extends the polling.Options with custom
-// status readers for the given healthchecks. If there are multiple
-// healthchecks defined for the same GroupKind, only the first one
-// is used. The context is used to control the execution of the
-// underlying status readers.
+// PollerWithCustomHealthChecks creates a list of constructors for
+// custom status readers from a list of custom health checks. If
+// there are multiple healthchecks defined for the same GroupKind,
+// only the first one is used. The context is used to control the
+// execution of the underlying status readers.
 func PollerWithCustomHealthChecks(ctx context.Context,
-	base polling.Options,
-	healthchecks []kustomize.CustomHealthCheck,
-	mapper meta.RESTMapper) (polling.Options, error) {
+	healthchecks []kustomize.CustomHealthCheck) ([]func(meta.RESTMapper) engine.StatusReader, error) {
 
 	if len(healthchecks) == 0 {
-		return base, nil
+		return nil, nil
 	}
 
-	readers := make([]engine.StatusReader, 0, len(healthchecks))
+	ctors := make([]func(meta.RESTMapper) engine.StatusReader, 0, len(healthchecks))
 	types := make(map[schema.GroupKind]struct{}, len(healthchecks))
 	for i, hc := range healthchecks {
 		gk := schema.FromAPIVersionAndKind(hc.APIVersion, hc.Kind).GroupKind()
 		if _, ok := types[gk]; !ok {
-			sr, err := NewStatusReader(ctx, mapper, gk, &hc.HealthCheckExpressions)
+			se, err := NewStatusEvaluator(&hc.HealthCheckExpressions)
 			if err != nil {
-				return polling.Options{}, fmt.Errorf(
-					"failed to create custom status reader for healthchecks[%d]: %w", i, err)
+				return nil, fmt.Errorf(
+					"failed to create custom status evaluator for healthchecks[%d]: %w", i, err)
 			}
-			readers = append(readers, sr)
+
+			ctors = append(ctors, func(mapper meta.RESTMapper) engine.StatusReader {
+				return NewStatusReader(ctx, mapper, gk, se)
+			})
 			types[gk] = struct{}{}
 		}
 	}
 
-	base.CustomStatusReaders = append(base.CustomStatusReaders, readers...)
-
-	return base, nil
+	return ctors, nil
 }

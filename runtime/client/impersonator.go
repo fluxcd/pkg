@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -30,52 +31,32 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
+	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/engine"
 
 	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/runtime/statusreaders"
 )
 
 // Impersonator holds the state for impersonating a Kubernetes account.
 type Impersonator struct {
-	rc.Client
-	pollingOpts           polling.Options
+	client                rc.Client
 	kubeConfigRef         *meta.KubeConfigReference
 	kubeConfigOpts        KubeConfigOptions
 	defaultServiceAccount string
 	serviceAccountName    string
 	namespace             string
 	scheme                *runtime.Scheme
+	pollingOpts           *polling.Options
+	pollingReaders        []func(apimeta.RESTMapper) engine.StatusReader
 }
 
 // NewImpersonator creates an Impersonator from the given arguments.
-func NewImpersonator(kubeClient rc.Client,
-	pollingOpts polling.Options,
-	kubeConfigRef *meta.KubeConfigReference,
-	kubeConfigOpts KubeConfigOptions,
-	defaultServiceAccount string,
-	serviceAccountName string,
-	namespace string) *Impersonator {
-	return NewImpersonatorWithScheme(kubeClient, pollingOpts, kubeConfigRef, kubeConfigOpts, defaultServiceAccount, serviceAccountName, namespace, kubeClient.Scheme())
-}
-
-// NewImpersonatorWithScheme creates an Impersonator from the given arguments with a client runtime scheme.
-func NewImpersonatorWithScheme(kubeClient rc.Client,
-	pollingOpts polling.Options,
-	kubeConfigRef *meta.KubeConfigReference,
-	kubeConfigOpts KubeConfigOptions,
-	defaultServiceAccount string,
-	serviceAccountName string,
-	namespace string,
-	scheme *runtime.Scheme) *Impersonator {
-	return &Impersonator{
-		Client:                kubeClient,
-		pollingOpts:           pollingOpts,
-		kubeConfigRef:         kubeConfigRef,
-		kubeConfigOpts:        kubeConfigOpts,
-		defaultServiceAccount: defaultServiceAccount,
-		serviceAccountName:    serviceAccountName,
-		namespace:             namespace,
-		scheme:                scheme,
+func NewImpersonator(kubeClient rc.Client, opts ...ImpersonatorOption) *Impersonator {
+	i := &Impersonator{client: kubeClient}
+	for _, o := range opts {
+		o(i)
 	}
+	return i
 }
 
 // GetClient creates a controller-runtime client for talking to a Kubernetes API server.
@@ -114,7 +95,7 @@ func (i *Impersonator) CanImpersonate(ctx context.Context) bool {
 			Namespace: i.namespace,
 		},
 	}
-	if err := i.Client.Get(ctx, rc.ObjectKeyFromObject(sa), sa); err != nil {
+	if err := i.client.Get(ctx, rc.ObjectKeyFromObject(sa), sa); err != nil {
 		return false
 	}
 
@@ -141,7 +122,7 @@ func (i *Impersonator) clientForServiceAccountOrDefault() (rc.Client, *polling.S
 		return nil, nil, err
 	}
 
-	statusPoller := polling.NewStatusPoller(client, restMapper, i.pollingOpts)
+	statusPoller := i.newStatusPoller(client, restMapper)
 	return client, statusPoller, err
 }
 
@@ -164,7 +145,7 @@ func (i *Impersonator) defaultClient() (rc.Client, *polling.StatusPoller, error)
 		return nil, nil, err
 	}
 
-	statusPoller := polling.NewStatusPoller(client, restMapper, i.pollingOpts)
+	statusPoller := i.newStatusPoller(client, restMapper)
 	return client, statusPoller, err
 }
 
@@ -195,7 +176,7 @@ func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *pol
 		return nil, nil, err
 	}
 
-	statusPoller := polling.NewStatusPoller(client, restMapper, i.pollingOpts)
+	statusPoller := i.newStatusPoller(client, restMapper)
 
 	return client, statusPoller, err
 }
@@ -211,7 +192,7 @@ func (i *Impersonator) getKubeConfig(ctx context.Context) ([]byte, error) {
 	}
 
 	var secret corev1.Secret
-	if err := i.Get(ctx, secretName, &secret); err != nil {
+	if err := i.client.Get(ctx, secretName, &secret); err != nil {
 		return nil, fmt.Errorf("unable to read KubeConfig secret '%s' error: %w", secretName.String(), err)
 	}
 
@@ -244,4 +225,20 @@ func (i *Impersonator) setImpersonationConfig(restConfig *rest.Config) {
 		username := fmt.Sprintf("system:serviceaccount:%s:%s", i.namespace, name)
 		restConfig.Impersonate = rest.ImpersonationConfig{UserName: username}
 	}
+}
+
+func (i *Impersonator) newStatusPoller(reader rc.Reader, restMapper apimeta.RESTMapper) *polling.StatusPoller {
+	if i.pollingOpts == nil {
+		return nil
+	}
+
+	opts := *i.pollingOpts
+
+	pollingReaders := append(i.pollingReaders, statusreaders.NewCustomJobStatusReader)
+	for _, ctor := range pollingReaders {
+		sr := ctor(restMapper)
+		opts.CustomStatusReaders = append(opts.CustomStatusReaders, sr)
+	}
+
+	return polling.NewStatusPoller(reader, restMapper, opts)
 }

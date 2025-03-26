@@ -37,9 +37,7 @@ import (
 func TestPollerWithCustomHealthChecks(t *testing.T) {
 	g := NewWithT(t)
 
-	var emptyOpts polling.Options
-
-	result, err := cel.PollerWithCustomHealthChecks(context.Background(), emptyOpts, []kustomize.CustomHealthCheck{
+	result, err := cel.PollerWithCustomHealthChecks(context.Background(), []kustomize.CustomHealthCheck{
 		{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
@@ -54,13 +52,15 @@ func TestPollerWithCustomHealthChecks(t *testing.T) {
 				Current: "something",
 			},
 		},
-	}, nil)
+	})
 	g.Expect(err).NotTo(HaveOccurred())
 
-	g.Expect(result.CustomStatusReaders).To(HaveLen(1))
+	g.Expect(result).To(HaveLen(1))
 
-	r := result.CustomStatusReaders[0]
-	g.Expect(r).NotTo(BeNil())
+	ctor := result[0]
+	g.Expect(ctor).NotTo(BeNil())
+
+	r := ctor(nil)
 
 	supports := r.Supports(schema.GroupKind{
 		Group: "",
@@ -78,19 +78,17 @@ func TestPollerWithCustomHealthChecks(t *testing.T) {
 func TestPollerWithCustomHealthChecksError(t *testing.T) {
 	g := NewWithT(t)
 
-	var emptyOpts polling.Options
-
-	result, err := cel.PollerWithCustomHealthChecks(context.Background(), emptyOpts, []kustomize.CustomHealthCheck{{
+	result, err := cel.PollerWithCustomHealthChecks(context.Background(), []kustomize.CustomHealthCheck{{
 		APIVersion: "v1",
 		Kind:       "ConfigMap",
 		HealthCheckExpressions: kustomize.HealthCheckExpressions{
 			Current: "something.",
 		},
-	}}, nil)
+	}})
 
 	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).To(ContainSubstring("failed to create custom status reader for healthchecks[0]"))
-	g.Expect(result).To(Equal(emptyOpts))
+	g.Expect(err.Error()).To(ContainSubstring("failed to create custom status evaluator for healthchecks[0]"))
+	g.Expect(result).To(BeEmpty())
 }
 
 func TestStatusPoller_CustomResourceLifeCycle(t *testing.T) {
@@ -141,9 +139,13 @@ func TestStatusPoller_CustomResourceLifeCycle(t *testing.T) {
 
 	mapper := testEnv.GetRESTMapper()
 
-	opts, err := cel.PollerWithCustomHealthChecks(context.Background(), polling.Options{}, healthchecks, mapper)
+	ctors, err := cel.PollerWithCustomHealthChecks(context.Background(), healthchecks)
 	g.Expect(err).NotTo(HaveOccurred())
 
+	opts := polling.Options{}
+	for _, ctor := range ctors {
+		opts.CustomStatusReaders = append(opts.CustomStatusReaders, ctor(mapper))
+	}
 	poller := polling.NewStatusPoller(testEnv.GetClient(), mapper, opts)
 	events := poller.Poll(ctx, identifiers, polling.PollOptions{
 		PollInterval: 100 * time.Millisecond,
