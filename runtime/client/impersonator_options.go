@@ -41,15 +41,16 @@ func WithServiceAccount(defaultName, name, namespace string) ImpersonatorOption 
 	return func(i *Impersonator) {
 		i.defaultServiceAccount = defaultName
 		i.serviceAccountName = name
-		i.namespace = namespace
+		i.serviceAccountNamespace = namespace
 	}
 }
 
 // WithKubeConfig sets the kubeconfig options for the Impersonator.
-func WithKubeConfig(ref *meta.KubeConfigReference, opts KubeConfigOptions) ImpersonatorOption {
+func WithKubeConfig(ref *meta.KubeConfigReference, opts KubeConfigOptions, namespace string) ImpersonatorOption {
 	return func(i *Impersonator) {
 		i.kubeConfigRef = ref
 		i.kubeConfigOpts = opts
+		i.kubeConfigNamespace = namespace
 	}
 }
 
