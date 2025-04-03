@@ -1,7 +1,7 @@
 header:
   schema-version: 2.0.0
-  last-updated: '2021-09-01'
-  last-reviewed: '2022-09-01'
+  last-updated: '2025-04-03'
+  last-reviewed: '2025-04-03'
   url: https://github.com/fluxcd/pkg/blob/main/.github/security-insights.yml
   project-si-source: https://raw.githubusercontent.com/fluxcd/pkg/refs/heads/main/.github/security-insights.yml
   comment: |
