@@ -90,6 +90,22 @@ func transportAuth(opts *git.AuthOptions, fallbackToDefaultKnownHosts bool) (tra
 	}
 }
 
+// clientCert returns the client certificate from the given git.AuthOptions.
+func clientCert(opts *git.AuthOptions) []byte {
+	if opts == nil {
+		return nil
+	}
+	return opts.ClientCert
+}
+
+// clientKey returns the client key from the given git.AuthOptions.
+func clientKey(opts *git.AuthOptions) []byte {
+	if opts == nil {
+		return nil
+	}
+	return opts.ClientKey
+}
+
 // caBundle returns the CA bundle from the given git.AuthOptions.
 func caBundle(opts *git.AuthOptions) []byte {
 	if opts == nil {

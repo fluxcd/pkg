@@ -83,6 +83,8 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
 		Tags:              extgogit.NoTags,
+		ClientCert:        clientCert(g.authOpts),
+		ClientKey:         clientKey(g.authOpts),
 		CABundle:          caBundle(g.authOpts),
 		ProxyOptions:      g.proxy,
 	}
@@ -181,6 +183,8 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		Progress:          nil,
 		// Ask for the tag object that points to the commit to be sent as well.
 		Tags:         extgogit.TagFollowing,
+		ClientCert:   clientCert(g.authOpts),
+		ClientKey:    clientKey(g.authOpts),
 		CABundle:     caBundle(g.authOpts),
 		ProxyOptions: g.proxy,
 	}
@@ -254,6 +258,8 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
 		Tags:              tagStrategy,
+		ClientCert:        clientCert(g.authOpts),
+		ClientKey:         clientKey(g.authOpts),
 		CABundle:          caBundle(g.authOpts),
 		ProxyOptions:      g.proxy,
 	}
@@ -322,6 +328,8 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 		RecurseSubmodules: recurseSubmodules(opts.RecurseSubmodules),
 		Progress:          nil,
 		Tags:              extgogit.AllTags,
+		ClientCert:        clientCert(g.authOpts),
+		ClientKey:         clientKey(g.authOpts),
 		CABundle:          caBundle(g.authOpts),
 		ProxyOptions:      g.proxy,
 	}
@@ -502,6 +510,8 @@ func (g *Client) getRemoteHEAD(ctx context.Context, url string, ref plumbing.Ref
 	remote := extgogit.NewRemote(memory.NewStorage(), remoteCfg)
 	listOpts := &extgogit.ListOptions{
 		Auth:          authMethod,
+		ClientCert:    clientCert(g.authOpts),
+		ClientKey:     clientKey(g.authOpts),
 		CABundle:      caBundle(g.authOpts),
 		PeelingOption: extgogit.AppendPeeled,
 		ProxyOptions:  g.proxy,
