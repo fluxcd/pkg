@@ -166,8 +166,5 @@ func (a *DefaultAuth) ClientConfig() (*gossh.ClientConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err != nil {
-		return nil, err
-	}
 	return config, nil
 }
