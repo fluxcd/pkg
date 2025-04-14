@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Flux authors
+Copyright 2025 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package auth is a Go package for OIDC-based authentication against Git SaaS providers.
-// Includes support for Azure DevOps and GitHub Apps.
+// auth is a package for handling secret-less authentication with cloud providers.
 package auth
