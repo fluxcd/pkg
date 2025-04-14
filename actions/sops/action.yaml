@@ -16,10 +16,10 @@ runs:
       run: |
         VERSION=${{ inputs.version }}
         if [[ -z "$VERSION" ]] || [[ "$VERSION" == "latest" ]]; then
-          VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" https://api.github.com/repos/mozilla/sops/releases/latest | grep tag_name | cut -d '"' -f 4)
+          VERSION=$(curl -fsSL -H "Authorization: token ${{github.token}}" https://api.github.com/repos/getsops/sops/releases/latest | grep tag_name | cut -d '"' -f 4)
         fi
         if [[ -z "$VERSION" ]]; then
-          echo "Unable to determine Kustomize version"
+          echo "Unable to determine SOPS version"
         exit 1
         fi
         if [[ ! $VERSION = v* ]]; then
@@ -49,10 +49,11 @@ runs:
           echo "Downloading sops ${VERSION} for ${OS}/${ARCH}"
           SOPS_TARGET_FILE="sops-${VERSION}.${OS}.${ARCH}"
           if [[ "$OS" == "windows" ]]; then
-            SOPS_TARGET_FILE="sops-${VERSION}.exe"
+            SOPS_TARGET_FILE="sops-${VERSION}.${ARCH}.exe"
           fi
 
-          SOPS_DOWNLOAD_URL="https://github.com/mozilla/sops/releases/download/${VERSION}/"
+          SOPS_DOWNLOAD_URL="https://github.com/getsops/sops/releases/download/${VERSION}/"
+          echo "Downloading sops from $SOPS_DOWNLOAD_URL/$SOPS_TARGET_FILE"
           curl -fsSL -o "$DL_DIR/$SOPS_TARGET_FILE" "$SOPS_DOWNLOAD_URL/$SOPS_TARGET_FILE"
 
           echo "Installing sops to ${SOPS_TOOL_DIR}"
