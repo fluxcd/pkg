@@ -29,12 +29,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/transport"
 	. "github.com/onsi/gomega"
 
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/git/repository"
@@ -779,11 +781,11 @@ func TestValidateUrl(t *testing.T) {
 }
 
 func TestProviderAuthValidations(t *testing.T) {
+	g := NewWithT(t)
 	expiresAt := time.Now().UTC().Add(time.Hour)
 	tests := []struct {
 		name            string
 		authOpts        *git.AuthOptions
-		proxy           transport.ProxyOptions
 		url             string
 		wantAuthErr     error
 		wantBearerToken string
@@ -813,11 +815,21 @@ func TestProviderAuthValidations(t *testing.T) {
 				BearerToken: "bearer-token",
 				ProviderOpts: &git.ProviderOptions{
 					Name: git.ProviderAzure,
-					AzureOpts: []azure.OptFunc{
-						azure.WithCredential(&azure.FakeTokenCredential{
-							Token:     "ado-token",
-							ExpiresOn: expiresAt,
-						}),
+					AuthOpts: []auth.Option{
+						func(o *auth.Options) {
+							c, err := cache.NewTokenCache(1)
+							g.Expect(err).NotTo(HaveOccurred())
+							o.Cache = c
+
+							_, ok, err := c.GetOrSet(context.Background(), "d27148923060a56c53eff88d76a44384d4deaa00e7795e9c15bd97bf25eca686", func(ctx context.Context) (cache.Token, error) {
+								return &azure.Token{AccessToken: azcore.AccessToken{
+									Token:     "ado-token",
+									ExpiresOn: expiresAt,
+								}}, nil
+							})
+							g.Expect(ok).To(BeFalse())
+							g.Expect(err).NotTo(HaveOccurred())
+						},
 					},
 				},
 			},
@@ -829,51 +841,25 @@ func TestProviderAuthValidations(t *testing.T) {
 			authOpts: &git.AuthOptions{
 				ProviderOpts: &git.ProviderOptions{
 					Name: git.ProviderAzure,
-					AzureOpts: []azure.OptFunc{
-						azure.WithCredential(&azure.FakeTokenCredential{
-							Token:     "ado-token",
-							ExpiresOn: expiresAt,
-						}),
-						azure.WithAzureDevOpsScope(),
+					AuthOpts: []auth.Option{
+						func(o *auth.Options) {
+							c, err := cache.NewTokenCache(1)
+							g.Expect(err).NotTo(HaveOccurred())
+							o.Cache = c
+
+							_, ok, err := c.GetOrSet(context.Background(), "d27148923060a56c53eff88d76a44384d4deaa00e7795e9c15bd97bf25eca686", func(ctx context.Context) (cache.Token, error) {
+								return &azure.Token{AccessToken: azcore.AccessToken{
+									Token:     "ado-token",
+									ExpiresOn: expiresAt,
+								}}, nil
+							})
+							g.Expect(ok).To(BeFalse())
+							g.Expect(err).NotTo(HaveOccurred())
+						},
 					},
 				},
 			},
 			wantBearerToken: "ado-token",
-		},
-		{
-			name: "authopts with provider and proxy",
-			url:  "https://url",
-			authOpts: &git.AuthOptions{
-				ProviderOpts: &git.ProviderOptions{
-					Name: git.ProviderAzure,
-					AzureOpts: []azure.OptFunc{
-						azure.WithCredential(&azure.FakeTokenCredential{
-							Token:     "ado-token",
-							ExpiresOn: expiresAt,
-						}),
-						azure.WithAzureDevOpsScope(),
-					},
-				},
-			},
-			proxy: transport.ProxyOptions{
-				URL: "http://localhost:8080",
-			},
-			wantBearerToken: "ado-token",
-		},
-		{
-			name: "authopts with azure provider and error",
-			url:  "https://url",
-			authOpts: &git.AuthOptions{
-				ProviderOpts: &git.ProviderOptions{
-					Name: git.ProviderAzure,
-					AzureOpts: []azure.OptFunc{
-						azure.WithCredential(&azure.FakeTokenCredential{
-							Err: errors.New("oh no!"),
-						}),
-					},
-				},
-			},
-			wantAuthErr: errors.New("oh no!"),
 		},
 		{
 			name: "authopts with github provider and username/password/https, username/password takes precedence",

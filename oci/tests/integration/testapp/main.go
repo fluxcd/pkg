@@ -33,6 +33,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
@@ -133,8 +134,8 @@ func checkGit(ctx context.Context) {
 	}
 	authOpts.ProviderOpts = &git.ProviderOptions{
 		Name: *provider,
-		AzureOpts: []azure.OptFunc{
-			azure.WithAzureDevOpsScope(),
+		AuthOpts: []auth.Option{
+			auth.WithScopes(azure.ScopeDevOps),
 		},
 	}
 	cloneDir, err := os.MkdirTemp("", fmt.Sprint("test-clone"))

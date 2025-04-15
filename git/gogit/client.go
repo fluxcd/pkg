@@ -39,7 +39,7 @@ import (
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
 
-	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/git/repository"
@@ -343,7 +343,7 @@ func (g *Client) providerAuth(ctx context.Context) error {
 			}
 			switch g.authOpts.ProviderOpts.Name {
 			case git.ProviderAzure:
-				g.authOpts.ProviderOpts.AzureOpts = append(g.authOpts.ProviderOpts.AzureOpts, azure.WithProxyURL(proxyURL))
+				g.authOpts.ProviderOpts.AuthOpts = append(g.authOpts.ProviderOpts.AuthOpts, auth.WithProxyURL(*proxyURL))
 			case git.ProviderGitHub:
 				g.authOpts.ProviderOpts.GitHubOpts = append(g.authOpts.ProviderOpts.GitHubOpts, github.WithProxyURL(proxyURL))
 			default:

@@ -14,46 +14,45 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package aws
+package azure
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/fluxcd/pkg/auth"
 )
 
-type credentialsProvider struct {
+type tokenCredential struct {
 	ctx  context.Context
 	opts []auth.Option
 }
 
-// NewCredentialsProvider creates a new credentials provider for the given options.
-func NewCredentialsProvider(ctx context.Context, opts ...auth.Option) aws.CredentialsProvider {
-	return &credentialsProvider{ctx, opts}
+// NewTokenCredential creates a new token credential for the given options.
+func NewTokenCredential(ctx context.Context, opts ...auth.Option) azcore.TokenCredential {
+	return &tokenCredential{ctx, opts}
 }
 
-// Retrieve implements aws.CredentialsProvider.
+// GetToken implements exported.TokenCredential.
 // The context is ignored, use the constructor to set the context.
 // This is because some callers of the library pass context.Background()
 // when calling this method (e.g. SOPS), so to ensure we have a real
 // context we pass it in the constructor.
-func (c *credentialsProvider) Retrieve(context.Context) (aws.Credentials, error) {
-	token, err := auth.GetToken(c.ctx, Provider{}, c.opts...)
+func (t *tokenCredential) GetToken(_ context.Context, tokenOpts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	opts := t.opts
+	if tokenOpts.Scopes != nil {
+		opts = append(opts, auth.WithScopes(tokenOpts.Scopes...))
+	}
+	token, err := auth.GetToken(t.ctx, Provider{}, opts...)
 	if err != nil {
-		return aws.Credentials{}, err
+		return azcore.AccessToken{}, err
 	}
-	awsToken, ok := token.(*Token)
+	azureToken, ok := token.(*Token)
 	if !ok {
-		return aws.Credentials{}, fmt.Errorf("failed to cast token to AWS token: %T", token)
+		return azcore.AccessToken{}, fmt.Errorf("failed to cast token to Azure token: %T", token)
 	}
-	return aws.Credentials{
-		AccessKeyID:     *awsToken.AccessKeyId,
-		SecretAccessKey: *awsToken.SecretAccessKey,
-		SessionToken:    *awsToken.SessionToken,
-		Expires:         *awsToken.Expiration,
-		CanExpire:       true,
-	}, nil
+	return azureToken.AccessToken, nil
 }
