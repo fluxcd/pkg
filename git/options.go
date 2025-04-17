@@ -38,6 +38,18 @@ const (
 	HTTP  TransportType = "http"
 )
 
+const (
+	dataKeyIdentity    = "identity"
+	dataKeyKnownHosts  = "known_hosts"
+	dataKeyUsername    = "username"
+	dataKeyPassword    = "password"
+	dataKeyBearerToken = "bearerToken"
+	dataKeyTLSKey      = "tls.key"
+	dataKeyTLSCert     = "tls.crt"
+	dataKeyCAFile      = "caFile"
+	dataKeyCACert      = "ca.crt"
+)
+
 // AuthOptions are the authentication options for the Transport of
 // communication with a remote origin.
 type AuthOptions struct {
@@ -48,6 +60,8 @@ type AuthOptions struct {
 	BearerToken  string
 	Identity     []byte
 	KnownHosts   []byte
+	ClientCert   []byte
+	ClientKey    []byte
 	CAFile       []byte
 	ProviderOpts *ProviderOptions
 }
@@ -101,27 +115,31 @@ func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 	if len(data) > 0 {
 		var caBytes []byte
 		// ca.crt takes precedence over caFile.
-		if caBytes = data["ca.crt"]; len(caBytes) == 0 {
-			caBytes = data["caFile"]
+		if caBytes = data[dataKeyCACert]; len(caBytes) == 0 {
+			caBytes = data[dataKeyCAFile]
 		}
 		if opts.Transport == SSH {
-			opts.Identity = data["identity"]
-			opts.KnownHosts = data["known_hosts"]
+			opts.Identity = data[dataKeyIdentity]
+			opts.KnownHosts = data[dataKeyKnownHosts]
 			opts.Username = u.User.Username()
-			opts.Password = string(data["password"])
+			opts.Password = string(data[dataKeyPassword])
 			// We fallback to using "git" as the username when cloning Git
 			// repositories through SSH since that's the conventional username used
 			// by Git providers.
 			if opts.Username == "" {
 				opts.Username = DefaultPublicKeyAuthUser
 			}
-		} else if token, found := data["bearerToken"]; found {
+		} else if token, found := data[dataKeyBearerToken]; found {
+			opts.ClientCert = data[dataKeyTLSCert]
+			opts.ClientKey = data[dataKeyTLSKey]
 			opts.CAFile = caBytes
 			opts.BearerToken = string(token)
 		} else {
+			opts.ClientCert = data[dataKeyTLSCert]
+			opts.ClientKey = data[dataKeyTLSKey]
 			opts.CAFile = caBytes
-			opts.Username = string(data["username"])
-			opts.Password = string(data["password"])
+			opts.Username = string(data[dataKeyUsername])
+			opts.Password = string(data[dataKeyPassword])
 		}
 	}
 

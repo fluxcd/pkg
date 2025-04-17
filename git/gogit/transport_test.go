@@ -349,6 +349,20 @@ func Test_defaultKnownHosts(t *testing.T) {
 	g.Expect(cc.HostKeyCallback).ToNot(BeNil())
 }
 
+func Test_clientCert(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect(clientCert(&git.AuthOptions{ClientCert: []byte("foo")})).To(BeEquivalentTo("foo"))
+	g.Expect(clientCert(nil)).To(BeNil())
+}
+
+func Test_clientKey(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect(clientKey(&git.AuthOptions{ClientKey: []byte("foo")})).To(BeEquivalentTo("foo"))
+	g.Expect(clientKey(nil)).To(BeNil())
+}
+
 func Test_caBundle(t *testing.T) {
 	g := NewWithT(t)
 

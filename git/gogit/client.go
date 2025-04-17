@@ -475,6 +475,8 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 		RemoteName:   extgogit.DefaultRemoteName,
 		Auth:         authMethod,
 		Progress:     nil,
+		ClientCert:   clientCert(g.authOpts),
+		ClientKey:    clientKey(g.authOpts),
 		CABundle:     caBundle(g.authOpts),
 		ProxyOptions: g.proxy,
 		Options:      cfg.Options,

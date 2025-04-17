@@ -184,11 +184,11 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets only relevant values from Secret for HTTPS with basic auth",
 			URL:  "https://example.com",
 			data: map[string][]byte{
-				"username":    []byte("example"),
-				"password":    []byte("secret"),
-				"identity":    []byte(privateKeyFixture),
-				"known_hosts": []byte(knownHostsFixture),
-				"ca.crt":      []byte("mock"),
+				dataKeyUsername:   []byte("example"),
+				dataKeyPassword:   []byte("secret"),
+				dataKeyIdentity:   []byte(privateKeyFixture),
+				dataKeyKnownHosts: []byte(knownHostsFixture),
+				dataKeyCACert:     []byte("mock"),
 			},
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
@@ -204,12 +204,14 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets only relevant values from Secret for HTTPS with bearer token",
 			URL:  "https://example.com",
 			data: map[string][]byte{
-				"username":    []byte("example"),
-				"password":    []byte("secret"),
-				"bearerToken": []byte("token"),
-				"identity":    []byte(privateKeyFixture),
-				"known_hosts": []byte(knownHostsFixture),
-				"ca.crt":      []byte("mock"),
+				dataKeyUsername:    []byte("example"),
+				dataKeyPassword:    []byte("secret"),
+				dataKeyBearerToken: []byte("token"),
+				dataKeyIdentity:    []byte(privateKeyFixture),
+				dataKeyKnownHosts:  []byte(knownHostsFixture),
+				dataKeyTLSCert:     []byte("mock"),
+				dataKeyTLSKey:      []byte("mock"),
+				dataKeyCACert:      []byte("mock"),
 			},
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
@@ -218,6 +220,8 @@ func TestAuthOptionsFromData(t *testing.T) {
 				g.Expect(opts.BearerToken).To(Equal("token")) // Preferred over basic auth when provided
 				g.Expect(opts.Identity).To(BeNil())
 				g.Expect(opts.KnownHosts).To(BeNil())
+				g.Expect(opts.ClientCert).To(BeEquivalentTo("mock"))
+				g.Expect(opts.ClientKey).To(BeEquivalentTo("mock"))
 				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
 			},
 		},
@@ -225,12 +229,14 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets only relevant values from Secret for SSH",
 			URL:  "ssh://example.com",
 			data: map[string][]byte{
-				"username":    []byte("example"),
-				"password":    []byte("secret"),
-				"bearerToken": []byte("token"),
-				"identity":    []byte(privateKeyFixture),
-				"known_hosts": []byte(knownHostsFixture),
-				"ca.crt":      []byte("mock"),
+				dataKeyUsername:    []byte("example"),
+				dataKeyPassword:    []byte("secret"),
+				dataKeyBearerToken: []byte("token"),
+				dataKeyIdentity:    []byte(privateKeyFixture),
+				dataKeyKnownHosts:  []byte(knownHostsFixture),
+				dataKeyTLSCert:     []byte("mock"),
+				dataKeyTLSKey:      []byte("mock"),
+				dataKeyCACert:      []byte("mock"),
 			},
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
@@ -239,6 +245,8 @@ func TestAuthOptionsFromData(t *testing.T) {
 				g.Expect(opts.BearerToken).To(Equal(""))
 				g.Expect(opts.Identity).To(BeEquivalentTo(privateKeyFixture))
 				g.Expect(opts.KnownHosts).To(BeEquivalentTo(knownHostsFixture))
+				g.Expect(opts.ClientCert).To(BeNil())
+				g.Expect(opts.ClientKey).To(BeNil())
 				g.Expect(opts.CAFile).To(BeNil())
 			},
 		},
@@ -246,8 +254,8 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets default user for SSH",
 			URL:  "ssh://example.com",
 			data: map[string][]byte{
-				"identity":    []byte(privateKeyFixture),
-				"known_hosts": []byte(knownHostsFixture),
+				dataKeyIdentity:   []byte(privateKeyFixture),
+				dataKeyKnownHosts: []byte(knownHostsFixture),
 			},
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal(DefaultPublicKeyAuthUser))
@@ -257,18 +265,38 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets user for SSH from URL",
 			URL:  "ssh://user@example.com",
 			data: map[string][]byte{
-				"identity":    []byte(privateKeyFixture),
-				"known_hosts": []byte(knownHostsFixture),
+				dataKeyIdentity:   []byte(privateKeyFixture),
+				dataKeyKnownHosts: []byte(knownHostsFixture),
 			},
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.Username).To(Equal("user"))
 			},
 		},
 		{
+			name: "Sets client cert for HTTPS using tls.crt",
+			URL:  "https://example.com",
+			data: map[string][]byte{
+				dataKeyTLSCert: []byte("mock"),
+			},
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.ClientCert).To(BeEquivalentTo("mock"))
+			},
+		},
+		{
+			name: "Sets client key for HTTPS using tls.key",
+			URL:  "https://example.com",
+			data: map[string][]byte{
+				dataKeyTLSKey: []byte("mock"),
+			},
+			wantFunc: func(g *WithT, opts *AuthOptions) {
+				g.Expect(opts.ClientKey).To(BeEquivalentTo("mock"))
+			},
+		},
+		{
 			name: "Sets CAFile for HTTPS using ca.crt",
 			URL:  "https://example.com",
 			data: map[string][]byte{
-				"ca.crt": []byte("mock"),
+				dataKeyCACert: []byte("mock"),
 			},
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
@@ -278,7 +306,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets CAFile for HTTPS using caFile",
 			URL:  "https://example.com",
 			data: map[string][]byte{
-				"caFile": []byte("mock"),
+				dataKeyCAFile: []byte("mock"),
 			},
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
@@ -288,8 +316,8 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets CAFile for HTTPS using ca.crt and ignores caFile",
 			URL:  "https://example.com",
 			data: map[string][]byte{
-				"ca.crt": []byte("mock"),
-				"caFile": []byte("ignored"),
+				dataKeyCACert: []byte("mock"),
+				dataKeyCAFile: []byte("ignored"),
 			},
 			wantFunc: func(g *WithT, opts *AuthOptions) {
 				g.Expect(opts.CAFile).To(BeEquivalentTo("mock"))
@@ -307,7 +335,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets user from URL",
 			URL:  "http://example@example.com",
 			data: map[string][]byte{
-				"password": []byte("secret"),
+				dataKeyPassword: []byte("secret"),
 			},
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
@@ -319,8 +347,8 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Sets username from Secret over username from URL",
 			URL:  "http://example@example.com",
 			data: map[string][]byte{
-				"username": []byte("user"),
-				"password": []byte("secret"),
+				dataKeyUsername: []byte("user"),
+				dataKeyPassword: []byte("secret"),
 			},
 
 			wantFunc: func(g *WithT, opts *AuthOptions) {
@@ -341,7 +369,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 			name: "Validates options",
 			URL:  "ssh://example.com",
 			data: map[string][]byte{
-				"identity": []byte(privateKeyFixture),
+				dataKeyIdentity: []byte(privateKeyFixture),
 			},
 			wantErr: "invalid 'ssh' auth option: 'known_hosts' is required",
 		},
