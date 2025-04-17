@@ -5,6 +5,7 @@ go 1.23.0
 replace github.com/fluxcd/pkg/cache => ../cache
 
 require (
+	cloud.google.com/go/compute/metadata v0.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/aws/aws-sdk-go-v2 v1.36.3
@@ -16,6 +17,7 @@ require (
 	github.com/fluxcd/pkg/cache v0.7.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/onsi/gomega v1.36.2
+	golang.org/x/oauth2 v0.28.0
 	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
 	sigs.k8s.io/controller-runtime v0.20.4
@@ -67,7 +69,6 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/net v0.37.0 // indirect
-	golang.org/x/oauth2 v0.28.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
