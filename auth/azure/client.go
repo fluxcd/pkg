@@ -51,6 +51,8 @@ type OptFunc func(*Client)
 // https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#NewDefaultAzureCredential
 // The default scope is to ARM endpoint in Azure Cloud. The scope is overridden
 // using OptFunc.
+//
+// Deprecated: Use auth.GetToken() with azure.Provider{} or NewTokenCredential().
 func New(opts ...OptFunc) (*Client, error) {
 	p := &Client{}
 	for _, opt := range opts {
