@@ -135,7 +135,7 @@ func NewRecorderForScheme(scheme *runtime.Scheme,
 
 // Event records an event in the webhook address.
 func (r *Recorder) Event(object runtime.Object, eventtype, reason, message string) {
-	r.AnnotatedEventf(object, nil, eventtype, reason, message)
+	r.AnnotatedEventf(object, nil, eventtype, reason, "%s", message)
 }
 
 // Event records an event in the webhook address.

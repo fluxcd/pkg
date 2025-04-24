@@ -232,7 +232,7 @@ func TestExpand(t *testing.T) {
 
 	for _, expr := range expressions {
 		t.Run(expr.input, func(t *testing.T) {
-			t.Logf(expr.input)
+			t.Log(expr.input)
 			output, err := Eval(expr.input, func(s string) (string, bool) {
 				return expr.params[s], true
 			})
@@ -296,7 +296,7 @@ func TestExpandStrict(t *testing.T) {
 
 	for _, expr := range expressions {
 		t.Run(expr.input, func(t *testing.T) {
-			t.Logf(expr.input)
+			t.Log(expr.input)
 			output, err := Eval(expr.input, func(s string) (string, bool) {
 				v, exists := expr.params[s]
 				return v, exists

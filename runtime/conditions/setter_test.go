@@ -379,7 +379,7 @@ func TestTrimConditionMessage(t *testing.T) {
 		t.Run(tt.message, func(t *testing.T) {
 			g := NewWithT(t)
 
-			condition := TrueCondition(meta.ReadyCondition, "", tt.message)
+			condition := TrueCondition(meta.ReadyCondition, "", "%s", tt.message)
 			condition.Message = trimConditionMessage(condition.Message, tt.maxLength)
 			g.Expect(len(condition.Message)).To(Equal(tt.maxLength))
 			g.Expect(condition.Message).To(Equal(tt.expected))

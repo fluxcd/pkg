@@ -258,9 +258,9 @@ func mirror(from Getter, targetCondition string, options ...MirrorOptions) *meta
 	if mirrorOpt.fallbackTo != nil && condition == nil {
 		switch *mirrorOpt.fallbackTo {
 		case true:
-			condition = TrueCondition(targetCondition, mirrorOpt.fallbackReason, mirrorOpt.fallbackMessage)
+			condition = TrueCondition(targetCondition, mirrorOpt.fallbackReason, "%s", mirrorOpt.fallbackMessage)
 		case false:
-			condition = FalseCondition(targetCondition, mirrorOpt.fallbackReason, mirrorOpt.fallbackMessage)
+			condition = FalseCondition(targetCondition, mirrorOpt.fallbackReason, "%s", mirrorOpt.fallbackMessage)
 		}
 	}
 

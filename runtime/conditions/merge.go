@@ -73,17 +73,17 @@ func merge(conditions []localizedCondition, targetCondition string, options *mer
 	case metav1.ConditionTrue:
 		// Inverse the negative polarity if the target condition has positive polarity.
 		if topGroup.negativePolarity != targetNegativePolarity {
-			return FalseCondition(targetCondition, targetReason, targetMessage)
+			return FalseCondition(targetCondition, targetReason, "%s", targetMessage)
 		}
-		return TrueCondition(targetCondition, targetReason, targetMessage)
+		return TrueCondition(targetCondition, targetReason, "%s", targetMessage)
 	case metav1.ConditionFalse:
 		// Inverse the negative polarity if the target condition has positive polarity.
 		if topGroup.negativePolarity != targetNegativePolarity {
-			return TrueCondition(targetCondition, targetReason, targetMessage)
+			return TrueCondition(targetCondition, targetReason, "%s", targetMessage)
 		}
-		return FalseCondition(targetCondition, targetReason, targetMessage)
+		return FalseCondition(targetCondition, targetReason, "%s", targetMessage)
 	default:
-		return UnknownCondition(targetCondition, targetReason, targetMessage)
+		return UnknownCondition(targetCondition, targetReason, "%s", targetMessage)
 	}
 }
 
