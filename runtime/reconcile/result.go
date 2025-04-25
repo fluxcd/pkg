@@ -117,7 +117,7 @@ func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recEr
 		overwriteReady := conditions.IsUnknown(obj, meta.ReadyCondition) || conditions.IsTrue(obj, meta.ReadyCondition)
 		if conditions.IsTrue(obj, meta.StalledCondition) && overwriteReady {
 			sc := conditions.Get(obj, meta.StalledCondition)
-			conditions.MarkFalse(obj, meta.ReadyCondition, sc.Reason, sc.Message)
+			conditions.MarkFalse(obj, meta.ReadyCondition, sc.Reason, "%s", sc.Message)
 		}
 	}
 
@@ -135,7 +135,7 @@ func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recEr
 	// reason, preserve the value.
 	if recErr != nil {
 		if conditions.IsUnknown(obj, meta.ReadyCondition) || conditions.IsTrue(obj, meta.ReadyCondition) {
-			conditions.MarkFalse(obj, meta.ReadyCondition, meta.FailedReason, recErr.Error())
+			conditions.MarkFalse(obj, meta.ReadyCondition, meta.FailedReason, "%s", recErr.Error())
 		}
 	}
 
@@ -163,7 +163,7 @@ func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recEr
 	// reconciliation and it's not reconciling or stalled, mark Ready=True.
 	// This tries to preserve any Ready value set previously.
 	if conditions.IsUnknown(obj, meta.ReadyCondition) && rs.isSuccess(res, recErr) && !conditions.IsReconciling(obj) && !conditions.IsStalled(obj) {
-		conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, rs.readySuccessMsg)
+		conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "%s", rs.readySuccessMsg)
 	}
 
 	// TODO: When the Result requests a requeue and no Ready condition value

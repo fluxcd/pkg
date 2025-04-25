@@ -147,156 +147,156 @@ func TestResultFinalizer(t *testing.T) {
 		{
 			name: "result with error, true ready value, overwrite",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, readySuccessMsg)
+				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "%s", readySuccessMsg)
 			},
 			result:  resultFailed,
 			recErr:  errors.New("foo failed"),
 			wantErr: true,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "foo failed"),
+				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "%s", "foo failed"),
 			},
 		},
 		{
 			name: "result with error, not ready and reconciling, no change",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkReconciling(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			result:  resultFailed,
 			recErr:  errors.New("foo failed"),
 			wantErr: true,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
-				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "some msg X"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X"),
 			},
 		},
 		{
 			name: "result with error, ready and reconciling, change to not ready",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
-				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkReconciling(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			result:  resultFailed,
 			recErr:  errors.New("foo failed"),
 			wantErr: true,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "foo failed"),
-				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "some msg X"),
+				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "%s", "foo failed"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X"),
 			},
 		},
 		{
 			name: "stalled and reconciling, Ready=False, remove reconciling, retain ready",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "some msg X")
-				conditions.MarkTrue(obj, meta.StalledCondition, "SomeReasonY", "some msg Y")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkTrue(obj, meta.StalledCondition, "SomeReasonY", "%s", "some msg Y")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z")
 			},
 			result: resultStalled,
 			recErr: nil,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonY", "some msg Y"),
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonZ", "some msg Z"),
+				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z"),
 			},
 		},
 		{
 			name: "stalled and reconciling, empty ready, remove reconciling, set ready",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "some msg X")
-				conditions.MarkTrue(obj, meta.StalledCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkTrue(obj, meta.StalledCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			result: resultStalled,
 			recErr: nil,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonY", "some msg Y"),
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
 			},
 		},
 		{
 			name: "stalled and reconciling, Ready=True, remove reconciling, overwrite ready",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "some msg X")
-				conditions.MarkTrue(obj, meta.StalledCondition, "SomeReasonY", "some msg Y")
-				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkTrue(obj, meta.StalledCondition, "SomeReasonY", "%s", "some msg Y")
+				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z")
 			},
 			result: resultStalled,
 			recErr: nil,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonY", "some msg Y"),
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
 			},
 		},
 		{
 			name: "not success result due to requeue, remove stalled",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "SomeReasonX", "some msg X")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkStalled(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			result: resultRequeue,
 			recErr: nil,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
 			},
 		},
 		{
 			name: "not success result due to arbitrary requeueAfter, remove stalled",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "SomeReasonX", "some msg X")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkStalled(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			result: ctrl.Result{RequeueAfter: arbitraryInterval},
 			recErr: nil,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
 			},
 		},
 		{
 			name: "not success result and explicit no requeue, keep stalled, add Ready=False",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "SomeReasonX", "some msg X")
+				conditions.MarkStalled(obj, "SomeReasonX", "%s", "some msg X")
 			},
 			result: ctrl.Result{Requeue: false},
 			recErr: nil,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonX", "some msg X"),
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonX", "some msg X"),
+				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonX", "%s", "some msg X"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonX", "%s", "some msg X"),
 			},
 		},
 		{
 			name: "stalled and different Ready=False values",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "SomeReasonX", "some msg X")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkStalled(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			result: resultStalled,
 			recErr: nil,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonX", "some msg X"),
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonX", "%s", "some msg X"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
 			},
 		},
 		{
 			name: "success result with reconciling and ready, remove reconciling, Ready=True",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
+				conditions.MarkReconciling(obj, "SomeReasonX", "%s", "some msg X")
 			},
 			result:            resultSuccess,
 			recErr:            nil,
 			statusObservedGen: 1,
 			wantErr:           false,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, readySuccessMsg),
+				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "%s", readySuccessMsg),
 			},
 		},
 		{
 			name: "success results but not ready, Ready=False, return error",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkFalse(obj, meta.ReadyCondition, meta.FailedReason, "fail-msg")
+				conditions.MarkFalse(obj, meta.ReadyCondition, meta.FailedReason, "%s", "fail-msg")
 			},
 			result:  resultSuccess,
 			recErr:  nil,
 			wantErr: true,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "fail-msg"),
+				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "%s", "fail-msg"),
 			},
 		},
 		{
@@ -307,14 +307,14 @@ func TestResultFinalizer(t *testing.T) {
 			statusObservedGen: 1,
 			wantErr:           false,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, readySuccessMsg),
+				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "%s", readySuccessMsg),
 			},
 		},
 		{
 			name: "reconcile annotation",
 			beforeFunc: func(obj conditions.Setter) {
 				obj.SetAnnotations(map[string]string{meta.ReconcileRequestAnnotation: "foo"})
-				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, readySuccessMsg)
+				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "%s", readySuccessMsg)
 			},
 			result:                     resultSuccess,
 			recErr:                     nil,
@@ -322,7 +322,7 @@ func TestResultFinalizer(t *testing.T) {
 			wantErr:                    false,
 			wantLastHandledReconcileAt: "foo",
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, readySuccessMsg),
+				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "%s", readySuccessMsg),
 			},
 		},
 		// NOTE: The following is a situation in which no Ready condition is
@@ -337,88 +337,88 @@ func TestResultFinalizer(t *testing.T) {
 			name:                "success with summarize conditions",
 			summarizeConditions: []Conditions{summarizeReadyConditions},
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, artifactInStorageCondition, meta.SucceededReason, "stored artifact")
+				conditions.MarkTrue(obj, artifactInStorageCondition, meta.SucceededReason, "%s", "stored artifact")
 			},
 			result:            resultSuccess,
 			recErr:            nil,
 			statusObservedGen: 1,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "stored artifact"),
-				*conditions.TrueCondition(artifactInStorageCondition, meta.SucceededReason, "stored artifact"),
+				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "%s", "stored artifact"),
+				*conditions.TrueCondition(artifactInStorageCondition, meta.SucceededReason, "%s", "stored artifact"),
 			},
 		},
 		{
 			name:                "failure with negative polarity conditions summary",
 			summarizeConditions: []Conditions{summarizeReadyConditions},
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, fetchFailedCondition, meta.FailedReason, "auth failed")
+				conditions.MarkTrue(obj, fetchFailedCondition, meta.FailedReason, "%s", "auth failed")
 			},
 			result:  resultFailed,
 			recErr:  errors.New("secret not found"),
 			wantErr: true,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "auth failed"),
-				*conditions.TrueCondition(fetchFailedCondition, meta.FailedReason, "auth failed"),
+				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "%s", "auth failed"),
+				*conditions.TrueCondition(fetchFailedCondition, meta.FailedReason, "%s", "auth failed"),
 			},
 		},
 		{
 			name:                "reconciling and positive polarity conditions summary",
 			summarizeConditions: []Conditions{summarizeReadyConditions},
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkReconciling(obj, "NewArtifact", "new artifact")
-				conditions.MarkTrue(obj, artifactInStorageCondition, meta.SucceededReason, "stored artifact")
+				conditions.MarkReconciling(obj, "NewArtifact", "%s", "new artifact")
+				conditions.MarkTrue(obj, artifactInStorageCondition, meta.SucceededReason, "%s", "stored artifact")
 			},
 			result:            resultSuccess,
 			recErr:            nil,
 			statusObservedGen: 1,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "stored artifact"),
-				*conditions.TrueCondition(artifactInStorageCondition, meta.SucceededReason, "stored artifact"),
+				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "%s", "stored artifact"),
+				*conditions.TrueCondition(artifactInStorageCondition, meta.SucceededReason, "%s", "stored artifact"),
 			},
 		},
 		{
 			name:                "stalled with artifact in storage summary",
 			summarizeConditions: []Conditions{summarizeReadyConditions},
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "InvalidURL", "invalid URL")
-				conditions.MarkTrue(obj, artifactInStorageCondition, meta.SucceededReason, "stored artifact")
+				conditions.MarkStalled(obj, "InvalidURL", "%s", "invalid URL")
+				conditions.MarkTrue(obj, artifactInStorageCondition, meta.SucceededReason, "%s", "stored artifact")
 			},
 			result:            resultStalled,
 			recErr:            nil,
 			statusObservedGen: 1,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, "InvalidURL", "invalid URL"),
-				*conditions.TrueCondition(meta.StalledCondition, "InvalidURL", "invalid URL"),
-				*conditions.TrueCondition(artifactInStorageCondition, meta.SucceededReason, "stored artifact"),
+				*conditions.FalseCondition(meta.ReadyCondition, "InvalidURL", "%s", "invalid URL"),
+				*conditions.TrueCondition(meta.StalledCondition, "InvalidURL", "%s", "invalid URL"),
+				*conditions.TrueCondition(artifactInStorageCondition, meta.SucceededReason, "%s", "stored artifact"),
 			},
 		},
 		{
 			name:                "reconciling, stalled with conditions summary",
 			summarizeConditions: []Conditions{summarizeReadyConditions},
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "some msg X")
-				conditions.MarkTrue(obj, meta.StalledCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkTrue(obj, meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkTrue(obj, meta.StalledCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			result:            resultStalled,
 			recErr:            nil,
 			statusObservedGen: 1,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
-				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonY", "some msg Y"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonY", "%s", "some msg Y"),
 			},
 		},
 		{
 			name:                "not ready after summarize and result is success, should set error",
 			summarizeConditions: []Conditions{summarizeReadyConditions},
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, artifactOutdatedCondition, meta.FailedReason, "outdated")
+				conditions.MarkTrue(obj, artifactOutdatedCondition, meta.FailedReason, "%s", "outdated")
 			},
 			result:  resultSuccess,
 			recErr:  nil,
 			wantErr: true,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "outdated"),
-				*conditions.TrueCondition(artifactOutdatedCondition, meta.FailedReason, "outdated"),
+				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "%s", "outdated"),
+				*conditions.TrueCondition(artifactOutdatedCondition, meta.FailedReason, "%s", "outdated"),
 			},
 		},
 	}
@@ -486,49 +486,49 @@ func TestResultFinalizer_successNoRequeue(t *testing.T) {
 		{
 			name: "result with error and stalled",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "SomeReasonX", "some msg X")
+				conditions.MarkStalled(obj, "SomeReasonX", "%s", "some msg X")
 			},
 			result:  resultStalled,
 			recErr:  errors.New("foo failed"),
 			wantErr: true,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "foo failed"),
+				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "%s", "foo failed"),
 			},
 		},
 		{
 			name: "stalled, Ready=True, overwrite ready",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "SomeReasonX", "some msg X")
+				conditions.MarkStalled(obj, "SomeReasonX", "%s", "some msg X")
 			},
 			result:  resultStalled,
 			wantErr: false,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonX", "some msg X"),
-				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonX", "some msg X"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonX", "%s", "some msg X"),
+				*conditions.TrueCondition(meta.StalledCondition, "SomeReasonX", "%s", "some msg X"),
 			},
 		},
 		{
 			name: "success result",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "some msg X")
+				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "%s", "some msg X")
 			},
 			result:            resultSuccess,
 			statusObservedGen: 1,
 			wantErr:           false,
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "some msg X"),
+				*conditions.TrueCondition(meta.ReadyCondition, meta.SucceededReason, "%s", "some msg X"),
 			},
 		},
 		{
 			name: "success result but not ready, Ready=False, no error",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkFalse(obj, meta.ReadyCondition, meta.FailedReason, "fail-msg")
+				conditions.MarkFalse(obj, meta.ReadyCondition, meta.FailedReason, "%s", "fail-msg")
 			},
 			result:  resultSuccess,
 			recErr:  nil,
 			wantErr: false,
 			assertConditions: []metav1.Condition{
-				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "fail-msg"),
+				*conditions.FalseCondition(meta.ReadyCondition, meta.FailedReason, "%s", "fail-msg"),
 			},
 		},
 	}
@@ -593,31 +593,31 @@ func TestAddPatchOptions(t *testing.T) {
 		{
 			name: "reconciling=True, Ready=False status conditions",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkReconciling(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			wantIncludeStatusObservedGen: false,
 		},
 		{
 			name: "stalled=True, Ready=False status conditions",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "SomeReasonX", "some msg X")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkStalled(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			wantIncludeStatusObservedGen: true,
 		},
 		{
 			name: "Ready=True, no other status condition",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "success")
+				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "%s", "success")
 			},
 			wantIncludeStatusObservedGen: true,
 		},
 		{
 			name: "owned conditions, field owner and Stalled=True, Ready=False",
 			beforeFunc: func(obj conditions.Setter) {
-				conditions.MarkStalled(obj, "SomeReasonX", "some msg X")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "some msg Y")
+				conditions.MarkStalled(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y")
 			},
 			fieldOwner:                   "foo-ctrl",
 			ownedConditions:              []string{meta.StalledCondition, meta.ReadyCondition},
@@ -707,8 +707,8 @@ func TestProgressiveStatus(t *testing.T) {
 			reason: "SomeReasonX",
 			msg:    "some msg X",
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "some msg X"),
-				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonX", "some msg X"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X"),
+				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonX", "%s", "some msg X"),
 			},
 		},
 		{
@@ -716,12 +716,12 @@ func TestProgressiveStatus(t *testing.T) {
 			reason: "SomeReasonY",
 			msg:    "some msg Y",
 			beforeFunc: func(obj *testdata.Fake) {
-				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
-				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+				conditions.MarkReconciling(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z")
 			},
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "some msg Y"),
-				*conditions.TrueCondition(meta.ReadyCondition, "SomeReasonZ", "some msg Z"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.TrueCondition(meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z"),
 			},
 		},
 		{
@@ -729,12 +729,12 @@ func TestProgressiveStatus(t *testing.T) {
 			reason: "SomeReasonY",
 			msg:    "some msg Y",
 			beforeFunc: func(obj *testdata.Fake) {
-				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
-				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+				conditions.MarkReconciling(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkFalse(obj, meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z")
 			},
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "some msg Y"),
-				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonZ", "some msg Z"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.FalseCondition(meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z"),
 			},
 		},
 		{
@@ -742,12 +742,12 @@ func TestProgressiveStatus(t *testing.T) {
 			reason: "SomeReasonY",
 			msg:    "some msg Y",
 			beforeFunc: func(obj *testdata.Fake) {
-				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
-				conditions.MarkUnknown(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+				conditions.MarkReconciling(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkUnknown(obj, meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z")
 			},
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "some msg Y"),
-				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
 			},
 		},
 		{
@@ -756,12 +756,12 @@ func TestProgressiveStatus(t *testing.T) {
 			reason: "SomeReasonY",
 			msg:    "some msg Y",
 			beforeFunc: func(obj *testdata.Fake) {
-				conditions.MarkReconciling(obj, "SomeReasonX", "some msg X")
-				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonZ", "some msg Z")
+				conditions.MarkReconciling(obj, "SomeReasonX", "%s", "some msg X")
+				conditions.MarkTrue(obj, meta.ReadyCondition, "SomeReasonZ", "%s", "some msg Z")
 			},
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "some msg Y"),
-				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonY", "some msg Y"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonY", "%s", "some msg Y"),
+				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonY", "%s", "some msg Y"),
 			},
 		},
 		{
@@ -770,8 +770,8 @@ func TestProgressiveStatus(t *testing.T) {
 			msg:     "some msg %s %s",
 			msgArgs: []interface{}{"X", "Y"},
 			assertConditions: []metav1.Condition{
-				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "some msg X Y"),
-				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonX", "some msg X Y"),
+				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X Y"),
+				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonX", "%s", "some msg X Y"),
 			},
 		},
 	}
