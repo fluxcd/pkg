@@ -17,9 +17,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.67
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.43.3
 	github.com/distribution/distribution/v3 v3.0.0
-	github.com/fluxcd/pkg/sourceignore v0.11.0
-	github.com/fluxcd/pkg/tar v0.11.0
-	github.com/fluxcd/pkg/version v0.6.0
+	github.com/fluxcd/pkg/sourceignore v0.12.0
+	github.com/fluxcd/pkg/tar v0.12.0
+	github.com/fluxcd/pkg/version v0.7.0
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-containerregistry v0.20.3
 	github.com/onsi/gomega v1.37.0
