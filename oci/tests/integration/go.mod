@@ -12,7 +12,7 @@ replace (
 
 require (
 	github.com/fluxcd/pkg/auth v0.10.0
-	github.com/fluxcd/pkg/git v0.26.0
+	github.com/fluxcd/pkg/git v0.27.0
 	github.com/fluxcd/pkg/git/gogit v0.23.0
 	github.com/fluxcd/pkg/oci v0.43.1
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1

@@ -12,12 +12,12 @@ replace (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.3.1
+	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v1.7.2
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/auth v0.10.0
-	github.com/fluxcd/pkg/git v0.26.0
+	github.com/fluxcd/pkg/git v0.27.0
 	github.com/fluxcd/pkg/gittestserver v0.17.0
 	github.com/fluxcd/pkg/ssh v0.18.0
 	github.com/fluxcd/pkg/version v0.7.0
