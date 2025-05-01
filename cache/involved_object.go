@@ -16,8 +16,11 @@ limitations under the License.
 
 package cache
 
+const OperationReconcile = "reconcile"
+
 type InvolvedObject struct {
 	Kind      string
 	Name      string
 	Namespace string
+	Operation string
 }

@@ -99,12 +99,13 @@ func WithMaxDuration(duration time.Duration) Options {
 }
 
 // WithInvolvedObject sets the involved object for the cache metrics.
-func WithInvolvedObject(kind, name, namespace string) Options {
+func WithInvolvedObject(kind, name, namespace, operation string) Options {
 	return func(o *storeOptions) error {
 		o.involvedObject = &InvolvedObject{
 			Kind:      kind,
 			Name:      name,
 			Namespace: namespace,
+			Operation: operation,
 		}
 		return nil
 	}

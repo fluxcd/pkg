@@ -159,7 +159,7 @@ func (c *LRU[T]) GetIfOrSet(ctx context.Context,
 			event = CacheEventTypeHit
 		}
 		if obj := o.involvedObject; obj != nil {
-			c.RecordCacheEvent(event, obj.Kind, obj.Name, obj.Namespace)
+			c.RecordCacheEvent(event, obj.Kind, obj.Name, obj.Namespace, obj.Operation)
 		}
 		if evicted {
 			recordEviction(c.metrics)
@@ -310,12 +310,12 @@ func (c *LRU[T]) Resize(size int) (int, error) {
 
 // RecordCacheEvent records a cache event (cache_miss or cache_hit) with kind,
 // name and namespace of the associated object being reconciled.
-func (c *LRU[T]) RecordCacheEvent(event, kind, name, namespace string) {
-	recordCacheEvent(c.metrics, event, kind, name, namespace)
+func (c *LRU[T]) RecordCacheEvent(event, kind, name, namespace, operation string) {
+	recordCacheEvent(c.metrics, event, kind, name, namespace, operation)
 }
 
 // DeleteCacheEvent deletes the cache event (cache_miss or cache_hit) metric for
 // the associated object being reconciled, given their kind, name and namespace.
-func (c *LRU[T]) DeleteCacheEvent(event, kind, name, namespace string) {
-	deleteCacheEvent(c.metrics, event, kind, name, namespace)
+func (c *LRU[T]) DeleteCacheEvent(event, kind, name, namespace, operation string) {
+	deleteCacheEvent(c.metrics, event, kind, name, namespace, operation)
 }

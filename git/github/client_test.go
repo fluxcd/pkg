@@ -192,7 +192,7 @@ func TestClient_GetToken(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(ok).To(BeFalse())
-				WithCache(c, "", "", "")(client)
+				WithCache(c, "", "", "", "")(client)
 			}},
 			statusCode: http.StatusInternalServerError, // error status code to make the test fail if the token is not cached
 			wantAppToken: &AppToken{

@@ -52,14 +52,13 @@ func newCacheMetrics(prefix string, reg prometheus.Registerer, opts ...Options) 
 	o := storeOptions{eventNamespaceLabel: "namespace"}
 	o.apply(opts...)
 
-	labels := []string{"event_type", "kind", "name", o.eventNamespaceLabel}
 	return &cacheMetrics{
 		cacheEventsCounter: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: fmt.Sprintf("%scache_events_total", prefix),
 				Help: "Total number of cache retrieval events for a Gitops Toolkit resource reconciliation.",
 			},
-			labels,
+			[]string{"event_type", "kind", "name", o.eventNamespaceLabel, "operation"},
 		),
 		cacheItemsGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
@@ -159,14 +158,14 @@ func recordItemIncrement(metrics *cacheMetrics) {
 	}
 }
 
-func recordCacheEvent(metrics *cacheMetrics, event, kind, name, namespace string) {
+func recordCacheEvent(metrics *cacheMetrics, event, kind, name, namespace, operation string) {
 	if metrics != nil {
-		metrics.incCacheEvents(event, kind, name, namespace)
+		metrics.incCacheEvents(event, kind, name, namespace, operation)
 	}
 }
 
-func deleteCacheEvent(metrics *cacheMetrics, event, kind, name, namespace string) {
+func deleteCacheEvent(metrics *cacheMetrics, event, kind, name, namespace, operation string) {
 	if metrics != nil {
-		metrics.deleteCacheEvent(event, kind, name, namespace)
+		metrics.deleteCacheEvent(event, kind, name, namespace, operation)
 	}
 }
