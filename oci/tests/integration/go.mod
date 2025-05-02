@@ -11,8 +11,8 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/auth v0.10.0
-	github.com/fluxcd/pkg/git v0.27.0
+	github.com/fluxcd/pkg/auth v0.11.0
+	github.com/fluxcd/pkg/git v0.28.0
 	github.com/fluxcd/pkg/git/gogit v0.23.0
 	github.com/fluxcd/pkg/oci v0.43.1
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1
@@ -66,7 +66,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
-	github.com/fluxcd/pkg/cache v0.8.0 // indirect
+	github.com/fluxcd/pkg/cache v0.9.0 // indirect
 	github.com/fluxcd/pkg/ssh v0.18.0 // indirect
 	github.com/fluxcd/pkg/version v0.7.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

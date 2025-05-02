@@ -48,7 +48,7 @@ func (m *mockToken) GetDuration() time.Duration {
 }
 
 type mockProvider struct {
-	*testing.T
+	t *testing.T
 
 	returnName              string
 	returnAudience          string
@@ -69,6 +69,7 @@ func (m *mockProvider) GetName() string {
 }
 
 func (m *mockProvider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+	checkOptions(m.t, opts...)
 	return m.returnDefaultToken, nil
 }
 
@@ -77,8 +78,8 @@ func (m *mockProvider) GetAudience(ctx context.Context) (string, error) {
 }
 
 func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	m.Helper()
-	g := NewWithT(m)
+	m.t.Helper()
+	g := NewWithT(m.t)
 	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
 	if m.returnIdentityErr != "" {
 		return "", errors.New(m.returnIdentityErr)
@@ -89,8 +90,8 @@ func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string
 func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
 
-	m.Helper()
-	g := NewWithT(m)
+	m.t.Helper()
+	g := NewWithT(m.t)
 
 	// Verify the OIDC token.
 	g.Expect(m.returnAudience).NotTo(BeEmpty())
@@ -108,23 +109,38 @@ func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken 
 
 	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
 
+	checkOptions(m.t, opts...)
+
 	return m.returnAccessToken, nil
 }
 
 func (m *mockProvider) GetArtifactCacheKey(artifactRepository string) string {
-	m.Helper()
-	g := NewWithT(m)
+	m.t.Helper()
+	g := NewWithT(m.t)
 	g.Expect(artifactRepository).To(Equal(m.paramArtifactRepository))
 	return m.returnArtifactCacheKey
 }
 
 func (m *mockProvider) NewArtifactRegistryToken(ctx context.Context, artifactRepository string,
 	accessToken auth.Token, opts ...auth.Option) (auth.Token, error) {
-	m.Helper()
-	g := NewWithT(m)
+	m.t.Helper()
+	g := NewWithT(m.t)
 	g.Expect(artifactRepository).To(Equal(m.paramArtifactRepository))
 	g.Expect(accessToken).To(Equal(m.paramAccessToken))
+	checkOptions(m.t, opts...)
 	return m.returnRegistryToken, nil
+}
+
+func checkOptions(t *testing.T, opts ...auth.Option) {
+	t.Helper()
+	g := NewWithT(t)
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	g.Expect(o.Scopes).To(Equal([]string{"scope1", "scope2"}))
+	g.Expect(o.STSEndpoint).To(Equal("https://sts.some-cloud.io"))
+	g.Expect(o.ProxyURL).To(Equal(&url.URL{Scheme: "http", Host: "proxy.io:8080"}))
 }
 
 func TestGetToken(t *testing.T) {
@@ -197,6 +213,11 @@ func TestGetToken(t *testing.T) {
 			provider: &mockProvider{
 				returnDefaultToken: &mockToken{token: "mock-default-token"},
 			},
+			opts: []auth.Option{
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+			},
 			expectedToken: &mockToken{token: "mock-default-token"},
 		},
 		{
@@ -209,6 +230,9 @@ func TestGetToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithArtifactRepository("some-registry.io/some/artifact"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 			},
 			expectedToken: &mockToken{token: "mock-registry-token"},
 		},
@@ -223,6 +247,9 @@ func TestGetToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				// Exercise the code path where a cache is set but no token is
 				// available in the cache.
 				func(o *auth.Options) {
@@ -248,6 +275,9 @@ func TestGetToken(t *testing.T) {
 			opts: []auth.Option{
 				auth.WithServiceAccount(saRef, kubeClient),
 				auth.WithArtifactRepository("some-registry.io/some/artifact"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 			},
 			expectedToken: &mockToken{token: "mock-registry-token"},
 		},
@@ -315,7 +345,7 @@ func TestGetToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			tt.provider.T = t
+			tt.provider.t = t
 
 			token, err := auth.GetToken(ctx, tt.provider, tt.opts...)
 

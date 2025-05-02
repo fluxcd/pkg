@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/google/externalaccount"
 	corev1 "k8s.io/api/core/v1"
 
@@ -37,7 +36,7 @@ var scopes = []string{
 }
 
 // Provider implements the auth.Provider interface for GCP authentication.
-type Provider struct{}
+type Provider struct{ Implementation }
 
 // GetName implements auth.Provider.
 func (Provider) GetName() string {
@@ -45,7 +44,7 @@ func (Provider) GetName() string {
 }
 
 // NewDefaultToken implements auth.Provider.
-func (Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (p Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
@@ -53,7 +52,7 @@ func (Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, hc)
 	}
 
-	src, err := google.DefaultTokenSource(ctx, scopes...)
+	src, err := p.impl().DefaultTokenSource(ctx, scopes...)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +79,7 @@ func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error
 }
 
 // NewTokenForServiceAccount implements auth.Provider.
-func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
+func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
@@ -96,7 +95,7 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 		Audience:             audience,
 		SubjectTokenType:     "urn:ietf:params:oauth:token-type:jwt",
 		TokenURL:             "https://sts.googleapis.com/v1/token",
-		SubjectTokenSupplier: tokenSupplier(oidcToken),
+		SubjectTokenSupplier: TokenSupplier(oidcToken),
 		Scopes:               scopes,
 	}
 
@@ -117,7 +116,7 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, hc)
 	}
 
-	src, err := externalaccount.NewTokenSource(ctx, conf)
+	src, err := p.impl().NewTokenSource(ctx, conf)
 	if err != nil {
 		return nil, err
 	}
@@ -147,4 +146,11 @@ func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository
 		Password:  t.AccessToken,
 		ExpiresAt: t.Expiry,
 	}, nil
+}
+
+func (p Provider) impl() Implementation {
+	if p.Implementation == nil {
+		return implementation{}
+	}
+	return p.Implementation
 }

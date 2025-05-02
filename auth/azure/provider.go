@@ -37,7 +37,7 @@ import (
 const ProviderName = "azure"
 
 // Provider implements the auth.Provider interface for Azure authentication.
-type Provider struct{}
+type Provider struct{ Implementation }
 
 // GetName implements auth.Provider.
 func (Provider) GetName() string {
@@ -45,7 +45,8 @@ func (Provider) GetName() string {
 }
 
 // NewDefaultToken implements auth.Provider.
-func (Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (p Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+
 	var o auth.Options
 	o.Apply(opts...)
 
@@ -55,7 +56,7 @@ func (Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.
 		azOpts.Transport = hc
 	}
 
-	cred, err := newDefaultAzureCredential(azOpts)
+	cred, err := p.impl().NewDefaultAzureCredential(azOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error
 }
 
 // NewTokenForServiceAccount implements auth.Provider.
-func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
+func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
@@ -99,7 +100,7 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 		azOpts.Transport = hc
 	}
 
-	cred, err := azidentity.NewClientAssertionCredential(tenantID, clientID, func(context.Context) (string, error) {
+	cred, err := p.impl().NewClientAssertionCredential(tenantID, clientID, func(context.Context) (string, error) {
 		return oidcToken, nil
 	}, azOpts)
 	if err != nil {
@@ -121,7 +122,7 @@ func (Provider) GetArtifactCacheKey(artifactRepository string) string {
 }
 
 // NewArtifactRegistryToken implements auth.Provider.
-func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository string,
+func (p Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository string,
 	accessToken auth.Token, opts ...auth.Option) (auth.Token, error) {
 
 	t := accessToken.(*Token)
@@ -155,7 +156,7 @@ func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository
 	if hc := o.GetHTTPClient(); hc != nil {
 		httpClient = hc
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := p.impl().SendRequest(req, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -186,4 +187,11 @@ func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository
 		Password:  tokenResp.RefreshToken,
 		ExpiresAt: expiry.Time,
 	}, nil
+}
+
+func (p Provider) impl() Implementation {
+	if p.Implementation == nil {
+		return implementation{}
+	}
+	return p.Implementation
 }

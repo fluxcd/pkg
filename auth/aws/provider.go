@@ -26,7 +26,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	corev1 "k8s.io/api/core/v1"
 
@@ -37,7 +36,7 @@ import (
 const ProviderName = "aws"
 
 // Provider implements the auth.Provider interface for AWS authentication.
-type Provider struct{}
+type Provider struct{ Implementation }
 
 // GetName implements auth.Provider.
 func (Provider) GetName() string {
@@ -45,16 +44,22 @@ func (Provider) GetName() string {
 }
 
 // NewDefaultToken implements auth.Provider.
-func (Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (p Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
 	var awsOpts []func(*config.LoadOptions) error
 
-	region := getRegion()
-	awsOpts = append(awsOpts, config.WithRegion(region))
+	stsRegion, err := getSTSRegion()
+	if err != nil {
+		return nil, err
+	}
+	awsOpts = append(awsOpts, config.WithRegion(stsRegion))
 
 	if e := o.STSEndpoint; e != "" {
+		if err := ValidateSTSEndpoint(e); err != nil {
+			return nil, err
+		}
 		awsOpts = append(awsOpts, config.WithBaseEndpoint(e))
 	}
 
@@ -62,7 +67,7 @@ func (Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.
 		awsOpts = append(awsOpts, config.WithHTTPClient(hc))
 	}
 
-	conf, err := config.LoadDefaultConfig(ctx, awsOpts...)
+	conf, err := p.impl().LoadDefaultConfig(ctx, awsOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -89,25 +94,32 @@ func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error
 }
 
 // NewTokenForServiceAccount implements auth.Provider.
-func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
+func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
+
+	stsRegion, err := getSTSRegion()
+	if err != nil {
+		return nil, err
+	}
 
 	roleARN, err := getRoleARN(serviceAccount)
 	if err != nil {
 		return nil, err
 	}
 
-	roleSessionName := getRoleSessionName(serviceAccount)
+	roleSessionName := getRoleSessionName(serviceAccount, stsRegion)
 
-	var awsOpts sts.Options
-
-	region := getRegion()
-	awsOpts.Region = region
+	awsOpts := sts.Options{
+		Region: stsRegion,
+	}
 
 	if e := o.STSEndpoint; e != "" {
+		if err := ValidateSTSEndpoint(e); err != nil {
+			return nil, err
+		}
 		awsOpts.BaseEndpoint = &e
 	}
 
@@ -123,7 +135,7 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 		RoleSessionName:  &roleSessionName,
 		WebIdentityToken: &oidcToken,
 	}
-	resp, err := sts.New(awsOpts).AssumeRoleWithWebIdentity(ctx, req)
+	resp, err := p.impl().AssumeRoleWithWebIdentity(ctx, req, awsOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -141,20 +153,20 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 
 // GetArtifactCacheKey implements auth.Provider.
 func (Provider) GetArtifactCacheKey(artifactRepository string) string {
-	if _, region, ok := ParseRegistry(artifactRepository); ok {
-		return region
+	if _, ecrRegion, ok := ParseRegistry(artifactRepository); ok {
+		return ecrRegion
 	}
 	return ""
 }
 
 // NewArtifactRegistryToken implements auth.Provider.
-func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository string,
+func (p Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository string,
 	accessToken auth.Token, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	_, region, ok := ParseRegistry(artifactRepository)
+	_, ecrRegion, ok := ParseRegistry(artifactRepository)
 	if !ok {
 		return nil, fmt.Errorf("invalid ecr repository: '%s'", artifactRepository)
 	}
@@ -162,7 +174,7 @@ func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository
 	credsProvider := accessToken.(*Token).CredentialsProvider()
 
 	conf := aws.Config{
-		Region:      region,
+		Region:      ecrRegion,
 		Credentials: credsProvider,
 	}
 
@@ -170,7 +182,7 @@ func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository
 		conf.HTTPClient = hc
 	}
 
-	resp, err := ecr.NewFromConfig(conf).GetAuthorizationToken(ctx, nil)
+	resp, err := p.impl().GetAuthorizationToken(ctx, conf)
 	if err != nil {
 		return nil, err
 	}
@@ -201,4 +213,11 @@ func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository
 		Password:  s[1],
 		ExpiresAt: expiresAt,
 	}, nil
+}
+
+func (p Provider) impl() Implementation {
+	if p.Implementation == nil {
+		return implementation{}
+	}
+	return p.Implementation
 }
