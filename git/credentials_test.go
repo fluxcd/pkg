@@ -25,13 +25,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	. "github.com/onsi/gomega"
+
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/ssh"
-	. "github.com/onsi/gomega"
 )
 
 func TestGetCredentials(t *testing.T) {
+	g := NewWithT(t)
 	expiresAt := time.Now().UTC().Add(time.Hour)
 	tests := []struct {
 		name            string
@@ -54,12 +59,22 @@ func TestGetCredentials(t *testing.T) {
 			name: "get credentials from azure",
 			provider: &ProviderOptions{
 				Name: ProviderAzure,
-				AzureOpts: []azure.OptFunc{
-					azure.WithCredential(&azure.FakeTokenCredential{
-						Token:     "ado-token",
-						ExpiresOn: expiresAt,
-					}),
-					azure.WithAzureDevOpsScope(),
+				AuthOpts: []auth.Option{
+					auth.WithScopes(azure.ScopeDevOps),
+					func(o *auth.Options) {
+						c, err := cache.NewTokenCache(1)
+						g.Expect(err).NotTo(HaveOccurred())
+						o.Cache = c
+
+						_, ok, err := c.GetOrSet(context.Background(), "d27148923060a56c53eff88d76a44384d4deaa00e7795e9c15bd97bf25eca686", func(ctx context.Context) (cache.Token, error) {
+							return &azure.Token{AccessToken: azcore.AccessToken{
+								Token:     "ado-token",
+								ExpiresOn: expiresAt,
+							}}, nil
+						})
+						g.Expect(ok).To(BeFalse())
+						g.Expect(err).NotTo(HaveOccurred())
+					},
 				},
 			},
 			wantCredentials: &Credentials{
@@ -70,11 +85,21 @@ func TestGetCredentials(t *testing.T) {
 			name: "get credentials from azure without scope",
 			provider: &ProviderOptions{
 				Name: ProviderAzure,
-				AzureOpts: []azure.OptFunc{
-					azure.WithCredential(&azure.FakeTokenCredential{
-						Token:     "ado-token",
-						ExpiresOn: expiresAt,
-					}),
+				AuthOpts: []auth.Option{
+					func(o *auth.Options) {
+						c, err := cache.NewTokenCache(1)
+						g.Expect(err).NotTo(HaveOccurred())
+						o.Cache = c
+
+						_, ok, err := c.GetOrSet(context.Background(), "d27148923060a56c53eff88d76a44384d4deaa00e7795e9c15bd97bf25eca686", func(ctx context.Context) (cache.Token, error) {
+							return &azure.Token{AccessToken: azcore.AccessToken{
+								Token:     "ado-token",
+								ExpiresOn: expiresAt,
+							}}, nil
+						})
+						g.Expect(ok).To(BeFalse())
+						g.Expect(err).NotTo(HaveOccurred())
+					},
 				},
 			},
 			wantCredentials: &Credentials{

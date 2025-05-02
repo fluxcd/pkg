@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/git/github"
 )
 
@@ -70,7 +70,7 @@ type AuthOptions struct {
 // providers.
 type ProviderOptions struct {
 	Name       string
-	AzureOpts  []azure.OptFunc
+	AuthOpts   []auth.Option
 	GitHubOpts []github.OptFunc
 }
 

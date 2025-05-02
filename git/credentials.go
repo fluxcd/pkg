@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/git/github"
 )
@@ -54,25 +55,18 @@ func GetCredentials(ctx context.Context, providerOpts *ProviderOptions) (*Creden
 
 	switch providerOpts.Name {
 	case ProviderAzure:
-		opts := providerOpts.AzureOpts
-		if providerOpts.AzureOpts == nil {
-			opts = []azure.OptFunc{
-				azure.WithAzureDevOpsScope(),
-			}
-		}
-		client, err := azure.New(opts...)
+		opts := providerOpts.AuthOpts
+		opts = append(opts, auth.WithScopes(azure.ScopeDevOps))
+		token, err := auth.GetToken(ctx, azure.Provider{}, opts...)
 		if err != nil {
 			return nil, expiresOn, err
 		}
-		accessToken, err := client.GetToken(ctx)
-		if err != nil {
-			return nil, expiresOn, err
-		}
+		azureToken := token.(*azure.Token)
 
 		creds = Credentials{
-			BearerToken: accessToken.Token,
+			BearerToken: azureToken.Token,
 		}
-		return &creds, accessToken.ExpiresOn, nil
+		return &creds, azureToken.ExpiresOn, nil
 	case ProviderGitHub:
 		opts := providerOpts.GitHubOpts
 		if providerOpts.GitHubOpts == nil {
