@@ -159,6 +159,7 @@ func Test_LRU_Get(t *testing.T) {
 	recObjKind := "TestObject"
 	recObjName := "test"
 	recObjNamespace := "test-ns"
+	recObjOperation := "reconcile"
 
 	// Add an object representing an expiring token
 	key1 := "key1"
@@ -166,7 +167,7 @@ func Test_LRU_Get(t *testing.T) {
 	got, err := cache.Get(key1)
 	g.Expect(err).To(Equal(ErrNotFound))
 	g.Expect(got).To(BeEmpty())
-	cache.RecordCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace)
+	cache.RecordCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace, recObjOperation)
 
 	err = cache.Set(key1, value1)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -174,13 +175,13 @@ func Test_LRU_Get(t *testing.T) {
 	got, err = cache.Get(key1)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(got).To(Equal(value1))
-	cache.RecordCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace)
+	cache.RecordCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace, recObjOperation)
 
 	validateMetrics(reg, `
 	# HELP gotk_cache_events_total Total number of cache retrieval events for a Gitops Toolkit resource reconciliation.
 	# TYPE gotk_cache_events_total counter
-	gotk_cache_events_total{event_type="cache_hit",kind="TestObject",name="test",namespace="test-ns"} 1
-	gotk_cache_events_total{event_type="cache_miss",kind="TestObject",name="test",namespace="test-ns"} 1
+	gotk_cache_events_total{event_type="cache_hit",kind="TestObject",name="test",namespace="test-ns",operation="reconcile"} 1
+	gotk_cache_events_total{event_type="cache_miss",kind="TestObject",name="test",namespace="test-ns",operation="reconcile"} 1
 	# HELP gotk_cache_evictions_total Total number of cache evictions.
 	# TYPE gotk_cache_evictions_total counter
 	gotk_cache_evictions_total 0
@@ -192,8 +193,8 @@ func Test_LRU_Get(t *testing.T) {
 	gotk_cached_items 1
 `, t)
 
-	cache.DeleteCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace)
-	cache.DeleteCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace)
+	cache.DeleteCacheEvent(CacheEventTypeHit, recObjKind, recObjName, recObjNamespace, recObjOperation)
+	cache.DeleteCacheEvent(CacheEventTypeMiss, recObjKind, recObjName, recObjNamespace, recObjOperation)
 
 	validateMetrics(reg, `
 	# HELP gotk_cache_evictions_total Total number of cache evictions.

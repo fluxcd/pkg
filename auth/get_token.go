@@ -115,11 +115,12 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 	kind := o.InvolvedObject.Kind
 	name := o.InvolvedObject.Name
 	namespace := o.InvolvedObject.Namespace
+	operation := o.InvolvedObject.Operation
 
 	// Get token from cache.
 	token, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
 		return newToken()
-	}, cache.WithInvolvedObject(kind, name, namespace))
+	}, cache.WithInvolvedObject(kind, name, namespace, operation))
 	if err != nil {
 		return nil, err
 	}

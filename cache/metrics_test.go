@@ -34,12 +34,12 @@ func TestCacheMetrics(t *testing.T) {
 	}{
 		{
 			name:        "default event namespace label",
-			eventLabels: `kind="TestObject",name="test",namespace="test-ns"`,
+			eventLabels: `kind="TestObject",name="test",namespace="test-ns",operation="operation"`,
 		},
 		{
 			name:        "custom event namespace label",
 			opts:        []Options{WithEventNamespaceLabel("exported_namespace")},
-			eventLabels: `exported_namespace="test-ns",kind="TestObject",name="test"`,
+			eventLabels: `exported_namespace="test-ns",kind="TestObject",name="test",operation="operation"`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -50,8 +50,8 @@ func TestCacheMetrics(t *testing.T) {
 			g.Expect(m).ToNot(BeNil())
 
 			// CounterVec is a collection of counters and is not exported until it has counters in it.
-			m.incCacheEvents(CacheEventTypeHit, []string{"TestObject", "test", "test-ns"}...)
-			m.incCacheEvents(CacheEventTypeMiss, []string{"TestObject", "test", "test-ns"}...)
+			m.incCacheEvents(CacheEventTypeHit, []string{"TestObject", "test", "test-ns", "operation"}...)
+			m.incCacheEvents(CacheEventTypeMiss, []string{"TestObject", "test", "test-ns", "operation"}...)
 			m.incCacheRequests("success")
 			m.incCacheRequests("failure")
 

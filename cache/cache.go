@@ -407,14 +407,14 @@ func (c *cache[T]) deleteExpired() {
 
 // RecordCacheEvent records a cache event (cache_miss or cache_hit) with kind,
 // name and namespace of the associated object being reconciled.
-func (c *Cache[T]) RecordCacheEvent(event, kind, name, namespace string) {
-	recordCacheEvent(c.metrics, event, kind, name, namespace)
+func (c *Cache[T]) RecordCacheEvent(event, kind, name, namespace, operation string) {
+	recordCacheEvent(c.metrics, event, kind, name, namespace, operation)
 }
 
 // DeleteCacheEvent deletes the cache event (cache_miss or cache_hit) metric for
 // the associated object being reconciled, given their kind, name and namespace.
-func (c *Cache[T]) DeleteCacheEvent(event, kind, name, namespace string) {
-	deleteCacheEvent(c.metrics, event, kind, name, namespace)
+func (c *Cache[T]) DeleteCacheEvent(event, kind, name, namespace, operation string) {
+	deleteCacheEvent(c.metrics, event, kind, name, namespace, operation)
 }
 
 type janitor[T any] struct {

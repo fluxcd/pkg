@@ -51,6 +51,7 @@ type Client struct {
 	kind           string
 	name           string
 	namespace      string
+	operation      string
 }
 
 // OptFunc enables specifying options for the provider.
@@ -168,12 +169,13 @@ func WithProxyURL(proxyURL *url.URL) OptFunc {
 
 // WithCache sets the token cache and the object involved in the operation for
 // recording cache events.
-func WithCache(cache *cache.TokenCache, kind, name, namespace string) OptFunc {
+func WithCache(cache *cache.TokenCache, kind, name, namespace, operation string) OptFunc {
 	return func(p *Client) {
 		p.cache = cache
 		p.kind = kind
 		p.name = name
 		p.namespace = namespace
+		p.operation = operation
 	}
 }
 
@@ -218,8 +220,8 @@ func (p *Client) GetToken(ctx context.Context) (*AppToken, error) {
 	}
 
 	var opts []cache.Options
-	if p.kind != "" && p.name != "" && p.namespace != "" {
-		opts = append(opts, cache.WithInvolvedObject(p.kind, p.name, p.namespace))
+	if p.kind != "" && p.name != "" && p.namespace != "" && p.operation != "" {
+		opts = append(opts, cache.WithInvolvedObject(p.kind, p.name, p.namespace, p.operation))
 	}
 
 	token, _, err := p.cache.GetOrSet(ctx, p.buildCacheKey(), newToken, opts...)

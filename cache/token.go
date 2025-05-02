@@ -126,12 +126,12 @@ func (c *TokenCache) GetOrSet(ctx context.Context,
 
 // DeleteEventsForObject deletes all cache events (cache_miss and cache_hit) for
 // the associated object being deleted, given its kind, name and namespace.
-func (c *TokenCache) DeleteEventsForObject(kind, name, namespace string) {
+func (c *TokenCache) DeleteEventsForObject(kind, name, namespace, operation string) {
 	if c == nil {
 		return
 	}
 	for _, eventType := range allEventTypes {
-		c.cache.DeleteCacheEvent(eventType, kind, name, namespace)
+		c.cache.DeleteCacheEvent(eventType, kind, name, namespace, operation)
 	}
 }
 
