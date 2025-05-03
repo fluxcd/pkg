@@ -24,10 +24,36 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func getRegion() string {
+func getSTSRegion() (string, error) {
 	// The AWS_REGION is usually automatically set in EKS clusters.
-	// If not set users can set it manually (e.g. Fargate).
-	return os.Getenv("AWS_REGION")
+	// If not, users can set it manually (e.g. Fargate).
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		return "", fmt.Errorf("AWS_REGION environment variable is not set in the Flux controller")
+	}
+	return region, nil
+}
+
+const stsEndpointPattern = `^https://(.+\.)?sts(-fips)?(\.[^.]+)?(\.vpce)?\.amazonaws\.com$`
+
+var stsEndpointRegex = regexp.MustCompile(stsEndpointPattern)
+
+// ValidateSTSEndpoint checks if the provided STS endpoint is valid.
+//
+// Global and regional endpoints:
+//
+//	https://docs.aws.amazon.com/general/latest/gr/sts.html
+//
+// VPC endpoint examples:
+//
+//	https://vpce-002b7cc8966426bc6-njisq19r.sts.us-east-1.vpce.amazonaws.com
+//	https://vpce-002b7cc8966426bc6-njisq19r-us-east-1a.sts.us-east-1.vpce.amazonaws.com
+func ValidateSTSEndpoint(endpoint string) error {
+	if !stsEndpointRegex.MatchString(endpoint) {
+		return fmt.Errorf("invalid STS endpoint: '%s'. must match %s",
+			endpoint, stsEndpointPattern)
+	}
+	return nil
 }
 
 const roleARNPattern = `^arn:aws:iam::[0-9]{1,30}:role/.{1,200}$`
@@ -43,10 +69,9 @@ func getRoleARN(serviceAccount corev1.ServiceAccount) (string, error) {
 	return arn, nil
 }
 
-func getRoleSessionName(serviceAccount corev1.ServiceAccount) string {
+func getRoleSessionName(serviceAccount corev1.ServiceAccount, region string) string {
 	name := serviceAccount.Name
 	namespace := serviceAccount.Namespace
-	region := getRegion()
 	return fmt.Sprintf("%s.%s.%s.fluxcd.io", name, namespace, region)
 }
 

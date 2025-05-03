@@ -14,7 +14,7 @@ replace (
 
 require (
 	github.com/fluxcd/go-git-providers v0.22.0
-	github.com/fluxcd/pkg/git v0.27.0
+	github.com/fluxcd/pkg/git v0.28.0
 	github.com/fluxcd/pkg/git/gogit v0.23.0
 	github.com/fluxcd/pkg/gittestserver v0.17.0
 	github.com/fluxcd/pkg/ssh v0.18.0
@@ -44,8 +44,8 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fluxcd/gitkit v0.6.0 // indirect
-	github.com/fluxcd/pkg/auth v0.10.0 // indirect
-	github.com/fluxcd/pkg/cache v0.8.0 // indirect
+	github.com/fluxcd/pkg/auth v0.11.0 // indirect
+	github.com/fluxcd/pkg/cache v0.9.0 // indirect
 	github.com/fluxcd/pkg/version v0.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
