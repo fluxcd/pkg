@@ -39,9 +39,7 @@ import (
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
 
-	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/git/repository"
 )
 
@@ -336,21 +334,6 @@ func (g *Client) hasProvider(name string) bool {
 func (g *Client) providerAuth(ctx context.Context) error {
 	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" &&
 		g.authOpts.Username == "" && g.authOpts.Password == "" {
-		if g.proxy.URL != "" {
-			proxyURL, err := g.proxy.FullURL()
-			if err != nil {
-				return err
-			}
-			switch g.authOpts.ProviderOpts.Name {
-			case git.ProviderAzure:
-				g.authOpts.ProviderOpts.AuthOpts = append(g.authOpts.ProviderOpts.AuthOpts, auth.WithProxyURL(*proxyURL))
-			case git.ProviderGitHub:
-				g.authOpts.ProviderOpts.GitHubOpts = append(g.authOpts.ProviderOpts.GitHubOpts, github.WithProxyURL(proxyURL))
-			default:
-				return fmt.Errorf("invalid provider")
-			}
-		}
-
 		providerCreds, _, err := git.GetCredentials(ctx, g.authOpts.ProviderOpts)
 		if err != nil {
 			return err
