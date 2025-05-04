@@ -37,6 +37,7 @@ type Options struct {
 	InvolvedObject     cache.InvolvedObject
 	Scopes             []string
 	ArtifactRepository string
+	STSRegion          string
 	STSEndpoint        string
 	ProxyURL           *url.URL
 }
@@ -73,6 +74,14 @@ func WithScopes(scopes ...string) Option {
 func WithArtifactRepository(artifactRepository string) Option {
 	return func(o *Options) {
 		o.ArtifactRepository = artifactRepository
+	}
+}
+
+// WithSTSRegion sets the region for the STS service (some cloud providers
+// require a region, e.g. AWS).
+func WithSTSRegion(stsRegion string) Option {
+	return func(o *Options) {
+		o.STSRegion = stsRegion
 	}
 }
 

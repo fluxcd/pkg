@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -34,11 +33,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/fluxcd/pkg/auth"
+	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth/gcp"
+	authutils "github.com/fluxcd/pkg/auth/utils"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
 	"github.com/fluxcd/pkg/git/repository"
-	"github.com/fluxcd/pkg/oci/auth/login"
 )
 
 // registry and repo flags are to facilitate testing of two login scenarios:
@@ -47,11 +48,10 @@ import (
 //   - when the repository contains only the repository name and registry name
 //     is provided separately, e.g. registry: foo.azurecr.io, repo: bar.
 var (
-	registry  = flag.String("registry", "", "registry of the repository")
-	repo      = flag.String("repo", "", "git/oci repository to list")
-	oidcLogin = flag.Bool("oidc-login", false, "login with OIDCLogin function")
-	category  = flag.String("category", "", "Test category to run - oci/git")
-	provider  = flag.String("provider", "", "Supported git oidc provider - azure")
+	registry = flag.String("registry", "", "registry of the repository")
+	repo     = flag.String("repo", "", "git/oci repository to list")
+	category = flag.String("category", "", "Test category to run - oci/git")
+	provider = flag.String("provider", "", "Supported git oidc provider - azure")
 )
 
 func main() {
@@ -69,18 +69,12 @@ func main() {
 }
 
 func checkOci(ctx context.Context) {
-	opts := login.ProviderOptions{
-		AwsAutoLogin:   true,
-		GcpAutoLogin:   true,
-		AzureAutoLogin: true,
-	}
-
 	if *repo == "" {
 		panic("must provide -repo value")
 	}
 
 	var loginURL string
-	var auth authn.Authenticator
+	var authenticator authn.Authenticator
 	var ref name.Reference
 	var err error
 
@@ -99,10 +93,11 @@ func checkOci(ctx context.Context) {
 		panic(err)
 	}
 
-	if *oidcLogin {
-		auth, err = login.NewManager().OIDCLogin(ctx, fmt.Sprintf("https://%s", loginURL), opts)
-	} else {
-		auth, err = login.NewManager().Login(ctx, loginURL, ref, opts)
+	for _, provider := range []auth.Provider{aws.Provider{}, azure.Provider{}, gcp.Provider{}} {
+		if _, err = provider.ParseArtifactRepository(loginURL); err == nil {
+			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL)
+			break
+		}
 	}
 
 	if err != nil {
@@ -111,7 +106,7 @@ func checkOci(ctx context.Context) {
 	log.Println("logged in")
 
 	var options []remote.Option
-	options = append(options, remote.WithAuth(auth))
+	options = append(options, remote.WithAuth(authenticator))
 	options = append(options, remote.WithContext(ctx))
 
 	tags, err := remote.List(ref.Context(), options...)
@@ -138,7 +133,7 @@ func checkGit(ctx context.Context) {
 			auth.WithScopes(azure.ScopeDevOps),
 		},
 	}
-	cloneDir, err := os.MkdirTemp("", fmt.Sprint("test-clone"))
+	cloneDir, err := os.MkdirTemp("", "test-clone")
 	if err != nil {
 		panic(err)
 	}

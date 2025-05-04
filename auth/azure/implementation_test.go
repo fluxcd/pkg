@@ -18,6 +18,7 @@ package azure_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -34,16 +35,21 @@ type mockImplementation struct {
 	argTenantID  string
 	argClientID  string
 	argOIDCToken string
+	argURL       string
+	argBody      string
 	argProxyURL  *url.URL
 	argScopes    []string
 
-	returnResp *http.Response
+	returnResp  *http.Response
+	returnToken string
 }
 
 type mockTokenCredential struct {
 	t *testing.T
 
 	argScopes []string
+
+	returnToken string
 }
 
 func (m *mockImplementation) NewDefaultAzureCredential(options azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
@@ -57,7 +63,7 @@ func (m *mockImplementation) NewDefaultAzureCredential(options azidentity.Defaul
 	proxyURL, err := options.Transport.(*http.Client).Transport.(*http.Transport).Proxy(nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
-	return &mockTokenCredential{t: m.t, argScopes: m.argScopes}, nil
+	return &mockTokenCredential{t: m.t, argScopes: m.argScopes, returnToken: m.returnToken}, nil
 }
 
 func (m *mockImplementation) NewClientAssertionCredential(tenantID string, clientID string, getAssertion func(context.Context) (string, error), options *azidentity.ClientAssertionCredentialOptions) (azcore.TokenCredential, error) {
@@ -78,12 +84,20 @@ func (m *mockImplementation) NewClientAssertionCredential(tenantID string, clien
 	proxyURL, err := options.Transport.(*http.Client).Transport.(*http.Transport).Proxy(nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
-	return &mockTokenCredential{t: m.t, argScopes: m.argScopes}, nil
+	return &mockTokenCredential{t: m.t, argScopes: m.argScopes, returnToken: m.returnToken}, nil
 }
 
 func (m *mockImplementation) SendRequest(req *http.Request, client *http.Client) (*http.Response, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
+	g.Expect(req).NotTo(BeNil())
+	g.Expect(req.Method).To(Equal(http.MethodPost))
+	g.Expect(req.URL).NotTo(BeNil())
+	g.Expect(req.URL.String()).To(Equal(m.argURL))
+	g.Expect(req.Body).NotTo(BeNil())
+	b, err := io.ReadAll(req.Body)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(string(b)).To(Equal(m.argBody))
 	g.Expect(client).NotTo(BeNil())
 	g.Expect(client.Transport).NotTo(BeNil())
 	g.Expect(client.Transport.(*http.Transport)).NotTo(BeNil())
@@ -98,5 +112,5 @@ func (m *mockTokenCredential) GetToken(ctx context.Context, options policy.Token
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(options.Scopes).To(Equal(m.argScopes))
-	return azcore.AccessToken{}, nil
+	return azcore.AccessToken{Token: m.returnToken}, nil
 }

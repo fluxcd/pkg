@@ -39,7 +39,6 @@ func TestGitCloneUsingProvider(t *testing.T) {
 	t.Run("Git oidc credential test", func(t *testing.T) {
 		args := []string{
 			"-category=git",
-			"-oidc-login=true",
 			fmt.Sprintf("-provider=%s", *targetProvider),
 			fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
 		}

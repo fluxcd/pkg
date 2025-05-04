@@ -28,13 +28,11 @@ type Provider interface {
 	// GetName returns the name of the provider.
 	GetName() string
 
-	// NewDefaultToken returns a token that can be used to authenticate with the
-	// cloud provider retrieved from the default source, i.e. from the pod's
-	// environment, e.g. files mounted in the pod, environment variables,
-	// local metadata services, etc. In this case the method would implicitly
-	// use the ServiceAccount associated with the controller pod, and not one
-	// specified in the options.
-	NewDefaultToken(ctx context.Context, opts ...Option) (Token, error)
+	// NewControllerToken returns a token that can be used to authenticate
+	// with the cloud provider retrieved from the default source, i.e. from
+	// the environment of the controller pod, e.g. files mounted in the pod,
+	// environment variables, local metadata services, etc.
+	NewControllerToken(ctx context.Context, opts ...Option) (Token, error)
 
 	// GetAudience returns the audience the OIDC tokens issued representing
 	// ServiceAccounts should have. This is usually a string that represents
@@ -54,12 +52,15 @@ type Provider interface {
 	NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 		serviceAccount corev1.ServiceAccount, opts ...Option) (Token, error)
 
-	// GetArtifactCacheKey extracts the part of the artifact repository that must be
-	// included in cache keys when caching registry credentials for the provider.
-	GetArtifactCacheKey(artifactRepository string) string
+	// ParseArtifactRepository parses the artifact repository to verify if it
+	// is a valid repository for the provider. As a result, it returns the
+	// input required for the provider to issue the registry credentials. This
+	// input is also included as part of the cache key for the issued credentials.
+	ParseArtifactRepository(artifactRepository string) (string, error)
 
-	// NewArtifactRegistryToken takes an artifact repository and an access token and returns a token
-	// that can be used to authenticate with the artifact registry of the artifact.
-	NewArtifactRegistryToken(ctx context.Context, artifactRepository string,
-		accessToken Token, opts ...Option) (Token, error)
+	// NewArtifactRegistryCredentials takes the registry input extracted by
+	// ParseArtifactRepository() and an access token and returns credentials
+	// that can be used to authenticate with the registry.
+	NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
+		accessToken Token, opts ...Option) (*ArtifactRegistryCredentials, error)
 }

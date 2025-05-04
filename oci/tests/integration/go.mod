@@ -11,10 +11,9 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/auth v0.11.0
-	github.com/fluxcd/pkg/git v0.28.0
+	github.com/fluxcd/pkg/auth v0.12.0
+	github.com/fluxcd/pkg/git v0.29.0
 	github.com/fluxcd/pkg/git/gogit v0.23.0
-	github.com/fluxcd/pkg/oci v0.43.1
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1
 	github.com/go-git/go-git/v5 v5.16.0
 	github.com/google/go-containerregistry v0.20.3
@@ -29,6 +28,7 @@ require (
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0 // indirect
@@ -109,6 +109,7 @@ require (
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.63.0 // indirect

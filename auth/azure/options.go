@@ -18,7 +18,6 @@ package azure
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -40,42 +39,49 @@ func getIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
 }
 
 func getTenantID(serviceAccount corev1.ServiceAccount) (string, error) {
-	if tenantID, ok := serviceAccount.Annotations["azure.workload.identity/tenant-id"]; ok {
+	const key = "azure.workload.identity/tenant-id"
+	if tenantID, ok := serviceAccount.Annotations[key]; ok {
 		return tenantID, nil
 	}
-	if tenantID := os.Getenv("AZURE_TENANT_ID"); tenantID != "" {
-		return tenantID, nil
-	}
-	return "", fmt.Errorf("azure tenant ID not found in the service account annotations nor in the environment variable AZURE_TENANT_ID")
+	return "", fmt.Errorf("azure tenant ID is not set in the service account annotation %s", key)
 }
 
 func getClientID(serviceAccount corev1.ServiceAccount) (string, error) {
-	if clientID, ok := serviceAccount.Annotations["azure.workload.identity/client-id"]; ok {
+	const key = "azure.workload.identity/client-id"
+	if clientID, ok := serviceAccount.Annotations[key]; ok {
 		return clientID, nil
 	}
-	return "", fmt.Errorf("azure client ID not found in the service account annotations")
+	return "", fmt.Errorf("azure client ID is not set in the service account annotation %s", key)
 }
 
 func getScopes(o *auth.Options) []string {
-	if ar := o.ArtifactRepository; ar != "" {
-		return []string{getACRScope(ar)}
+	if acrScope := getACRScope(o.ArtifactRepository); acrScope != "" {
+		return []string{acrScope}
 	}
 	return o.Scopes
 }
 
 func getACRScope(artifactRepository string) string {
+	if artifactRepository == "" {
+		return ""
+	}
+
+	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
+	if err != nil {
+		// it's ok to swallow the error here, it should never happen
+		// because GetRegistryFromArtifactRepository() is already called
+		// earlier by auth.GetToken() and the error is handled there.
+		return ""
+	}
+
 	var conf *cloud.Configuration
 	switch {
-	case strings.HasSuffix(artifactRepository, ".azurecr.cn"):
+	case strings.HasSuffix(registry, ".azurecr.cn"):
 		conf = &cloud.AzureChina
-	case strings.HasSuffix(artifactRepository, ".azurecr.us"):
+	case strings.HasSuffix(registry, ".azurecr.us"):
 		conf = &cloud.AzureGovernment
 	default:
 		conf = &cloud.AzurePublic
 	}
 	return conf.Services[cloud.ResourceManager].Endpoint + "/" + ".default"
-}
-
-func getACRHost(artifactRepository string) string {
-	return strings.SplitN(artifactRepository, "/", 2)[0]
 }

@@ -27,7 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google/externalaccount"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,12 +38,13 @@ import (
 	"github.com/fluxcd/pkg/auth/gcp"
 )
 
-func TestProvider_NewDefaultToken_Options(t *testing.T) {
+func TestNewControllerToken(t *testing.T) {
 	g := NewWithT(t)
 
 	impl := &mockImplementation{
 		t:           t,
 		argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
+		returnToken: &oauth2.Token{AccessToken: "access-token"},
 	}
 
 	opts := []auth.Option{
@@ -49,12 +52,12 @@ func TestProvider_NewDefaultToken_Options(t *testing.T) {
 	}
 
 	provider := gcp.Provider{Implementation: impl}
-	token, err := provider.NewDefaultToken(context.Background(), opts...)
+	token, err := provider.NewControllerToken(context.Background(), opts...)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(token).NotTo(BeNil())
+	g.Expect(token).To(Equal(&gcp.Token{oauth2.Token{AccessToken: "access-token"}}))
 }
 
-func TestProvider_NewTokenForServiceAccount_Options(t *testing.T) {
+func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	g := NewWithT(t)
 
 	// Start GKE metadata server.
@@ -89,9 +92,10 @@ func TestProvider_NewTokenForServiceAccount_Options(t *testing.T) {
 	t.Setenv("GCE_METADATA_HOST", gceMetadataHost)
 
 	for _, tt := range []struct {
-		name          string
-		conf          externalaccount.Config
-		saAnnotations map[string]string
+		name        string
+		conf        externalaccount.Config
+		annotations map[string]string
+		err         string
 	}{
 		{
 			name: "direct access",
@@ -122,9 +126,16 @@ func TestProvider_NewTokenForServiceAccount_Options(t *testing.T) {
 				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
-			saAnnotations: map[string]string{
+			annotations: map[string]string{
 				"iam.gke.io/gcp-service-account": "test-sa@project-id.iam.gserviceaccount.com",
 			},
+		},
+		{
+			name: "invalid sa email",
+			annotations: map[string]string{
+				"iam.gke.io/gcp-service-account": "foobar",
+			},
+			err: `invalid iam.gke.io/gcp-service-account annotation: 'foobar'. must match ^[a-zA-Z0-9-]{1,100}@[a-zA-Z0-9-]{1,100}\.iam\.gserviceaccount\.com$`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -134,6 +145,7 @@ func TestProvider_NewTokenForServiceAccount_Options(t *testing.T) {
 				t:           t,
 				argConfig:   tt.conf,
 				argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				returnToken: &oauth2.Token{AccessToken: "access-token"},
 			}
 
 			oidcToken := "oidc-token"
@@ -141,7 +153,7 @@ func TestProvider_NewTokenForServiceAccount_Options(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "test-sa",
 					Namespace:   "test-ns",
-					Annotations: tt.saAnnotations,
+					Annotations: tt.annotations,
 				},
 			}
 			opts := []auth.Option{
@@ -151,8 +163,84 @@ func TestProvider_NewTokenForServiceAccount_Options(t *testing.T) {
 
 			provider := gcp.Provider{Implementation: impl}
 			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(token).NotTo(BeNil())
+
+			if tt.err == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(token).To(Equal(&gcp.Token{oauth2.Token{AccessToken: "access-token"}}))
+			} else {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(Equal(tt.err))
+				g.Expect(token).To(BeNil())
+			}
+		})
+	}
+}
+
+func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
+	g := NewWithT(t)
+
+	exp := time.Now()
+
+	accessToken := &gcp.Token{oauth2.Token{
+		AccessToken: "access-token",
+		Expiry:      exp,
+	}}
+
+	creds, err := gcp.Provider{}.NewArtifactRegistryCredentials(context.Background(), "", accessToken)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(creds).NotTo(BeNil())
+	g.Expect(creds.ExpiresAt).To(Equal(exp))
+	g.Expect(creds.Authenticator).NotTo(BeNil())
+	authConf, err := creds.Authenticator.Authorization()
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(authConf).To(Equal(&authn.AuthConfig{
+		Username: "oauth2accesstoken",
+		Password: "access-token",
+	}))
+}
+
+func TestProvider_ParseArtifactRegistry(t *testing.T) {
+	for _, tt := range []struct {
+		artifactRepository string
+		expectValid        bool
+	}{
+		{
+			artifactRepository: "gcr.io",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: ".gcr.io",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "a.gcr.io",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "-docker.pkg.dev",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "a-docker.pkg.dev",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com",
+			expectValid:        false,
+		},
+	} {
+		t.Run(tt.artifactRepository, func(t *testing.T) {
+			g := NewWithT(t)
+
+			cacheKey, err := gcp.Provider{}.ParseArtifactRepository(tt.artifactRepository)
+
+			if tt.expectValid {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(cacheKey).To(Equal("gcp"))
+			} else {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(cacheKey).To(BeEmpty())
+			}
 		})
 	}
 }

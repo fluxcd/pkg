@@ -19,7 +19,9 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"regexp"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google/externalaccount"
 	corev1 "k8s.io/api/core/v1"
@@ -43,8 +45,8 @@ func (Provider) GetName() string {
 	return ProviderName
 }
 
-// NewDefaultToken implements auth.Provider.
-func (p Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+// NewControllerToken implements auth.Provider.
+func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
@@ -128,22 +130,38 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	return &Token{*token}, nil
 }
 
-// GetArtifactCacheKey implements auth.Provider.
-func (Provider) GetArtifactCacheKey(artifactRepository string) string {
-	// The artifact repository is irrelevant for GCP registry credentials.
-	return ProviderName
+const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev))$`
+
+var registryRegex = regexp.MustCompile(registryPattern)
+
+// ParseArtifactRepository implements auth.Provider.
+func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
+	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
+	if err != nil {
+		return "", err
+	}
+
+	if !registryRegex.MatchString(registry) {
+		return "", fmt.Errorf("invalid GCP registry: '%s'. must match %s",
+			registry, registryPattern)
+	}
+
+	// The artifact repository is irrelevant for issuing GCP registry credentials,
+	// just return the provider name for inclusion in the cache key.
+	return ProviderName, nil
 }
 
-// NewArtifactRegistryToken implements auth.Provider.
-func (Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository string,
-	accessToken auth.Token, opts ...auth.Option) (auth.Token, error) {
+// NewArtifactRegistryCredentials implements auth.Provider.
+func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
+	accessToken auth.Token, _ ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	t := accessToken.(*Token)
 
-	// The artifact repository is irrelevant for GCP registry credentials.
 	return &auth.ArtifactRegistryCredentials{
-		Username:  "oauth2accesstoken",
-		Password:  t.AccessToken,
+		Authenticator: authn.FromConfig(authn.AuthConfig{
+			Username: "oauth2accesstoken",
+			Password: t.AccessToken,
+		}),
 		ExpiresAt: t.Expiry,
 	}, nil
 }

@@ -32,6 +32,8 @@ type mockImplementation struct {
 
 	argConfig   externalaccount.Config
 	argProxyURL *url.URL
+
+	returnToken *oauth2.Token
 }
 
 func (m *mockImplementation) DefaultTokenSource(ctx context.Context, scope ...string) (oauth2.TokenSource, error) {
@@ -50,7 +52,7 @@ func (m *mockImplementation) DefaultTokenSource(ctx context.Context, scope ...st
 		"https://www.googleapis.com/auth/cloud-platform",
 		"https://www.googleapis.com/auth/userinfo.email",
 	}))
-	return oauth2.StaticTokenSource(&oauth2.Token{}), nil
+	return oauth2.StaticTokenSource(m.returnToken), nil
 }
 
 func (m *mockImplementation) NewTokenSource(ctx context.Context, conf externalaccount.Config) (oauth2.TokenSource, error) {
@@ -66,5 +68,5 @@ func (m *mockImplementation) NewTokenSource(ctx context.Context, conf externalac
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
 	g.Expect(conf).To(Equal(m.argConfig))
-	return oauth2.StaticTokenSource(&oauth2.Token{}), nil
+	return oauth2.StaticTokenSource(m.returnToken), nil
 }

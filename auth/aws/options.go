@@ -18,21 +18,10 @@ package aws
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
 )
-
-func getSTSRegion() (string, error) {
-	// The AWS_REGION is usually automatically set in EKS clusters.
-	// If not, users can set it manually (e.g. Fargate).
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		return "", fmt.Errorf("AWS_REGION environment variable is not set in the Flux controller")
-	}
-	return region, nil
-}
 
 const stsEndpointPattern = `^https://(.+\.)?sts(-fips)?(\.[^.]+)?(\.vpce)?\.amazonaws\.com$`
 
@@ -61,10 +50,11 @@ const roleARNPattern = `^arn:aws:iam::[0-9]{1,30}:role/.{1,200}$`
 var roleARNRegex = regexp.MustCompile(roleARNPattern)
 
 func getRoleARN(serviceAccount corev1.ServiceAccount) (string, error) {
-	arn := serviceAccount.Annotations["eks.amazonaws.com/role-arn"]
+	const key = "eks.amazonaws.com/role-arn"
+	arn := serviceAccount.Annotations[key]
 	if !roleARNRegex.MatchString(arn) {
-		return "", fmt.Errorf("invalid AWS role ARN: '%s'. must match %s",
-			arn, roleARNPattern)
+		return "", fmt.Errorf("invalid %s annotation: '%s'. must match %s",
+			key, arn, roleARNPattern)
 	}
 	return arn, nil
 }
@@ -73,19 +63,4 @@ func getRoleSessionName(serviceAccount corev1.ServiceAccount, region string) str
 	name := serviceAccount.Name
 	namespace := serviceAccount.Namespace
 	return fmt.Sprintf("%s.%s.%s.fluxcd.io", name, namespace, region)
-}
-
-// This regex is sourced from the AWS ECR Credential Helper (https://github.com/awslabs/amazon-ecr-credential-helper).
-// It covers both public AWS partitions like amazonaws.com, China partitions like amazonaws.com.cn, and non-public partitions.
-var registryPartRe = regexp.MustCompile(`([0-9+]*).dkr.ecr(?:-fips)?\.([^/.]*)\.(amazonaws\.com[.cn]*|sc2s\.sgov\.gov|c2s\.ic\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov)`)
-
-// ParseRegistry returns the AWS account ID and region and `true` if
-// the image registry/repository is hosted in AWS's Elastic Container Registry,
-// otherwise empty strings and `false`.
-func ParseRegistry(registry string) (accountId, awsEcrRegion string, ok bool) {
-	registryParts := registryPartRe.FindAllStringSubmatch(registry, -1)
-	if len(registryParts) < 1 || len(registryParts[0]) < 3 {
-		return "", "", false
-	}
-	return registryParts[0][1], registryParts[0][2], true
 }
