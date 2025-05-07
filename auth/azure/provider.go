@@ -23,11 +23,13 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/go-containerregistry/pkg/authn"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/fluxcd/pkg/auth"
@@ -44,8 +46,8 @@ func (Provider) GetName() string {
 	return ProviderName
 }
 
-// NewDefaultToken implements auth.Provider.
-func (p Provider) NewDefaultToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+// NewControllerToken implements auth.Provider.
+func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -116,14 +118,32 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	return &Token{token}, nil
 }
 
-// GetArtifactCacheKey implements auth.Provider.
-func (Provider) GetArtifactCacheKey(artifactRepository string) string {
-	return getACRHost(artifactRepository)
+// https://github.com/kubernetes/kubernetes/blob/v1.23.1/pkg/credentialprovider/azure/azure_credentials.go#L55
+const registryPattern = `^.+\.(azurecr\.io|azurecr\.cn|azurecr\.de|azurecr\.us)$`
+
+var registryRegex = regexp.MustCompile(registryPattern)
+
+// ParseArtifactRepository implements auth.Provider.
+// ParseArtifactRepository returns the ACR registry URL.
+func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
+	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
+	if err != nil {
+		return "", err
+	}
+
+	if !registryRegex.MatchString(registry) {
+		return "", fmt.Errorf("invalid Azure registry: '%s'. must match %s",
+			registry, registryPattern)
+	}
+
+	// For issuing Azure registry credentials the registry URL is required.
+	registryURL := fmt.Sprintf("https://%s", registry)
+	return registryURL, nil
 }
 
-// NewArtifactRegistryToken implements auth.Provider.
-func (p Provider) NewArtifactRegistryToken(ctx context.Context, artifactRepository string,
-	accessToken auth.Token, opts ...auth.Option) (auth.Token, error) {
+// NewArtifactRegistryCredentials implements auth.Provider.
+func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryURL string,
+	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	t := accessToken.(*Token)
 
@@ -131,10 +151,6 @@ func (p Provider) NewArtifactRegistryToken(ctx context.Context, artifactReposito
 	o.Apply(opts...)
 
 	// Build request.
-	registryURL := artifactRepository
-	if !strings.HasPrefix(artifactRepository, "http") {
-		registryURL = fmt.Sprintf("https://%s", getACRHost(artifactRepository))
-	}
 	exchangeURL, err := url.Parse(registryURL)
 	if err != nil {
 		return nil, err
@@ -182,9 +198,11 @@ func (p Provider) NewArtifactRegistryToken(ctx context.Context, artifactReposito
 	}
 
 	return &auth.ArtifactRegistryCredentials{
-		// https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
-		Username:  "00000000-0000-0000-0000-000000000000",
-		Password:  tokenResp.RefreshToken,
+		Authenticator: authn.FromConfig(authn.AuthConfig{
+			// https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
+			Username: "00000000-0000-0000-0000-000000000000",
+			Password: tokenResp.RefreshToken,
+		}),
 		ExpiresAt: expiry.Time,
 	}, nil
 }

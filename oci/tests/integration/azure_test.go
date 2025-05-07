@@ -21,6 +21,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -153,7 +154,7 @@ func grantPermissionsToGitRepositoryAzure(ctx context.Context, cfg *gitTestConfi
 				time.Sleep(retryDelay)
 				continue
 			} else {
-				return fmt.Errorf(errMsg)
+				return errors.New(errMsg)
 			}
 		}
 		uuid := responseValue.OperationResult.ServicePrincipalId

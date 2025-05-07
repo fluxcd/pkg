@@ -35,23 +35,24 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 	var o Options
 	o.Apply(opts...)
 
-	// Initialize default token fetcher.
+	// Initialize access token fetcher for controller.
 	newAccessToken := func() (Token, error) {
-		token, err := provider.NewDefaultToken(ctx, opts...)
+		token, err := provider.NewControllerToken(ctx, opts...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create default access token: %w", err)
+			return nil, fmt.Errorf("failed to create provider access token for the controlller: %w", err)
 		}
 		return token, nil
 	}
 
-	// Initialize service account token fetcher if service account is specified.
+	// Update access token fetcher for a service account if specified.
 	var providerIdentity string
 	var serviceAccountP *corev1.ServiceAccount
 	if o.ServiceAccount != nil {
 		// Get service account and prepare a function to create a token for it.
 		var serviceAccount corev1.ServiceAccount
 		if err := o.Client.Get(ctx, *o.ServiceAccount, &serviceAccount); err != nil {
-			return nil, fmt.Errorf("failed to get service account: %w", err)
+			return nil, fmt.Errorf("failed to get service account '%s/%s': %w",
+				o.ServiceAccount.Namespace, o.ServiceAccount.Name, err)
 		}
 		serviceAccountP = &serviceAccount
 
@@ -69,34 +70,50 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 				serviceAccount.Namespace, serviceAccount.Name, err)
 		}
 
-		// Initialize access token fetcher that will use the identity token.
+		// Update access token fetcher.
 		newAccessToken = func() (Token, error) {
 			identityToken, err := newServiceAccountToken(ctx, o.Client, serviceAccount, providerAudience)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to create kubernetes token for service account '%s/%s': %w",
+					serviceAccount.Namespace, serviceAccount.Name, err)
 			}
 
 			token, err := provider.NewTokenForServiceAccount(ctx, identityToken, serviceAccount, opts...)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create access token: %w", err)
+				return nil, fmt.Errorf("failed to create provider access token for service account '%s/%s': %w",
+					serviceAccount.Namespace, serviceAccount.Name, err)
 			}
 
 			return token, nil
 		}
 	}
 
-	// Initialize registry token fetcher if artifact repository is specified.
+	// Initialize token fetcher with access token fetcher.
 	newToken := newAccessToken
+
+	// Update token fetcher to registry token fetcher if artifact repository is specified.
+	var artifactRepositoryCacheKey string
 	if o.ArtifactRepository != "" {
+		// Parse artifact repository.
+		registryInput, err := provider.ParseArtifactRepository(o.ArtifactRepository)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse artifact repository '%s': %w",
+				o.ArtifactRepository, err)
+		}
+
+		// Set artifact repository cache key.
+		artifactRepositoryCacheKey = registryInput
+
+		// Update token fetcher.
 		newToken = func() (Token, error) {
 			accessToken, err := newAccessToken()
 			if err != nil {
 				return nil, err
 			}
 
-			token, err := provider.NewArtifactRegistryToken(ctx, o.ArtifactRepository, accessToken, opts...)
+			token, err := provider.NewArtifactRegistryCredentials(ctx, registryInput, accessToken, opts...)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create artifact registry login: %w", err)
+				return nil, fmt.Errorf("failed to create artifact registry credentials: %w", err)
 			}
 
 			return token, nil
@@ -109,7 +126,7 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 	}
 
 	// Build cache key.
-	cacheKey := buildCacheKey(provider, providerIdentity, serviceAccountP, opts...)
+	cacheKey := buildCacheKey(provider, providerIdentity, artifactRepositoryCacheKey, serviceAccountP, opts...)
 
 	// Get involved object details.
 	kind := o.InvolvedObject.Kind
@@ -136,12 +153,12 @@ func newServiceAccountToken(ctx context.Context, client client.Client,
 		},
 	}
 	if err := client.SubResource("token").Create(ctx, &serviceAccount, tokenReq); err != nil {
-		return "", fmt.Errorf("failed to create kubernetes service account token: %w", err)
+		return "", err
 	}
 	return tokenReq.Status.Token, nil
 }
 
-func buildCacheKey(provider Provider, providerIdentity string,
+func buildCacheKey(provider Provider, providerIdentity, artifactRepositoryKey string,
 	serviceAccount *corev1.ServiceAccount, opts ...Option) string {
 
 	var o Options
@@ -162,7 +179,11 @@ func buildCacheKey(provider Provider, providerIdentity string,
 	}
 
 	if o.ArtifactRepository != "" {
-		keyParts = append(keyParts, fmt.Sprintf("artifactRepositoryKey=%s", provider.GetArtifactCacheKey(o.ArtifactRepository)))
+		keyParts = append(keyParts, fmt.Sprintf("artifactRepositoryKey=%s", artifactRepositoryKey))
+	}
+
+	if o.STSRegion != "" {
+		keyParts = append(keyParts, fmt.Sprintf("stsRegion=%s", o.STSRegion))
 	}
 
 	if o.STSEndpoint != "" {

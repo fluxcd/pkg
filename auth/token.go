@@ -16,7 +16,9 @@ limitations under the License.
 
 package auth
 
-import "time"
+import (
+	"time"
+)
 
 // Token is an interface that represents an access token that can be used to
 // authenticate requests for a cloud provider. The only common method is for
@@ -27,21 +29,7 @@ import "time"
 // cast it to.
 type Token interface {
 	// GetDuration returns the duration for which the token will still be valid
-	// relative to approximately time.Now(). This is used to determine when the token should
-	// be refreshed.
+	// relative to approximately time.Now(). This is used to determine when the
+	// token should be renewed.
 	GetDuration() time.Duration
-}
-
-// ArtifactRegistryCredentials is a particular type implementing the Token interface
-// for credentials that can be used to authenticate with an artifact registry
-// from a cloud provider. This type is compatible with all the cloud providers
-// and should be returned when the artifact repository is configured in the options.
-type ArtifactRegistryCredentials struct {
-	Username  string
-	Password  string
-	ExpiresAt time.Time
-}
-
-func (a *ArtifactRegistryCredentials) GetDuration() time.Duration {
-	return time.Until(a.ExpiresAt)
 }

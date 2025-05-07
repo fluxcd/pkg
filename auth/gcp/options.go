@@ -28,13 +28,14 @@ const serviceAccountEmailPattern = `^[a-zA-Z0-9-]{1,100}@[a-zA-Z0-9-]{1,100}\.ia
 var serviceAccountEmailRegex = regexp.MustCompile(serviceAccountEmailPattern)
 
 func getServiceAccountEmail(serviceAccount corev1.ServiceAccount) (string, error) {
-	email := serviceAccount.Annotations["iam.gke.io/gcp-service-account"]
+	const key = "iam.gke.io/gcp-service-account"
+	email := serviceAccount.Annotations[key]
 	if email == "" {
 		return "", nil
 	}
 	if !serviceAccountEmailRegex.MatchString(email) {
-		return "", fmt.Errorf("invalid GCP service account email: '%s'. must match %s",
-			email, serviceAccountEmailPattern)
+		return "", fmt.Errorf("invalid %s annotation: '%s'. must match %s",
+			key, email, serviceAccountEmailPattern)
 	}
 	return email, nil
 }

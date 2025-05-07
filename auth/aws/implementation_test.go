@@ -18,6 +18,7 @@ package aws_test
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/url"
 	"testing"
@@ -41,9 +42,13 @@ type mockImplementation struct {
 	argSTSEndpoint     string
 	argProxyURL        *url.URL
 	argCredsProvider   aws.CredentialsProvider
+
+	returnCreds    aws.Credentials
+	returnUsername string
+	returnPassword string
 }
 
-type mockCredentialsProvider struct{}
+type mockCredentialsProvider struct{ aws.Credentials }
 
 func (m *mockImplementation) LoadDefaultConfig(ctx context.Context, optFns ...func(*config.LoadOptions) error) (aws.Config, error) {
 	m.t.Helper()
@@ -62,7 +67,7 @@ func (m *mockImplementation) LoadDefaultConfig(ctx context.Context, optFns ...fu
 	proxyURL, err := o.HTTPClient.(*http.Client).Transport.(*http.Transport).Proxy(nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
-	return aws.Config{Credentials: mockCredentialsProvider{}}, nil
+	return aws.Config{Credentials: &mockCredentialsProvider{m.returnCreds}}, nil
 }
 
 func (m *mockImplementation) AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, options sts.Options) (*sts.AssumeRoleWithWebIdentityOutput, error) {
@@ -87,7 +92,12 @@ func (m *mockImplementation) AssumeRoleWithWebIdentity(ctx context.Context, para
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
 	return &sts.AssumeRoleWithWebIdentityOutput{
-		Credentials: &ststypes.Credentials{},
+		Credentials: &ststypes.Credentials{
+			AccessKeyId:     aws.String(m.returnCreds.AccessKeyID),
+			SecretAccessKey: aws.String(m.returnCreds.SecretAccessKey),
+			SessionToken:    aws.String(m.returnCreds.SessionToken),
+			Expiration:      aws.Time(m.returnCreds.Expires),
+		},
 	}, nil
 }
 
@@ -106,11 +116,11 @@ func (m *mockImplementation) GetAuthorizationToken(ctx context.Context, cfg aws.
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
 	return &ecr.GetAuthorizationTokenOutput{
 		AuthorizationData: []ecrtypes.AuthorizationData{{
-			AuthorizationToken: aws.String("dXNlcm5hbWU6cGFzc3dvcmQ="),
+			AuthorizationToken: aws.String(base64.StdEncoding.EncodeToString([]byte(m.returnUsername + ":" + m.returnPassword))),
 		}},
 	}, nil
 }
 
-func (mockCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	return aws.Credentials{}, nil
+func (m *mockCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	return m.Credentials, nil
 }

@@ -16,26 +16,6 @@ limitations under the License.
 
 package oci
 
-// Provider is used to categorize the OCI registry providers.
-type Provider int
-
-// Registry providers.
-const (
-	// ProviderGeneric is used to categorize registry provider that we don't
-	// support.
-	ProviderGeneric Provider = iota
-	ProviderAWS
-	ProviderGCP
-	ProviderAzure
-)
-
-// Registry TLS transport config.
-const (
-	ClientCert = "certFile"
-	ClientKey  = "keyFile"
-	CACert     = "caFile"
-)
-
 const (
 	// SourceAnnotation is the OpenContainers annotation for specifying
 	// the upstream source of an OCI artifact.

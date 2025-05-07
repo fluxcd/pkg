@@ -16,7 +16,6 @@ limitations under the License.
 
 // Package oci contains OCI registry related helpers for the registries offered
 // by the various cloud providers. It can be used to perform various operations
-// like pushing, pulling and tagging artifacts, auto-login using the native
-// authentication mechanism of the platform, etc.
+// like pushing, pulling and tagging artifacts, etc.
 // +kubebuilder:object:generate=false
 package oci

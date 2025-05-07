@@ -82,7 +82,6 @@ func TestOciOIDCLoginListTags(t *testing.T) {
 			parts := strings.SplitN(repo, "/", 2)
 			args := []string{
 				"-category=oci",
-				"-oidc-login=true",
 				fmt.Sprintf("-registry=%s", parts[0]),
 				fmt.Sprintf("-repo=%s", parts[1]),
 			}
@@ -91,7 +90,6 @@ func TestOciOIDCLoginListTags(t *testing.T) {
 			// Registry + repo.
 			args = []string{
 				"-category=oci",
-				"-oidc-login=true",
 				fmt.Sprintf("-repo=%s", repo),
 			}
 			testjobExecutionWithArgs(t, args)
