@@ -277,3 +277,58 @@ func TestWaitForSet_ErrorOnReaderError(t *testing.T) {
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(Equal("timeout waiting for: [ConfigMap/default/test status: 'Unknown': error reading status]"))
 }
+
+func TestWaitForSetTermination(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	waitOpts := WaitOptions{
+		Interval: 40 * time.Millisecond,
+		Timeout:  100 * time.Millisecond,
+	}
+
+	id := generateName("wait")
+	objects, err := readManifest("testdata/test3.yaml", id)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	_, namespace := getFirstObject(objects, "Namespace", id)
+	meta := map[string]string{
+		"fluxcd.io/ignore": "true",
+	}
+	namespace.SetAnnotations(meta)
+
+	manager.SetOwnerLabels(objects, "test", id)
+
+	_, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+	g.Expect(err).NotTo(HaveOccurred())
+
+	t.Run("timeout waiting for termination", func(t *testing.T) {
+		gt := NewWithT(t)
+
+		cs := NewChangeSet()
+		cs.Add(ChangeSetEntry{
+			ObjMetadata:  object.UnstructuredToObjMetadata(namespace),
+			GroupVersion: namespace.GroupVersionKind().Version,
+			Subject:      utils.FmtUnstructured(namespace),
+			Action:       DeletedAction,
+		})
+
+		err = manager.WaitForSetTermination(cs, waitOpts)
+		gt.Expect(err).To(HaveOccurred())
+		gt.Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Namespace/%s termination timeout", id)))
+	})
+
+	t.Run("delete and wait for termination", func(t *testing.T) {
+		gt := NewWithT(t)
+
+		delOpts := DefaultDeleteOptions()
+		delOpts.Exclusions = meta
+		cs, err := manager.DeleteAll(ctx, objects, delOpts)
+		gt.Expect(err).NotTo(HaveOccurred())
+
+		err = manager.WaitForSetTermination(cs, waitOpts)
+		gt.Expect(err).NotTo(HaveOccurred())
+	})
+}

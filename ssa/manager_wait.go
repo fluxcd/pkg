@@ -26,6 +26,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -156,14 +157,51 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 	return nil
 }
 
+// WaitForSetTermination waits for the termination of resources
+// specified in the given ChangeSet within the given options.
+// Only resources marked for deletion are considered.
+func (m *ResourceManager) WaitForSetTermination(cs *ChangeSet, opts WaitOptions) error {
+	if cs == nil || len(cs.Entries) == 0 {
+		return nil
+	}
+
+	objects := make([]*unstructured.Unstructured, 0)
+
+	// Filter out entries that are not marked for deletion.
+	for _, entry := range cs.Entries {
+		if entry.Action != DeletedAction {
+			continue
+		}
+
+		gvk := schema.GroupVersionKind{
+			Group:   entry.ObjMetadata.GroupKind.Group,
+			Kind:    entry.ObjMetadata.GroupKind.Kind,
+			Version: entry.GroupVersion,
+		}
+
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(gvk)
+		obj.SetName(entry.ObjMetadata.Name)
+		obj.SetNamespace(entry.ObjMetadata.Namespace)
+
+		objects = append(objects, obj)
+	}
+
+	if len(objects) == 0 {
+		return nil
+	}
+
+	return m.WaitForTermination(objects, opts)
+}
+
 // WaitForTermination waits for the given objects to be deleted from the cluster.
 func (m *ResourceManager) WaitForTermination(objects []*unstructured.Unstructured, opts WaitOptions) error {
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
-	for _, object := range objects {
-		if err := wait.PollUntilContextCancel(ctx, opts.Interval, true, m.isDeleted(object)); err != nil {
-			return fmt.Errorf("%s termination timeout: %w", utils.FmtUnstructured(object), err)
+	for _, obj := range objects {
+		if err := wait.PollUntilContextCancel(ctx, opts.Interval, true, m.isDeleted(obj)); err != nil {
+			return fmt.Errorf("%s termination timeout: %w", utils.FmtUnstructured(obj), err)
 		}
 	}
 	return nil
