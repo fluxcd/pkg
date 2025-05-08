@@ -53,21 +53,23 @@ type ChangeSet struct {
 	Entries []ChangeSetEntry
 }
 
-// NewChangeSet returns a ChangeSet will an empty slice of entries.
+// NewChangeSet returns a ChangeSet with an empty slice of entries.
 func NewChangeSet() *ChangeSet {
 	return &ChangeSet{Entries: []ChangeSetEntry{}}
 }
 
-// Add appends the given entry to the end of the slice.
+// Add appends the given ChangeSetEntry to the end of the slice.
 func (c *ChangeSet) Add(e ChangeSetEntry) {
 	c.Entries = append(c.Entries, e)
 }
 
-// Append adds the given ChangeSet entries to end of the slice.
+// Append adds the given ChangeSet entries to the end of the slice.
 func (c *ChangeSet) Append(e []ChangeSetEntry) {
 	c.Entries = append(c.Entries, e...)
 }
 
+// String formats and returns the string representation of the ChangeSet
+// by concatenating the string output of each entry.
 func (c *ChangeSet) String() string {
 	var b strings.Builder
 	for _, entry := range c.Entries {
@@ -76,6 +78,8 @@ func (c *ChangeSet) String() string {
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
+// ToGroupedMap converts ChangeSet entries into a map grouped by Action,
+// where keys are actions and values are subject slices.
 func (c *ChangeSet) ToGroupedMap() map[Action][]string {
 	res := make(map[Action][]string)
 	for _, entry := range c.Entries {
@@ -84,6 +88,8 @@ func (c *ChangeSet) ToGroupedMap() map[Action][]string {
 	return res
 }
 
+// ToMap converts the ChangeSet entries into a map where the keys
+// are subjects and the values are the corresponding actions.
 func (c *ChangeSet) ToMap() map[string]Action {
 	res := make(map[string]Action, len(c.Entries))
 	for _, entry := range c.Entries {
@@ -92,6 +98,8 @@ func (c *ChangeSet) ToMap() map[string]Action {
 	return res
 }
 
+// ToObjMetadataSet converts the ChangeSet entries to an ObjMetadataSet
+// by extracting the ObjMetadata from each entry.
 func (c *ChangeSet) ToObjMetadataSet() object.ObjMetadataSet {
 	var res []object.ObjMetadata
 	for _, entry := range c.Entries {
@@ -115,6 +123,8 @@ type ChangeSetEntry struct {
 	Action Action
 }
 
+// String returns a string representation of the ChangeSetEntry
+// by combining its Subject and Action fields.
 func (e ChangeSetEntry) String() string {
 	return fmt.Sprintf("%s %s", e.Subject, e.Action)
 }
