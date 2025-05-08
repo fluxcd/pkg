@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -88,8 +87,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 		err := gkeMetadataServer.Shutdown(ctx)
 		g.Expect(err).NotTo(HaveOccurred())
 	})
-	gceMetadataHost := strings.TrimPrefix(lis.Addr().String(), "http://")
-	t.Setenv("GCE_METADATA_HOST", gceMetadataHost)
+	t.Setenv("GCE_METADATA_HOST", lis.Addr().String())
 
 	for _, tt := range []struct {
 		name        string
