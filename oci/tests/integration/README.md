@@ -583,13 +583,12 @@ Settings->Users page.
 
 ## Workload Identity
 
-By default, the tests use node identity for authentication. To run the integration tests on clusters with workload identity
-enabled for any of the providers. The following terraform variables need to be set.
+By default, the tests use node identity for authentication. To run
+the integration tests on clusters with workload identity enabled,
+the following terraform variable needs to be set.
 
 ```shell
-export TF_VAR_wi_k8s_sa_name=
-export TF_VAR_wi_k8s_sa_ns=
-export TF_VAR_enable_wi=
+export TF_VAR_enable_wi=true
 ```
 
 They have been included in the `.env.sample` and you can simply uncomment it.

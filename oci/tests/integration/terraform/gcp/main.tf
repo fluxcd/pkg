@@ -35,18 +35,14 @@ resource "google_service_account" "test" {
   description = "Service account for testing Workload integration for OCI repositories in Flux"
 }
 
-resource "google_project_iam_member" "admin-account-iam" {
+resource "google_project_iam_binding" "admin-account-iam" {
   count   = var.enable_wi ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/artifactregistry.repoAdmin"
-  member  = "serviceAccount:${google_service_account.test[count.index].email}"
-}
-
-resource "google_project_iam_member" "gcr-account-iam" {
-  count   = var.enable_wi ? 1 : 0
-  project = var.gcp_project_id
-  role    = "roles/containerregistry.ServiceAgent"
-  member  = "serviceAccount:${google_service_account.test[count.index].email}"
+  members = [
+    "serviceAccount:${google_service_account.test[count.index].email}",
+    "serviceAccount:${var.gcp_project_id}.svc.id.goog[${var.wi_k8s_sa_ns}/${var.wi_k8s_sa_name_direct_access}]",
+  ]
 }
 
 resource "google_service_account_iam_member" "main" {
