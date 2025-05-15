@@ -30,14 +30,66 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func testjobExecutionWithArgs(t *testing.T, args []string) {
+const (
+	objectLevelWIModeDisabled objectLevelWIMode = iota
+	objectLevelWIModeDirectAccess
+	objectLevelWIModeImpersonation
+)
+
+type objectLevelWIMode int
+
+type jobOptions struct {
+	objectLevelWIMode objectLevelWIMode
+}
+
+type jobOption func(*jobOptions)
+
+func withObjectLevelWI(mode objectLevelWIMode) jobOption {
+	return func(o *jobOptions) {
+		o.objectLevelWIMode = mode
+	}
+}
+
+func testjobExecutionWithArgs(t *testing.T, args []string, opts ...jobOption) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := context.TODO()
 
+	var o jobOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	job := &batchv1.Job{}
 	job.Name = "test-job-" + randStringRunes(5)
-	job.Namespace = "default"
+	job.Namespace = wiSANamespace
+	job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
+
+	if enableWI {
+		// Set pod SA.
+		saName := wiServiceAccount
+		if o.objectLevelWIMode != objectLevelWIModeDisabled {
+			saName = controllerWIRBACName
+
+			// Set impersonated SA.
+			args = append(args, "-wisa-namespace="+wiSANamespace)
+			switch o.objectLevelWIMode {
+			case objectLevelWIModeImpersonation:
+				args = append(args, "-wisa-name="+wiServiceAccount)
+			case objectLevelWIModeDirectAccess:
+				args = append(args, "-wisa-name="+wiServiceAccountDirectAccess)
+			}
+		}
+		job.Spec.Template.Spec.ServiceAccountName = saName
+
+		// azure requires this label on the pod for workload identity to work.
+		if *targetProvider == "azure" && o.objectLevelWIMode == objectLevelWIModeDisabled {
+			job.Spec.Template.Labels = map[string]string{
+				"azure.workload.identity/use": "true",
+			}
+		}
+	}
+
 	job.Spec.Template.Spec.Containers = []corev1.Container{
 		{
 			Name:            "test-app",
@@ -45,18 +97,6 @@ func testjobExecutionWithArgs(t *testing.T, args []string) {
 			Args:            args,
 			ImagePullPolicy: corev1.PullAlways,
 		},
-	}
-	job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
-
-	if enableWI {
-		job.Spec.Template.Spec.ServiceAccountName = wiServiceAccount
-
-		// azure requires this label on the pod for workload identity to work.
-		if *targetProvider == "azure" {
-			job.Spec.Template.Labels = map[string]string{
-				"azure.workload.identity/use": "true",
-			}
-		}
 	}
 
 	key := client.ObjectKeyFromObject(job)

@@ -33,6 +33,7 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -55,15 +56,19 @@ const (
 	// used from.
 	kubeconfigPath = "./build/kubeconfig"
 
-	resultWaitTimeout = 30 * time.Second
+	resultWaitTimeout = 2 * time.Minute
+
+	// envVarWISANamespace is the name of the terraform environment variable containing
+	// the service account namespace used for workload identity.
+	envVarWISANamespace = "TF_VAR_wi_k8s_sa_ns"
 
 	// envVarWISAName is the name of the terraform environment variable containing
 	// the service account name used for workload identity.
 	envVarWISAName = "TF_VAR_wi_k8s_sa_name"
 
-	// envVarWISANamespace is the name of the terraform environment variable containing
-	// the service account namespace used for workload identity.
-	envVarWISANamespace = "TF_VAR_wi_k8s_sa_ns"
+	// envVarWISANameDirectAccess is the name of the terraform environment variable containing
+	// the service account name used for workload identity direct access.
+	envVarWISANameDirectAccess = "TF_VAR_wi_k8s_sa_name_direct_access"
 
 	// envVarAzureDevOpsOrg is the name of the terraform environment variable
 	// containing the Azure DevOps organization name.
@@ -72,23 +77,32 @@ const (
 	// envVarAzureDevOpsPAT is the name of the terraform environment variable
 	// containing the Azure DevOps personal access token.
 	envVarAzureDevOpsPAT = "TF_VAR_azuredevops_pat"
+
+	// wiSANamespace is the namespace of the service account that will be created and annotated for workload
+	// identity. It is set from the terraform variable (`TF_VAR_wi_k8s_sa_ns`)
+	wiSANamespace = "default"
+
+	// wiServiceAccount is the name of the service account that will be created and annotated for workload
+	// identity. It is set from the terraform variable (`TF_VAR_wi_k8s_sa_name`)
+	wiServiceAccount = "test-workload-id"
+
+	// wiServiceAccountDirectAccess is the name of the service account used for
+	// workload identity direct access.
+	wiServiceAccountDirectAccess = "test-workload-id-direct-access"
+
+	// controllerWIRBACName is the name used for RBAC resources a controller needs
+	// for impersonating the workload identity service account while obtaining
+	// cloud provider credentials. This is needed for testing object-level
+	// workload identity.
+	controllerWIRBACName = "flux-controller"
 )
 
 var (
-	// supportedOciProviders are the providers supported by the test.
-	supportedOciProviders = []string{"aws", "azure", "gcp"}
-
-	// supportedProviders are the providers supported by the test.
-	supportedGitProviders = []string{"azure"}
-
 	// targetProvider is the name of the kubernetes provider to test against.
-	targetProvider = flag.String("provider", "", fmt.Sprintf("name of the provider %v for oci, %v for git", supportedOciProviders, supportedGitProviders))
+	targetProvider = flag.String("provider", "", "one of aws, azure or gcp")
 
-	// enableOci is set to true when oci is enabled in env and a supported provider is specified.
-	enableOci bool
-
-	// enableGit is set to true when oci is enabled in env and a supported provider is specified.
-	enableGit bool
+	// testGit tells whether to run the git tests or not.
+	testGit bool
 
 	// retain flag to prevent destroy and retaining the created infrastructure.
 	retain = flag.Bool("retain", false, "retain the infrastructure for debugging purposes")
@@ -120,12 +134,11 @@ var (
 
 	testAppImage string
 
-	// wiServiceAccount is the name of the service account that will be created and annotated for workload
-	// identity. It is set from the terraform variable (`TF_VAR_wi_k8s_sa_name`)
-	wiServiceAccount string
-
-	// enableWI is set to true when the TF_VAR_enable_wi is set to "true", so the tests run for Workload Identtty
+	// enableWI is set to true when the TF_VAR_enable_wi is set to "true", so the tests run for Workload Identity
 	enableWI bool
+
+	// testWIDirectAccess is set by the provider config.
+	testWIDirectAccess bool
 
 	// testGitCfg is a struct containing different variables needed for running git tests.
 	testGitCfg *gitTestConfig
@@ -192,6 +205,11 @@ type ProviderConfig struct {
 	revokePermissionsToGitRepository revokePermissionsToGitRepository
 	// getGitTestConfig is used to return provider specific test configuration
 	getGitTestConfig getGitTestConfig
+	// supportsWIDirectAccess is a boolean that indicates if the test should run
+	// for workload identity direct access.
+	supportsWIDirectAccess bool
+	// supportsGit is a boolean that indicates if the test should run for git.
+	supportsGit bool
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
@@ -210,26 +228,23 @@ func TestMain(m *testing.M) {
 
 	// Validate the provider.
 	if *targetProvider == "" {
-		log.Fatalf("-provider flag must be set to one of %v for git or %v for oci", supportedGitProviders, supportedOciProviders)
-	}
-
-	if os.Getenv("TF_VAR_enable_git") == "true" && supportedProvider(*targetProvider, supportedGitProviders) {
-		enableGit = true
-	}
-
-	if os.Getenv("TF_VAR_enable_oci") == "true" && supportedProvider(*targetProvider, supportedOciProviders) {
-		enableOci = true
+		log.Fatalf("-provider flag must be set to one of aws, azure or gcp")
 	}
 
 	enableWI = os.Getenv("TF_VAR_enable_wi") == "true"
-	if enableGit && !enableWI {
-		log.Fatalf("Workload identity must be enabled to run git tests")
-	}
 
 	providerCfg := getProviderConfig(*targetProvider)
 	if providerCfg == nil {
 		log.Fatalf("Failed to get provider config for %q", *targetProvider)
 	}
+	if enableWI {
+		testWIDirectAccess = providerCfg.supportsWIDirectAccess
+	}
+	testGit = providerCfg.supportsGit
+
+	os.Setenv(envVarWISANamespace, wiSANamespace)
+	os.Setenv(envVarWISAName, wiServiceAccount)
+	os.Setenv(envVarWISANameDirectAccess, wiServiceAccountDirectAccess)
 
 	// Run destroy-only mode if enabled.
 	if *destroyOnly {
@@ -264,6 +279,11 @@ func TestMain(m *testing.M) {
 	}
 
 	err = corev1.AddToScheme(scheme)
+	if err != nil {
+		panic(err)
+	}
+
+	err = rbacv1.AddToScheme(scheme)
 	if err != nil {
 		panic(err)
 	}
@@ -317,7 +337,7 @@ func TestMain(m *testing.M) {
 		}
 	}()
 
-	if enableGit {
+	if testGit {
 		// Populate the global git config.
 		testGitCfg, err = providerCfg.getGitTestConfig(output)
 		if err != nil {
@@ -329,15 +349,6 @@ func TestMain(m *testing.M) {
 	configureAdditionalInfra(ctx, providerCfg, output)
 
 	exitCode = m.Run()
-}
-
-func supportedProvider(targetProvider string, supportedProviders []string) bool {
-	for _, p := range supportedProviders {
-		if p == targetProvider {
-			return true
-		}
-	}
-	return false
 }
 
 // getProviderConfig returns the test configuration of supported providers.
@@ -364,6 +375,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryAzure,
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryAzure,
 			getGitTestConfig:                 getGitTestConfigAzure,
+			supportsGit:                      enableWI, // azure only supports git with workload identity
 		}
 		return providerCfg
 	case "gcp":
@@ -376,6 +388,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryGCP,
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryGCP,
 			getGitTestConfig:                 getGitTestConfigGCP,
+			supportsWIDirectAccess:           true,
 		}
 	}
 	return nil
@@ -403,12 +416,10 @@ func pushAppImage(ctx context.Context, providerCfg *ProviderConfig, tfOutput map
 }
 
 func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput) {
-	if enableOci {
-		log.Println("OCI is enabled, push oci test images")
-		pushOciTestImages(ctx, providerCfg, tfOutput)
-	}
+	log.Println("push oci test images")
+	pushOciTestImages(ctx, providerCfg, tfOutput)
 
-	if enableGit && testGitCfg != nil {
+	if testGit && testGitCfg != nil {
 		// Call provider specific API to configure permisions for the git repository
 		log.Println("Git is enabled, granting permissions to workload identity to access repository")
 		if err := providerCfg.grantPermissionsToGitRepository(ctx, testGitCfg, tfOutput); err != nil {
@@ -424,6 +435,16 @@ func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, 
 		}
 
 		if err := createWorkloadIDServiceAccount(ctx, annotations); err != nil {
+			panic(err)
+		}
+
+		if providerCfg.supportsWIDirectAccess {
+			if err := createDirectAccessWorkloadIdentityServiceAccount(ctx); err != nil {
+				panic(err)
+			}
+		}
+
+		if err := createControllerWorkloadIdentityServiceAccount(ctx); err != nil {
 			panic(err)
 		}
 	}
@@ -444,14 +465,7 @@ func pushOciTestImages(ctx context.Context, providerCfg *ProviderConfig, tfOutpu
 
 // creatWorkloadIDServiceAccount creates the service account (name and namespace specified in the terraform
 // variables) with the annotations passed into the function.
-//
-// TODO: move creation of serviceaccount to terraform
 func createWorkloadIDServiceAccount(ctx context.Context, annotations map[string]string) error {
-	wiServiceAccount = os.Getenv(envVarWISAName)
-	wiSANamespace := os.Getenv(envVarWISANamespace)
-	if wiServiceAccount == "" || wiSANamespace == "" {
-		return fmt.Errorf("both %s and  %s env variables need to be set when workload identity is enabled", envVarWISAName, envVarWISANamespace)
-	}
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wiServiceAccount,
@@ -466,6 +480,81 @@ func createWorkloadIDServiceAccount(ctx context.Context, annotations map[string]
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create service account for workload identity: %w", err)
+	}
+
+	return nil
+}
+
+// createDirectAccessWorkloadIdentityServiceAccount creates a service account
+// for testing direct access to workload identity.
+func createDirectAccessWorkloadIdentityServiceAccount(ctx context.Context) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      wiServiceAccountDirectAccess,
+			Namespace: wiSANamespace,
+		},
+	}
+	if err := testEnv.Client.Create(ctx, sa); err != nil {
+		return fmt.Errorf("failed to create direct access service account for workload identity: %w", err)
+	}
+	return nil
+}
+
+// createControllerWorkloadIdentityServiceAccount creates a service account
+// with RBAC permissions for impersonating the workload identity service account
+// while obtaining cloud provider credentials. This service account is needed
+// for testing object-level workload identity.
+func createControllerWorkloadIdentityServiceAccount(ctx context.Context) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      controllerWIRBACName,
+			Namespace: wiSANamespace,
+		},
+	}
+	if err := testEnv.Client.Create(ctx, sa); err != nil {
+		return fmt.Errorf("failed to create controller service account for workload identity: %w", err)
+	}
+
+	clusterRole := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: controllerWIRBACName,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"serviceaccounts"},
+				Verbs:     []string{"get"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"serviceaccounts/token"},
+				Verbs:     []string{"create"},
+			},
+		},
+	}
+	if err := testEnv.Client.Create(ctx, clusterRole); err != nil {
+		return fmt.Errorf("failed to create controller cluster role for workload identity: %w", err)
+	}
+
+	roleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: controllerWIRBACName,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      sa.Name,
+				Namespace: sa.Namespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: rbacv1.SchemeGroupVersion.Group,
+			Kind:     "ClusterRole",
+			Name:     clusterRole.Name,
+		},
+	}
+	if err := testEnv.Client.Create(ctx, roleBinding); err != nil {
+		return fmt.Errorf("failed to create controller cluster role binding for workload identity: %w", err)
 	}
 
 	return nil

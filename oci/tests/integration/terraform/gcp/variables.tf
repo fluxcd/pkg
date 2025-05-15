@@ -22,16 +22,19 @@ variable "tags" {
   default = {}
 }
 
+variable "wi_k8s_sa_ns" {
+  type        = string
+  description = "Namespace of kubernetes service account to be bound to GCP IAM service account (For workload identity)"
+}
+
 variable "wi_k8s_sa_name" {
   type        = string
-  default     = "test"
   description = "Name of kubernetes service account to be bound to GCP IAM service account (For workload identity)"
 }
 
-variable "wi_k8s_sa_ns" {
+variable "wi_k8s_sa_name_direct_access" {
   type        = string
-  default     = "default"
-  description = "Namespace of kubernetes service account to be bound to GCP IAM service account (For workload identity)"
+  description = "Name of kubernetes service account to get direct permissions in GCP (For workload identity)"
 }
 
 variable "enable_wi" {

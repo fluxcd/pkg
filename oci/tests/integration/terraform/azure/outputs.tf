@@ -15,14 +15,18 @@ output "workload_identity_client_id" {
   value = var.enable_wi ? azurerm_user_assigned_identity.wi-id[0].client_id : ""
 }
 
+output "workload_identity_tenant_id" {
+  value = var.enable_wi ? azurerm_user_assigned_identity.wi-id[0].tenant_id : ""
+}
+
 output "workload_identity_object_id" {
   value = var.enable_wi ? azurerm_user_assigned_identity.wi-id[0].principal_id : ""
 }
 
 output "git_repo_url" {
-  value = var.enable_git ? module.devops[0].repo_url : ""
+  value = var.enable_wi ? module.devops[0].repo_url : ""
 }
 
 output "azure_devops_project_id" {
-  value = var.enable_git ? module.devops[0].project_id : ""
+  value = var.enable_wi ? module.devops[0].project_id : ""
 }

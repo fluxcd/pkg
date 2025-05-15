@@ -29,7 +29,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/fluxcd/pkg/auth"
@@ -48,14 +52,38 @@ import (
 //   - when the repository contains only the repository name and registry name
 //     is provided separately, e.g. registry: foo.azurecr.io, repo: bar.
 var (
-	registry = flag.String("registry", "", "registry of the repository")
-	repo     = flag.String("repo", "", "git/oci repository to list")
-	category = flag.String("category", "", "Test category to run - oci/git")
-	provider = flag.String("provider", "", "Supported git oidc provider - azure")
+	registry      = flag.String("registry", "", "registry of the repository")
+	repo          = flag.String("repo", "", "git/oci repository to list")
+	category      = flag.String("category", "", "Test category to run - oci/git")
+	provider      = flag.String("provider", "", "oidc provider - aws, azure, gcp")
+	wiSAName      = flag.String("wisa-name", "", "Name of the Workload Identity Service Account to use for authentication")
+	wiSANamespace = flag.String("wisa-namespace", "", "Namespace of the Workload Identity Service Account to use for authentication")
+)
+
+var (
+	authOpts []auth.Option
 )
 
 func main() {
 	flag.Parse()
+	if *wiSAName != "" && *wiSANamespace != "" {
+		conf, err := rest.InClusterConfig()
+		if err != nil {
+			panic(err)
+		}
+		scheme := runtime.NewScheme()
+		if err := clientgoscheme.AddToScheme(scheme); err != nil {
+			panic(err)
+		}
+		c, err := client.New(conf, client.Options{Scheme: scheme})
+		if err != nil {
+			panic(err)
+		}
+		authOpts = append(authOpts, auth.WithServiceAccount(client.ObjectKey{
+			Name:      *wiSAName,
+			Namespace: *wiSANamespace,
+		}, c))
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -95,7 +123,7 @@ func checkOci(ctx context.Context) {
 
 	for _, provider := range []auth.Provider{aws.Provider{}, azure.Provider{}, gcp.Provider{}} {
 		if _, err = provider.ParseArtifactRepository(loginURL); err == nil {
-			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL)
+			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL, authOpts...)
 			break
 		}
 	}
@@ -123,22 +151,20 @@ func checkGit(ctx context.Context) {
 	}
 
 	var authData map[string][]byte
-	authOpts, err := git.NewAuthOptions(*u, authData)
+	gitAuthOpts, err := git.NewAuthOptions(*u, authData)
 	if err != nil {
 		panic(err)
 	}
-	authOpts.ProviderOpts = &git.ProviderOptions{
-		Name: *provider,
-		AuthOpts: []auth.Option{
-			auth.WithScopes(azure.ScopeDevOps),
-		},
+	gitAuthOpts.ProviderOpts = &git.ProviderOptions{
+		Name:     *provider,
+		AuthOpts: authOpts,
 	}
 	cloneDir, err := os.MkdirTemp("", "test-clone")
 	if err != nil {
 		panic(err)
 	}
 	defer os.RemoveAll(cloneDir)
-	c, err := gogit.NewClient(cloneDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage())
+	c, err := gogit.NewClient(cloneDir, gitAuthOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage())
 	if err != nil {
 		panic(err)
 	}

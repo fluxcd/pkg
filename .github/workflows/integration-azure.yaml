@@ -16,7 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        enable-workload-id: [ "true", "false" ]
+        auth-mode:
+        - node-identity
+        - workload-identity
       fail-fast: false
     defaults:
       run:
@@ -34,7 +36,7 @@ jobs:
       - name: Authenticate to Azure
         uses: Azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v1.4.6
         with:
-          creds: '{"clientId":"${{ secrets.OCI_E2E_AZ_ARM_CLIENT_ID }}","clientSecret":"${{ secrets.OCI_E2E_AZ_ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.OCI_E2E_AZ_ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.OCI_E2E_AZ_ARM_TENANT_ID }}"}'
+          creds: '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{ secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
       - name: Setup QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
       - name: Setup Docker Buildx
@@ -43,8 +45,6 @@ jobs:
         run: |
           cat > .env <<EOF
           export TF_VAR_tags='{"environment"="github", "ci"="true", "repo"="pkg", "createdat"="$(date -u +x%Y-%m-%d_%Hh%Mm%Ss)"}'
-          export TF_VAR_enable_git=true
-          export TF_VAR_enable_oci=true
           EOF
       - name: Print .env for dynamic tag value reference
         run: cat .env
@@ -53,23 +53,23 @@ jobs:
       - name: Run tests
         run: . .env && make test-azure
         env:
-          ARM_CLIENT_ID: ${{ secrets.OCI_E2E_AZ_ARM_CLIENT_ID }}
-          ARM_CLIENT_SECRET: ${{ secrets.OCI_E2E_AZ_ARM_CLIENT_SECRET }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.OCI_E2E_AZ_ARM_SUBSCRIPTION_ID }}
-          ARM_TENANT_ID: ${{ secrets.OCI_E2E_AZ_ARM_TENANT_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          TF_VAR_azuredevops_org: ${{ secrets.TF_VAR_azuredevops_org }}
+          TF_VAR_azuredevops_pat: ${{ secrets.TF_VAR_azuredevops_pat }}
           TF_VAR_azure_location: ${{ vars.TF_VAR_azure_location }}
-          TF_VAR_enable_wi: ${{ matrix.enable-workload-id }}
-          TF_VAR_wi_k8s_sa_name: test-workload-id
-          TF_VAR_wi_k8s_sa_ns: default
+          TF_VAR_enable_wi: ${{ (matrix.auth-mode == 'workload-identity') && 'true' || 'false' }}
       - name: Ensure resource cleanup
         if: ${{ always() }}
         run: . .env && make destroy-azure
         env:
-          ARM_CLIENT_ID: ${{ secrets.OCI_E2E_AZ_ARM_CLIENT_ID }}
-          ARM_CLIENT_SECRET: ${{ secrets.OCI_E2E_AZ_ARM_CLIENT_SECRET }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.OCI_E2E_AZ_ARM_SUBSCRIPTION_ID }}
-          ARM_TENANT_ID: ${{ secrets.OCI_E2E_AZ_ARM_TENANT_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          TF_VAR_azuredevops_org: ${{ secrets.TF_VAR_azuredevops_org }}
+          TF_VAR_azuredevops_pat: ${{ secrets.TF_VAR_azuredevops_pat }}
           TF_VAR_azure_location: ${{ vars.TF_VAR_azure_location }}
-          TF_VAR_enable_wi: ${{ matrix.enable-workload-id }}
-          TF_VAR_wi_k8s_sa_name: test-workload-id
-          TF_VAR_wi_k8s_sa_ns: default
+          TF_VAR_enable_wi: ${{ (matrix.auth-mode == 'workload-identity') && 'true' || 'false' }}

@@ -26,8 +26,8 @@ import (
 )
 
 func TestGitCloneUsingProvider(t *testing.T) {
-	if !enableGit {
-		t.Skip("Skipping test, enable git in env, supported providers ", supportedGitProviders)
+	if !testGit {
+		t.Skip("Skipping git test, not supported for provider")
 	}
 
 	ctx := context.TODO()
@@ -43,5 +43,51 @@ func TestGitCloneUsingProvider(t *testing.T) {
 			fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
 		}
 		testjobExecutionWithArgs(t, args)
+	})
+}
+
+func TestGitCloneUsingObjectLevelWorkloadIdentity(t *testing.T) {
+	if !testGit {
+		t.Skip("Skipping git test, not supported for provider")
+	}
+
+	ctx := context.TODO()
+	tmpDir := t.TempDir()
+
+	if err := setUpGitRepository(ctx, tmpDir); err != nil {
+		t.Fatalf("failed setting up GitRepository: %v", err)
+	}
+	t.Run("Git oidc credential test", func(t *testing.T) {
+		args := []string{
+			"-category=git",
+			fmt.Sprintf("-provider=%s", *targetProvider),
+			fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
+		}
+		testjobExecutionWithArgs(t, args, withObjectLevelWI(objectLevelWIModeImpersonation))
+	})
+}
+
+func TestGitCloneUsingObjectLevelWorkloadIdentityWithDirectAccess(t *testing.T) {
+	if !testGit {
+		t.Skip("Skipping git test, not supported for provider")
+	}
+
+	if !testWIDirectAccess {
+		t.Skip("Skipping workload identity direct access test, not supported for provider")
+	}
+
+	ctx := context.TODO()
+	tmpDir := t.TempDir()
+
+	if err := setUpGitRepository(ctx, tmpDir); err != nil {
+		t.Fatalf("failed setting up GitRepository: %v", err)
+	}
+	t.Run("Git oidc credential test", func(t *testing.T) {
+		args := []string{
+			"-category=git",
+			fmt.Sprintf("-provider=%s", *targetProvider),
+			fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
+		}
+		testjobExecutionWithArgs(t, args, withObjectLevelWI(objectLevelWIModeDirectAccess))
 	})
 }

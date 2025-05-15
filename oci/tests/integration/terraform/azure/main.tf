@@ -64,7 +64,7 @@ provider "azuredevops" {
 }
 
 module "devops" {
-  count = var.enable_git ? 1 : 0
+  count = var.enable_wi ? 1 : 0
   source = "git::https://github.com/fluxcd/test-infra.git//tf-modules/azure/devops"
   providers = {
     azuredevops = azuredevops

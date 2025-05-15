@@ -39,8 +39,11 @@ import (
 )
 
 const (
-	// azureWIClientIdAnnotation is the key for the annotation on the kubernetes serviceaccount
+	// azureWIClientIdAnnotation is the key for the client ID annotation on the kubernetes serviceaccount
 	azureWIClientIdAnnotation = "azure.workload.identity/client-id"
+
+	// azureWITenantIdAnnotation is the key for the tenant ID annotation on the kubernetes serviceaccount
+	azureWITenantIdAnnotation = "azure.workload.identity/tenant-id"
 )
 
 // createKubeConfigAKS constructs kubeconfig for an AKS cluster from the
@@ -87,8 +90,14 @@ func getWISAAnnotationsAzure(output map[string]*tfjson.StateOutput) (map[string]
 		return nil, fmt.Errorf("no Azure client id in terraform output")
 	}
 
+	tenantID := output["workload_identity_tenant_id"].Value.(string)
+	if tenantID == "" {
+		return nil, fmt.Errorf("no Azure tenant id in terraform output")
+	}
+
 	return map[string]string{
 		azureWIClientIdAnnotation: clientID,
+		azureWITenantIdAnnotation: tenantID,
 	}, nil
 }
 

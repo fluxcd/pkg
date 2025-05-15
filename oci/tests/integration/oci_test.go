@@ -26,10 +26,6 @@ import (
 )
 
 func TestOciImageRepositoryListTags(t *testing.T) {
-	if !enableOci {
-		t.Skip("Skipping test as oci is not enabled in env")
-	}
-
 	if len(testRepos) == 0 {
 		t.Fatalf("expected testRepos to be set")
 	}
@@ -45,11 +41,47 @@ func TestOciImageRepositoryListTags(t *testing.T) {
 	}
 }
 
-func TestOciRepositoryRootLoginListTags(t *testing.T) {
-	if !enableOci {
-		t.Skip("Skipping test as oci is not enabled in env")
+func TestOciImageRepositoryListTagsUsingObjectLevelWorkloadIdentity(t *testing.T) {
+	if !enableWI {
+		t.Skip("Skipping test as workload identity is not enabled in env")
 	}
 
+	if len(testRepos) == 0 {
+		t.Fatalf("expected testRepos to be set")
+	}
+
+	for name, repo := range testRepos {
+		t.Run(name, func(t *testing.T) {
+			args := []string{
+				"-category=oci",
+				fmt.Sprintf("-repo=%s", repo),
+			}
+			testjobExecutionWithArgs(t, args, withObjectLevelWI(objectLevelWIModeImpersonation))
+		})
+	}
+}
+
+func TestOciImageRepositoryListTagsUsingObjectLevelWorkloadIdentityWithDirectAccess(t *testing.T) {
+	if !testWIDirectAccess {
+		t.Skip("Skipping workload identity direct access test, not supported for provider")
+	}
+
+	if len(testRepos) == 0 {
+		t.Fatalf("expected testRepos to be set")
+	}
+
+	for name, repo := range testRepos {
+		t.Run(name, func(t *testing.T) {
+			args := []string{
+				"-category=oci",
+				fmt.Sprintf("-repo=%s", repo),
+			}
+			testjobExecutionWithArgs(t, args, withObjectLevelWI(objectLevelWIModeDirectAccess))
+		})
+	}
+}
+
+func TestOciRepositoryRootLoginListTags(t *testing.T) {
 	if len(testRepos) == 0 {
 		t.Fatalf("expected testRepos to be set")
 	}
@@ -68,10 +100,6 @@ func TestOciRepositoryRootLoginListTags(t *testing.T) {
 }
 
 func TestOciOIDCLoginListTags(t *testing.T) {
-	if !enableOci {
-		t.Skip("Skipping test as oci is not enabled in env")
-	}
-
 	if len(testRepos) == 0 {
 		t.Fatalf("expected testRepos to be set")
 	}

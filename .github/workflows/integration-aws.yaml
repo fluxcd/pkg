@@ -15,6 +15,11 @@ permissions:
 jobs:
   oci-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        auth-mode:
+        - node-identity
+        - workload-identity
     defaults:
       run:
         working-directory: ./oci/tests/integration
@@ -43,7 +48,6 @@ jobs:
           cat > .env <<EOF
           export TF_VAR_rand=${RANDOM}
           export TF_VAR_tags='{"environment"="github", "ci"="true", "repo"="pkg", "createdat"="$(date -u +x%Y-%m-%d_%Hh%Mm%Ss)"}'
-          export TF_VAR_enable_oci=true
           EOF
       - name: Print .env for dynamic tag value reference
         run: cat .env
@@ -54,9 +58,11 @@ jobs:
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
           TF_VAR_cross_region: ${{ vars.OCI_E2E_TF_VAR_cross_region }}
+          TF_VAR_enable_wi: ${{ (matrix.auth-mode == 'workload-identity' && 'true') || 'false' }}
       - name: Ensure resource cleanup
         if: ${{ always() }}
         run: . .env && make destroy-aws
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
           TF_VAR_cross_region: ${{ vars.OCI_E2E_TF_VAR_cross_region }}
+          TF_VAR_enable_wi: ${{ (matrix.auth-mode == 'workload-identity' && 'true') || 'false' }}
