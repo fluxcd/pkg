@@ -2,8 +2,8 @@ name: integration-azure
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "0 12 * * *"
+  schedule:
+    - cron: "0 12 * * *"
   # push:
   #   branches:
   #     - main
