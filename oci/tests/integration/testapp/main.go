@@ -67,6 +67,7 @@ var (
 func main() {
 	flag.Parse()
 	if *wiSAName != "" && *wiSANamespace != "" {
+		auth.EnableObjectLevelWorkloadIdentity()
 		conf, err := rest.InClusterConfig()
 		if err != nil {
 			panic(err)

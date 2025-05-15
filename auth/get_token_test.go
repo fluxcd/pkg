@@ -211,11 +211,12 @@ func TestGetToken(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name          string
-		provider      *mockProvider
-		opts          []auth.Option
-		expectedToken auth.Token
-		expectedErr   string
+		name               string
+		provider           *mockProvider
+		opts               []auth.Option
+		disableObjectLevel bool
+		expectedToken      auth.Token
+		expectedErr        string
 	}{
 		{
 			name: "controller access token",
@@ -376,11 +377,24 @@ func TestGetToken(t *testing.T) {
 			},
 			expectedErr: "failed to parse artifact repository 'some-registry.io/some/artifact': mock error",
 		},
+		{
+			name:     "disable object level workload identity",
+			provider: &mockProvider{},
+			opts: []auth.Option{
+				auth.WithServiceAccount(saRef, kubeClient),
+			},
+			disableObjectLevel: true,
+			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
 			tt.provider.t = t
+
+			if !tt.disableObjectLevel {
+				t.Setenv(auth.EnvVarEnableObjectLevelWorkloadIdentity, "true")
+			}
 
 			token, err := auth.GetToken(ctx, tt.provider, tt.opts...)
 

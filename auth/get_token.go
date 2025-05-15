@@ -48,6 +48,11 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 	var providerIdentity string
 	var serviceAccountP *corev1.ServiceAccount
 	if o.ServiceAccount != nil {
+		// Check the feature gate for object-level workload identity.
+		if !IsObjectLevelWorkloadIdentityEnabled() {
+			return nil, ErrObjectLevelWorkloadIdentityNotEnabled
+		}
+
 		// Get service account and prepare a function to create a token for it.
 		var serviceAccount corev1.ServiceAccount
 		if err := o.Client.Get(ctx, *o.ServiceAccount, &serviceAccount); err != nil {
