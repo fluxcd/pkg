@@ -203,6 +203,27 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	}
 }
 
+func TestProvider_GetAudience(t *testing.T) {
+	g := NewWithT(t)
+	aud, err := aws.Provider{}.GetAudience(context.Background(), corev1.ServiceAccount{})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(aud).To(Equal("sts.amazonaws.com"))
+}
+
+func TestProvider_GetIdentity(t *testing.T) {
+	g := NewWithT(t)
+
+	identity, err := aws.Provider{}.GetIdentity(corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				"eks.amazonaws.com/role-arn": "arn:aws:iam::1234567890:role/some-role",
+			},
+		},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(identity).To(Equal("arn:aws:iam::1234567890:role/some-role"))
+}
+
 func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 	g := NewWithT(t)
 

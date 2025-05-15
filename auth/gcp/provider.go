@@ -67,7 +67,18 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudience implements auth.Provider.
-func (Provider) GetAudience(ctx context.Context) (string, error) {
+func (Provider) GetAudience(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, error) {
+	// Check if a workload identity provider is specified in the service account.
+	// If so, the current cluster is not GKE and the audience is the provider itself.
+	audience, err := getWorkloadIdentityProvider(serviceAccount)
+	if err != nil {
+		return "", err
+	}
+	if audience != "" {
+		return audience, nil
+	}
+
+	// Assume we are in GKE. In this case, the audience is the workload identity pool.
 	return gkeMetadata.workloadIdentityPool(ctx)
 }
 
@@ -87,9 +98,19 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	var o auth.Options
 	o.Apply(opts...)
 
-	audience, err := gkeMetadata.getAudience(ctx)
+	// Check if a workload identity provider is specified in the service account.
+	// If so, the current cluster is not GKE and the audience is the provider itself.
+	audience, err := getWorkloadIdentityProvider(serviceAccount)
 	if err != nil {
 		return nil, err
+	}
+
+	// Assume we are in GKE. In this case, retrieve the audience from the metadata.
+	if audience == "" {
+		audience, err = gkeMetadata.getAudience(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	conf := externalaccount.Config{

@@ -12,7 +12,7 @@ replace (
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/distribution/distribution/v3 v3.0.0
-	github.com/fluxcd/pkg/auth v0.12.0
+	github.com/fluxcd/pkg/auth v0.13.0
 	github.com/fluxcd/pkg/sourceignore v0.12.0
 	github.com/fluxcd/pkg/tar v0.12.0
 	github.com/fluxcd/pkg/version v0.7.0

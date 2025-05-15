@@ -111,7 +111,7 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudience implements auth.Provider.
-func (Provider) GetAudience(ctx context.Context) (string, error) {
+func (Provider) GetAudience(context.Context, corev1.ServiceAccount) (string, error) {
 	return "sts.amazonaws.com", nil
 }
 

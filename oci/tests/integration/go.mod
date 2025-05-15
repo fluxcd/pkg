@@ -11,8 +11,8 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/auth v0.12.0
-	github.com/fluxcd/pkg/git v0.29.0
+	github.com/fluxcd/pkg/auth v0.13.0
+	github.com/fluxcd/pkg/git v0.30.0
 	github.com/fluxcd/pkg/git/gogit v0.23.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1
 	github.com/go-git/go-git/v5 v5.16.0
