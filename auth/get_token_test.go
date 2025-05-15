@@ -75,7 +75,10 @@ func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Opti
 	return m.returnControllerToken, nil
 }
 
-func (m *mockProvider) GetAudience(ctx context.Context) (string, error) {
+func (m *mockProvider) GetAudience(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
 	return m.returnAudience, nil
 }
 

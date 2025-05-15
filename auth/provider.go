@@ -38,7 +38,7 @@ type Provider interface {
 	// ServiceAccounts should have. This is usually a string that represents
 	// the cloud provider's STS service, or some entity in the provider for
 	// which the OIDC tokens are targeted to.
-	GetAudience(ctx context.Context) (string, error)
+	GetAudience(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, error)
 
 	// GetIdentity takes a ServiceAccount and returns the identity which the
 	// ServiceAccount wants to impersonate, by looking at annotations.

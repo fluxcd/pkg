@@ -58,7 +58,7 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 
 		// Get provider audience.
 		var err error
-		providerAudience, err := provider.GetAudience(ctx)
+		providerAudience, err := provider.GetAudience(ctx, serviceAccount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get provider audience: %w", err)
 		}

@@ -39,3 +39,20 @@ func getServiceAccountEmail(serviceAccount corev1.ServiceAccount) (string, error
 	}
 	return email, nil
 }
+
+const workloadIdentityProviderPattern = `^https://iam\.googleapis\.com/projects/\d{1,30}/locations/global/workloadIdentityPools/[^/]{1,100}/providers/[^/]{1,100}$`
+
+var workloadIdentityProviderRegex = regexp.MustCompile(workloadIdentityProviderPattern)
+
+func getWorkloadIdentityProvider(serviceAccount corev1.ServiceAccount) (string, error) {
+	const key = "gcp.auth.fluxcd.io/workload-identity-provider"
+	wip := serviceAccount.Annotations[key]
+	if wip == "" {
+		return "", nil
+	}
+	if !workloadIdentityProviderRegex.MatchString(wip) {
+		return "", fmt.Errorf("invalid %s annotation: '%s'. must match %s",
+			key, wip, workloadIdentityProviderPattern)
+	}
+	return wip, nil
+}

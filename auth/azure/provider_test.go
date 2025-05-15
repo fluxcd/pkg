@@ -127,6 +127,28 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	}
 }
 
+func TestProvider_GetAudience(t *testing.T) {
+	g := NewWithT(t)
+	aud, err := azure.Provider{}.GetAudience(context.Background(), corev1.ServiceAccount{})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(aud).To(Equal("api://AzureADTokenExchange"))
+}
+
+func TestProvider_GetIdentity(t *testing.T) {
+	g := NewWithT(t)
+
+	identity, err := azure.Provider{}.GetIdentity(corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				"azure.workload.identity/client-id": "client-id",
+				"azure.workload.identity/tenant-id": "tenant-id",
+			},
+		},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(identity).To(Equal("tenant-id/client-id"))
+}
+
 func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 	g := NewWithT(t)
 

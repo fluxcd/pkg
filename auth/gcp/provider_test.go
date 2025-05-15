@@ -18,10 +18,6 @@ package gcp_test
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net"
-	"net/http"
 	"net/url"
 	"testing"
 	"time"
@@ -57,37 +53,7 @@ func TestNewControllerToken(t *testing.T) {
 }
 
 func TestProvider_NewTokenForServiceAccount(t *testing.T) {
-	g := NewWithT(t)
-
-	// Start GKE metadata server.
-	lis, err := net.Listen("tcp", ":0")
-	g.Expect(err).NotTo(HaveOccurred())
-	gkeMetadataServer := &http.Server{
-		Addr: lis.Addr().String(),
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/computeMetadata/v1/project/project-id":
-				fmt.Fprintf(w, "%s", "project-id")
-			case "/computeMetadata/v1/instance/attributes/cluster-location":
-				fmt.Fprintf(w, "%s", "cluster-location")
-			case "/computeMetadata/v1/instance/attributes/cluster-name":
-				fmt.Fprintf(w, "%s", "cluster-name")
-			}
-		}),
-	}
-	go func() {
-		err := gkeMetadataServer.Serve(lis)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			g.Expect(err).NotTo(HaveOccurred())
-		}
-	}()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		err := gkeMetadataServer.Shutdown(ctx)
-		g.Expect(err).NotTo(HaveOccurred())
-	})
-	t.Setenv("GCE_METADATA_HOST", lis.Addr().String())
+	startGKEMetadataServer(t)
 
 	for _, tt := range []struct {
 		name        string
@@ -129,11 +95,55 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			},
 		},
 		{
+			name: "direct access - federation",
+			conf: externalaccount.Config{
+				Audience:         "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+				SubjectTokenType: "urn:ietf:params:oauth:token-type:jwt",
+				TokenURL:         "https://sts.googleapis.com/v1/token",
+				TokenInfoURL:     "https://sts.googleapis.com/v1/introspect",
+				Scopes: []string{
+					"https://www.googleapis.com/auth/cloud-platform",
+					"https://www.googleapis.com/auth/userinfo.email",
+				},
+				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				UniverseDomain:       "googleapis.com",
+			},
+			annotations: map[string]string{
+				"gcp.auth.fluxcd.io/workload-identity-provider": "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+			},
+		},
+		{
+			name: "impersonation - federation",
+			conf: externalaccount.Config{
+				Audience:                       "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+				SubjectTokenType:               "urn:ietf:params:oauth:token-type:jwt",
+				TokenURL:                       "https://sts.googleapis.com/v1/token",
+				ServiceAccountImpersonationURL: "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/test-sa@project-id.iam.gserviceaccount.com:generateAccessToken",
+				Scopes: []string{
+					"https://www.googleapis.com/auth/cloud-platform",
+					"https://www.googleapis.com/auth/userinfo.email",
+				},
+				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				UniverseDomain:       "googleapis.com",
+			},
+			annotations: map[string]string{
+				"iam.gke.io/gcp-service-account":                "test-sa@project-id.iam.gserviceaccount.com",
+				"gcp.auth.fluxcd.io/workload-identity-provider": "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+			},
+		},
+		{
 			name: "invalid sa email",
 			annotations: map[string]string{
 				"iam.gke.io/gcp-service-account": "foobar",
 			},
 			err: `invalid iam.gke.io/gcp-service-account annotation: 'foobar'. must match ^[a-zA-Z0-9-]{1,100}@[a-zA-Z0-9-]{1,100}\.iam\.gserviceaccount\.com$`,
+		},
+		{
+			name: "invalid workload identity provider",
+			annotations: map[string]string{
+				"gcp.auth.fluxcd.io/workload-identity-provider": "foobar",
+			},
+			err: `invalid gcp.auth.fluxcd.io/workload-identity-provider annotation: 'foobar'. must match ^https://iam\.googleapis\.com/projects/\d{1,30}/locations/global/workloadIdentityPools/[^/]{1,100}/providers/[^/]{1,100}$`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -170,6 +180,76 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 				g.Expect(err.Error()).To(Equal(tt.err))
 				g.Expect(token).To(BeNil())
 			}
+		})
+	}
+}
+
+func TestProvider_GetAudience(t *testing.T) {
+	startGKEMetadataServer(t)
+
+	for _, tt := range []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name: "federation",
+			annotations: map[string]string{
+				"gcp.auth.fluxcd.io/workload-identity-provider": "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+			},
+			expected: "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+		},
+		{
+			name:     "gke",
+			expected: "project-id.svc.id.goog",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			serviceAccount := corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tt.annotations,
+				},
+			}
+
+			aud, err := gcp.Provider{}.GetAudience(context.Background(), serviceAccount)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(aud).To(Equal(tt.expected))
+		})
+	}
+}
+
+func TestProvider_GetIdentity(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name: "impersonation",
+			annotations: map[string]string{
+				"iam.gke.io/gcp-service-account": "test-sa@project-id.iam.gserviceaccount.com",
+			},
+			expected: "test-sa@project-id.iam.gserviceaccount.com",
+		},
+		{
+			name:     "direct access",
+			expected: "",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			serviceAccount := corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tt.annotations,
+				},
+			}
+
+			identity, err := gcp.Provider{}.GetIdentity(serviceAccount)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(identity).To(Equal(tt.expected))
 		})
 	}
 }

@@ -13,7 +13,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.2.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.15.0
 	github.com/cyphar/filepath-securejoin v0.4.1
-	github.com/fluxcd/pkg/auth v0.12.0
+	github.com/fluxcd/pkg/auth v0.13.0
 	github.com/fluxcd/pkg/cache v0.9.0
 	github.com/fluxcd/pkg/ssh v0.18.0
 	github.com/onsi/gomega v1.37.0
