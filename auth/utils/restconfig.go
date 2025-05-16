@@ -19,22 +19,25 @@ package authutils
 import (
 	"context"
 
-	"github.com/google/go-containerregistry/pkg/authn"
+	"k8s.io/client-go/rest"
 
 	"github.com/fluxcd/pkg/auth"
 )
 
-// GetArtifactRegistryCredentials retrieves the registry credentials for the
-// specified artifact repository and provider.
-func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
-	artifactRepository string, opts ...auth.Option) (authn.Authenticator, error) {
+// GetRESTConfig retrieves a restconfig for the given cluster resource
+// name and provider.
+func GetRESTConfig(ctx context.Context, providerName string,
+	cluster, address string, opts ...auth.Option) (*rest.Config, error) {
 
 	provider, err := ProviderByName(providerName)
 	if err != nil {
-		// Provider not implemented. For compatibility with previously existing
-		// code in the controllers, we don't return an error here.
-		return nil, nil
+		return nil, err
 	}
 
-	return auth.GetArtifactRegistryCredentials(ctx, provider, artifactRepository, opts...)
+	conf, err := auth.GetRESTConfig(ctx, provider, cluster, address, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return conf.Config, nil
 }

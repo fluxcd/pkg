@@ -31,15 +31,14 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client             client.Client
-	Cache              *cache.TokenCache
-	ServiceAccount     *client.ObjectKey
-	InvolvedObject     cache.InvolvedObject
-	Scopes             []string
-	ArtifactRepository string
-	STSRegion          string
-	STSEndpoint        string
-	ProxyURL           *url.URL
+	Client         client.Client
+	Cache          *cache.TokenCache
+	ServiceAccount *client.ObjectKey
+	InvolvedObject cache.InvolvedObject
+	Scopes         []string
+	STSRegion      string
+	STSEndpoint    string
+	ProxyURL       *url.URL
 }
 
 // WithServiceAccount sets the ServiceAccount reference for the token
@@ -64,16 +63,6 @@ func WithCache(cache cache.TokenCache, involvedObject cache.InvolvedObject) Opti
 func WithScopes(scopes ...string) Option {
 	return func(o *Options) {
 		o.Scopes = scopes
-	}
-}
-
-// WithArtifactRepository sets the artifact repository the token will be used for.
-// In most cases artifact registry credentials require an additional
-// token exchange at the end. This option allows the library to implement
-// this exchange and cache the final token.
-func WithArtifactRepository(artifactRepository string) Option {
-	return func(o *Options) {
-		o.ArtifactRepository = artifactRepository
 	}
 }
 

@@ -18,3 +18,11 @@ output "gcp_artifact_repository" {
 output "wi_iam_serviceaccount_email" {
   value = var.enable_wi ? google_service_account.test[0].email : ""
 }
+
+output "cluster_resource" {
+  value = module.gke.full_name
+}
+
+output "cluster_endpoint" {
+  value = module.gke.endpoint
+}

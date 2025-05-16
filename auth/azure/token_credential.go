@@ -46,7 +46,7 @@ func (t *tokenCredential) GetToken(_ context.Context, tokenOpts policy.TokenRequ
 	if tokenOpts.Scopes != nil {
 		opts = append(opts, auth.WithScopes(tokenOpts.Scopes...))
 	}
-	token, err := auth.GetToken(t.ctx, Provider{}, opts...)
+	token, err := auth.GetAccessToken(t.ctx, Provider{}, opts...)
 	if err != nil {
 		return azcore.AccessToken{}, err
 	}

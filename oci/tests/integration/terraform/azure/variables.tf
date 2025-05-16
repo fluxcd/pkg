@@ -35,3 +35,9 @@ variable "azuredevops_pat" {
   description = "Personal access token to create project and repository in azure devops"
   default     = ""
 }
+
+variable "aad_rbac_tenant_id" {
+  description = "Tenant ID for Azure Active Directory RBAC"
+  type        = string
+  default     = ""
+}

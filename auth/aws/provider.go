@@ -56,33 +56,15 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 
 	stsRegion := o.STSRegion
 	if stsRegion == "" {
-		// A region is required. Try to get it somewhere else.
-		switch {
-		// For artifact repositories we can take advantage of the fact that ECR
-		// repositories have a region we can use.
-		// **Important**: This code path is required for supporting EKS Node Identity
-		// for artifact repositories! This is because the environment variable
-		// AWS_REGION is set automatically for IRSA or EKS Pod Identity, but
-		// not for Node Identity.
-		// We strive to support Node Identity for container registry-based APIs because
-		// EKS users also use Node Identity for container images, so this allows a
-		// simpler/consistent user experience.
-		case o.ArtifactRepository != "":
-			// We can safely ignore the error here, auth.GetToken() has already called
-			// ParseArtifactRepository() and validated the repository at this point.
-			ecrRegion, _ := p.ParseArtifactRepository(o.ArtifactRepository)
-			stsRegion = ecrRegion
 		// EKS sets this environment variable automatically if the controller pod is
 		// properly configured with IRSA or EKS Pod Identity, so we can rely on this
 		// and communicate this to users since this is controller-level configuration.
-		default:
-			stsRegion = os.Getenv("AWS_REGION")
-			if stsRegion == "" {
-				return nil, errors.New("AWS_REGION environment variable is not set in the Flux controller. " +
-					"if you have properly configured IAM Roles for Service Accounts (IRSA) or EKS Pod Identity, " +
-					"please delete/replace the controller pod so the EKS admission controllers can inject this " +
-					"environment variable, or set it manually if the cluster is not EKS")
-			}
+		stsRegion = os.Getenv("AWS_REGION")
+		if stsRegion == "" {
+			return nil, errors.New("AWS_REGION environment variable is not set in the Flux controller. " +
+				"if you have properly configured IAM Roles for Service Accounts (IRSA) or EKS Pod Identity, " +
+				"please delete/replace the controller pod so the EKS admission controllers can inject this " +
+				"environment variable, or set it manually if the cluster is not EKS")
 		}
 	}
 	awsOpts = append(awsOpts, config.WithRegion(stsRegion))
@@ -133,25 +115,14 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 
 	stsRegion := o.STSRegion
 	if stsRegion == "" {
-		// A region is required. Try to get it somewhere else.
-		switch {
-		// For artifact repositories we can take advantage of the fact that ECR
-		// repositories have a region we can use.
-		case o.ArtifactRepository != "":
-			// We can safely ignore the error here, auth.GetToken() has already called
-			// ParseArtifactRepository() and validated the repository at this point.
-			ecrRegion, _ := p.ParseArtifactRepository(o.ArtifactRepository)
-			stsRegion = ecrRegion
 		// In this case we can't rely on IRSA or EKS Pod Identity for the controller
 		// pod because this is object-level configuration, so we show a different
 		// error message.
 		// In this error message we assume an API that has a region field, e.g. the
 		// Bucket API. APIs that can extract the region from the ARN (e.g. KMS) will
 		// never reach this code path.
-		default:
-			return nil, errors.New("an AWS region is required for authenticating with a service account. " +
-				"please configure one in the object spec")
-		}
+		return nil, errors.New("an AWS region is required for authenticating with a service account. " +
+			"please configure one in the object spec")
 	}
 
 	roleARN, err := getRoleARN(serviceAccount)
@@ -192,12 +163,31 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		return nil, fmt.Errorf("credentials are nil")
 	}
 
-	token := &Token{*resp.Credentials}
-	if token.Expiration == nil {
-		token.Expiration = &time.Time{}
+	creds := &Credentials{*resp.Credentials}
+	if creds.Expiration == nil {
+		creds.Expiration = &time.Time{}
 	}
 
-	return token, nil
+	return creds, nil
+}
+
+// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
+func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]auth.Option, error) {
+	// AWS requires a region for getting access credentials. To avoid requiring
+	// two regions to be passed in the Flux APIs we leverage the region present
+	// in the ECR repository..
+	// **Important**: This code path is required for supporting EKS Node Identity
+	// for artifact repositories! This is because the environment variable
+	// AWS_REGION is set automatically for IRSA or EKS Pod Identity, but
+	// not for Node Identity.
+	// We strive to support Node Identity for container registry-based APIs because
+	// EKS users also use Node Identity for container images, so this allows a
+	// simpler/consistent user experience.
+	ecrRegion, err := p.ParseArtifactRepository(artifactRepository)
+	if err != nil {
+		return nil, err
+	}
+	return []auth.Option{auth.WithSTSRegion(ecrRegion)}, nil
 }
 
 // This regex is sourced from the AWS ECR Credential Helper (https://github.com/awslabs/amazon-ecr-credential-helper).
@@ -234,7 +224,7 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, ecrRegion 
 
 	conf := aws.Config{
 		Region:      ecrRegion,
-		Credentials: accessToken.(*Token).CredentialsProvider(),
+		Credentials: accessToken.(*Credentials).provider(),
 	}
 
 	if hc := o.GetHTTPClient(); hc != nil {
@@ -274,6 +264,14 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, ecrRegion 
 		}),
 		ExpiresAt: expiresAt,
 	}, nil
+}
+
+// NewRESTConfig implements auth.Provider.
+func (Provider) NewRESTConfig(ctx context.Context, cluster, canonicalAddress string,
+	opts ...auth.Option) (*auth.RESTConfig, error) {
+
+	// TODO
+	return nil, nil
 }
 
 func (p Provider) impl() Implementation {

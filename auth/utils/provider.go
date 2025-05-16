@@ -17,6 +17,8 @@ limitations under the License.
 package authutils
 
 import (
+	"fmt"
+
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
@@ -24,15 +26,15 @@ import (
 )
 
 // ProviderByName looks up the implemented providers by name.
-func ProviderByName(name string) auth.Provider {
+func ProviderByName(name string) (auth.Provider, error) {
 	switch name {
 	case aws.ProviderName:
-		return aws.Provider{}
+		return aws.Provider{}, nil
 	case azure.ProviderName:
-		return azure.Provider{}
+		return azure.Provider{}, nil
 	case gcp.ProviderName:
-		return gcp.Provider{}
+		return gcp.Provider{}, nil
 	default:
-		return nil
+		return nil, fmt.Errorf("provider '%s' not implemented", name)
 	}
 }

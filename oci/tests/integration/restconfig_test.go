@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 /*
 Copyright 2025 The Flux authors
 
@@ -14,18 +17,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcp
+package integration
 
 import (
-	"context"
-
-	"golang.org/x/oauth2/google/externalaccount"
+	"testing"
 )
 
-// StaticTokenSupplier provides a static OIDC token.
-type StaticTokenSupplier string
+func TestRESTConfig(t *testing.T) {
+	if !enableWI {
+		t.Skip("Skipping test, not supported without workload identity")
+	}
 
-// SubjectToken implements externalaccount.SubjectTokenSupplier.
-func (s StaticTokenSupplier) SubjectToken(context.Context, externalaccount.SupplierOptions) (string, error) {
-	return string(s), nil
+	testjobExecutionWithArgs(t, []string{
+		"-category=restconfig",
+		"-provider=" + *targetProvider,
+		"-cluster=" + cluster,
+		"-cluster-address=" + clusterAddress,
+	})
 }

@@ -18,14 +18,16 @@ package azure_test
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"testing"
+	"unsafe"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
 	. "github.com/onsi/gomega"
 )
 
@@ -35,13 +37,13 @@ type mockImplementation struct {
 	argTenantID  string
 	argClientID  string
 	argOIDCToken string
-	argURL       string
-	argBody      string
 	argProxyURL  *url.URL
 	argScopes    []string
+	argToken     string
+	argRegistry  string
 
-	returnResp  *http.Response
-	returnToken string
+	returnToken    string
+	returnACRToken string
 }
 
 type mockTokenCredential struct {
@@ -87,25 +89,52 @@ func (m *mockImplementation) NewClientAssertionCredential(tenantID string, clien
 	return &mockTokenCredential{t: m.t, argScopes: m.argScopes, returnToken: m.returnToken}, nil
 }
 
-func (m *mockImplementation) SendRequest(req *http.Request, client *http.Client) (*http.Response, error) {
+func (m *mockImplementation) ExchangeAADAccessTokenForACRRefreshToken(ctx context.Context, client *azcontainerregistry.AuthenticationClient, grantType azcontainerregistry.PostContentSchemaGrantType, service string, options *azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenOptions) (azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenResponse, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
-	g.Expect(req).NotTo(BeNil())
-	g.Expect(req.Method).To(Equal(http.MethodPost))
-	g.Expect(req.URL).NotTo(BeNil())
-	g.Expect(req.URL.String()).To(Equal(m.argURL))
-	g.Expect(req.Body).NotTo(BeNil())
-	b, err := io.ReadAll(req.Body)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(string(b)).To(Equal(m.argBody))
-	g.Expect(client).NotTo(BeNil())
-	g.Expect(client.Transport).NotTo(BeNil())
-	g.Expect(client.Transport.(*http.Transport)).NotTo(BeNil())
-	g.Expect(client.Transport.(*http.Transport).Proxy).NotTo(BeNil())
-	proxyURL, err := client.Transport.(*http.Transport).Proxy(nil)
+
+	// Assert registry endpoint.
+	endpointField := reflect.ValueOf(client).Elem().FieldByName("endpoint")
+	endpointValue := reflect.NewAt(endpointField.Type(), unsafe.Pointer(endpointField.UnsafeAddr())).Elem().Interface().(string)
+	g.Expect(endpointValue).To(Equal("https://" + m.argRegistry))
+
+	// Assert proxy URL.
+	azcoreClientField := reflect.ValueOf(client).Elem().FieldByName("internal")
+	azcoreClientValue := reflect.NewAt(azcoreClientField.Type(), unsafe.Pointer(azcoreClientField.UnsafeAddr())).Elem().Interface().(*azcore.Client)
+	g.Expect(azcoreClientValue).NotTo(BeNil())
+	pipeline := azcoreClientValue.Pipeline()
+	g.Expect(pipeline).NotTo(BeNil())
+	pipelineValue := reflect.ValueOf(pipeline)
+	pipelinePtr := reflect.New(pipelineValue.Type())
+	pipelinePtr.Elem().Set(pipelineValue)
+	policiesField := pipelinePtr.Elem().FieldByName("policies")
+	policiesValue := reflect.NewAt(policiesField.Type(), unsafe.Pointer(policiesField.UnsafeAddr())).Elem().Interface().([]policy.Policy)
+	g.Expect(policiesValue).NotTo(BeNil())
+	transportPolicy := policiesValue[len(policiesValue)-1]
+	transportPolicyValue := reflect.ValueOf(transportPolicy)
+	transportPolicyPtr := reflect.New(transportPolicyValue.Type())
+	transportPolicyPtr.Elem().Set(transportPolicyValue)
+	transportField := transportPolicyPtr.Elem().FieldByName("trans")
+	transportValue := reflect.NewAt(transportField.Type(), unsafe.Pointer(transportField.UnsafeAddr())).Elem().Interface().(policy.Transporter)
+	g.Expect(transportValue).NotTo(BeNil())
+	g.Expect(transportValue.(*http.Client)).NotTo(BeNil())
+	g.Expect(transportValue.(*http.Client).Transport).NotTo(BeNil())
+	g.Expect(transportValue.(*http.Client).Transport.(*http.Transport)).NotTo(BeNil())
+	g.Expect(transportValue.(*http.Client).Transport.(*http.Transport).Proxy).NotTo(BeNil())
+	proxyURL, err := transportValue.(*http.Client).Transport.(*http.Transport).Proxy(nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
-	return m.returnResp, nil
+
+	// Assert trivial inputs.
+	g.Expect(grantType).To(Equal(azcontainerregistry.PostContentSchemaGrantTypeAccessToken))
+	g.Expect(service).To(Equal(m.argRegistry))
+	g.Expect(options).To(Equal(&azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenOptions{
+		AccessToken: &m.argToken,
+	}))
+
+	return azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenResponse{
+		ACRRefreshToken: azcontainerregistry.ACRRefreshToken{RefreshToken: &m.returnACRToken},
+	}, nil
 }
 
 func (m *mockTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {

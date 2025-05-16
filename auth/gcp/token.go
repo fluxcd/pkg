@@ -30,7 +30,6 @@ func (t *Token) GetDuration() time.Duration {
 	return time.Until(t.Expiry)
 }
 
-// Source gets a token source for the token to use with GCP libraries.
-func (t *Token) Source() oauth2.TokenSource {
+func (t *Token) source() oauth2.TokenSource {
 	return oauth2.StaticTokenSource(&t.Token)
 }
