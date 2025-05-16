@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/test-infra/tftestenv"
 	"github.com/google/uuid"
@@ -99,6 +101,32 @@ func getWISAAnnotationsAzure(output map[string]*tfjson.StateOutput) (map[string]
 		azureWIClientIdAnnotation: clientID,
 		azureWITenantIdAnnotation: tenantID,
 	}, nil
+}
+
+// getClusterConfigMapAzure returns the cluster configmap data for kubeconfig auth tests.
+func getClusterConfigMapAzure(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	clusterResource := output["cluster_id"].Value.(string)
+	if clusterResource == "" {
+		return nil, fmt.Errorf("no AKS cluster id in terraform output")
+	}
+	clusterAddress := output["cluster_address"].Value.(string)
+	if clusterAddress == "" {
+		return nil, fmt.Errorf("no AKS cluster address in terraform output")
+	}
+	return map[string]string{
+		meta.KubeConfigKeyProvider: azure.ProviderName,
+		meta.KubeConfigKeyCluster:  clusterResource,
+		meta.KubeConfigKeyAddress:  clusterAddress,
+	}, nil
+}
+
+// getClusterUsersAzure returns the cluster users for kubeconfig auth tests.
+func getClusterUsersAzure(output map[string]*tfjson.StateOutput) ([]string, error) {
+	clusterUser := output["workload_identity_object_id"].Value.(string)
+	if clusterUser == "" {
+		return nil, fmt.Errorf("no AKS cluster user id in terraform output")
+	}
+	return []string{clusterUser}, nil
 }
 
 // Give managed identity permissions on the azure devops project. Refer

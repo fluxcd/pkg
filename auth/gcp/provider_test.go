@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google/externalaccount"
+	"google.golang.org/api/container/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -33,7 +34,7 @@ import (
 	"github.com/fluxcd/pkg/auth/gcp"
 )
 
-func TestNewControllerToken(t *testing.T) {
+func TestProvider_NewControllerToken(t *testing.T) {
 	g := NewWithT(t)
 
 	impl := &mockImplementation{
@@ -72,7 +73,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 					"https://www.googleapis.com/auth/cloud-platform",
 					"https://www.googleapis.com/auth/userinfo.email",
 				},
-				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
 		},
@@ -87,7 +88,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 					"https://www.googleapis.com/auth/cloud-platform",
 					"https://www.googleapis.com/auth/userinfo.email",
 				},
-				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
 			annotations: map[string]string{
@@ -105,7 +106,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 					"https://www.googleapis.com/auth/cloud-platform",
 					"https://www.googleapis.com/auth/userinfo.email",
 				},
-				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
 			annotations: map[string]string{
@@ -123,7 +124,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 					"https://www.googleapis.com/auth/cloud-platform",
 					"https://www.googleapis.com/auth/userinfo.email",
 				},
-				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
 			annotations: map[string]string{
@@ -213,9 +214,9 @@ func TestProvider_GetAudience(t *testing.T) {
 				},
 			}
 
-			aud, err := gcp.Provider{}.GetAudience(context.Background(), serviceAccount)
+			aud, err := gcp.Provider{}.GetAudiences(context.Background(), serviceAccount)
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(aud).To(Equal(tt.expected))
+			g.Expect(aud).To(Equal([]string{tt.expected}))
 		})
 	}
 }
@@ -259,12 +260,19 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 
 	exp := time.Now()
 
-	accessToken := &gcp.Token{oauth2.Token{
-		AccessToken: "access-token",
-		Expiry:      exp,
-	}}
+	provider := gcp.Provider{
+		Implementation: &mockImplementation{
+			t:           t,
+			argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
+			returnToken: &oauth2.Token{
+				AccessToken: "access-token",
+				Expiry:      exp,
+			},
+		},
+	}
 
-	creds, err := gcp.Provider{}.NewArtifactRegistryCredentials(context.Background(), "", accessToken)
+	creds, err := auth.GetArtifactRegistryCredentials(context.Background(), provider, "gcr.io",
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}))
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(creds).NotTo(BeNil())
 	g.Expect(creds.ExpiresAt).To(Equal(exp))
@@ -321,4 +329,132 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProvider_NewRESTConfig(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		cluster        string
+		clusterAddress string
+		caData         string
+		masterAuth     *container.MasterAuth
+		endpoint       string
+		err            string
+	}{
+		{
+			name:    "valid GKE cluster",
+			cluster: "projects/test-project/locations/us-central1/clusters/test-cluster",
+			masterAuth: &container.MasterAuth{
+				ClusterCaCertificate: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t", // base64 encoded "-----BEGIN CERTIFICATE-----"
+			},
+			endpoint: "https://203.0.113.10",
+		},
+		{
+			name:           "valid GKE cluster with address match",
+			cluster:        "projects/test-project/locations/us-central1/clusters/test-cluster",
+			clusterAddress: "https://203.0.113.10:443",
+			masterAuth: &container.MasterAuth{
+				ClusterCaCertificate: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t",
+			},
+			endpoint: "https://203.0.113.10",
+		},
+		{
+			name:     "valid GKE cluster with CA",
+			cluster:  "projects/test-project/locations/us-central1/clusters/test-cluster",
+			caData:   "-----BEGIN CERTIFICATE-----",
+			endpoint: "https://203.0.113.10",
+		},
+		{
+			name:           "CA and address only",
+			clusterAddress: "https://203.0.113.10",
+			caData:         "-----BEGIN CERTIFICATE-----",
+			endpoint:       "https://203.0.113.10",
+		},
+		{
+			name:           "cluster address mismatch",
+			cluster:        "projects/test-project/locations/us-central1/clusters/test-cluster",
+			clusterAddress: "https://198.51.100.10:443",
+			masterAuth: &container.MasterAuth{
+				ClusterCaCertificate: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t",
+			},
+			endpoint: "https://203.0.113.10",
+			err:      "GKE endpoint 'https://203.0.113.10' does not match specified address: 'https://198.51.100.10:443'",
+		},
+		{
+			name:    "invalid cluster ID",
+			cluster: "invalid-cluster-id",
+			err:     "invalid GKE cluster ID: 'invalid-cluster-id'. must match ^projects/[^/]{1,200}/locations/[^/]{1,200}/clusters/[^/]{1,200}$",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			tokenExpiry := time.Now().Add(1 * time.Hour)
+			impl := &mockImplementation{
+				t:                t,
+				expectGKEAPICall: tt.clusterAddress == "" || tt.caData == "",
+				argCluster:       tt.cluster,
+				argProxyURL:      &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				returnToken: &oauth2.Token{
+					AccessToken: "access-token",
+					Expiry:      tokenExpiry,
+				},
+				returnCluster: &container.Cluster{
+					Endpoint:   tt.endpoint,
+					MasterAuth: tt.masterAuth,
+				},
+			}
+
+			opts := []auth.Option{
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+			}
+
+			if tt.cluster != "" {
+				opts = append(opts, auth.WithClusterResource(tt.cluster))
+			}
+
+			if tt.clusterAddress != "" {
+				opts = append(opts, auth.WithClusterAddress(tt.clusterAddress))
+			}
+
+			if tt.caData != "" {
+				opts = append(opts, auth.WithCAData(tt.caData))
+			}
+
+			provider := gcp.Provider{Implementation: impl}
+			restConfig, err := auth.GetRESTConfig(context.Background(), provider, opts...)
+
+			if tt.err == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(restConfig).NotTo(BeNil())
+				g.Expect(restConfig.Host).To(Equal(tt.endpoint))
+				g.Expect(restConfig.BearerToken).To(Equal("access-token"))
+				g.Expect(restConfig.CAData).To(Equal([]byte("-----BEGIN CERTIFICATE-----")))
+				g.Expect(restConfig.ExpiresAt).To(Equal(tokenExpiry))
+			} else {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(restConfig).To(BeNil())
+			}
+		})
+	}
+}
+
+func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("with cluster resource", func(t *testing.T) {
+		opts, err := gcp.Provider{}.GetAccessTokenOptionsForCluster(
+			auth.WithClusterResource("projects/test-project/locations/us-central1/clusters/test-cluster"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(opts).To(HaveLen(1))
+		g.Expect(opts[0]).To(HaveLen(0)) // Empty slice - no options needed for GCP
+	})
+
+	t.Run("without cluster resource", func(t *testing.T) {
+		opts, err := gcp.Provider{}.GetAccessTokenOptionsForCluster()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(opts).To(HaveLen(1))
+		g.Expect(opts[0]).To(HaveLen(0)) // Empty slice - no options needed for GCP
+	})
 }

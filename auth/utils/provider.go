@@ -14,25 +14,39 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package authutils
+package utils
 
 import (
-	"github.com/fluxcd/pkg/auth"
+	"fmt"
+
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/auth/gcp"
+	"github.com/fluxcd/pkg/auth/generic"
 )
 
-// ProviderByName looks up the implemented providers by name.
-func ProviderByName(name string) auth.Provider {
+// ProviderByName looks up the implemented providers by name and type.
+func ProviderByName[T any](name string) (T, error) {
+	var p any
+	var zero T
+
 	switch name {
 	case aws.ProviderName:
-		return aws.Provider{}
+		p = aws.Provider{}
 	case azure.ProviderName:
-		return azure.Provider{}
+		p = azure.Provider{}
 	case gcp.ProviderName:
-		return gcp.Provider{}
+		p = gcp.Provider{}
+	case generic.ProviderName:
+		p = generic.Provider{}
 	default:
-		return nil
+		return zero, fmt.Errorf("provider '%s' not implemented", name)
 	}
+
+	provider, ok := p.(T)
+	if !ok {
+		return zero, fmt.Errorf("provider '%s' does not implement the expected interface", name)
+	}
+
+	return provider, nil
 }
