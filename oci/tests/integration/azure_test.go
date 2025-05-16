@@ -101,6 +101,33 @@ func getWISAAnnotationsAzure(output map[string]*tfjson.StateOutput) (map[string]
 	}, nil
 }
 
+// getClusterResourceAzure returns the cluster resource for kubeconfig auth tests.
+func getClusterResourceAzure(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterResource := output["cluster_id"].Value.(string)
+	if clusterResource == "" {
+		return "", fmt.Errorf("no AKS cluster id in terraform output")
+	}
+	return clusterResource, nil
+}
+
+// getClusterAddressAzure returns the cluster address for kubeconfig auth tests.
+func getClusterAddressAzure(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterAddress := output["cluster_address"].Value.(string)
+	if clusterAddress == "" {
+		return "", fmt.Errorf("no AKS cluster address in terraform output")
+	}
+	return clusterAddress, nil
+}
+
+// getClusterUserAzure returns the cluster user for kubeconfig auth tests.
+func getClusterUserAzure(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterUser := output["workload_identity_object_id"].Value.(string)
+	if clusterUser == "" {
+		return "", fmt.Errorf("no AKS cluster user id in terraform output")
+	}
+	return clusterUser, nil
+}
+
 // Give managed identity permissions on the azure devops project. Refer
 // https://learn.microsoft.com/en-us/rest/api/azure/devops/memberentitlementmanagement/service-principal-entitlements/add?view=azure-devops-rest-7.1&tabs=HTTP.
 // This can be moved to terraform if/when this PR completes -

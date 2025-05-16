@@ -31,16 +31,15 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client             client.Client
-	Cache              *cache.TokenCache
-	ServiceAccount     *client.ObjectKey
-	InvolvedObject     cache.InvolvedObject
-	Scopes             []string
-	ArtifactRepository string
-	STSRegion          string
-	STSEndpoint        string
-	ProxyURL           *url.URL
-	AllowShellOut      bool
+	Client         client.Client
+	Cache          *cache.TokenCache
+	ServiceAccount *client.ObjectKey
+	InvolvedObject cache.InvolvedObject
+	Scopes         []string
+	STSRegion      string
+	STSEndpoint    string
+	ProxyURL       *url.URL
+	AllowShellOut  bool
 }
 
 // WithServiceAccount sets the ServiceAccount reference for the token
@@ -65,16 +64,6 @@ func WithCache(cache cache.TokenCache, involvedObject cache.InvolvedObject) Opti
 func WithScopes(scopes ...string) Option {
 	return func(o *Options) {
 		o.Scopes = scopes
-	}
-}
-
-// WithArtifactRepository sets the artifact repository the token will be used for.
-// In most cases artifact registry credentials require an additional
-// token exchange at the end. This option allows the library to implement
-// this exchange and cache the final token.
-func WithArtifactRepository(artifactRepository string) Option {
-	return func(o *Options) {
-		o.ArtifactRepository = artifactRepository
 	}
 }
 
@@ -124,4 +113,13 @@ func (o *Options) GetHTTPClient() *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = http.ProxyURL(o.ProxyURL)
 	return &http.Client{Transport: transport}
+}
+
+// GetRoundTripper returns an http.RoundTripper with the configured proxy URL
+// or nil if no proxy URL is set.
+func (o *Options) GetRoundTripper() http.RoundTripper {
+	if hc := o.GetHTTPClient(); hc != nil {
+		return hc.Transport
+	}
+	return nil
 }

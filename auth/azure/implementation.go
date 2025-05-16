@@ -18,10 +18,10 @@ package azure
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
 )
 
 // Implementation provides the required methods of the Azure libraries.
@@ -29,7 +29,7 @@ type Implementation interface {
 	NewDefaultAzureCredential(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error)
 	NewDefaultAzureCredentialWithoutShellOut(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error)
 	NewClientAssertionCredential(tenantID string, clientID string, getAssertion func(context.Context) (string, error), options *azidentity.ClientAssertionCredentialOptions) (azcore.TokenCredential, error)
-	SendRequest(req *http.Request, client *http.Client) (*http.Response, error)
+	ExchangeAADAccessTokenForACRRefreshToken(ctx context.Context, client *azcontainerregistry.AuthenticationClient, grantType azcontainerregistry.PostContentSchemaGrantType, service string, options *azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenOptions) (azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenResponse, error)
 }
 
 type implementation struct{}
@@ -46,6 +46,6 @@ func (implementation) NewClientAssertionCredential(tenantID string, clientID str
 	return azidentity.NewClientAssertionCredential(tenantID, clientID, getAssertion, options)
 }
 
-func (implementation) SendRequest(req *http.Request, client *http.Client) (*http.Response, error) {
-	return client.Do(req)
+func (implementation) ExchangeAADAccessTokenForACRRefreshToken(ctx context.Context, client *azcontainerregistry.AuthenticationClient, grantType azcontainerregistry.PostContentSchemaGrantType, service string, options *azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenOptions) (azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenResponse, error) {
+	return client.ExchangeAADAccessTokenForACRRefreshToken(ctx, grantType, service, options)
 }

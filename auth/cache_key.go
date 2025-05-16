@@ -14,18 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcp
+package auth
 
 import (
-	"context"
-
-	"golang.org/x/oauth2/google/externalaccount"
+	"crypto/sha256"
+	"fmt"
+	"strings"
 )
 
-// StaticTokenSupplier provides a static OIDC token.
-type StaticTokenSupplier string
-
-// SubjectToken implements externalaccount.SubjectTokenSupplier.
-func (s StaticTokenSupplier) SubjectToken(context.Context, externalaccount.SupplierOptions) (string, error) {
-	return string(s), nil
+func buildCacheKey(parts ...string) string {
+	s := strings.Join(parts, "\n")
+	hash := sha256.Sum256([]byte(s))
+	return fmt.Sprintf("%x", hash)
 }

@@ -18,13 +18,19 @@ package gcp
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"net/http"
 	"regexp"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google/externalaccount"
+	"google.golang.org/api/container/v1"
+	"google.golang.org/api/option"
+	htransport "google.golang.org/api/transport/http"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
 
 	auth "github.com/fluxcd/pkg/auth"
 )
@@ -118,7 +124,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		Audience:             audience,
 		SubjectTokenType:     "urn:ietf:params:oauth:token-type:jwt",
 		TokenURL:             "https://sts.googleapis.com/v1/token",
-		SubjectTokenSupplier: TokenSupplier(oidcToken),
+		SubjectTokenSupplier: StaticTokenSupplier(oidcToken),
 		Scopes:               scopes,
 	}
 
@@ -149,6 +155,12 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	}
 
 	return &Token{*token}, nil
+}
+
+// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
+func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Option, error) {
+	// GCP does not require any special options to retrieve access tokens.
+	return nil, nil
 }
 
 const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev))$`
@@ -184,6 +196,65 @@ func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
 			Password: t.AccessToken,
 		}),
 		ExpiresAt: t.Expiry,
+	}, nil
+}
+
+// NewRESTConfig implements auth.Provider.
+func (p Provider) NewRESTConfig(ctx context.Context, cluster, canonicalAddress string,
+	opts ...auth.Option) (*auth.RESTConfig, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	// Create client for describing the cluster resource.
+	baseTransport := http.DefaultTransport.(*http.Transport).Clone()
+	if p := o.ProxyURL; p != nil {
+		baseTransport.Proxy = http.ProxyURL(p)
+	}
+	token, err := auth.GetAccessToken(ctx, p, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get access token for describing GKE cluster: %w", err)
+	}
+	transport, err := htransport.NewTransport(ctx, baseTransport, option.WithTokenSource(token.(*Token).source()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create google http transport for describing GKE cluster: %w", err)
+	}
+	client, err := container.NewService(ctx, option.WithHTTPClient(&http.Client{Transport: transport}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client for describing GKE cluster: %w", err)
+	}
+
+	// Describe the cluster resource.
+	clusterResource, err := client.Projects.Locations.Clusters.Get(cluster).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe GKE cluster: %w", err)
+	}
+
+	// Compare specified address and address from the cluster resource.
+	resourceAddress, err := auth.ParseClusterAddress(clusterResource.Endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse GKE endpoint: %w", err)
+	}
+	if resourceAddress != canonicalAddress {
+		return nil, fmt.Errorf("GKE endpoint '%s' does not match specified address '%s'",
+			resourceAddress, canonicalAddress)
+	}
+
+	// Build and return the REST config.
+	caData, err := base64.StdEncoding.DecodeString(clusterResource.MasterAuth.ClusterCaCertificate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode GKE CA certificate: %w", err)
+	}
+	return &auth.RESTConfig{
+		Config: &rest.Config{
+			Host:        resourceAddress,
+			BearerToken: token.(*Token).AccessToken,
+			Transport:   o.GetRoundTripper(),
+			TLSClientConfig: rest.TLSClientConfig{
+				CAData: caData,
+			},
+		},
+		ExpiresAt: token.(*Token).Expiry,
 	}, nil
 }
 

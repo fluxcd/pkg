@@ -101,6 +101,33 @@ func getWIFederationSAAnnotationsGCP(output map[string]*tfjson.StateOutput) (map
 	}, nil
 }
 
+// getClusterResourceGCP returns the cluster resource for kubeconfig auth tests.
+func getClusterResourceGCP(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterResource := output["cluster_resource"].Value.(string)
+	if clusterResource == "" {
+		return "", fmt.Errorf("no GKE cluster id in terraform output")
+	}
+	return clusterResource, nil
+}
+
+// getClusterAddressGCP returns the cluster address for kubeconfig auth tests.
+func getClusterAddressGCP(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterAddress := output["cluster_endpoint"].Value.(string)
+	if clusterAddress == "" {
+		return "", fmt.Errorf("no GKE cluster address in terraform output")
+	}
+	return clusterAddress, nil
+}
+
+// getClusterUserGCP returns the cluster user for kubeconfig auth tests.
+func getClusterUserGCP(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterUser := output["wi_iam_serviceaccount_email"].Value.(string)
+	if clusterUser == "" {
+		return "", fmt.Errorf("no GKE cluster user id in terraform output")
+	}
+	return clusterUser, nil
+}
+
 // When implemented, getGitTestConfigGCP would return the git-specific test config for GCP
 func getGitTestConfigGCP(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
 	return nil, fmt.Errorf("NotImplemented for GCP")

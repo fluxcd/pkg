@@ -22,3 +22,11 @@ output "wi_iam_serviceaccount_email" {
 output "workload_identity_provider" {
   value = var.enable_wi ? google_iam_workload_identity_pool_provider.main[0].name : ""
 }
+
+output "cluster_resource" {
+  value = module.gke.full_name
+}
+
+output "cluster_endpoint" {
+  value = module.gke.endpoint
+}

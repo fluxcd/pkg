@@ -161,6 +161,12 @@ var (
 
 	// testGitCfg is a struct containing different variables needed for running git tests.
 	testGitCfg *gitTestConfig
+
+	// cluster is the cluster resource name of the cluster to connect to for kubeconfig auth tests.
+	cluster string
+
+	// clusterAddress is the address of the cluster to connect to for kubeconfig auth tests.
+	clusterAddress string
 )
 
 // registryLoginFunc is used to perform registry login against a provider based
@@ -182,6 +188,15 @@ type getWISAAnnotations func(output map[string]*tfjson.StateOutput) (map[string]
 // getWIFederationSAAnnotations returns cloud provider specific annotations for the
 // service account when workload identity federation is used on the cluster.
 type getWIFederationSAAnnotations func(output map[string]*tfjson.StateOutput) (map[string]string, error)
+
+// getClusterResource returns the cluster resource for kubeconfig auth tests.
+type getClusterResource func(output map[string]*tfjson.StateOutput) (string, error)
+
+// getClusterAddress returns the cluster address for kubeconfig auth tests.
+type getClusterAddress func(output map[string]*tfjson.StateOutput) (string, error)
+
+// getClusterUser returns the cluster user for kubeconfig auth tests.
+type getClusterUser func(output map[string]*tfjson.StateOutput) (string, error)
 
 // grantPermissionsToGitRepository calls provider specific API to add additional permissions to the git repository/project
 type grantPermissionsToGitRepository func(ctx context.Context, cfg *gitTestConfig, output map[string]*tfjson.StateOutput) error
@@ -225,6 +240,12 @@ type ProviderConfig struct {
 	// getWIFederationSAAnnotations is used to return the provider specific annotations
 	// for the service account when using workload identity federation.
 	getWIFederationSAAnnotations getWIFederationSAAnnotations
+	// getClusterResource is used to return the cluster resource for kubeconfig auth tests.
+	getClusterResource getClusterResource
+	// getClusterAddress is used to return the cluster address for kubeconfig auth tests.
+	getClusterAddress getClusterAddress
+	// getClusterUser is used to return the cluster user for kubeconfig auth tests.
+	getClusterUser getClusterUser
 	// grantPermissionsToGitRepository is used to give the identity access to the Git repository
 	grantPermissionsToGitRepository grantPermissionsToGitRepository
 	// revokePermissionsToGitRepository is used to revoke the identity access to the Git repository
@@ -327,7 +348,7 @@ func TestMain(m *testing.M) {
 	// Create environment.
 	envOpts := []tftestenv.EnvironmentOption{
 		tftestenv.WithVerbose(*verbose),
-		tftestenv.WithRetain(*retain),
+		tftestenv.WithRetain(*retain || *existing),
 		tftestenv.WithExisting(*existing),
 		tftestenv.WithCreateKubeconfig(providerCfg.createKubeconfig),
 	}
@@ -393,6 +414,9 @@ func getProviderConfig(provider string) *ProviderConfig {
 			pushAppTestImages:                pushAppTestImagesECR,
 			createKubeconfig:                 createKubeconfigEKS,
 			getWISAAnnotations:               getWISAAnnotationsAWS,
+			getClusterResource:               getClusterResourceAWS,
+			getClusterAddress:                getClusterAddressAWS,
+			getClusterUser:                   getClusterUserAWS,
 			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryAWS,
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryAWS,
 			getGitTestConfig:                 getGitTestConfigAWS,
@@ -404,6 +428,9 @@ func getProviderConfig(provider string) *ProviderConfig {
 			pushAppTestImages:                pushAppTestImagesACR,
 			createKubeconfig:                 createKubeConfigAKS,
 			getWISAAnnotations:               getWISAAnnotationsAzure,
+			getClusterResource:               getClusterResourceAzure,
+			getClusterAddress:                getClusterAddressAzure,
+			getClusterUser:                   getClusterUserAzure,
 			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryAzure,
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryAzure,
 			getGitTestConfig:                 getGitTestConfigAzure,
@@ -418,6 +445,9 @@ func getProviderConfig(provider string) *ProviderConfig {
 			createKubeconfig:                 createKubeconfigGKE,
 			getWISAAnnotations:               getWISAAnnotationsGCP,
 			getWIFederationSAAnnotations:     getWIFederationSAAnnotationsGCP,
+			getClusterResource:               getClusterResourceGCP,
+			getClusterAddress:                getClusterAddressGCP,
+			getClusterUser:                   getClusterUserGCP,
 			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryGCP,
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryGCP,
 			getGitTestConfig:                 getGitTestConfigGCP,
@@ -500,6 +530,25 @@ func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, 
 		}
 
 		if err := createControllerWorkloadIdentityServiceAccount(ctx); err != nil {
+			panic(err)
+		}
+
+		cluster, err = providerCfg.getClusterResource(tfOutput)
+		if err != nil {
+			panic(err)
+		}
+
+		clusterAddress, err = providerCfg.getClusterAddress(tfOutput)
+		if err != nil {
+			panic(err)
+		}
+
+		clusterUser, err := providerCfg.getClusterUser(tfOutput)
+		if err != nil {
+			panic(err)
+		}
+
+		if err := grantClusterAdminToClusterUser(ctx, clusterUser); err != nil {
 			panic(err)
 		}
 	}
@@ -649,33 +698,63 @@ func createControllerWorkloadIdentityServiceAccount(ctx context.Context) error {
 		return fmt.Errorf("failed to create controller cluster role for workload identity: %w", err)
 	}
 
-	subjects := []rbacv1.Subject{
-		{
-			Kind:      "ServiceAccount",
-			Name:      sa.Name,
-			Namespace: sa.Namespace,
-		},
-	}
 	roleRef := rbacv1.RoleRef{
 		APIGroup: rbacv1.SchemeGroupVersion.Group,
 		Kind:     "ClusterRole",
 		Name:     clusterRole.Name,
 	}
+	subjects := []rbacv1.Subject{{
+		Kind:      "ServiceAccount",
+		Name:      sa.Name,
+		Namespace: sa.Namespace,
+	}}
 	roleBinding := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: controllerWIRBACName,
 		},
-		Subjects: subjects,
 		RoleRef:  roleRef,
+		Subjects: subjects,
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, roleBinding, func() error {
-		roleBinding.Subjects = subjects
 		roleBinding.RoleRef = roleRef
+		roleBinding.Subjects = subjects
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create controller cluster role binding for workload identity: %w", err)
 	}
 
+	return nil
+}
+
+// grantClusterAdminToClusterUser creates a cluster role binding for the
+// cluster user to have cluster admin permissions. This is needed for
+// kubeconfig auth tests.
+func grantClusterAdminToClusterUser(ctx context.Context, clusterUser string) error {
+	roleRef := rbacv1.RoleRef{
+		APIGroup: rbacv1.SchemeGroupVersion.Group,
+		Kind:     "ClusterRole",
+		Name:     "cluster-admin",
+	}
+	subjects := []rbacv1.Subject{{
+		APIGroup: rbacv1.SchemeGroupVersion.Group,
+		Kind:     rbacv1.UserKind,
+		Name:     clusterUser,
+	}}
+	roleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterUser,
+		},
+		RoleRef:  roleRef,
+		Subjects: subjects,
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, roleBinding, func() error {
+		roleBinding.RoleRef = roleRef
+		roleBinding.Subjects = subjects
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create cluster role binding for cluster user %s: %w", clusterUser, err)
+	}
 	return nil
 }

@@ -19,7 +19,9 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -29,6 +31,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -52,12 +56,14 @@ import (
 //   - when the repository contains only the repository name and registry name
 //     is provided separately, e.g. registry: foo.azurecr.io, repo: bar.
 var (
-	registry      = flag.String("registry", "", "registry of the repository")
-	repo          = flag.String("repo", "", "git/oci repository to list")
-	category      = flag.String("category", "", "Test category to run - oci/git")
-	provider      = flag.String("provider", "", "oidc provider - aws, azure, gcp")
-	wiSAName      = flag.String("wisa-name", "", "Name of the Workload Identity Service Account to use for authentication")
-	wiSANamespace = flag.String("wisa-namespace", "", "Namespace of the Workload Identity Service Account to use for authentication")
+	registry       = flag.String("registry", "", "registry of the repository")
+	repo           = flag.String("repo", "", "git/oci repository to list")
+	category       = flag.String("category", "", "Test category to run - oci/git/restconfig")
+	cluster        = flag.String("cluster", "", "Cluster resource name of the cluster to connect to")
+	clusterAddress = flag.String("cluster-address", "", "Address of the cluster to connect to")
+	provider       = flag.String("provider", "", "oidc provider - aws, azure, gcp")
+	wiSAName       = flag.String("wisa-name", "", "Name of the Workload Identity Service Account to use for authentication")
+	wiSANamespace  = flag.String("wisa-namespace", "", "Namespace of the Workload Identity Service Account to use for authentication")
 )
 
 var (
@@ -88,11 +94,14 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	if *category == "oci" {
+	switch *category {
+	case "oci":
 		checkOci(ctx)
-	} else if *category == "git" {
+	case "git":
 		checkGit(ctx)
-	} else {
+	case "restconfig":
+		checkRESTConfig(ctx)
+	default:
 		panic("unsupported category")
 	}
 }
@@ -195,4 +204,30 @@ func checkGit(ctx context.Context) {
 		panic(err)
 	}
 	log.Println(string(contents))
+}
+
+func checkRESTConfig(ctx context.Context) {
+	conf, err := authutils.GetRESTConfig(ctx, *provider, *cluster, *clusterAddress, authOpts...)
+	if err != nil {
+		panic(err)
+	}
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	c, err := client.New(conf, client.Options{Scheme: scheme})
+	if err != nil {
+		panic(err)
+	}
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("flux-test-%d", rand.Intn(1000)),
+		},
+	}
+	if err := c.Create(ctx, ns); err != nil {
+		panic(err)
+	}
+	if err := c.Delete(ctx, ns); err != nil {
+		panic(err)
+	}
 }

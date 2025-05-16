@@ -52,10 +52,14 @@ type Provider interface {
 	NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 		serviceAccount corev1.ServiceAccount, opts ...Option) (Token, error)
 
-	// ParseArtifactRepository parses the artifact repository to verify if it
-	// is a valid repository for the provider. As a result, it returns the
-	// input required for the provider to issue the registry credentials. This
-	// input is also included as part of the cache key for the issued credentials.
+	// GetAccessTokenOptionsForArtifactRepository returns the options that must be
+	// passed to the provider to retrieve access tokens for an artifact repository.
+	GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]Option, error)
+
+	// ParseArtifactRepository parses the artifact repository to verify
+	// it's a valid repository for the provider. As a result, it returns
+	// the input required for the provider to issue registry credentials.
+	// This input is included in the cache key for the issued credentials.
 	ParseArtifactRepository(artifactRepository string) (string, error)
 
 	// NewArtifactRegistryCredentials takes the registry input extracted by
@@ -63,4 +67,11 @@ type Provider interface {
 	// that can be used to authenticate with the registry.
 	NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
 		accessToken Token, opts ...Option) (*ArtifactRegistryCredentials, error)
+
+	// NewRESTConfig takes a cluster resource name and its address and
+	// returns a RESTConfig that can be used to authenticate with the
+	// Kubernetes API server. The address must be in the canonical form
+	// computed by ParseClusterAddress().
+	NewRESTConfig(ctx context.Context, cluster, canonicalAddress string,
+		opts ...Option) (*RESTConfig, error)
 }

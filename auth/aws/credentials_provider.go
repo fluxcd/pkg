@@ -41,19 +41,19 @@ func NewCredentialsProvider(ctx context.Context, opts ...auth.Option) aws.Creden
 // when calling this method (e.g. SOPS), so to ensure we have a real
 // context we pass it in the constructor.
 func (c *credentialsProvider) Retrieve(context.Context) (aws.Credentials, error) {
-	token, err := auth.GetToken(c.ctx, Provider{}, c.opts...)
+	token, err := auth.GetAccessToken(c.ctx, Provider{}, c.opts...)
 	if err != nil {
 		return aws.Credentials{}, err
 	}
-	awsToken, ok := token.(*Token)
+	awsCreds, ok := token.(*Credentials)
 	if !ok {
 		return aws.Credentials{}, fmt.Errorf("failed to cast token to AWS token: %T", token)
 	}
 	return aws.Credentials{
-		AccessKeyID:     *awsToken.AccessKeyId,
-		SecretAccessKey: *awsToken.SecretAccessKey,
-		SessionToken:    *awsToken.SessionToken,
-		Expires:         *awsToken.Expiration,
+		AccessKeyID:     *awsCreds.AccessKeyId,
+		SecretAccessKey: *awsCreds.SecretAccessKey,
+		SessionToken:    *awsCreds.SessionToken,
+		Expires:         *awsCreds.Expiration,
 		CanExpire:       true,
 	}, nil
 }
