@@ -20,9 +20,11 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	signerv4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
@@ -32,6 +34,8 @@ type Implementation interface {
 	AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, options sts.Options) (*sts.AssumeRoleWithWebIdentityOutput, error)
 	GetAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error)
 	GetPublicAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error)
+	DescribeCluster(ctx context.Context, params *eks.DescribeClusterInput, options eks.Options) (*eks.DescribeClusterOutput, error)
+	PresignGetCallerIdentity(ctx context.Context, optFn func(*sts.PresignOptions), options sts.Options) (*signerv4.PresignedHTTPRequest, error)
 }
 
 type implementation struct{}
@@ -50,4 +54,12 @@ func (implementation) GetAuthorizationToken(ctx context.Context, cfg aws.Config)
 
 func (implementation) GetPublicAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error) {
 	return ecrpublic.NewFromConfig(cfg).GetAuthorizationToken(ctx, &ecrpublic.GetAuthorizationTokenInput{})
+}
+
+func (implementation) DescribeCluster(ctx context.Context, params *eks.DescribeClusterInput, options eks.Options) (*eks.DescribeClusterOutput, error) {
+	return eks.New(options).DescribeCluster(ctx, params)
+}
+
+func (implementation) PresignGetCallerIdentity(ctx context.Context, optFn func(*sts.PresignOptions), options sts.Options) (*signerv4.PresignedHTTPRequest, error) {
+	return sts.NewPresignClient(sts.New(options)).PresignGetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}, optFn)
 }
