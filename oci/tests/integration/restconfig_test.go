@@ -2,7 +2,7 @@
 // +build integration
 
 /*
-Copyright 2022 The Flux authors
+Copyright 2025 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,13 +20,11 @@ limitations under the License.
 package integration
 
 import (
-	"context"
-	"fmt"
 	"testing"
 )
 
-func TestGitCloneUsingProvider(t *testing.T) {
-	if !testGit {
+func TestRESTConfig(t *testing.T) {
+	if !testRESTConfig {
 		t.Skip(skippedMessage)
 	}
 
@@ -65,19 +63,12 @@ func TestGitCloneUsingProvider(t *testing.T) {
 				t.Skip(skippedMessage)
 			}
 
-			ctx := context.TODO()
-			tmpDir := t.TempDir()
-
-			if err := setUpGitRepository(ctx, tmpDir); err != nil {
-				t.Fatalf("failed setting up GitRepository: %v", err)
-			}
-
-			args := []string{
-				"-category=git",
-				fmt.Sprintf("-provider=%s", *targetProvider),
-				fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
-			}
-			testjobExecutionWithArgs(t, args, tt.opts...)
+			testjobExecutionWithArgs(t, []string{
+				"-category=restconfig",
+				"-provider=" + *targetProvider,
+				"-cluster=" + cluster,
+				"-cluster-address=" + clusterAddress,
+			}, tt.opts...)
 		})
 	}
 }

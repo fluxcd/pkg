@@ -14,25 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package authutils
+package auth_test
 
 import (
-	"context"
-
-	"github.com/google/go-containerregistry/pkg/authn"
-
-	"github.com/fluxcd/pkg/auth"
+	"time"
 )
 
-// GetArtifactRegistryCredentials retrieves the registry credentials for the
-// specified artifact repository and provider.
-func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
-	artifactRepository string, opts ...auth.Option) (authn.Authenticator, error) {
+type mockToken struct {
+	token string
+}
 
-	provider, err := ProviderByName(providerName)
-	if err != nil {
-		return nil, err
-	}
-
-	return auth.GetArtifactRegistryCredentials(ctx, provider, artifactRepository, opts...)
+func (m *mockToken) GetDuration() time.Duration {
+	return time.Hour
 }

@@ -18,6 +18,7 @@ package authutils
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
@@ -37,7 +38,7 @@ func GetGitCredentials(ctx context.Context, providerName string, opts ...auth.Op
 	switch providerName {
 	case azure.ProviderName:
 		opts = append(opts, auth.WithScopes(azure.ScopeDevOps))
-		token, err := auth.GetToken(ctx, azure.Provider{}, opts...)
+		token, err := auth.GetAccessToken(ctx, azure.Provider{}, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -45,6 +46,6 @@ func GetGitCredentials(ctx context.Context, providerName string, opts ...auth.Op
 			BearerToken: token.(*azure.Token).Token,
 		}, nil
 	default:
-		return nil, ErrUnsupportedProvider
+		return nil, fmt.Errorf("provider '%s' does not support Git credentials", providerName)
 	}
 }

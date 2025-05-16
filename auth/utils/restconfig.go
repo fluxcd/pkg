@@ -16,11 +16,23 @@ limitations under the License.
 
 package authutils
 
-import "errors"
+import (
+	"context"
 
-// ErrProviderDoesNotSupportRegistry is returned when the provider does not
-// support registry authentication.
-var ErrProviderDoesNotSupportRegistry = errors.New("provider does not support registry authentication")
+	"k8s.io/client-go/rest"
 
-// ErrUnsupportedProvider is returned when the provider is not supported.
-var ErrUnsupportedProvider = errors.New("unsupported provider")
+	"github.com/fluxcd/pkg/auth"
+)
+
+// GetRESTConfig retrieves a restconfig for the given cluster resource
+// name and provider.
+func GetRESTConfig(ctx context.Context, providerName string,
+	cluster string, opts ...auth.Option) (*rest.Config, error) {
+
+	provider, err := ProviderByName(providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	return auth.GetRESTConfig(ctx, provider, cluster, opts...)
+}

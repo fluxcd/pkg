@@ -68,12 +68,6 @@ func TestProvider_NewControllerToken(t *testing.T) {
 				"please delete/replace the controller pod so the EKS admission controllers can inject this " +
 				"environment variable, or set it manually if the cluster is not EKS",
 		},
-		{
-			name:               "missing region but can extract from artifact repository",
-			stsEndpoint:        "https://sts.amazonaws.com",
-			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1",
-			skipSTSRegion:      true,
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
@@ -85,7 +79,6 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 				auth.WithSTSEndpoint(tt.stsEndpoint),
-				auth.WithArtifactRepository(tt.artifactRepository),
 			}
 
 			provider := aws.Provider{Implementation: impl}
@@ -93,7 +86,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&aws.Token{Credentials: types.Credentials{
+				g.Expect(token).To(Equal(&aws.Credentials{Credentials: types.Credentials{
 					AccessKeyId:     awssdk.String("access-key-id"),
 					SecretAccessKey: awssdk.String(""),
 					SessionToken:    awssdk.String(""),
@@ -148,13 +141,6 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 				"please configure one in the object spec",
 		},
 		{
-			name:               "missing region but can extract from artifact repository",
-			annotations:        map[string]string{"eks.amazonaws.com/role-arn": "arn:aws:iam::1234567890:role/some-role"},
-			stsEndpoint:        "https://sts.amazonaws.com",
-			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1",
-			skipSTSRegion:      true,
-		},
-		{
 			name:        "invalid role ARN",
 			annotations: map[string]string{"eks.amazonaws.com/role-arn": "foobar"},
 			stsEndpoint: "https://sts.amazonaws.com",
@@ -176,7 +162,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 				auth.WithSTSEndpoint(tt.stsEndpoint),
-				auth.WithArtifactRepository(tt.artifactRepository),
+				// auth.WithArtifactRepository(tt.artifactRepository),
 			}
 
 			if !tt.skipSTSRegion {
@@ -188,7 +174,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&aws.Token{Credentials: types.Credentials{
+				g.Expect(token).To(Equal(&aws.Credentials{Credentials: types.Credentials{
 					AccessKeyId:     awssdk.String("access-key-id"),
 					SecretAccessKey: awssdk.String(""),
 					SessionToken:    awssdk.String(""),
@@ -226,28 +212,28 @@ func TestProvider_GetIdentity(t *testing.T) {
 
 func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 	for _, tt := range []struct {
-		name              string
-		registryInput     string
-		expectedPublicECR bool
-		expectedRegion    string
+		name               string
+		artifactRepository string
+		expectedPublicECR  bool
+		expectedRegion     string
 	}{
 		{
-			name:              "non public ECR",
-			registryInput:     "us-east-1",
-			expectedRegion:    "us-east-1",
-			expectedPublicECR: false,
+			name:               "non public ECR, us-east-1",
+			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo",
+			expectedRegion:     "us-east-1",
+			expectedPublicECR:  false,
 		},
 		{
-			name:              "non public ECR",
-			registryInput:     "us-west-2",
-			expectedRegion:    "us-west-2",
-			expectedPublicECR: false,
+			name:               "non public ECR, us-west-2",
+			artifactRepository: "012345678901.dkr.ecr.us-west-2.amazonaws.com/foo",
+			expectedRegion:     "us-west-2",
+			expectedPublicECR:  false,
 		},
 		{
-			name:              "public ECR",
-			registryInput:     "public.ecr.aws",
-			expectedRegion:    "us-east-1", // Public ECR is always us-east-1
-			expectedPublicECR: true,
+			name:               "public ECR",
+			artifactRepository: "public.ecr.aws",
+			expectedRegion:     "us-east-1", // Public ECR is always us-east-1
+			expectedPublicECR:  true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -259,24 +245,22 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 				argRegion:        tt.expectedRegion,
 				argProxyURL:      &url.URL{Scheme: "http", Host: "proxy.example.com"},
 				argCredsProvider: credentials.NewStaticCredentialsProvider("access-key-id", "secret-access-key", "session-token"),
-				returnUsername:   "username",
-				returnPassword:   "password",
+				returnCreds: awssdk.Credentials{
+					AccessKeyID:     "access-key-id",
+					SecretAccessKey: "secret-access-key",
+					SessionToken:    "session-token",
+				},
+				returnUsername: "username",
+				returnPassword: "password",
 			}
 
-			accessToken := &aws.Token{
-				Credentials: types.Credentials{
-					AccessKeyId:     awssdk.String("access-key-id"),
-					SecretAccessKey: awssdk.String("secret-access-key"),
-					SessionToken:    awssdk.String("session-token"),
-				},
-			}
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			creds, err := provider.NewArtifactRegistryCredentials(
-				context.Background(), tt.registryInput, accessToken, opts...)
+			creds, err := auth.GetArtifactRegistryCredentials(
+				context.Background(), provider, tt.artifactRepository, opts...)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{
@@ -286,6 +270,19 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 			}))
 		})
 	}
+}
+
+func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
+	g := NewWithT(t)
+
+	opts, err := aws.Provider{}.GetAccessTokenOptionsForArtifactRepository(
+		"012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	g.Expect(o.STSRegion).To(Equal("us-east-1"))
 }
 
 func TestProvider_ParseArtifactRepository(t *testing.T) {
