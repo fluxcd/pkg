@@ -43,6 +43,7 @@ type Impersonator struct {
 	kubeConfigRef           *meta.KubeConfigReference
 	kubeConfigOpts          KubeConfigOptions
 	kubeConfigNamespace     string
+	kubeConfigProvider      ProviderRESTConfigFetcher
 	defaultServiceAccount   string
 	serviceAccountName      string
 	serviceAccountNamespace string
@@ -151,12 +152,19 @@ func (i *Impersonator) defaultClient() (rc.Client, *polling.StatusPoller, error)
 }
 
 func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *polling.StatusPoller, error) {
-	kubeConfigBytes, err := i.getKubeConfig(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
+	var restConfig *rest.Config
+	var err error
 
-	restConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeConfigBytes)
+	if ref := i.kubeConfigRef; ref != nil && ref.Provider != "" && ref.Provider != "generic" && i.kubeConfigProvider != nil {
+		restConfig, err = i.kubeConfigProvider(ctx, *i.kubeConfigRef, i.kubeConfigNamespace, i.client)
+	} else {
+		var kubeConfigBytes []byte
+		kubeConfigBytes, err = i.getKubeConfig(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		restConfig, err = clientcmd.RESTConfigFromKubeConfig(kubeConfigBytes)
+	}
 	if err != nil {
 		return nil, nil, err
 	}

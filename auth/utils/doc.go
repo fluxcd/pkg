@@ -21,4 +21,4 @@ limitations under the License.
 // Because of that, these functions cannot be placed in the core
 // package as they would cause a cyclic dependency given that the
 // provider packages also import the core package.
-package authutils
+package utils

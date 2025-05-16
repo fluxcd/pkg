@@ -48,10 +48,10 @@ func createKubeconfigGKE(ctx context.Context, state map[string]*tfjson.StateOutp
 	return tftestenv.CreateKubeconfigGKE(ctx, kubeconfigYaml, kcPath)
 }
 
-// registryLoginGCR logs into the container/artifact registries using the
+// registryLoginGAR logs into the container/artifact registries using the
 // provider's CLI tools and returns a list of test repositories.
-func registryLoginGCR(ctx context.Context, output map[string]*tfjson.StateOutput) (map[string]string, error) {
-	// NOTE: GCR accepts dynamic repository creation by just pushing a new image
+func registryLoginGAR(ctx context.Context, output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	// NOTE: GAR accepts dynamic repository creation by just pushing a new image
 	// with a new repository name.
 	testRepos := map[string]string{}
 
@@ -67,10 +67,10 @@ func registryLoginGCR(ctx context.Context, output map[string]*tfjson.StateOutput
 	return testRepos, nil
 }
 
-// pushAppTestImagesGCR pushes test app images that are being tested. It must be
-// called after registryLoginGCR to ensure the local docker client is already
+// pushAppTestImagesGAR pushes test app images that are being tested. It must be
+// called after registryLoginGAR to ensure the local docker client is already
 // logged in and is capable of pushing the test images.
-func pushAppTestImagesGCR(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error) {
+func pushAppTestImagesGAR(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error) {
 	project := output["gcp_project"].Value.(string)
 	region := output["gcp_region"].Value.(string)
 	repositoryID := output["gcp_artifact_repository"].Value.(string)
@@ -99,6 +99,41 @@ func getWIFederationSAAnnotationsGCP(output map[string]*tfjson.StateOutput) (map
 	return map[string]string{
 		gcpWorkloadIdentityProviderAnnotation: workloadIdentityProvider,
 	}, nil
+}
+
+// getClusterResourceGCP returns the cluster resource for kubeconfig auth tests.
+func getClusterResourceGCP(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterResource := output["cluster_resource"].Value.(string)
+	if clusterResource == "" {
+		return "", fmt.Errorf("no GKE cluster id in terraform output")
+	}
+	return clusterResource, nil
+}
+
+// getClusterAddressGCP returns the cluster address for kubeconfig auth tests.
+func getClusterAddressGCP(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterAddress := output["cluster_endpoint"].Value.(string)
+	if clusterAddress == "" {
+		return "", fmt.Errorf("no GKE cluster address in terraform output")
+	}
+	return clusterAddress, nil
+}
+
+// getClusterUsersGCP returns the cluster users for kubeconfig auth tests.
+func getClusterUsersGCP(output map[string]*tfjson.StateOutput) ([]string, error) {
+	var clusterUsers []string
+
+	for _, key := range []string{
+		"wi_iam_serviceaccount_email",
+		"wi_k8s_sa_principal_direct_access",
+		"wi_k8s_sa_principal_direct_access_federation",
+	} {
+		if clusterUser := output[key].Value.(string); clusterUser != "" {
+			clusterUsers = append(clusterUsers, clusterUser)
+		}
+	}
+
+	return clusterUsers, nil
 }
 
 // When implemented, getGitTestConfigGCP would return the git-specific test config for GCP

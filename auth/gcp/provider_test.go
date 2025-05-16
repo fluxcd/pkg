@@ -72,7 +72,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 					"https://www.googleapis.com/auth/cloud-platform",
 					"https://www.googleapis.com/auth/userinfo.email",
 				},
-				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
 		},
@@ -87,7 +87,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 					"https://www.googleapis.com/auth/cloud-platform",
 					"https://www.googleapis.com/auth/userinfo.email",
 				},
-				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
 			annotations: map[string]string{
@@ -105,7 +105,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 					"https://www.googleapis.com/auth/cloud-platform",
 					"https://www.googleapis.com/auth/userinfo.email",
 				},
-				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
 			annotations: map[string]string{
@@ -123,7 +123,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 					"https://www.googleapis.com/auth/cloud-platform",
 					"https://www.googleapis.com/auth/userinfo.email",
 				},
-				SubjectTokenSupplier: gcp.TokenSupplier("oidc-token"),
+				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
 			annotations: map[string]string{
@@ -259,12 +259,19 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 
 	exp := time.Now()
 
-	accessToken := &gcp.Token{oauth2.Token{
-		AccessToken: "access-token",
-		Expiry:      exp,
-	}}
+	provider := gcp.Provider{
+		Implementation: &mockImplementation{
+			t:           t,
+			argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
+			returnToken: &oauth2.Token{
+				AccessToken: "access-token",
+				Expiry:      exp,
+			},
+		},
+	}
 
-	creds, err := gcp.Provider{}.NewArtifactRegistryCredentials(context.Background(), "", accessToken)
+	creds, err := auth.GetArtifactRegistryCredentials(context.Background(), provider, "gcr.io",
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}))
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(creds).NotTo(BeNil())
 	g.Expect(creds.ExpiresAt).To(Equal(exp))
