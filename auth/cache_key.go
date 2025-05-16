@@ -14,13 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package authutils
+package auth
 
-import "errors"
+import (
+	"crypto/sha256"
+	"fmt"
+	"strings"
+)
 
-// ErrProviderDoesNotSupportRegistry is returned when the provider does not
-// support registry authentication.
-var ErrProviderDoesNotSupportRegistry = errors.New("provider does not support registry authentication")
-
-// ErrUnsupportedProvider is returned when the provider is not supported.
-var ErrUnsupportedProvider = errors.New("unsupported provider")
+func buildCacheKey(parts ...string) string {
+	s := strings.Join(parts, "\n")
+	hash := sha256.Sum256([]byte(s))
+	return fmt.Sprintf("%x", hash)
+}

@@ -38,3 +38,12 @@ output "azure_devops_project_name" {
 output "azure_devops_repo_name" {
   value = local.repo_name
 }
+
+output "cluster_id" {
+  value = module.aks.cluster_id
+}
+
+output "cluster_address" {
+  value     = module.aks.cluster_address
+  sensitive = true
+}
