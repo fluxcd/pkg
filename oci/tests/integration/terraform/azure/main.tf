@@ -58,6 +58,18 @@ resource "azurerm_federated_identity_credential" "federated-identity2" {
   depends_on = [module.aks]
 }
 
+data "azurerm_role_definition" "aks-user-role" {
+  name  = "Azure Kubernetes Service Cluster User Role"
+  scope = module.aks.cluster_id
+}
+
+resource "azurerm_role_assignment" "list-cluster-user-creds" {
+  count              = var.enable_wi ? 1 : 0
+  principal_id       = azurerm_user_assigned_identity.wi-id[0].principal_id
+  scope              = module.aks.cluster_id
+  role_definition_id = data.azurerm_role_definition.aks-user-role.id
+}
+
 provider "azuredevops" {
   org_service_url       = "https://dev.azure.com/${var.azuredevops_org}"
   personal_access_token = var.azuredevops_pat

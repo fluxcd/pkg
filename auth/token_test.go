@@ -14,18 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcp
+package auth_test
 
 import (
-	"context"
-
-	"golang.org/x/oauth2/google/externalaccount"
+	"time"
 )
 
-// StaticTokenSupplier provides a static OIDC token.
-type StaticTokenSupplier string
+type mockToken struct {
+	token string
+}
 
-// SubjectToken implements externalaccount.SubjectTokenSupplier.
-func (s StaticTokenSupplier) SubjectToken(context.Context, externalaccount.SupplierOptions) (string, error) {
-	return string(s), nil
+func (m *mockToken) GetDuration() time.Duration {
+	return time.Hour
 }

@@ -20,15 +20,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -40,121 +36,7 @@ import (
 	"github.com/fluxcd/pkg/cache"
 )
 
-type mockToken struct {
-	token string
-}
-
-func (m *mockToken) GetDuration() time.Duration {
-	return time.Hour
-}
-
-type mockProvider struct {
-	t *testing.T
-
-	returnName              string
-	returnAudience          string
-	returnIdentity          string
-	returnIdentityErr       string
-	returnRegistryErr       string
-	returnRegistryInput     string
-	returnControllerToken   auth.Token
-	returnAccessToken       auth.Token
-	returnRegistryToken     *auth.ArtifactRegistryCredentials
-	paramServiceAccount     corev1.ServiceAccount
-	paramOIDCTokenClient    *http.Client
-	paramArtifactRepository string
-	paramAccessToken        auth.Token
-	paramAllowShellOut      bool
-}
-
-func (m *mockProvider) GetName() string {
-	return m.returnName
-}
-
-func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
-	checkOptions(m.t, m.paramAllowShellOut, opts...)
-	return m.returnControllerToken, nil
-}
-
-func (m *mockProvider) GetAudience(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, error) {
-	m.t.Helper()
-	g := NewWithT(m.t)
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
-	return m.returnAudience, nil
-}
-
-func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	m.t.Helper()
-	g := NewWithT(m.t)
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
-	if m.returnIdentityErr != "" {
-		return "", errors.New(m.returnIdentityErr)
-	}
-	return m.returnIdentity, nil
-}
-
-func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
-
-	m.t.Helper()
-	g := NewWithT(m.t)
-
-	// Verify the OIDC token.
-	g.Expect(m.returnAudience).NotTo(BeEmpty())
-	token, _, err := jwt.NewParser().ParseUnverified(oidcToken, jwt.MapClaims{})
-	g.Expect(err).NotTo(HaveOccurred())
-	iss, err := token.Claims.GetIssuer()
-	g.Expect(err).NotTo(HaveOccurred())
-	ctx = oidc.ClientContext(ctx, m.paramOIDCTokenClient)
-	jwks := oidc.NewRemoteKeySet(ctx, iss+"openid/v1/jwks")
-	_, err = oidc.NewVerifier(iss, jwks, &oidc.Config{
-		ClientID:             m.returnAudience,
-		SupportedSigningAlgs: []string{token.Method.Alg()},
-	}).Verify(ctx, oidcToken)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
-
-	checkOptions(m.t, m.paramAllowShellOut, opts...)
-
-	return m.returnAccessToken, nil
-}
-
-func (m *mockProvider) ParseArtifactRepository(artifactRepository string) (string, error) {
-	m.t.Helper()
-	g := NewWithT(m.t)
-	g.Expect(artifactRepository).To(Equal(m.paramArtifactRepository))
-	if m.returnRegistryErr != "" {
-		return "", errors.New(m.returnRegistryErr)
-	}
-	return m.returnRegistryInput, nil
-}
-
-func (m *mockProvider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
-	m.t.Helper()
-	g := NewWithT(m.t)
-	g.Expect(registryInput).To(Equal(m.paramArtifactRepository))
-	g.Expect(accessToken).To(Equal(m.paramAccessToken))
-	checkOptions(m.t, m.paramAllowShellOut, opts...)
-	return m.returnRegistryToken, nil
-}
-
-func checkOptions(t *testing.T, allowShellOut bool, opts ...auth.Option) {
-	t.Helper()
-	g := NewWithT(t)
-
-	var o auth.Options
-	o.Apply(opts...)
-
-	g.Expect(o.Scopes).To(Equal([]string{"scope1", "scope2"}))
-	g.Expect(o.STSRegion).To(Equal("us-east-1"))
-	g.Expect(o.STSEndpoint).To(Equal("https://sts.some-cloud.io"))
-	g.Expect(o.ProxyURL).To(Equal(&url.URL{Scheme: "http", Host: "proxy.io:8080"}))
-	g.Expect(o.AllowShellOut).To(Equal(allowShellOut))
-}
-
-func TestGetToken(t *testing.T) {
+func TestGetAccessToken(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -249,28 +131,6 @@ func TestGetToken(t *testing.T) {
 			expectedToken: &mockToken{token: "mock-default-token"},
 		},
 		{
-			name: "registry token from controller access token",
-			provider: &mockProvider{
-				returnRegistryInput:   "some-registry.io/some/artifact",
-				returnControllerToken: &mockToken{token: "mock-default-token"},
-				returnRegistryToken: &auth.ArtifactRegistryCredentials{
-					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
-				},
-				paramAccessToken:        &mockToken{token: "mock-default-token"},
-				paramArtifactRepository: "some-registry.io/some/artifact",
-			},
-			opts: []auth.Option{
-				auth.WithArtifactRepository("some-registry.io/some/artifact"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-			},
-			expectedToken: &auth.ArtifactRegistryCredentials{
-				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
-			},
-		},
-		{
 			name: "access token from service account",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
@@ -296,46 +156,16 @@ func TestGetToken(t *testing.T) {
 			expectedToken: &mockToken{token: "mock-access-token"},
 		},
 		{
-			name: "registry token from access token from service account",
+			name: "all the options are taken into account in the cache key",
 			provider: &mockProvider{
 				returnName:          "mock-provider",
 				returnAudience:      "mock-audience",
-				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
-				returnRegistryToken: &auth.ArtifactRegistryCredentials{
-					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
-				},
-				paramServiceAccount:     *defaultServiceAccount,
-				paramOIDCTokenClient:    oidcClient,
-				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
-			},
-			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
-				auth.WithArtifactRepository("some-registry.io/some/artifact"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-			},
-			expectedToken: &auth.ArtifactRegistryCredentials{
-				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
-			},
-		},
-		{
-			name: "all the options are taken into account in the cache key",
-			provider: &mockProvider{
-				returnName:              "mock-provider",
-				returnAudience:          "mock-audience",
-				returnIdentity:          "mock-identity",
-				returnRegistryInput:     "artifact-cache-key",
-				paramServiceAccount:     *defaultServiceAccount,
-				paramArtifactRepository: "some-registry.io/some/artifact",
+				returnIdentity:      "mock-identity",
+				paramServiceAccount: *defaultServiceAccount,
 			},
 			opts: []auth.Option{
 				auth.WithServiceAccount(saRef, kubeClient),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithArtifactRepository("some-registry.io/some/artifact"),
 				auth.WithSTSRegion("us-east-1"),
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
@@ -343,7 +173,7 @@ func TestGetToken(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const key = "3e8e270134e99fda1a01d7dca77f29448eb4c7f6cc026137b85a1bcd96b276fa"
+					const key = "ae7db4da77f53fba1d2acd49027e818c2146be91de80051177d93b9e6da48dca"
 					token := &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, key, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -385,19 +215,10 @@ func TestGetToken(t *testing.T) {
 			expectedErr: "failed to get provider identity from service account 'default/default' annotations: mock error",
 		},
 		{
-			name: "error parsing artifact repository",
+			name: "disable object level workload identity",
 			provider: &mockProvider{
-				paramArtifactRepository: "some-registry.io/some/artifact",
-				returnRegistryErr:       "mock error",
+				paramServiceAccount: *defaultServiceAccount,
 			},
-			opts: []auth.Option{
-				auth.WithArtifactRepository("some-registry.io/some/artifact"),
-			},
-			expectedErr: "failed to parse artifact repository 'some-registry.io/some/artifact': mock error",
-		},
-		{
-			name:     "disable object level workload identity",
-			provider: &mockProvider{},
 			opts: []auth.Option{
 				auth.WithServiceAccount(saRef, kubeClient),
 			},
@@ -414,11 +235,12 @@ func TestGetToken(t *testing.T) {
 				t.Setenv(auth.EnvVarEnableObjectLevelWorkloadIdentity, "true")
 			}
 
-			token, err := auth.GetToken(ctx, tt.provider, tt.opts...)
+			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)
 
 			if tt.expectedErr != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.expectedErr))
+				g.Expect(token).To(BeNil())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(token).To(Equal(tt.expectedToken))

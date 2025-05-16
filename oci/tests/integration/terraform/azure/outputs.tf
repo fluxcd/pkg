@@ -30,3 +30,12 @@ output "git_repo_url" {
 output "azure_devops_project_id" {
   value = var.enable_wi ? module.devops[0].project_id : ""
 }
+
+output "cluster_id" {
+  value = module.aks.cluster_id
+}
+
+output "cluster_address" {
+  value     = module.aks.cluster_address
+  sensitive = true
+}

@@ -21,10 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -40,47 +37,45 @@ import (
 )
 
 func TestProvider_NewControllerToken(t *testing.T) {
-	g := NewWithT(t)
+	for _, tt := range []struct {
+		name     string
+		shellOut bool
+	}{
+		{
+			name:     "without shell out",
+			shellOut: false,
+		},
+		{
+			name:     "with shell out",
+			shellOut: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-	impl := &mockImplementation{
-		t:           t,
-		argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
-		argScopes:   []string{"scope1", "scope2"},
-		returnToken: "access-token",
+			impl := &mockImplementation{
+				t:           t,
+				shellOut:    tt.shellOut,
+				argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				argScopes:   []string{"scope1", "scope2"},
+				returnToken: "access-token",
+			}
+
+			opts := []auth.Option{
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+				auth.WithScopes("scope1", "scope2"),
+			}
+
+			if tt.shellOut {
+				opts = append(opts, auth.WithAllowShellOut())
+			}
+
+			provider := azure.Provider{Implementation: impl}
+			token, err := provider.NewControllerToken(context.Background(), opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
+		})
 	}
-
-	opts := []auth.Option{
-		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-		auth.WithScopes("scope1", "scope2"),
-	}
-
-	provider := azure.Provider{Implementation: impl}
-	token, err := provider.NewControllerToken(context.Background(), opts...)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
-}
-
-func TestProvider_NewControllerTokenWithShellOut(t *testing.T) {
-	g := NewWithT(t)
-
-	impl := &mockImplementation{
-		t:           t,
-		shellOut:    true,
-		argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
-		argScopes:   []string{"scope1", "scope2"},
-		returnToken: "access-token",
-	}
-
-	opts := []auth.Option{
-		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-		auth.WithScopes("scope1", "scope2"),
-		auth.WithAllowShellOut(),
-	}
-
-	provider := azure.Provider{Implementation: impl}
-	token, err := provider.NewControllerToken(context.Background(), opts...)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
 }
 
 func TestProvider_NewTokenForServiceAccount(t *testing.T) {
@@ -204,36 +199,24 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 			g := NewWithT(t)
 
 			impl := &mockImplementation{
-				t:           t,
-				argURL:      fmt.Sprintf("https://%s/oauth2/exchange", tt.registry),
-				argBody:     fmt.Sprintf("access_token=access-token&grant_type=access_token&service=%s", tt.registry),
-				argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
-				argScopes:   []string{tt.expectedScope},
-				returnToken: "access-token",
-				returnResp: &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(strings.NewReader(fmt.Sprintf(`{"refresh_token":"%s"}`, refreshToken))),
-				},
+				t:              t,
+				argRegistry:    tt.registry,
+				argToken:       "access-token",
+				argProxyURL:    &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				argScopes:      []string{tt.expectedScope},
+				returnToken:    "access-token",
+				returnACRToken: refreshToken,
 			}
 			provider := azure.Provider{Implementation: impl}
 
 			artifactRepository := fmt.Sprintf("%s/repo", tt.registry)
 			opts := []auth.Option{
-				auth.WithArtifactRepository(artifactRepository),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 			}
 
-			registryURL, err := provider.ParseArtifactRepository(artifactRepository)
+			creds, err := auth.GetArtifactRegistryCredentials(context.Background(), provider, artifactRepository, opts...)
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(registryURL).To(Equal(fmt.Sprintf("https://%s", tt.registry)))
-
-			accessToken, err := provider.NewControllerToken(context.Background(), opts...)
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(accessToken).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
-
-			token, err := provider.NewArtifactRegistryCredentials(context.Background(), registryURL, accessToken, opts...)
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(token).To(Equal(&auth.ArtifactRegistryCredentials{
+			g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{
 					Username: "00000000-0000-0000-0000-000000000000",
 					Password: refreshToken,
@@ -251,31 +234,31 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 		expectValid         bool
 	}{
 		{
-			artifactRepository:  "foo.azurecr.io",
-			expectedRegistryURL: "https://foo.azurecr.io",
+			artifactRepository:  "foo.azurecr.io/repo",
+			expectedRegistryURL: "foo.azurecr.io",
 			expectValid:         true,
 		},
 		{
-			artifactRepository:  "foo.azurecr.cn",
-			expectedRegistryURL: "https://foo.azurecr.cn",
+			artifactRepository:  "foo.azurecr.cn/repo",
+			expectedRegistryURL: "foo.azurecr.cn",
 			expectValid:         true,
 		},
 		{
-			artifactRepository:  "foo.azurecr.de",
-			expectedRegistryURL: "https://foo.azurecr.de",
+			artifactRepository:  "foo.azurecr.de/repo",
+			expectedRegistryURL: "foo.azurecr.de",
 			expectValid:         true,
 		},
 		{
-			artifactRepository:  "foo.azurecr.us",
-			expectedRegistryURL: "https://foo.azurecr.us",
+			artifactRepository:  "foo.azurecr.us/repo",
+			expectedRegistryURL: "foo.azurecr.us",
 			expectValid:         true,
 		},
 		{
-			artifactRepository: "foo.azurecr.com",
+			artifactRepository: "foo.azurecr.com/repo",
 			expectValid:        false,
 		},
 		{
-			artifactRepository: ".azurecr.io",
+			artifactRepository: ".azurecr.io/repo",
 			expectValid:        false,
 		},
 		{

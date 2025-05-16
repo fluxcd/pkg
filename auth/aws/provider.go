@@ -28,12 +28,15 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-containerregistry/pkg/authn"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
 
 	"github.com/fluxcd/pkg/auth"
 )
@@ -58,33 +61,14 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 
 	stsRegion := o.STSRegion
 	if stsRegion == "" {
-		// A region is required. Try to get it somewhere else.
-		switch {
-		// For artifact repositories we can take advantage of the fact that ECR
-		// repositories have a region we can use.
-		// **Important**: This code path is required for supporting EKS Node Identity
-		// for artifact repositories! This is because the environment variable
-		// AWS_REGION is set automatically for IRSA or EKS Pod Identity, but
-		// not for Node Identity.
-		// We strive to support Node Identity for container registry-based APIs because
-		// EKS users also use Node Identity for container images, so this allows a
-		// simpler/consistent user experience.
-		case o.ArtifactRepository != "":
-			// We can safely ignore the error here, auth.GetToken() has already called
-			// ParseArtifactRepository() and validated the repository at this point.
-			registryInput, _ := p.ParseArtifactRepository(o.ArtifactRepository)
-			stsRegion = getECRRegionFromRegistryInput(registryInput)
 		// EKS sets this environment variable automatically if the controller pod is
-		// properly configured with IRSA or EKS Pod Identity, so we can rely on this
-		// and communicate this to users since this is controller-level configuration.
-		default:
-			stsRegion = os.Getenv("AWS_REGION")
-			if stsRegion == "" {
-				return nil, errors.New("AWS_REGION environment variable is not set in the Flux controller. " +
-					"if you have properly configured IAM Roles for Service Accounts (IRSA) or EKS Pod Identity, " +
-					"please delete/replace the controller pod so the EKS admission controllers can inject this " +
-					"environment variable, or set it manually if the cluster is not EKS")
-			}
+		// properly configured with IRSA or EKS Pod Identity, so we can rely on it.
+		stsRegion = os.Getenv("AWS_REGION")
+		if stsRegion == "" {
+			return nil, errors.New("AWS_REGION environment variable is not set in the Flux controller. " +
+				"if you have properly configured IAM Roles for Service Accounts (IRSA) or EKS Pod Identity, " +
+				"please delete/replace the controller pod so the EKS admission controllers can inject this " +
+				"environment variable, or set it manually if the cluster is not EKS")
 		}
 	}
 	awsOpts = append(awsOpts, config.WithRegion(stsRegion))
@@ -135,25 +119,14 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 
 	stsRegion := o.STSRegion
 	if stsRegion == "" {
-		// A region is required. Try to get it somewhere else.
-		switch {
-		// For artifact repositories we can take advantage of the fact that ECR
-		// repositories have a region we can use.
-		case o.ArtifactRepository != "":
-			// We can safely ignore the error here, auth.GetToken() has already called
-			// ParseArtifactRepository() and validated the repository at this point.
-			registryInput, _ := p.ParseArtifactRepository(o.ArtifactRepository)
-			stsRegion = getECRRegionFromRegistryInput(registryInput)
 		// In this case we can't rely on IRSA or EKS Pod Identity for the controller
 		// pod because this is object-level configuration, so we show a different
 		// error message.
 		// In this error message we assume an API that has a region field, e.g. the
 		// Bucket API. APIs that can extract the region from the ARN (e.g. KMS) will
 		// never reach this code path.
-		default:
-			return nil, errors.New("an AWS region is required for authenticating with a service account. " +
-				"please configure one in the object spec")
-		}
+		return nil, errors.New("an AWS region is required for authenticating with a service account. " +
+			"please configure one in the object spec")
 	}
 
 	roleARN, err := getRoleARN(serviceAccount)
@@ -174,11 +147,8 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		awsOpts.BaseEndpoint = &e
 	}
 
-	if u := o.ProxyURL; u != nil {
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.Proxy = http.ProxyURL(u)
-		httpClient := &http.Client{Transport: transport}
-		awsOpts.HTTPClient = httpClient
+	if hc := o.GetHTTPClient(); hc != nil {
+		awsOpts.HTTPClient = hc
 	}
 
 	req := &sts.AssumeRoleWithWebIdentityInput{
@@ -194,12 +164,31 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		return nil, fmt.Errorf("credentials are nil")
 	}
 
-	token := &Token{*resp.Credentials}
-	if token.Expiration == nil {
-		token.Expiration = &time.Time{}
+	creds := &Credentials{*resp.Credentials}
+	if creds.Expiration == nil {
+		creds.Expiration = &time.Time{}
 	}
 
-	return token, nil
+	return creds, nil
+}
+
+// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
+func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]auth.Option, error) {
+	// AWS requires a region for getting access credentials. To avoid requiring
+	// two regions to be passed in the Flux APIs we leverage the region present
+	// in the ECR repository.
+	// **Important**: This code path is required for supporting the identity of
+	// the EKS node! The AWS_REGION environment variable is only automatically
+	// set for IRSA and EKS Pod Identity. We strive to support the identity of
+	// the node for artifact repository APIs because EKS users also use it for
+	// for pulling container images to spin up pods inside the cluster, so this
+	// allows a simpler user experience setting up ECR authentication only once.
+	registryInput, err := p.ParseArtifactRepository(artifactRepository)
+	if err != nil {
+		return nil, err
+	}
+	ecrRegion := getECRRegionFromRegistryInput(registryInput)
+	return []auth.Option{auth.WithSTSRegion(ecrRegion)}, nil
 }
 
 // This regex is sourced from the AWS ECR Credential Helper (https://github.com/awslabs/amazon-ecr-credential-helper).
@@ -229,7 +218,6 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 			registry, registryPattern)
 	}
 
-	// For issuing AWS registry credentials the ECR region is required.
 	ecrRegion := parts[0][2]
 	return ecrRegion, nil
 }
@@ -257,7 +245,7 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryIn
 
 	conf := aws.Config{
 		Region:      getECRRegionFromRegistryInput(registryInput),
-		Credentials: accessToken.(*Token).CredentialsProvider(),
+		Credentials: accessToken.(*Credentials).provider(),
 	}
 
 	if hc := o.GetHTTPClient(); hc != nil {
@@ -315,9 +303,116 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryIn
 	}, nil
 }
 
+// NewRESTConfig implements auth.Provider.
+//
+// Reference:
+// https://docs.aws.amazon.com/eks/latest/best-practices/identity-and-access-management.html#_controlling_access_to_eks_clusters
+func (p Provider) NewRESTConfig(ctx context.Context, cluster string, opts ...auth.Option) (*auth.RESTConfig, error) {
+	// It's always 15 minutes, see reference above.
+	// Let's record time.Now() on the beginning to
+	// be on the safe side.
+	expiresAt := time.Now().Add(15 * time.Minute)
+
+	region, clusterName, err := parseCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+	opts = append(opts, auth.WithSTSRegion(region))
+
+	tok, err := auth.GetAccessToken(ctx, p, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AWS credentials: %w", err)
+	}
+	creds := tok.(*Credentials).provider()
+
+	var o auth.Options
+	o.Apply(opts...)
+	hc := o.GetHTTPClient()
+
+	// Describe the cluster resource.
+	eksOpts := eks.Options{
+		Region:      region,
+		Credentials: creds,
+	}
+	if hc != nil {
+		eksOpts.HTTPClient = hc
+	}
+	clusterResource, err := eks.New(eksOpts).DescribeCluster(ctx, &eks.DescribeClusterInput{
+		Name: aws.String(clusterName),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe EKS cluster '%s': %w", cluster, err)
+	}
+
+	// Compare specified address and address from the cluster resource.
+	canonicalEndpoint, err := auth.ParseClusterAddress(*clusterResource.Cluster.Endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse EKS endpoint '%s': %w", *clusterResource.Cluster.Endpoint, err)
+	}
+	if o.ClusterAddress != "" && o.ClusterAddress != canonicalEndpoint {
+		return nil, fmt.Errorf("EKS endpoint '%s' does not match specified address '%s'",
+			*clusterResource.Cluster.Endpoint, o.ClusterAddress)
+	}
+
+	// Build token. See reference above.
+	stsOpts := sts.Options{
+		Region:      region,
+		Credentials: creds,
+	}
+	if e := o.STSEndpoint; e != "" {
+		if err := ValidateSTSEndpoint(e); err != nil {
+			return nil, err
+		}
+		stsOpts.BaseEndpoint = &e
+	}
+	if hc != nil {
+		stsOpts.HTTPClient = hc
+	}
+	req, err := sts.NewPresignClient(sts.New(stsOpts)).
+		PresignGetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}, func(po *sts.PresignOptions) {
+			po.Presigner = &eksHTTPPresignerV4{
+				HTTPPresignerV4: po.Presigner,
+				clusterName:     clusterName,
+			}
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to presign GetCallerIdentity request: %w", err)
+	}
+	token := fmt.Sprintf("k8s-aws-v1.%s", base64.RawURLEncoding.EncodeToString([]byte(req.URL)))
+
+	// Build and return the REST config.
+	caData, err := base64.StdEncoding.DecodeString(*clusterResource.Cluster.CertificateAuthority.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode GKE CA certificate: %w", err)
+	}
+	return &auth.RESTConfig{
+		Config: &rest.Config{
+			Host:            *clusterResource.Cluster.Endpoint,
+			BearerToken:     token,
+			TLSClientConfig: rest.TLSClientConfig{CAData: caData},
+		},
+		ExpiresAt: expiresAt,
+	}, nil
+}
+
 func (p Provider) impl() Implementation {
 	if p.Implementation == nil {
 		return implementation{}
 	}
 	return p.Implementation
+}
+
+type eksHTTPPresignerV4 struct {
+	sts.HTTPPresignerV4
+	clusterName string
+}
+
+func (e *eksHTTPPresignerV4) PresignHTTP(
+	ctx context.Context, credentials aws.Credentials, r *http.Request,
+	payloadHash string, service string, region string, signingTime time.Time,
+	optFns ...func(*v4.SignerOptions),
+) (string, http.Header, error) {
+	r.Header.Add("x-k8s-aws-id", e.clusterName)
+	r.Header.Add("X-Amz-Expires", "900") // ref: https://github.com/aws/aws-sdk-go-v2/issues/1922#issuecomment-1429063756
+	return e.HTTPPresignerV4.PresignHTTP(ctx, credentials, r, payloadHash, service, region, signingTime, optFns...)
 }
