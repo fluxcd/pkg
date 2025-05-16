@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -43,6 +44,7 @@ type Impersonator struct {
 	kubeConfigRef           *meta.KubeConfigReference
 	kubeConfigOpts          KubeConfigOptions
 	kubeConfigNamespace     string
+	kubeConfigProvider      ProviderRESTConfigFetcher
 	defaultServiceAccount   string
 	serviceAccountName      string
 	serviceAccountNamespace string
@@ -151,12 +153,18 @@ func (i *Impersonator) defaultClient() (rc.Client, *polling.StatusPoller, error)
 }
 
 func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *polling.StatusPoller, error) {
-	kubeConfigBytes, err := i.getKubeConfig(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
+	var restConfig *rest.Config
+	var err error
 
-	restConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeConfigBytes)
+	switch {
+	case i.kubeConfigProvider != nil:
+		getRESTConfigFromProvider := i.kubeConfigProvider
+		restConfig, err = getRESTConfigFromProvider(ctx, *i.kubeConfigRef, i.kubeConfigNamespace, i.client)
+	case i.kubeConfigRef.SecretRef != nil:
+		restConfig, err = i.getRESTConfigFromSecret(ctx)
+	default:
+		return nil, nil, errors.New("invalid .spec.kubeConfig, neither .spec.kubeConfig.provider nor .spec.kubeConfig.secretRef is set")
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -182,11 +190,7 @@ func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *pol
 	return client, statusPoller, err
 }
 
-func (i *Impersonator) getKubeConfig(ctx context.Context) ([]byte, error) {
-	if i.kubeConfigRef == nil {
-		return nil, fmt.Errorf("KubeConfig is nil")
-	}
-
+func (i *Impersonator) getRESTConfigFromSecret(ctx context.Context) (*rest.Config, error) {
 	secretName := types.NamespacedName{
 		Namespace: i.kubeConfigNamespace,
 		Name:      i.kubeConfigRef.SecretRef.Name,
@@ -214,7 +218,7 @@ func (i *Impersonator) getKubeConfig(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("KubeConfig secret '%s' does not contain a 'value' key with a kubeconfig", secretName)
 	}
 
-	return kubeConfig, nil
+	return clientcmd.RESTConfigFromKubeConfig(kubeConfig)
 }
 
 func (i *Impersonator) setImpersonationConfig(restConfig *rest.Config) {

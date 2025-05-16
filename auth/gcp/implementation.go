@@ -22,12 +22,14 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/google/externalaccount"
+	"google.golang.org/api/container/v1"
 )
 
 // Implementation provides the required methods of the GCP libraries.
 type Implementation interface {
 	DefaultTokenSource(ctx context.Context, scope ...string) (oauth2.TokenSource, error)
 	NewTokenSource(ctx context.Context, conf externalaccount.Config) (oauth2.TokenSource, error)
+	GetCluster(ctx context.Context, cluster string, client *container.Service) (*container.Cluster, error)
 }
 
 type implementation struct{}
@@ -38,4 +40,8 @@ func (implementation) DefaultTokenSource(ctx context.Context, scope ...string) (
 
 func (implementation) NewTokenSource(ctx context.Context, conf externalaccount.Config) (oauth2.TokenSource, error) {
 	return externalaccount.NewTokenSource(ctx, conf)
+}
+
+func (implementation) GetCluster(ctx context.Context, cluster string, client *container.Service) (*container.Cluster, error) {
+	return client.Projects.Locations.Clusters.Get(cluster).Context(ctx).Do()
 }

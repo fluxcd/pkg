@@ -56,3 +56,15 @@ func getWorkloadIdentityProviderAudience(serviceAccount corev1.ServiceAccount) (
 	}
 	return fmt.Sprintf("//iam.googleapis.com/%s", wip), nil
 }
+
+const clusterPattern = `^projects/[^/]{1,200}/locations/[^/]{1,200}/clusters/[^/]{1,200}$`
+
+var clusterRegex = regexp.MustCompile(clusterPattern)
+
+func parseCluster(cluster string) error {
+	if !clusterRegex.MatchString(cluster) {
+		return fmt.Errorf("invalid GKE cluster ID: '%s'. must match %s",
+			cluster, clusterPattern)
+	}
+	return nil
+}

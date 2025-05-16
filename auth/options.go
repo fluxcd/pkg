@@ -31,25 +31,35 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client             client.Client
-	Cache              *cache.TokenCache
-	ServiceAccount     *client.ObjectKey
-	InvolvedObject     cache.InvolvedObject
-	Scopes             []string
-	ArtifactRepository string
-	STSRegion          string
-	STSEndpoint        string
-	ProxyURL           *url.URL
-	AllowShellOut      bool
+	Client          client.Client
+	Cache           *cache.TokenCache
+	ServiceAccount  *client.ObjectKey
+	InvolvedObject  cache.InvolvedObject
+	Audiences       []string
+	Scopes          []string
+	STSRegion       string
+	STSEndpoint     string
+	ProxyURL        *url.URL
+	CAData          string
+	ClusterResource string
+	ClusterAddress  string
+	AllowShellOut   bool
+}
+
+// WithClient sets the controller-runtime client for the provider.
+func WithClient(client client.Client) Option {
+	return func(o *Options) {
+		o.Client = client
+	}
 }
 
 // WithServiceAccount sets the ServiceAccount reference for the token
 // and a controller-runtime client to fetch the ServiceAccount and
 // create an OIDC token for it in the Kubernetes API.
-func WithServiceAccount(saRef client.ObjectKey, client client.Client) Option {
+func WithServiceAccount(saRef client.ObjectKey, c client.Client) Option {
 	return func(o *Options) {
 		o.ServiceAccount = &saRef
-		o.Client = client
+		o.Client = c
 	}
 }
 
@@ -61,20 +71,17 @@ func WithCache(cache cache.TokenCache, involvedObject cache.InvolvedObject) Opti
 	}
 }
 
+// WithAudiences sets the audiences for the Kubernetes ServiceAccount token.
+func WithAudiences(audiences ...string) Option {
+	return func(o *Options) {
+		o.Audiences = audiences
+	}
+}
+
 // WithScopes sets the scopes for the token.
 func WithScopes(scopes ...string) Option {
 	return func(o *Options) {
 		o.Scopes = scopes
-	}
-}
-
-// WithArtifactRepository sets the artifact repository the token will be used for.
-// In most cases artifact registry credentials require an additional
-// token exchange at the end. This option allows the library to implement
-// this exchange and cache the final token.
-func WithArtifactRepository(artifactRepository string) Option {
-	return func(o *Options) {
-		o.ArtifactRepository = artifactRepository
 	}
 }
 
@@ -100,7 +107,38 @@ func WithProxyURL(proxyURL url.URL) Option {
 	}
 }
 
-// WithAllowShellOut allows the provider to shell out to binaries.
+// WithCAData sets the CA data for credentials that require a CA,
+// e.g. for Kubernetes REST config.
+func WithCAData(caData string) Option {
+	return func(o *Options) {
+		o.CAData = caData
+	}
+}
+
+// WithClusterResource sets the cluster resource for creating a REST config.
+// Must be the fully qualified name of the cluster resource in the cloud
+// provider API.
+func WithClusterResource(clusterResource string) Option {
+	return func(o *Options) {
+		o.ClusterResource = clusterResource
+	}
+}
+
+// WithClusterAddress sets the cluster address for creating a REST config.
+// This address is used to select the correct cluster endpoint and CA data
+// when the provider has a list of endpoints to choose from, or to simply
+// validate the address against the cluster resource when the provider
+// returns a single endpoint. This is optional, providers returning a list
+// of endpoints will select the first one if no address is provided.
+func WithClusterAddress(clusterAddress string) Option {
+	return func(o *Options) {
+		o.ClusterAddress = clusterAddress
+	}
+}
+
+// WithAllowShellOut allows the provider to shell out to binary tools
+// for acquiring controller tokens. MUST be used only by the Flux CLI,
+// i.e. in the github.com/fluxcd/flux2 Git repository.
 func WithAllowShellOut() Option {
 	return func(o *Options) {
 		o.AllowShellOut = true

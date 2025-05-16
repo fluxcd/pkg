@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package authutils
+package utils
 
 import (
 	"context"
@@ -24,29 +24,15 @@ import (
 	"github.com/fluxcd/pkg/auth"
 )
 
-// GetArtifactRegistryCredentials retrieves the credentials for the specified
-// artifact repository using the specified provider. It returns an
-// authn.Authenticator that can be used to authenticate with the registry.
-func GetArtifactRegistryCredentials(ctx context.Context,
-	providerName, artifactRepository string,
-	opts ...auth.Option) (authn.Authenticator, error) {
+// GetArtifactRegistryCredentials retrieves the registry credentials for the
+// specified artifact repository and provider.
+func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
+	artifactRepository string, opts ...auth.Option) (authn.Authenticator, error) {
 
-	provider := ProviderByName(providerName)
-	if provider == nil {
-		return nil, ErrUnsupportedProvider
-	}
-
-	opts = append(opts, auth.WithArtifactRepository(artifactRepository))
-
-	token, err := auth.GetToken(ctx, provider, opts...)
+	provider, err := ProviderByName[auth.ArtifactRegistryCredentialsProvider](providerName)
 	if err != nil {
 		return nil, err
 	}
 
-	authenticator, ok := token.(authn.Authenticator)
-	if !ok {
-		return nil, ErrProviderDoesNotSupportRegistry
-	}
-
-	return authenticator, nil
+	return auth.GetArtifactRegistryCredentials(ctx, provider, artifactRepository, opts...)
 }
