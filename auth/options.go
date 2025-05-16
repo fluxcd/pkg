@@ -31,16 +31,16 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client             client.Client
-	Cache              *cache.TokenCache
-	ServiceAccount     *client.ObjectKey
-	InvolvedObject     cache.InvolvedObject
-	Scopes             []string
-	ArtifactRepository string
-	STSRegion          string
-	STSEndpoint        string
-	ProxyURL           *url.URL
-	AllowShellOut      bool
+	Client         client.Client
+	Cache          *cache.TokenCache
+	ServiceAccount *client.ObjectKey
+	InvolvedObject cache.InvolvedObject
+	Scopes         []string
+	STSRegion      string
+	STSEndpoint    string
+	ProxyURL       *url.URL
+	ClusterAddress string
+	AllowShellOut  bool
 }
 
 // WithServiceAccount sets the ServiceAccount reference for the token
@@ -68,16 +68,6 @@ func WithScopes(scopes ...string) Option {
 	}
 }
 
-// WithArtifactRepository sets the artifact repository the token will be used for.
-// In most cases artifact registry credentials require an additional
-// token exchange at the end. This option allows the library to implement
-// this exchange and cache the final token.
-func WithArtifactRepository(artifactRepository string) Option {
-	return func(o *Options) {
-		o.ArtifactRepository = artifactRepository
-	}
-}
-
 // WithSTSRegion sets the region for the STS service (some cloud providers
 // require a region, e.g. AWS).
 func WithSTSRegion(stsRegion string) Option {
@@ -97,6 +87,18 @@ func WithSTSEndpoint(stsEndpoint string) Option {
 func WithProxyURL(proxyURL url.URL) Option {
 	return func(o *Options) {
 		o.ProxyURL = &proxyURL
+	}
+}
+
+// WithClusterAddress sets the cluster address for creating a REST config.
+// This address is used to select the correct cluster endpoint and CA data
+// when the provider has a list of endpoints to choose from, or to simply
+// validate the address against the cluster resource when the provider
+// returns a single endpoint. This is optional, providers returning a list
+// of endpoints will select the first one if no address is provided.
+func WithClusterAddress(clusterAddress string) Option {
+	return func(o *Options) {
+		o.ClusterAddress = clusterAddress
 	}
 }
 

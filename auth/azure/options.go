@@ -18,12 +18,9 @@ package azure
 
 import (
 	"fmt"
-	"strings"
+	"regexp"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/fluxcd/pkg/auth"
 )
 
 func getIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
@@ -54,34 +51,18 @@ func getClientID(serviceAccount corev1.ServiceAccount) (string, error) {
 	return "", fmt.Errorf("azure client ID is not set in the service account annotation %s", key)
 }
 
-func getScopes(o *auth.Options) []string {
-	if acrScope := getACRScope(o.ArtifactRepository); acrScope != "" {
-		return []string{acrScope}
-	}
-	return o.Scopes
-}
+const clusterPattern = `(?i)^/subscriptions/([^/]{36})/resourceGroups/([^/]{1,200})/providers/Microsoft\.ContainerService/managedClusters/([^/]{1,200})$`
 
-func getACRScope(artifactRepository string) string {
-	if artifactRepository == "" {
-		return ""
-	}
+var clusterRegex = regexp.MustCompile(clusterPattern)
 
-	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
-	if err != nil {
-		// it's ok to swallow the error here, it should never happen
-		// because GetRegistryFromArtifactRepository() is already called
-		// earlier by auth.GetToken() and the error is handled there.
-		return ""
+func parseCluster(cluster string) (string, string, string, error) {
+	m := clusterRegex.FindStringSubmatch(cluster)
+	if len(m) != 4 {
+		return "", "", "", fmt.Errorf("invalid AKS cluster ID: '%s'. must match %s",
+			cluster, clusterPattern)
 	}
-
-	var conf *cloud.Configuration
-	switch {
-	case strings.HasSuffix(registry, ".azurecr.cn"):
-		conf = &cloud.AzureChina
-	case strings.HasSuffix(registry, ".azurecr.us"):
-		conf = &cloud.AzureGovernment
-	default:
-		conf = &cloud.AzurePublic
-	}
-	return conf.Services[cloud.ResourceManager].Endpoint + "/" + ".default"
+	subscriptionID := m[1]
+	resourceGroup := m[2]
+	clusterName := m[3]
+	return subscriptionID, resourceGroup, clusterName, nil
 }

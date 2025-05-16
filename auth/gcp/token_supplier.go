@@ -22,10 +22,10 @@ import (
 	"golang.org/x/oauth2/google/externalaccount"
 )
 
-// TokenSupplier provides a static OIDC token.
-type TokenSupplier string
+// StaticTokenSupplier provides a static OIDC token.
+type StaticTokenSupplier string
 
 // SubjectToken implements externalaccount.SubjectTokenSupplier.
-func (s TokenSupplier) SubjectToken(context.Context, externalaccount.SupplierOptions) (string, error) {
+func (s StaticTokenSupplier) SubjectToken(context.Context, externalaccount.SupplierOptions) (string, error) {
 	return string(s), nil
 }

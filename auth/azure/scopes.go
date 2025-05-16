@@ -17,7 +17,7 @@ limitations under the License.
 package azure
 
 const (
-	// https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/service-principal-managed-identity?view=azure-devops#q-can-i-use-a-service-principal-or-managed-identity-with-azure-cli
+	// https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/service-principal-managed-identity?view=azure-devops#q-can-i-add-a-managed-identity-from-a-different-tenant-to-my-organization
 	ScopeDevOps = "499b84ac-1321-427f-aa17-267ca6975798/.default"
 
 	// https://github.com/Azure/azure-sdk-for-go/blob/f5dfe3b53fe63aacd3aeba948bbe21d961edf376/sdk/storage/azqueue/internal/shared/shared.go#L18

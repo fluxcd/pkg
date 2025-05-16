@@ -110,6 +110,33 @@ func getWISAAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]st
 	}, nil
 }
 
+// getClusterResourceAWS returns the cluster resource for kubeconfig auth tests.
+func getClusterResourceAWS(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterResource := output["eks_cluster_arn"].Value.(string)
+	if clusterResource == "" {
+		return "", fmt.Errorf("no EKS cluster id in terraform output")
+	}
+	return clusterResource, nil
+}
+
+// getClusterAddressAWS returns the cluster address for kubeconfig auth tests.
+func getClusterAddressAWS(output map[string]*tfjson.StateOutput) (string, error) {
+	clusterAddress := output["eks_cluster_endpoint"].Value.(string)
+	if clusterAddress == "" {
+		return "", fmt.Errorf("no EKS cluster address in terraform output")
+	}
+	return clusterAddress, nil
+}
+
+// getClusterUsersAWS returns the cluster users for kubeconfig auth tests.
+func getClusterUsersAWS(output map[string]*tfjson.StateOutput) ([]string, error) {
+	clusterUser := output["aws_wi_iam_arn"].Value.(string)
+	if clusterUser == "" {
+		return nil, fmt.Errorf("no EKS cluster user id in terraform output")
+	}
+	return []string{clusterUser}, nil
+}
+
 // When implemented, getGitTestConfigAws would return the git-specific test config for AWS
 func getGitTestConfigAWS(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
 	return nil, fmt.Errorf("NotImplemented for AWS")
