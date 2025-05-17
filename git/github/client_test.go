@@ -26,9 +26,10 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/ssh"
-	. "github.com/onsi/gomega"
 )
 
 func TestClient_Options(t *testing.T) {
@@ -155,7 +156,7 @@ func TestClient_Options(t *testing.T) {
 	}
 }
 
-func TestClient_GetToken(t *testing.T) {
+func TestClient_GetCredentials(t *testing.T) {
 	g := NewWithT(t)
 
 	expiresAt := time.Now().UTC().Add(time.Hour)
@@ -233,16 +234,13 @@ func TestClient_GetToken(t *testing.T) {
 			}
 			opts = append(opts, tt.opts...)
 
-			provider, err := New(opts...)
-			g.Expect(err).ToNot(HaveOccurred())
-
-			appToken, err := provider.GetToken(context.TODO())
+			username, password, err := GetCredentials(context.Background(), opts...)
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(appToken.Token).To(Equal(tt.wantAppToken.Token))
-				g.Expect(appToken.ExpiresAt).To(Equal(tt.wantAppToken.ExpiresAt))
+				g.Expect(username).To(Equal("x-access-token"))
+				g.Expect(password).To(Equal(tt.wantAppToken.Token))
 			}
 		})
 	}

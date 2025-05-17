@@ -309,6 +309,7 @@ func TestGetToken(t *testing.T) {
 			name: "all the options are taken into account in the cache key",
 			provider: &mockProvider{
 				returnName:              "mock-provider",
+				returnAudience:          "mock-audience",
 				returnIdentity:          "mock-identity",
 				returnRegistryInput:     "artifact-cache-key",
 				paramServiceAccount:     *defaultServiceAccount,
@@ -325,7 +326,7 @@ func TestGetToken(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const key = "da48da328aa46181e677d76c835b7ca32b5fbf64da01577463d42a2720708ecb"
+					const key = "3e8e270134e99fda1a01d7dca77f29448eb4c7f6cc026137b85a1bcd96b276fa"
 					token := &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, key, func(ctx context.Context) (cache.Token, error) {
 						return token, nil

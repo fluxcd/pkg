@@ -251,10 +251,6 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 		return nil, err
 	}
 
-	if err := g.providerAuth(ctx); err != nil {
-		return nil, err
-	}
-
 	return g.clone(ctx, url, cfg)
 }
 
@@ -279,16 +275,12 @@ func (g *Client) clone(ctx context.Context, url string, cfg repository.CloneConf
 }
 
 // validateUrlAndAuthOptions performs validations on the input url and auth options.
-// Validations are performed taking into consideration that ProviderAzure sets
-// the bearer token in authOpts and ProviderGitHub sets username/password in
-// authOpts.
 func (g *Client) validateUrlAndAuthOptions(u string) error {
 	ru, err := url.Parse(u)
 	if err != nil {
 		return fmt.Errorf("cannot parse url: %w", err)
 	}
 
-	hasAzureProvider := g.hasProvider(git.ProviderAzure)
 	if g.authOpts != nil {
 		httpOrHttps := g.authOpts.Transport == git.HTTP || g.authOpts.Transport == git.HTTPS
 		hasUsernameOrPassword := g.authOpts.Username != "" || g.authOpts.Password != ""
@@ -296,10 +288,6 @@ func (g *Client) validateUrlAndAuthOptions(u string) error {
 
 		if httpOrHttps && hasBearerToken && hasUsernameOrPassword {
 			return errors.New("basic auth and bearer token cannot be set at the same time")
-		}
-
-		if httpOrHttps && hasUsernameOrPassword && hasAzureProvider {
-			return errors.New("basic auth and provider cannot be set at the same time")
 		}
 	}
 
@@ -317,30 +305,7 @@ func (g *Client) validateUrlAndAuthOptions(u string) error {
 			return errors.New("basic auth cannot be sent over HTTP")
 		} else if g.authOpts.BearerToken != "" {
 			return errors.New("bearer token cannot be sent over HTTP")
-		} else if g.hasProvider(git.ProviderGitHub) {
-			return errors.New("github provider cannot be used with HTTP")
-		} else if hasAzureProvider {
-			return errors.New("azure provider cannot be used with HTTP")
 		}
-	}
-
-	return nil
-}
-
-func (g *Client) hasProvider(name string) bool {
-	return g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.ProviderOpts.Name == name
-}
-
-func (g *Client) providerAuth(ctx context.Context) error {
-	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" &&
-		g.authOpts.Username == "" && g.authOpts.Password == "" {
-		providerCreds, _, err := git.GetCredentials(ctx, g.authOpts.ProviderOpts)
-		if err != nil {
-			return err
-		}
-		g.authOpts.BearerToken = providerCreds.BearerToken
-		g.authOpts.Username = providerCreds.Username
-		g.authOpts.Password = providerCreds.Password
 	}
 
 	return nil
@@ -423,10 +388,6 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 	if g.repository == nil {
 		return git.ErrNoGitRepository
-	}
-
-	if err := g.providerAuth(ctx); err != nil {
-		return err
 	}
 
 	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)

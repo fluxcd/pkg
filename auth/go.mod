@@ -2,10 +2,7 @@ module github.com/fluxcd/pkg/auth
 
 go 1.24.0
 
-replace (
-	github.com/fluxcd/pkg/cache => ../cache
-	github.com/fluxcd/pkg/ssh => ../ssh
-)
+replace github.com/fluxcd/pkg/cache => ../cache
 
 require (
 	cloud.google.com/go/compute/metadata v0.6.0

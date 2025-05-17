@@ -17,51 +17,25 @@ limitations under the License.
 package gcp_test
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
-	"time"
-
-	. "github.com/onsi/gomega"
 )
 
 func startGKEMetadataServer(t *testing.T) {
 	t.Helper()
-	g := NewWithT(t)
-
-	lis, err := net.Listen("tcp", ":0")
-	g.Expect(err).NotTo(HaveOccurred())
-
-	gkeMetadataServer := &http.Server{
-		Addr: lis.Addr().String(),
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/computeMetadata/v1/project/project-id":
-				fmt.Fprintf(w, "%s", "project-id")
-			case "/computeMetadata/v1/instance/attributes/cluster-location":
-				fmt.Fprintf(w, "%s", "cluster-location")
-			case "/computeMetadata/v1/instance/attributes/cluster-name":
-				fmt.Fprintf(w, "%s", "cluster-name")
-			}
-		}),
-	}
-
-	go func() {
-		err := gkeMetadataServer.Serve(lis)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			g.Expect(err).NotTo(HaveOccurred())
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/computeMetadata/v1/project/project-id":
+			fmt.Fprintf(w, "%s", "project-id")
+		case "/computeMetadata/v1/instance/attributes/cluster-location":
+			fmt.Fprintf(w, "%s", "cluster-location")
+		case "/computeMetadata/v1/instance/attributes/cluster-name":
+			fmt.Fprintf(w, "%s", "cluster-name")
 		}
-	}()
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		err := gkeMetadataServer.Shutdown(ctx)
-		g.Expect(err).NotTo(HaveOccurred())
-	})
-
-	t.Setenv("GCE_METADATA_HOST", lis.Addr().String())
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("GCE_METADATA_HOST", strings.TrimPrefix(srv.URL, "http://"))
 }

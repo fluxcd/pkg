@@ -156,10 +156,13 @@ func checkGit(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	gitAuthOpts.ProviderOpts = &git.ProviderOptions{
-		Name:     *provider,
-		AuthOpts: authOpts,
+	creds, err := authutils.GetGitCredentials(ctx, *provider, authOpts...)
+	if err != nil {
+		panic(err)
 	}
+	gitAuthOpts.BearerToken = creds.BearerToken
+	gitAuthOpts.Username = creds.Username
+	gitAuthOpts.Password = creds.Password
 	cloneDir, err := os.MkdirTemp("", "test-clone")
 	if err != nil {
 		panic(err)
