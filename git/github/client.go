@@ -37,6 +37,8 @@ const (
 	AppInstallationIDKey = "githubAppInstallationID"
 	AppPrivateKey        = "githubAppPrivateKey"
 	AppBaseUrlKey        = "githubAppBaseURL"
+
+	AccessTokenUsername = "x-access-token"
 )
 
 // Client is an authentication provider for GitHub Apps.
@@ -229,6 +231,20 @@ func (p *Client) GetToken(ctx context.Context) (*AppToken, error) {
 		return nil, err
 	}
 	return token.(*AppToken), nil
+}
+
+// GetCredentials returns the GitHub App installation username and password
+// for authenticating Git operations.
+func GetCredentials(ctx context.Context, opts ...OptFunc) (string, string, error) {
+	client, err := New(opts...)
+	if err != nil {
+		return "", "", err
+	}
+	appToken, err := client.GetToken(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	return AccessTokenUsername, appToken.Token, nil
 }
 
 func (p *Client) buildCacheKey() string {

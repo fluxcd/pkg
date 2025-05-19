@@ -19,9 +19,6 @@ package git
 import (
 	"fmt"
 	"net/url"
-
-	"github.com/fluxcd/pkg/auth"
-	"github.com/fluxcd/pkg/git/github"
 )
 
 const (
@@ -53,25 +50,16 @@ const (
 // AuthOptions are the authentication options for the Transport of
 // communication with a remote origin.
 type AuthOptions struct {
-	Transport    TransportType
-	Host         string
-	Username     string
-	Password     string
-	BearerToken  string
-	Identity     []byte
-	KnownHosts   []byte
-	ClientCert   []byte
-	ClientKey    []byte
-	CAFile       []byte
-	ProviderOpts *ProviderOptions
-}
-
-// ProviderOptions contains options to configure various authentication
-// providers.
-type ProviderOptions struct {
-	Name       string
-	AuthOpts   []auth.Option
-	GitHubOpts []github.OptFunc
+	Transport   TransportType
+	Host        string
+	Username    string
+	Password    string
+	BearerToken string
+	Identity    []byte
+	KnownHosts  []byte
+	ClientCert  []byte
+	ClientKey   []byte
+	CAFile      []byte
 }
 
 // KexAlgos hosts the key exchange algorithms to be used for SSH connections.

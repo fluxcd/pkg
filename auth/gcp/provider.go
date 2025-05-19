@@ -70,7 +70,7 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 func (Provider) GetAudience(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, error) {
 	// Check if a workload identity provider is specified in the service account.
 	// If so, the current cluster is not GKE and the audience is the provider itself.
-	audience, err := getWorkloadIdentityProvider(serviceAccount)
+	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +100,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 
 	// Check if a workload identity provider is specified in the service account.
 	// If so, the current cluster is not GKE and the audience is the provider itself.
-	audience, err := getWorkloadIdentityProvider(serviceAccount)
+	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
 	if err != nil {
 		return nil, err
 	}

@@ -17,15 +17,11 @@ limitations under the License.
 package oci
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
-
-	authutils "github.com/fluxcd/pkg/auth/utils"
 )
 
 // LoginWithCredentials configures the client with static credentials, accepts a single token
@@ -58,17 +54,4 @@ func GetAuthFromCredentials(credentials string) (authn.Authenticator, error) {
 	}
 
 	return authn.FromConfig(authConfig), nil
-}
-
-// LoginWithProvider configures the client to log in to the specified provider
-func (c *Client) LoginWithProvider(ctx context.Context, url string, provider string) error {
-	authenticator, err := authutils.GetArtifactRegistryCredentials(ctx, provider, url)
-	if err != nil {
-		return fmt.Errorf("could not login to provider %s with url %s: %w", provider, url, err)
-	}
-	if authenticator == nil {
-		return errors.New("unsupported provider")
-	}
-	c.options = append(c.options, crane.WithAuth(authenticator))
-	return nil
 }

@@ -45,6 +45,7 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 	}
 
 	// Update access token fetcher for a service account if specified.
+	var providerAudience string
 	var providerIdentity string
 	var serviceAccountP *corev1.ServiceAccount
 	if o.ServiceAccount != nil {
@@ -63,7 +64,7 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 
 		// Get provider audience.
 		var err error
-		providerAudience, err := provider.GetAudience(ctx, serviceAccount)
+		providerAudience, err = provider.GetAudience(ctx, serviceAccount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get provider audience: %w", err)
 		}
@@ -131,7 +132,8 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 	}
 
 	// Build cache key.
-	cacheKey := buildCacheKey(provider, providerIdentity, artifactRepositoryCacheKey, serviceAccountP, opts...)
+	cacheKey := buildCacheKey(provider, providerAudience, providerIdentity,
+		artifactRepositoryCacheKey, serviceAccountP, opts...)
 
 	// Get involved object details.
 	kind := o.InvolvedObject.Kind
@@ -163,7 +165,7 @@ func newServiceAccountToken(ctx context.Context, client client.Client,
 	return tokenReq.Status.Token, nil
 }
 
-func buildCacheKey(provider Provider, providerIdentity, artifactRepositoryKey string,
+func buildCacheKey(provider Provider, providerAudience, providerIdentity, artifactRepositoryKey string,
 	serviceAccount *corev1.ServiceAccount, opts ...Option) string {
 
 	var o Options
@@ -174,6 +176,7 @@ func buildCacheKey(provider Provider, providerIdentity, artifactRepositoryKey st
 	keyParts = append(keyParts, fmt.Sprintf("provider=%s", provider.GetName()))
 
 	if serviceAccount != nil {
+		keyParts = append(keyParts, fmt.Sprintf("providerAudience=%s", providerAudience))
 		keyParts = append(keyParts, fmt.Sprintf("providerIdentity=%s", providerIdentity))
 		keyParts = append(keyParts, fmt.Sprintf("serviceAccountName=%s", serviceAccount.Name))
 		keyParts = append(keyParts, fmt.Sprintf("serviceAccountNamespace=%s", serviceAccount.Namespace))

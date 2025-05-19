@@ -148,14 +148,15 @@ func TestGitHubE2E(t *testing.T) {
 			if authMethod == "app" {
 				var data map[string][]byte
 				authOptions, err = git.NewAuthOptions(*repoURL, data)
-				authOptions.ProviderOpts = &git.ProviderOptions{
-					Name: git.ProviderGitHub,
-					GitHubOpts: []pkggithub.OptFunc{
-						pkggithub.WithAppID(githubAppID),
-						pkggithub.WithInstllationID(githubAppInstallID),
-						pkggithub.WithPrivateKey(githubAppPrivateKey),
-					},
+				username, password, err := pkggithub.GetCredentials(context.Background(),
+					pkggithub.WithAppID(githubAppID),
+					pkggithub.WithInstllationID(githubAppInstallID),
+					pkggithub.WithPrivateKey(githubAppPrivateKey))
+				if err != nil {
+					return nil, nil, err
 				}
+				authOptions.Username = username
+				authOptions.Password = password
 			} else {
 				authOptions, err = git.NewAuthOptions(*repoURL, map[string][]byte{
 					"username": []byte(githubUsername),
