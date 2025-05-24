@@ -37,6 +37,16 @@ variable "wi_k8s_sa_name_direct_access" {
   description = "Name of kubernetes service account to get direct permissions in GCP (For workload identity)"
 }
 
+variable "wi_k8s_sa_name_federation" {
+  type        = string
+  description = "Name of kubernetes service account to be bound to GCP IAM service account (For workload identity federation)"
+}
+
+variable "wi_k8s_sa_name_federation_direct_access" {
+  type        = string
+  description = "Name of kubernetes service account to get direct permissions in GCP (For workload identity federation)"
+}
+
 variable "enable_wi" {
   type        = bool
   default     = false

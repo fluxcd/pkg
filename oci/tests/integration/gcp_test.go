@@ -32,6 +32,10 @@ const (
 	// gcpIAMAnnotation is the key for the annotation on the kubernetes serviceaccount
 	// with the email address of the IAM service account on GCP.
 	gcpIAMAnnotation = "iam.gke.io/gcp-service-account"
+
+	// gcpWorkloadIdentityProviderAnnotation is the key for the annotation on the kubernetes serviceaccount
+	// with the name of the workload identity provider on GCP.
+	gcpWorkloadIdentityProviderAnnotation = "gcp.auth.fluxcd.io/workload-identity-provider"
 )
 
 // createKubeconfigGKE constructs kubeconfig from the terraform state output at
@@ -82,6 +86,18 @@ func getWISAAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]st
 
 	return map[string]string{
 		gcpIAMAnnotation: saEmail,
+	}, nil
+}
+
+// getWIFederationSAAnnotationsGCP returns workload identity federation annotations for a kubernetes ServiceAccount
+func getWIFederationSAAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	workloadIdentityProvider := output["workload_identity_provider"].Value.(string)
+	if workloadIdentityProvider == "" {
+		return nil, fmt.Errorf("no GCP workload identity provider in terraform output")
+	}
+
+	return map[string]string{
+		gcpWorkloadIdentityProviderAnnotation: workloadIdentityProvider,
 	}, nil
 }
 

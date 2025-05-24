@@ -70,6 +70,14 @@ const (
 	// the service account name used for workload identity direct access.
 	envVarWISANameDirectAccess = "TF_VAR_wi_k8s_sa_name_direct_access"
 
+	// envVarWISANameFederation is the name of the terraform environment variable containing
+	// the service account name used for workload identity federation.
+	envVarWISANameFederation = "TF_VAR_wi_k8s_sa_name_federation"
+
+	// envVarWISANameFederationDirectAccess is the name of the terraform environment variable containing
+	// the service account name used for workload identity federation direct access.
+	envVarWISANameFederationDirectAccess = "TF_VAR_wi_k8s_sa_name_federation_direct_access"
+
 	// envVarAzureDevOpsOrg is the name of the terraform environment variable
 	// containing the Azure DevOps organization name.
 	envVarAzureDevOpsOrg = "TF_VAR_azuredevops_org"
@@ -79,16 +87,24 @@ const (
 	envVarAzureDevOpsPAT = "TF_VAR_azuredevops_pat"
 
 	// wiSANamespace is the namespace of the service account that will be created and annotated for workload
-	// identity. It is set from the terraform variable (`TF_VAR_wi_k8s_sa_ns`)
+	// identity.
 	wiSANamespace = "default"
 
 	// wiServiceAccount is the name of the service account that will be created and annotated for workload
-	// identity. It is set from the terraform variable (`TF_VAR_wi_k8s_sa_name`)
+	// identity.
 	wiServiceAccount = "test-workload-id"
 
 	// wiServiceAccountDirectAccess is the name of the service account used for
 	// workload identity direct access.
 	wiServiceAccountDirectAccess = "test-workload-id-direct-access"
+
+	// wiServiceAccountFederation is the name of the service account that will be created and annotated for workload
+	// identity federation.
+	wiServiceAccountFederation = "test-workload-id-federation"
+
+	// wiServiceAccountFederationDirectAccess is the name of the service account used for
+	// workload identity federation direct access.
+	wiServiceAccountFederationDirectAccess = "test-workload-id-federation-direct-access"
 
 	// controllerWIRBACName is the name used for RBAC resources a controller needs
 	// for impersonating the workload identity service account while obtaining
@@ -140,6 +156,9 @@ var (
 	// testWIDirectAccess is set by the provider config.
 	testWIDirectAccess bool
 
+	// testWIFederation is set by the provider config.
+	testWIFederation bool
+
 	// testGitCfg is a struct containing different variables needed for running git tests.
 	testGitCfg *gitTestConfig
 )
@@ -159,6 +178,10 @@ type pushTestImages func(ctx context.Context, localImgs map[string]string, outpu
 // getWISAAnnotations returns cloud provider specific annotations for the
 // service account when workload identity is used on the cluster.
 type getWISAAnnotations func(output map[string]*tfjson.StateOutput) (map[string]string, error)
+
+// getWIFederationSAAnnotations returns cloud provider specific annotations for the
+// service account when workload identity federation is used on the cluster.
+type getWIFederationSAAnnotations func(output map[string]*tfjson.StateOutput) (map[string]string, error)
 
 // grantPermissionsToGitRepository calls provider specific API to add additional permissions to the git repository/project
 type grantPermissionsToGitRepository func(ctx context.Context, cfg *gitTestConfig, output map[string]*tfjson.StateOutput) error
@@ -199,6 +222,9 @@ type ProviderConfig struct {
 	// getWISAAnnotations is used to return the provider specific annotations
 	// for the service account when using workload identity.
 	getWISAAnnotations getWISAAnnotations
+	// getWIFederationSAAnnotations is used to return the provider specific annotations
+	// for the service account when using workload identity federation.
+	getWIFederationSAAnnotations getWIFederationSAAnnotations
 	// grantPermissionsToGitRepository is used to give the identity access to the Git repository
 	grantPermissionsToGitRepository grantPermissionsToGitRepository
 	// revokePermissionsToGitRepository is used to revoke the identity access to the Git repository
@@ -208,6 +234,9 @@ type ProviderConfig struct {
 	// supportsWIDirectAccess is a boolean that indicates if the test should run
 	// for workload identity direct access.
 	supportsWIDirectAccess bool
+	// supportsWIFederation is a boolean that indicates if the test should run
+	// for workload identity federation.
+	supportsWIFederation bool
 	// supportsGit is a boolean that indicates if the test should run for git.
 	supportsGit bool
 }
@@ -239,12 +268,15 @@ func TestMain(m *testing.M) {
 	}
 	if enableWI {
 		testWIDirectAccess = providerCfg.supportsWIDirectAccess
+		testWIFederation = providerCfg.supportsWIFederation
 	}
 	testGit = providerCfg.supportsGit
 
 	os.Setenv(envVarWISANamespace, wiSANamespace)
 	os.Setenv(envVarWISAName, wiServiceAccount)
 	os.Setenv(envVarWISANameDirectAccess, wiServiceAccountDirectAccess)
+	os.Setenv(envVarWISANameFederation, wiServiceAccountFederation)
+	os.Setenv(envVarWISANameFederationDirectAccess, wiServiceAccountFederationDirectAccess)
 
 	// Run destroy-only mode if enabled.
 	if *destroyOnly {
@@ -385,10 +417,12 @@ func getProviderConfig(provider string) *ProviderConfig {
 			pushAppTestImages:                pushAppTestImagesGCR,
 			createKubeconfig:                 createKubeconfigGKE,
 			getWISAAnnotations:               getWISAAnnotationsGCP,
+			getWIFederationSAAnnotations:     getWIFederationSAAnnotationsGCP,
 			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryGCP,
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryGCP,
 			getGitTestConfig:                 getGitTestConfigGCP,
 			supportsWIDirectAccess:           true,
+			supportsWIFederation:             true,
 		}
 	}
 	return nil
@@ -429,9 +463,18 @@ func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, 
 
 	if enableWI {
 		log.Println("Workload identity is enabled, initializing service account with annotations")
+
 		annotations, err := providerCfg.getWISAAnnotations(tfOutput)
 		if err != nil {
-			panic(fmt.Sprintf("Failed to get service account func for workload identity: %v", err))
+			panic(err)
+		}
+
+		var federationAnnotations map[string]string
+		if providerCfg.supportsWIFederation {
+			federationAnnotations, err = providerCfg.getWIFederationSAAnnotations(tfOutput)
+			if err != nil {
+				panic(err)
+			}
 		}
 
 		if err := createWorkloadIDServiceAccount(ctx, annotations); err != nil {
@@ -440,6 +483,18 @@ func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, 
 
 		if providerCfg.supportsWIDirectAccess {
 			if err := createDirectAccessWorkloadIdentityServiceAccount(ctx); err != nil {
+				panic(err)
+			}
+
+			if providerCfg.supportsWIFederation {
+				if err := createDirectAccessWorkloadIdentityFederationServiceAccount(ctx, federationAnnotations); err != nil {
+					panic(err)
+				}
+			}
+		}
+
+		if providerCfg.supportsWIFederation {
+			if err := createWorkloadIdentityFederationServiceAccount(ctx, annotations, federationAnnotations); err != nil {
 				panic(err)
 			}
 		}
@@ -494,8 +549,58 @@ func createDirectAccessWorkloadIdentityServiceAccount(ctx context.Context) error
 			Namespace: wiSANamespace,
 		},
 	}
-	if err := testEnv.Client.Create(ctx, sa); err != nil {
+	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, sa, func() error {
+		return nil
+	})
+	if err != nil {
 		return fmt.Errorf("failed to create direct access service account for workload identity: %w", err)
+	}
+	return nil
+}
+
+// createDirectAccessWorkloadIdentityFederationServiceAccount creates a service account
+// for testing workload identity federation.
+func createDirectAccessWorkloadIdentityFederationServiceAccount(ctx context.Context, federationAnnotations map[string]string) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        wiServiceAccountFederationDirectAccess,
+			Namespace:   wiSANamespace,
+			Annotations: federationAnnotations,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, sa, func() error {
+		sa.Annotations = federationAnnotations
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create direct access service account for workload identity federation: %w", err)
+	}
+	return nil
+}
+
+// createWorkloadIdentityFederationServiceAccount creates a service account
+// for testing workload identity federation.
+func createWorkloadIdentityFederationServiceAccount(ctx context.Context, annotations, federationAnnotations map[string]string) error {
+	allAnnotations := make(map[string]string, len(annotations)+len(federationAnnotations))
+	for k, v := range annotations {
+		allAnnotations[k] = v
+	}
+	for k, v := range federationAnnotations {
+		allAnnotations[k] = v
+	}
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        wiServiceAccountFederation,
+			Namespace:   wiSANamespace,
+			Annotations: allAnnotations,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, sa, func() error {
+		sa.Annotations = allAnnotations
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create service account for workload identity federation: %w", err)
 	}
 	return nil
 }
@@ -511,49 +616,64 @@ func createControllerWorkloadIdentityServiceAccount(ctx context.Context) error {
 			Namespace: wiSANamespace,
 		},
 	}
-	if err := testEnv.Client.Create(ctx, sa); err != nil {
+	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, sa, func() error {
+		return nil
+	})
+	if err != nil {
 		return fmt.Errorf("failed to create controller service account for workload identity: %w", err)
 	}
 
+	rules := []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{""},
+			Resources: []string{"serviceaccounts"},
+			Verbs:     []string{"get"},
+		},
+		{
+			APIGroups: []string{""},
+			Resources: []string{"serviceaccounts/token"},
+			Verbs:     []string{"create"},
+		},
+	}
 	clusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: controllerWIRBACName,
 		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{""},
-				Resources: []string{"serviceaccounts"},
-				Verbs:     []string{"get"},
-			},
-			{
-				APIGroups: []string{""},
-				Resources: []string{"serviceaccounts/token"},
-				Verbs:     []string{"create"},
-			},
-		},
+		Rules: rules,
 	}
-	if err := testEnv.Client.Create(ctx, clusterRole); err != nil {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, clusterRole, func() error {
+		clusterRole.Rules = rules
+		return nil
+	})
+	if err != nil {
 		return fmt.Errorf("failed to create controller cluster role for workload identity: %w", err)
 	}
 
+	subjects := []rbacv1.Subject{
+		{
+			Kind:      "ServiceAccount",
+			Name:      sa.Name,
+			Namespace: sa.Namespace,
+		},
+	}
+	roleRef := rbacv1.RoleRef{
+		APIGroup: rbacv1.SchemeGroupVersion.Group,
+		Kind:     "ClusterRole",
+		Name:     clusterRole.Name,
+	}
 	roleBinding := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: controllerWIRBACName,
 		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      sa.Name,
-				Namespace: sa.Namespace,
-			},
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: rbacv1.SchemeGroupVersion.Group,
-			Kind:     "ClusterRole",
-			Name:     clusterRole.Name,
-		},
+		Subjects: subjects,
+		RoleRef:  roleRef,
 	}
-	if err := testEnv.Client.Create(ctx, roleBinding); err != nil {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, roleBinding, func() error {
+		roleBinding.Subjects = subjects
+		roleBinding.RoleRef = roleRef
+		return nil
+	})
+	if err != nil {
 		return fmt.Errorf("failed to create controller cluster role binding for workload identity: %w", err)
 	}
 

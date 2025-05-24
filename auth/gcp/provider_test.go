@@ -97,7 +97,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 		{
 			name: "direct access - federation",
 			conf: externalaccount.Config{
-				Audience:         "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+				Audience:         "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
 				SubjectTokenType: "urn:ietf:params:oauth:token-type:jwt",
 				TokenURL:         "https://sts.googleapis.com/v1/token",
 				TokenInfoURL:     "https://sts.googleapis.com/v1/introspect",
@@ -115,7 +115,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 		{
 			name: "impersonation - federation",
 			conf: externalaccount.Config{
-				Audience:                       "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+				Audience:                       "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
 				SubjectTokenType:               "urn:ietf:params:oauth:token-type:jwt",
 				TokenURL:                       "https://sts.googleapis.com/v1/token",
 				ServiceAccountImpersonationURL: "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/test-sa@project-id.iam.gserviceaccount.com:generateAccessToken",
@@ -197,7 +197,7 @@ func TestProvider_GetAudience(t *testing.T) {
 			annotations: map[string]string{
 				"gcp.auth.fluxcd.io/workload-identity-provider": "projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
 			},
-			expected: "https://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
+			expected: "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
 		},
 		{
 			name:     "gke",

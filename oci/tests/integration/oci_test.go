@@ -81,6 +81,46 @@ func TestOciImageRepositoryListTagsUsingObjectLevelWorkloadIdentityWithDirectAcc
 	}
 }
 
+func TestOciImageRepositoryListTagsUsingObjectLevelWorkloadIdentityFederation(t *testing.T) {
+	if !testWIFederation {
+		t.Skip("Skipping workload identity federation test, not supported for provider")
+	}
+
+	if len(testRepos) == 0 {
+		t.Fatalf("expected testRepos to be set")
+	}
+
+	for name, repo := range testRepos {
+		t.Run(name, func(t *testing.T) {
+			args := []string{
+				"-category=oci",
+				fmt.Sprintf("-repo=%s", repo),
+			}
+			testjobExecutionWithArgs(t, args, withObjectLevelWI(objectLevelWIModeImpersonationFederation))
+		})
+	}
+}
+
+func TestOciImageRepositoryListTagsUsingObjectLevelWorkloadIdentityFederationWithDirectAccess(t *testing.T) {
+	if !testWIFederation || !testWIDirectAccess {
+		t.Skip("Skipping workload identity federation direct access test, not supported for provider")
+	}
+
+	if len(testRepos) == 0 {
+		t.Fatalf("expected testRepos to be set")
+	}
+
+	for name, repo := range testRepos {
+		t.Run(name, func(t *testing.T) {
+			args := []string{
+				"-category=oci",
+				fmt.Sprintf("-repo=%s", repo),
+			}
+			testjobExecutionWithArgs(t, args, withObjectLevelWI(objectLevelWIModeDirectAccessFederation))
+		})
+	}
+}
+
 func TestOciRepositoryRootLoginListTags(t *testing.T) {
 	if len(testRepos) == 0 {
 		t.Fatalf("expected testRepos to be set")
