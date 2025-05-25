@@ -13,7 +13,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/onsi/gomega v1.37.0
 	github.com/opencontainers/go-digest v1.0.0
-	helm.sh/helm/v3 v3.18.0
+	helm.sh/helm/v3 v3.17.3
 	k8s.io/api v0.33.0
 	k8s.io/apimachinery v0.33.0
 	sigs.k8s.io/controller-runtime v0.21.0
