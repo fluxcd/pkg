@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/auth v0.14.0
+	github.com/fluxcd/pkg/auth v0.16.0
 	github.com/fluxcd/pkg/git v0.31.0
 	github.com/fluxcd/pkg/git/gogit v0.33.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1

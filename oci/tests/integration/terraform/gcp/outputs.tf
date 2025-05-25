@@ -18,3 +18,7 @@ output "gcp_artifact_repository" {
 output "wi_iam_serviceaccount_email" {
   value = var.enable_wi ? google_service_account.test[0].email : ""
 }
+
+output "workload_identity_provider" {
+  value = var.enable_wi ? google_iam_workload_identity_pool_provider.main[0].name : ""
+}

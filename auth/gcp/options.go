@@ -54,5 +54,5 @@ func getWorkloadIdentityProviderAudience(serviceAccount corev1.ServiceAccount) (
 		return "", fmt.Errorf("invalid %s annotation: '%s'. must match %s",
 			key, wip, workloadIdentityProviderPattern)
 	}
-	return fmt.Sprintf("https://iam.googleapis.com/%s", wip), nil
+	return fmt.Sprintf("//iam.googleapis.com/%s", wip), nil
 }

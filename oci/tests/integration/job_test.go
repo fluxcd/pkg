@@ -34,6 +34,8 @@ const (
 	objectLevelWIModeDisabled objectLevelWIMode = iota
 	objectLevelWIModeDirectAccess
 	objectLevelWIModeImpersonation
+	objectLevelWIModeDirectAccessFederation
+	objectLevelWIModeImpersonationFederation
 )
 
 type objectLevelWIMode int
@@ -78,6 +80,10 @@ func testjobExecutionWithArgs(t *testing.T, args []string, opts ...jobOption) {
 				args = append(args, "-wisa-name="+wiServiceAccount)
 			case objectLevelWIModeDirectAccess:
 				args = append(args, "-wisa-name="+wiServiceAccountDirectAccess)
+			case objectLevelWIModeImpersonationFederation:
+				args = append(args, "-wisa-name="+wiServiceAccountFederation)
+			case objectLevelWIModeDirectAccessFederation:
+				args = append(args, "-wisa-name="+wiServiceAccountFederationDirectAccess)
 			}
 		}
 		job.Spec.Template.Spec.ServiceAccountName = saName
