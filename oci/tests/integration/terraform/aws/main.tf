@@ -23,6 +23,12 @@ module "test_ecr" {
   tags = var.tags
 }
 
+resource "aws_ecrpublic_repository" "test_ecr_public" {
+  repository_name = local.name
+  tags            = var.tags
+  force_destroy   = true
+}
+
 module "test_ecr_cross_reg" {
   source = "git::https://github.com/fluxcd/test-infra.git//tf-modules/aws/ecr"
 

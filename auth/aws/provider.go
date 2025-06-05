@@ -29,6 +29,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-containerregistry/pkg/authn"
 	corev1 "k8s.io/api/core/v1"
@@ -204,20 +206,21 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 // It covers both public AWS partitions like amazonaws.com, China partitions like amazonaws.com.cn, and non-public partitions.
 const registryPattern = `([0-9+]*).dkr.ecr(?:-fips)?\.([^/.]*)\.(amazonaws\.com[.cn]*|sc2s\.sgov\.gov|c2s\.ic\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov)`
 
+const publicECR = "public.ecr.aws"
+
 var registryRegex = regexp.MustCompile(registryPattern)
 
 // ParseArtifactRepository implements auth.Provider.
-// ParseArtifactRepository returns the ECR region.
+// ParseArtifactRepository returns the ECR region, unless the registry
+// is public.ecr.aws, in which case it returns public.ecr.aws.
 func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
 	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
 	if err != nil {
 		return "", err
 	}
 
-	// Region is required to be us-east-1 for public.ecr.aws:
-	// https://docs.aws.amazon.com/AmazonECR/latest/public/public-registry-auth.html#public-registry-auth-token
-	if registry == "public.ecr.aws" {
-		return "us-east-1", nil
+	if registry == publicECR {
+		return publicECR, nil
 	}
 
 	parts := registryRegex.FindAllStringSubmatch(registry, -1)
@@ -232,11 +235,20 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 }
 
 // NewArtifactRegistryCredentials implements auth.Provider.
-func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, ecrRegion string,
+func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
 	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
+
+	authTokenFunc := p.impl().GetAuthorizationToken
+	ecrRegion := registryInput
+	if registryInput == publicECR {
+		authTokenFunc = p.impl().GetPublicAuthorizationToken
+		// Region is required to be us-east-1 for public.ecr.aws:
+		// https://docs.aws.amazon.com/AmazonECR/latest/public/public-registry-auth.html#public-registry-auth-token
+		ecrRegion = "us-east-1"
+	}
 
 	conf := aws.Config{
 		Region:      ecrRegion,
@@ -247,20 +259,40 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, ecrRegion 
 		conf.HTTPClient = hc
 	}
 
-	resp, err := p.impl().GetAuthorizationToken(ctx, conf)
+	respAny, err := authTokenFunc(ctx, conf)
 	if err != nil {
 		return nil, err
 	}
 
 	// Parse the authorization token.
-	if len(resp.AuthorizationData) == 0 {
-		return nil, fmt.Errorf("no authorization data returned")
+	var token string
+	var expiresAt time.Time
+	switch resp := respAny.(type) {
+	case *ecr.GetAuthorizationTokenOutput:
+		if len(resp.AuthorizationData) == 0 {
+			return nil, fmt.Errorf("no authorization data returned")
+		}
+		if resp.AuthorizationData[0].AuthorizationToken == nil {
+			return nil, fmt.Errorf("authorization token is nil")
+		}
+		if resp.AuthorizationData[0].ExpiresAt == nil {
+			return nil, fmt.Errorf("authorization token expiration is nil")
+		}
+		token = *resp.AuthorizationData[0].AuthorizationToken
+		expiresAt = *resp.AuthorizationData[0].ExpiresAt
+	case *ecrpublic.GetAuthorizationTokenOutput:
+		if resp.AuthorizationData == nil {
+			return nil, fmt.Errorf("no authorization data returned")
+		}
+		if resp.AuthorizationData.AuthorizationToken == nil {
+			return nil, fmt.Errorf("authorization token is nil")
+		}
+		if resp.AuthorizationData.ExpiresAt == nil {
+			return nil, fmt.Errorf("authorization token expiration is nil")
+		}
+		token = *resp.AuthorizationData.AuthorizationToken
+		expiresAt = *resp.AuthorizationData.ExpiresAt
 	}
-	tokenResp := resp.AuthorizationData[0]
-	if tokenResp.AuthorizationToken == nil {
-		return nil, fmt.Errorf("authorization token is nil")
-	}
-	token := *tokenResp.AuthorizationToken
 	b, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse authorization token: %w", err)
@@ -268,10 +300,6 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, ecrRegion 
 	s := strings.Split(string(b), ":")
 	if len(s) != 2 {
 		return nil, fmt.Errorf("invalid authorization token format")
-	}
-	var expiresAt time.Time
-	if exp := tokenResp.ExpiresAt; exp != nil {
-		expiresAt = *exp
 	}
 	return &auth.ArtifactRegistryCredentials{
 		Authenticator: authn.FromConfig(authn.AuthConfig{
