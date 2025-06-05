@@ -214,6 +214,12 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 		return "", err
 	}
 
+	// Region is required to be us-east-1 for public.ecr.aws:
+	// https://docs.aws.amazon.com/AmazonECR/latest/public/public-registry-auth.html#public-registry-auth-token
+	if registry == "public.ecr.aws" {
+		return "us-east-1", nil
+	}
+
 	parts := registryRegex.FindAllStringSubmatch(registry, -1)
 	if len(parts) < 1 || len(parts[0]) < 3 {
 		return "", fmt.Errorf("invalid AWS registry: '%s'. must match %s",

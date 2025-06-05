@@ -320,6 +320,11 @@ func TestProvider_ParseArtifactRepository(t *testing.T) {
 			artifactRepository: "gcr.io/foo/bar:baz",
 			expectValid:        false,
 		},
+		{
+			artifactRepository: "public.ecr.aws/foo/bar",
+			expectedRegion:     "us-east-1",
+			expectValid:        true,
+		},
 	}
 
 	for _, tt := range tests {
