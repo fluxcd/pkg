@@ -28,7 +28,7 @@ import (
 
 // newDefaultAzureCredential is like azidentity.NewDefaultAzureCredential(),
 // but does not call the functions that shell out to Azure CLIs.
-func newDefaultAzureCredential(options azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
+func newDefaultAzureCredential(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
 	const (
 		azureClientID           = "AZURE_CLIENT_ID"
 		azureFederatedTokenFile = "AZURE_FEDERATED_TOKEN_FILE"

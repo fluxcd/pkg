@@ -32,6 +32,8 @@ import (
 type mockImplementation struct {
 	t *testing.T
 
+	shellOut bool
+
 	argTenantID  string
 	argClientID  string
 	argOIDCToken string
@@ -52,7 +54,21 @@ type mockTokenCredential struct {
 	returnToken string
 }
 
-func (m *mockImplementation) NewDefaultAzureCredential(options azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
+func (m *mockImplementation) NewDefaultAzureCredential(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(m.shellOut).To(BeTrue())
+	return m.newDefaultAzureCredential(options)
+}
+
+func (m *mockImplementation) NewDefaultAzureCredentialWithoutShellOut(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(m.shellOut).To(BeFalse())
+	return m.newDefaultAzureCredential(options)
+}
+
+func (m *mockImplementation) newDefaultAzureCredential(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(options.Transport).NotTo(BeNil())
