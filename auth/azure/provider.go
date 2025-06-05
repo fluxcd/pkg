@@ -58,7 +58,11 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		azOpts.Transport = hc
 	}
 
-	cred, err := p.impl().NewDefaultAzureCredential(azOpts)
+	credFunc := p.impl().NewDefaultAzureCredentialWithoutShellOut
+	if o.AllowShellOut {
+		credFunc = p.impl().NewDefaultAzureCredential
+	}
+	cred, err := credFunc(&azOpts)
 	if err != nil {
 		return nil, err
 	}

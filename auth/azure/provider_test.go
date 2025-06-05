@@ -60,6 +60,29 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
 }
 
+func TestProvider_NewControllerTokenWithShellOut(t *testing.T) {
+	g := NewWithT(t)
+
+	impl := &mockImplementation{
+		t:           t,
+		shellOut:    true,
+		argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
+		argScopes:   []string{"scope1", "scope2"},
+		returnToken: "access-token",
+	}
+
+	opts := []auth.Option{
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAllowShellOut(),
+	}
+
+	provider := azure.Provider{Implementation: impl}
+	token, err := provider.NewControllerToken(context.Background(), opts...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
+}
+
 func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	impl := &mockImplementation{
 		t:            t,

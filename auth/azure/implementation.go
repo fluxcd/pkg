@@ -26,14 +26,19 @@ import (
 
 // Implementation provides the required methods of the Azure libraries.
 type Implementation interface {
-	NewDefaultAzureCredential(options azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error)
+	NewDefaultAzureCredential(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error)
+	NewDefaultAzureCredentialWithoutShellOut(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error)
 	NewClientAssertionCredential(tenantID string, clientID string, getAssertion func(context.Context) (string, error), options *azidentity.ClientAssertionCredentialOptions) (azcore.TokenCredential, error)
 	SendRequest(req *http.Request, client *http.Client) (*http.Response, error)
 }
 
 type implementation struct{}
 
-func (implementation) NewDefaultAzureCredential(options azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
+func (implementation) NewDefaultAzureCredential(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
+	return azidentity.NewDefaultAzureCredential(options)
+}
+
+func (implementation) NewDefaultAzureCredentialWithoutShellOut(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
 	return newDefaultAzureCredential(options)
 }
 

@@ -40,6 +40,7 @@ type Options struct {
 	STSRegion          string
 	STSEndpoint        string
 	ProxyURL           *url.URL
+	AllowShellOut      bool
 }
 
 // WithServiceAccount sets the ServiceAccount reference for the token
@@ -96,6 +97,13 @@ func WithSTSEndpoint(stsEndpoint string) Option {
 func WithProxyURL(proxyURL url.URL) Option {
 	return func(o *Options) {
 		o.ProxyURL = &proxyURL
+	}
+}
+
+// WithAllowShellOut allows the provider to shell out to binaries.
+func WithAllowShellOut() Option {
+	return func(o *Options) {
+		o.AllowShellOut = true
 	}
 }
 

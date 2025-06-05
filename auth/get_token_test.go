@@ -64,6 +64,7 @@ type mockProvider struct {
 	paramOIDCTokenClient    *http.Client
 	paramArtifactRepository string
 	paramAccessToken        auth.Token
+	paramAllowShellOut      bool
 }
 
 func (m *mockProvider) GetName() string {
@@ -71,7 +72,7 @@ func (m *mockProvider) GetName() string {
 }
 
 func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
-	checkOptions(m.t, opts...)
+	checkOptions(m.t, m.paramAllowShellOut, opts...)
 	return m.returnControllerToken, nil
 }
 
@@ -114,7 +115,7 @@ func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken 
 
 	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
 
-	checkOptions(m.t, opts...)
+	checkOptions(m.t, m.paramAllowShellOut, opts...)
 
 	return m.returnAccessToken, nil
 }
@@ -135,11 +136,11 @@ func (m *mockProvider) NewArtifactRegistryCredentials(ctx context.Context, regis
 	g := NewWithT(m.t)
 	g.Expect(registryInput).To(Equal(m.paramArtifactRepository))
 	g.Expect(accessToken).To(Equal(m.paramAccessToken))
-	checkOptions(m.t, opts...)
+	checkOptions(m.t, m.paramAllowShellOut, opts...)
 	return m.returnRegistryToken, nil
 }
 
-func checkOptions(t *testing.T, opts ...auth.Option) {
+func checkOptions(t *testing.T, allowShellOut bool, opts ...auth.Option) {
 	t.Helper()
 	g := NewWithT(t)
 
@@ -150,6 +151,7 @@ func checkOptions(t *testing.T, opts ...auth.Option) {
 	g.Expect(o.STSRegion).To(Equal("us-east-1"))
 	g.Expect(o.STSEndpoint).To(Equal("https://sts.some-cloud.io"))
 	g.Expect(o.ProxyURL).To(Equal(&url.URL{Scheme: "http", Host: "proxy.io:8080"}))
+	g.Expect(o.AllowShellOut).To(Equal(allowShellOut))
 }
 
 func TestGetToken(t *testing.T) {
@@ -228,6 +230,21 @@ func TestGetToken(t *testing.T) {
 				auth.WithSTSRegion("us-east-1"),
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+			},
+			expectedToken: &mockToken{token: "mock-default-token"},
+		},
+		{
+			name: "controller access token allowing shell out",
+			provider: &mockProvider{
+				returnControllerToken: &mockToken{token: "mock-default-token"},
+				paramAllowShellOut:    true,
+			},
+			opts: []auth.Option{
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithAllowShellOut(),
 			},
 			expectedToken: &mockToken{token: "mock-default-token"},
 		},

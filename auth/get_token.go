@@ -39,7 +39,7 @@ func GetToken(ctx context.Context, provider Provider, opts ...Option) (Token, er
 	newAccessToken := func() (Token, error) {
 		token, err := provider.NewControllerToken(ctx, opts...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create provider access token for the controlller: %w", err)
+			return nil, fmt.Errorf("failed to create provider access token for the controller: %w", err)
 		}
 		return token, nil
 	}
