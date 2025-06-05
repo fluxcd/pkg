@@ -43,6 +43,8 @@ github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 h1:bIqFDwgGXXN1Kpp99pDOdKMTTb5d
 github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3/go.mod h1:H5O/EsxDWyU+LP/V8i5sm8cxoZgc2fdNR9bxlOFrQTo=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.43.3 h1:YyH8Hk73bYzdbvf6S8NF5z/fb/1stpiMnFSfL6jSfRA=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.43.3/go.mod h1:iQ1skgw1XRK+6Lgkb0I9ODatAP72WoTILh0zXQ5DtbU=
+github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.33.0 h1:wA2O6pZ2r5smqJunFP4hp7qptMW4EQxs8O6RVHPulOE=
+github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.33.0/go.mod h1:RZL7ov7c72wSmoM8bIiVxRHgcVdzhNkVW2J36C8RF4s=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 h1:eAh2A4b5IzM/lum78bZ590jy36+d/aFLgKF/4Vd1xPE=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3/go.mod h1:0yKJC/kb8sAnmlYa6Zs3QVYqaC8ug2AbnNChv5Ox3uA=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15 h1:dM9/92u2F1JbDaGooxTq18wmmFzbJRfXfVfy96/1CXM=
@@ -102,8 +104,8 @@ github.com/fluxcd/pkg/ssh v0.18.0 h1:SB0RrZ/YZIla3chTUulsfVmiCzJv5pEWfHM3dHMC8AU
 github.com/fluxcd/pkg/ssh v0.18.0/go.mod h1:G5o0ZD7iR3KFoG5gPnFelX243ciI/PIiVW7J4eBrt5Y=
 github.com/fluxcd/pkg/version v0.7.0 h1:jZT5I6WFy1KlM40nHCSqlHmjC1VT1/DfmbAdOkIVVJc=
 github.com/fluxcd/pkg/version v0.7.0/go.mod h1:3BjQDJXIZJmeJLXnfa2yG/sNAT1t5oeLAPfnSjOHNuA=
-github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1 h1:zrw5yeR/KxxLL2afNnO8GiD/ThOAC/pOMGg+klKs58I=
-github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1/go.mod h1:liFlLEXgambGVdWSJ4JzbIHf1Vjpp1HwUyPazPIVZug=
+github.com/fluxcd/test-infra/tftestenv v0.0.0-20250607120203-534ab0587f45 h1:dj9mhMYJ+OUXIo+43ToBYwrRb0os8oPfrBtrdZkhVxY=
+github.com/fluxcd/test-infra/tftestenv v0.0.0-20250607120203-534ab0587f45/go.mod h1:liFlLEXgambGVdWSJ4JzbIHf1Vjpp1HwUyPazPIVZug=
 github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=
 github.com/fsnotify/fsnotify v1.7.0/go.mod h1:40Bi/Hjc2AVfZrqy+aj+yEI+/bRxZnMJyTJwOpGvigM=
 github.com/fxamacker/cbor/v2 v2.7.0 h1:iM5WgngdRBanHcxugY4JySA0nk1wZorNOpTgCMedv5E=

@@ -20,6 +20,7 @@ jobs:
         auth-mode:
         - node-identity
         - workload-identity
+      fail-fast: false
     defaults:
       run:
         working-directory: ./oci/tests/integration
@@ -38,7 +39,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.OCI_E2E_AWS_ASSUME_ROLE_NAME }}
           role-session-name: OCI_GH_Actions
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: us-east-1
       - name: Setup QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
       - name: Setup Docker Buildx
@@ -56,13 +57,13 @@ jobs:
       - name: Run tests
         run: . .env && make test-aws
         env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          TF_VAR_cross_region: ${{ vars.OCI_E2E_TF_VAR_cross_region }}
+          AWS_REGION: us-east-1
+          TF_VAR_cross_region: us-east-2
           TF_VAR_enable_wi: ${{ (matrix.auth-mode == 'workload-identity' && 'true') || 'false' }}
       - name: Ensure resource cleanup
         if: ${{ always() }}
         run: . .env && make destroy-aws
         env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          TF_VAR_cross_region: ${{ vars.OCI_E2E_TF_VAR_cross_region }}
+          AWS_REGION: us-east-1
+          TF_VAR_cross_region: us-east-2
           TF_VAR_enable_wi: ${{ (matrix.auth-mode == 'workload-identity' && 'true') || 'false' }}

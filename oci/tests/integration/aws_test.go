@@ -65,6 +65,17 @@ func registryLoginECR(ctx context.Context, output map[string]*tfjson.StateOutput
 	}
 	testRepos["ecr_cross_region"] = testCrossRepo
 
+	// Test the public ECR repository.
+	// We test this only with WI because it's harder to add some required permissions to the node IAM role
+	// through the EKS Terraform module we use.
+	if enableWI {
+		publicRepoURL := output["ecrpublic_repository_url"].Value.(string)
+		if err := tftestenv.RegistryLoginECRPublic(ctx); err != nil {
+			return nil, err
+		}
+		testRepos["ecrpublic"] = publicRepoURL
+	}
+
 	// Log into the test app repository to be able to push to it.
 	// This image is not used in testing and need not be included in
 	// testRepos.
