@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
@@ -29,7 +30,8 @@ import (
 type Implementation interface {
 	LoadDefaultConfig(ctx context.Context, optFns ...func(*config.LoadOptions) error) (aws.Config, error)
 	AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, options sts.Options) (*sts.AssumeRoleWithWebIdentityOutput, error)
-	GetAuthorizationToken(ctx context.Context, cfg aws.Config) (*ecr.GetAuthorizationTokenOutput, error)
+	GetAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error)
+	GetPublicAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error)
 }
 
 type implementation struct{}
@@ -42,6 +44,10 @@ func (implementation) AssumeRoleWithWebIdentity(ctx context.Context, params *sts
 	return sts.New(options).AssumeRoleWithWebIdentity(ctx, params)
 }
 
-func (implementation) GetAuthorizationToken(ctx context.Context, cfg aws.Config) (*ecr.GetAuthorizationTokenOutput, error) {
+func (implementation) GetAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error) {
 	return ecr.NewFromConfig(cfg).GetAuthorizationToken(ctx, &ecr.GetAuthorizationTokenInput{})
+}
+
+func (implementation) GetPublicAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error) {
+	return ecrpublic.NewFromConfig(cfg).GetAuthorizationToken(ctx, &ecrpublic.GetAuthorizationTokenInput{})
 }
