@@ -43,3 +43,7 @@ output "ecr_test_app_repo_url" {
 output "aws_wi_iam_arn" {
   value = var.enable_wi ? aws_iam_role.assume_role[0].arn : ""
 }
+
+output "ecrpublic_repository_url" {
+  value = aws_ecrpublic_repository.test_ecr_public.repository_uri
+}

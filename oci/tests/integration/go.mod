@@ -10,10 +10,10 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/auth v0.16.0
+	github.com/fluxcd/pkg/auth v0.17.0
 	github.com/fluxcd/pkg/git v0.31.0
 	github.com/fluxcd/pkg/git/gogit v0.33.0
-	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240903092121-c783b14801d1
+	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250607120203-534ab0587f45
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/uuid v1.6.0
@@ -46,6 +46,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.43.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.33.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect

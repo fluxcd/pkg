@@ -27,6 +27,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
+	ecrpublictypes "github.com/aws/aws-sdk-go-v2/service/ecrpublic/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	. "github.com/onsi/gomega"
@@ -34,6 +36,8 @@ import (
 
 type mockImplementation struct {
 	t *testing.T
+
+	publicECR bool
 
 	argRoleARN         string
 	argRoleSessionName string
@@ -101,7 +105,33 @@ func (m *mockImplementation) AssumeRoleWithWebIdentity(ctx context.Context, para
 	}, nil
 }
 
-func (m *mockImplementation) GetAuthorizationToken(ctx context.Context, cfg aws.Config) (*ecr.GetAuthorizationTokenOutput, error) {
+func (m *mockImplementation) GetAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(m.publicECR).To(BeFalse())
+	m.checkGetAuthorizationToken(ctx, cfg)
+	return &ecr.GetAuthorizationTokenOutput{
+		AuthorizationData: []ecrtypes.AuthorizationData{{
+			AuthorizationToken: aws.String(base64.StdEncoding.EncodeToString([]byte(m.returnUsername + ":" + m.returnPassword))),
+			ExpiresAt:          aws.Time(m.returnCreds.Expires),
+		}},
+	}, nil
+}
+
+func (m *mockImplementation) GetPublicAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(m.publicECR).To(BeTrue())
+	m.checkGetAuthorizationToken(ctx, cfg)
+	return &ecrpublic.GetAuthorizationTokenOutput{
+		AuthorizationData: &ecrpublictypes.AuthorizationData{
+			AuthorizationToken: aws.String(base64.StdEncoding.EncodeToString([]byte(m.returnUsername + ":" + m.returnPassword))),
+			ExpiresAt:          aws.Time(m.returnCreds.Expires),
+		},
+	}, nil
+}
+
+func (m *mockImplementation) checkGetAuthorizationToken(ctx context.Context, cfg aws.Config) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(cfg.Region).To(Equal(m.argRegion))
@@ -114,11 +144,6 @@ func (m *mockImplementation) GetAuthorizationToken(ctx context.Context, cfg aws.
 	proxyURL, err := cfg.HTTPClient.(*http.Client).Transport.(*http.Transport).Proxy(nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
-	return &ecr.GetAuthorizationTokenOutput{
-		AuthorizationData: []ecrtypes.AuthorizationData{{
-			AuthorizationToken: aws.String(base64.StdEncoding.EncodeToString([]byte(m.returnUsername + ":" + m.returnPassword))),
-		}},
-	}, nil
 }
 
 func (m *mockCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {

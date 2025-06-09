@@ -225,39 +225,67 @@ func TestProvider_GetIdentity(t *testing.T) {
 }
 
 func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
-	g := NewWithT(t)
-
-	impl := &mockImplementation{
-		t:                t,
-		argRegion:        "us-east-1",
-		argProxyURL:      &url.URL{Scheme: "http", Host: "proxy.example.com"},
-		argCredsProvider: credentials.NewStaticCredentialsProvider("access-key-id", "secret-access-key", "session-token"),
-		returnUsername:   "username",
-		returnPassword:   "password",
-	}
-
-	ecrRegion := "us-east-1"
-	accessToken := &aws.Token{
-		Credentials: types.Credentials{
-			AccessKeyId:     awssdk.String("access-key-id"),
-			SecretAccessKey: awssdk.String("secret-access-key"),
-			SessionToken:    awssdk.String("session-token"),
+	for _, tt := range []struct {
+		name              string
+		registryInput     string
+		expectedPublicECR bool
+		expectedRegion    string
+	}{
+		{
+			name:              "non public ECR",
+			registryInput:     "us-east-1",
+			expectedRegion:    "us-east-1",
+			expectedPublicECR: false,
 		},
-	}
-	opts := []auth.Option{
-		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-	}
+		{
+			name:              "non public ECR",
+			registryInput:     "us-west-2",
+			expectedRegion:    "us-west-2",
+			expectedPublicECR: false,
+		},
+		{
+			name:              "public ECR",
+			registryInput:     "public.ecr.aws",
+			expectedRegion:    "us-east-1", // Public ECR is always us-east-1
+			expectedPublicECR: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-	provider := aws.Provider{Implementation: impl}
-	creds, err := provider.NewArtifactRegistryCredentials(
-		context.Background(), ecrRegion, accessToken, opts...)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
-		Authenticator: authn.FromConfig(authn.AuthConfig{
-			Username: "username",
-			Password: "password",
-		}),
-	}))
+			impl := &mockImplementation{
+				t:                t,
+				publicECR:        tt.expectedPublicECR,
+				argRegion:        tt.expectedRegion,
+				argProxyURL:      &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				argCredsProvider: credentials.NewStaticCredentialsProvider("access-key-id", "secret-access-key", "session-token"),
+				returnUsername:   "username",
+				returnPassword:   "password",
+			}
+
+			accessToken := &aws.Token{
+				Credentials: types.Credentials{
+					AccessKeyId:     awssdk.String("access-key-id"),
+					SecretAccessKey: awssdk.String("secret-access-key"),
+					SessionToken:    awssdk.String("session-token"),
+				},
+			}
+			opts := []auth.Option{
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+			}
+
+			provider := aws.Provider{Implementation: impl}
+			creds, err := provider.NewArtifactRegistryCredentials(
+				context.Background(), tt.registryInput, accessToken, opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
+				Authenticator: authn.FromConfig(authn.AuthConfig{
+					Username: "username",
+					Password: "password",
+				}),
+			}))
+		})
+	}
 }
 
 func TestProvider_ParseArtifactRepository(t *testing.T) {
@@ -322,7 +350,7 @@ func TestProvider_ParseArtifactRepository(t *testing.T) {
 		},
 		{
 			artifactRepository: "public.ecr.aws/foo/bar",
-			expectedRegion:     "us-east-1",
+			expectedRegion:     "public.ecr.aws",
 			expectValid:        true,
 		},
 	}
