@@ -19,7 +19,7 @@ require (
 	github.com/fluxcd/pkg/ssh v0.18.0
 	github.com/fluxcd/pkg/version v0.7.0
 	github.com/go-git/go-billy/v5 v5.6.2
-	github.com/go-git/go-git/v5 v5.16.0
+	github.com/go-git/go-git/v5 v5.16.2
 	github.com/onsi/gomega v1.37.0
 	golang.org/x/crypto v0.37.0
 )
