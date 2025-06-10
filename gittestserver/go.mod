@@ -6,8 +6,8 @@ require (
 	github.com/cyphar/filepath-securejoin v0.4.1
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/go-git/go-billy/v5 v5.6.2
-	github.com/go-git/go-git/v5 v5.16.0
-	golang.org/x/crypto v0.37.0
+	github.com/go-git/go-git/v5 v5.16.2
+	golang.org/x/crypto v0.39.0
 )
 
 // Fix CVE-2022-28948
@@ -29,6 +29,6 @@ require (
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
