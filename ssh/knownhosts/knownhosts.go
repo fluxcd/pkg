@@ -165,6 +165,20 @@ func (db *inMemoryHostKeyDB) IsRevoked(key *ssh.Certificate) bool {
 	return ok
 }
 
+func (db *inMemoryHostKeyDB) hostKeyAlgorithms() []string {
+	var algos []string
+
+	uniq := make(map[string]struct{})
+	for _, hk := range db.hostKeys {
+		uniq[hk.key.Type()] = struct{}{}
+	}
+	for k := range uniq {
+		algos = append(algos, k)
+	}
+
+	return algos
+}
+
 const markerCert = "@cert-authority"
 const markerRevoked = "@revoked"
 
@@ -367,11 +381,11 @@ func (db *inMemoryHostKeyDB) Read(r io.Reader) error {
 // operates on the hostname if available, i.e. if a server changes its
 // IP address, the host key check will still succeed, even though a
 // record of the new IP address is not available.
-func New(b []byte) (ssh.HostKeyCallback, error) {
+func New(b []byte) (ssh.HostKeyCallback, []string, error) {
 	db := newInMemoryHostKeyDB()
 	r := bytes.NewReader(b)
 	if err := db.Read(r); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var certChecker ssh.CertChecker
@@ -379,7 +393,7 @@ func New(b []byte) (ssh.HostKeyCallback, error) {
 	certChecker.IsRevoked = db.IsRevoked
 	certChecker.HostKeyFallback = db.check
 
-	return certChecker.CheckHostKey, nil
+	return certChecker.CheckHostKey, db.hostKeyAlgorithms(), nil
 }
 
 func decodeHash(encoded string) (hashType string, salt, hash []byte, err error) {
