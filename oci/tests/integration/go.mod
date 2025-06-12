@@ -7,12 +7,13 @@ replace (
 	github.com/fluxcd/pkg/cache => ../../../cache
 	github.com/fluxcd/pkg/git => ../../../git
 	github.com/fluxcd/pkg/git/gogit => ../../../git/gogit
+	github.com/fluxcd/pkg/ssh => ../../../ssh
 )
 
 require (
 	github.com/fluxcd/pkg/auth v0.17.0
 	github.com/fluxcd/pkg/git v0.32.0
-	github.com/fluxcd/pkg/git/gogit v0.34.0
+	github.com/fluxcd/pkg/git/gogit v0.35.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250607120203-534ab0587f45
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/google/go-containerregistry v0.20.3
@@ -67,7 +68,7 @@ require (
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fluxcd/pkg/cache v0.9.0 // indirect
-	github.com/fluxcd/pkg/ssh v0.18.0 // indirect
+	github.com/fluxcd/pkg/ssh v0.19.0 // indirect
 	github.com/fluxcd/pkg/version v0.7.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect

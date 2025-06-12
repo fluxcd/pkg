@@ -16,7 +16,7 @@ require (
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/git v0.32.0
 	github.com/fluxcd/pkg/gittestserver v0.17.0
-	github.com/fluxcd/pkg/ssh v0.18.0
+	github.com/fluxcd/pkg/ssh v0.19.0
 	github.com/fluxcd/pkg/version v0.7.0
 	github.com/go-git/go-billy/v5 v5.6.2
 	github.com/go-git/go-git/v5 v5.16.2

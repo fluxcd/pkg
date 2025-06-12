@@ -71,8 +71,9 @@ func transportAuth(opts *git.AuthOptions, fallbackToDefaultKnownHosts bool) (tra
 		}
 
 		var callback gossh.HostKeyCallback
+		var hkAlgos []string
 		if len(opts.KnownHosts) > 0 {
-			callback, err = knownhosts.New(opts.KnownHosts)
+			callback, hkAlgos, err = knownhosts.New(opts.KnownHosts)
 			if err != nil {
 				return nil, err
 			}
@@ -81,6 +82,7 @@ func transportAuth(opts *git.AuthOptions, fallbackToDefaultKnownHosts bool) (tra
 		customPK := &CustomPublicKeys{
 			pk:       pk,
 			callback: callback,
+			hkAlgos:  hkAlgos,
 		}
 		return customPK, nil
 	case "":
@@ -119,6 +121,7 @@ func caBundle(opts *git.AuthOptions) []byte {
 type CustomPublicKeys struct {
 	pk       *ssh.PublicKeys
 	callback gossh.HostKeyCallback
+	hkAlgos  []string
 }
 
 func (a *CustomPublicKeys) Name() string {
@@ -142,6 +145,8 @@ func (a *CustomPublicKeys) ClientConfig() (*gossh.ClientConfig, error) {
 	if len(git.KexAlgos) > 0 {
 		config.Config.KeyExchanges = git.KexAlgos
 	}
+
+	config.HostKeyAlgorithms = a.hkAlgos
 	if len(git.HostKeyAlgos) > 0 {
 		config.HostKeyAlgorithms = git.HostKeyAlgos
 	}
