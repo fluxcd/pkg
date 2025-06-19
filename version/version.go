@@ -17,6 +17,7 @@ limitations under the License.
 package version
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -30,4 +31,21 @@ func ParseVersion(v string) (*semver.Version, error) {
 		return nil, err
 	}
 	return semver.NewVersion(v)
+}
+
+// Sort filters the given strings based on the provided semver range
+// and sorts them in descending order.
+func Sort(c *semver.Constraints, vs []string) []string {
+	var versions []*semver.Version
+	for _, v := range vs {
+		if pv, err := ParseVersion(v); err == nil && (c == nil || c.Check(pv)) {
+			versions = append(versions, pv)
+		}
+	}
+	sort.Sort(sort.Reverse(semver.Collection(versions)))
+	sorted := make([]string, 0, len(versions))
+	for _, v := range versions {
+		sorted = append(sorted, v.Original())
+	}
+	return sorted
 }

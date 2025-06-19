@@ -18,6 +18,10 @@ package version
 
 import (
 	"testing"
+
+	. "github.com/onsi/gomega"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 func TestParseVersion(t *testing.T) {
@@ -39,11 +43,40 @@ func TestParseVersion(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		g := NewWithT(t)
 		_, err := ParseVersion(tc.version)
-		if tc.err && err == nil {
-			t.Fatalf("expected error for version: %s", tc.version)
-		} else if !tc.err && err != nil {
-			t.Fatalf("error for version %s: %s", tc.version, err)
+		if tc.err {
+			g.Expect(err).To(HaveOccurred())
+		} else {
+			g.Expect(err).NotTo(HaveOccurred())
 		}
 	}
+}
+
+func TestSort(t *testing.T) {
+	g := NewWithT(t)
+
+	constraint, err := semver.NewConstraint(">= 1.2.0, < 1.3.0")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	sorted := Sort(constraint, []string{
+		"v1.2.0",
+		"v1.2.3",
+		"v1.3.0",
+		"1.2.4",
+		"v1.1.0",
+		"something-invalid",
+		"v1.2.4",
+		"another-invalid",
+		"1.2.4",
+	})
+
+	g.Expect(sorted).To(Equal([]string{
+		// Sort is stable.
+		"1.2.4",
+		"v1.2.4",
+		"1.2.4",
+		"v1.2.3",
+		"v1.2.0",
+	}))
 }
