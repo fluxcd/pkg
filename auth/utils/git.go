@@ -18,7 +18,6 @@ package authutils
 
 import (
 	"context"
-	"errors"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
@@ -46,6 +45,6 @@ func GetGitCredentials(ctx context.Context, providerName string, opts ...auth.Op
 			BearerToken: token.(*azure.Token).Token,
 		}, nil
 	default:
-		return nil, errors.New("unsupported provider")
+		return nil, ErrUnsupportedProvider
 	}
 }
