@@ -18,16 +18,11 @@ package authutils
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 
 	"github.com/fluxcd/pkg/auth"
 )
-
-// ErrProviderDoesNotSupportRegistry is returned when the provider does not
-// support registry authentication.
-var ErrProviderDoesNotSupportRegistry = errors.New("provider does not support registry authentication")
 
 // GetArtifactRegistryCredentials retrieves the credentials for the specified
 // artifact repository using the specified provider. It returns an
@@ -38,7 +33,7 @@ func GetArtifactRegistryCredentials(ctx context.Context,
 
 	provider := ProviderByName(providerName)
 	if provider == nil {
-		return nil, nil
+		return nil, ErrUnsupportedProvider
 	}
 
 	opts = append(opts, auth.WithArtifactRepository(artifactRepository))
