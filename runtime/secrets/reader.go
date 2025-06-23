@@ -55,10 +55,8 @@ func TLSConfigFromSecret(ctx context.Context, c client.Client, name, namespace s
 		return nil, fmt.Errorf("failed to get TLS private key: %w", err)
 	}
 
-	caCert, err := getSecretData(secret, CACertKey, CACertFileKey, options.supportDeprecatedFields)
-	if err != nil {
-		caCert = nil
-	}
+	// CA certificate is optional, ignore error if not found
+	caCert, _ := getSecretData(secret, CACertKey, CACertFileKey, options.supportDeprecatedFields)
 
 	cert, err := tls.X509KeyPair(tlsCert, tlsKey)
 	if err != nil {
