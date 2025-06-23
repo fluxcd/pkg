@@ -44,4 +44,3 @@ const (
 	// TokenKey is the key for generic API token data in secrets.
 	TokenKey = "token"
 )
-
