@@ -49,57 +49,57 @@ func makeSecret(name, namespace string, secretType corev1.SecretType, data map[s
 	}
 }
 
-type tlsSecretConfig struct {
-	caData []byte
-}
-
 // TLSSecretOption configures a TLS secret.
-type TLSSecretOption func(*tlsSecretConfig)
+type TLSSecretOption func(*tlsCertificateData)
 
 // WithCAData sets the CA certificate data for the TLS secret.
 func WithCAData(caData []byte) TLSSecretOption {
-	return func(cfg *tlsSecretConfig) {
-		cfg.caData = caData
+	return func(data *tlsCertificateData) {
+		data.caCert = caData
+	}
+}
+
+// WithCertKeyPair sets the certificate and key data for the TLS secret.
+func WithCertKeyPair(certData, keyData []byte) TLSSecretOption {
+	return func(data *tlsCertificateData) {
+		data.cert = certData
+		data.key = keyData
 	}
 }
 
 // MakeTLSSecret creates a Kubernetes TLS secret from certificate data.
 //
-// The function requires certificate and private key data.
-// Optional CA certificate data can be provided using WithCAData option.
-func MakeTLSSecret(name, namespace string, certData, keyData []byte, opts ...TLSSecretOption) (*corev1.Secret, error) {
-	if _, err := tls.X509KeyPair(certData, keyData); err != nil {
-		return nil, fmt.Errorf("invalid TLS certificate and key pair: %w", err)
-	}
-
-	cfg := &tlsSecretConfig{}
+// The function supports creating secrets with CA certificate only, client certificate
+// and key pair only, or both. At least one option must be provided.
+func MakeTLSSecret(name, namespace string, opts ...TLSSecretOption) (*corev1.Secret, error) {
+	data := &tlsCertificateData{}
 	for _, opt := range opts {
-		opt(cfg)
+		opt(data)
 	}
 
-	data := map[string]string{
-		TLSCertKey: string(certData),
-		TLSKeyKey:  string(keyData),
-	}
-
-	if len(cfg.caData) > 0 {
-		data[CACertKey] = string(cfg.caData)
-	}
-
-	return makeSecret(name, namespace, corev1.SecretTypeTLS, data), nil
-}
-
-// MakeCACertSecret creates a Kubernetes secret containing only CA certificate data.
-//
-// The function creates an Opaque secret type containing the CA certificate.
-func MakeCACertSecret(name, namespace string, caData []byte) (*corev1.Secret, error) {
-	if err := validateRequired(caData, "CA certificate data"); err != nil {
+	if err := data.validate(); err != nil {
 		return nil, err
 	}
 
-	return makeSecret(name, namespace, corev1.SecretTypeOpaque, map[string]string{
-		CACertKey: string(caData),
-	}), nil
+	secretData := make(map[string]string)
+	var secretType corev1.SecretType
+
+	if data.hasCertPair() {
+		if _, err := tls.X509KeyPair(data.cert, data.key); err != nil {
+			return nil, fmt.Errorf("invalid TLS certificate and key pair: %w", err)
+		}
+		secretData[TLSCertKey] = string(data.cert)
+		secretData[TLSKeyKey] = string(data.key)
+		secretType = corev1.SecretTypeTLS
+	} else {
+		secretType = corev1.SecretTypeOpaque
+	}
+
+	if data.hasCA() {
+		secretData[CACertKey] = string(data.caCert)
+	}
+
+	return makeSecret(name, namespace, secretType, secretData), nil
 }
 
 // MakeBasicAuthSecret creates a Kubernetes basic auth secret.

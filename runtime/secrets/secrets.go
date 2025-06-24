@@ -16,7 +16,11 @@ limitations under the License.
 
 package secrets
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
+)
 
 const (
 	// TLSCertKey is the standard key for TLS certificate data in secrets.
@@ -46,3 +50,37 @@ const (
 	// TokenKey is the key for generic API token data in secrets.
 	TokenKey = "token"
 )
+
+// tlsCertificateData holds TLS certificate, key, and optional CA data
+type tlsCertificateData struct {
+	cert   []byte
+	key    []byte
+	caCert []byte
+}
+
+func (t *tlsCertificateData) validate() error {
+	hasCert := len(t.cert) > 0
+	hasKey := len(t.key) > 0
+	hasCA := len(t.caCert) > 0
+
+	if hasCert != hasKey {
+		if hasCert {
+			return fmt.Errorf("found certificate but missing private key")
+		}
+		return fmt.Errorf("found private key but missing certificate")
+	}
+
+	if !hasCert && !hasCA {
+		return fmt.Errorf("no CA certificate or client certificate pair found")
+	}
+
+	return nil
+}
+
+func (t *tlsCertificateData) hasCertPair() bool {
+	return len(t.cert) > 0 && len(t.key) > 0
+}
+
+func (t *tlsCertificateData) hasCA() bool {
+	return len(t.caCert) > 0
+}
