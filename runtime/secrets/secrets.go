@@ -16,11 +16,13 @@ limitations under the License.
 
 package secrets
 
+import corev1 "k8s.io/api/core/v1"
+
 const (
 	// TLSCertKey is the standard key for TLS certificate data in secrets.
-	TLSCertKey = "tls.crt"
+	TLSCertKey = corev1.TLSCertKey
 	// TLSKeyKey is the standard key for TLS private key data in secrets.
-	TLSKeyKey = "tls.key"
+	TLSKeyKey = corev1.TLSPrivateKeyKey
 	// CACertKey is the standard key for CA certificate data in secrets.
 	CACertKey = "ca.crt"
 

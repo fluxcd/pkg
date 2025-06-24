@@ -91,7 +91,7 @@ func ProxyURLFromSecret(ctx context.Context, c client.Client, name, namespace st
 
 	addressData, exists := secret.Data[ProxyAddressKey]
 	if !exists {
-		return nil, fmt.Errorf("key %q not found in secret", ProxyAddressKey)
+		return nil, fmt.Errorf("key '%s' not found in secret", ProxyAddressKey)
 	}
 
 	address := string(addressData)
@@ -101,7 +101,7 @@ func ProxyURLFromSecret(ctx context.Context, c client.Client, name, namespace st
 
 	proxyURL, err := url.Parse(address)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse proxy address %q: %w", address, err)
+		return nil, fmt.Errorf("failed to parse proxy address '%s': %w", address, err)
 	}
 
 	username, hasUsername := secret.Data[UsernameKey]
@@ -128,12 +128,12 @@ func BasicAuthFromSecret(ctx context.Context, c client.Client, name, namespace s
 
 	usernameData, exists := secret.Data[UsernameKey]
 	if !exists {
-		return "", "", fmt.Errorf("key %q not found in secret", UsernameKey)
+		return "", "", fmt.Errorf("key '%s' not found in secret", UsernameKey)
 	}
 
 	passwordData, exists := secret.Data[PasswordKey]
 	if !exists {
-		return "", "", fmt.Errorf("key %q not found in secret", PasswordKey)
+		return "", "", fmt.Errorf("key '%s' not found in secret", PasswordKey)
 	}
 
 	return string(usernameData), string(passwordData), nil
@@ -192,5 +192,5 @@ func getSecretData(secret *corev1.Secret, key, fallbackKey string, supportDeprec
 		}
 	}
 
-	return nil, fmt.Errorf("key %q not found in secret", key)
+	return nil, fmt.Errorf("key '%s' not found in secret", key)
 }

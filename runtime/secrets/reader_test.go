@@ -254,7 +254,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					secrets.TLSKeyFileKey:  tlsKey,
 				},
 			},
-			errMsg: `key "tls.crt" not found in secret`,
+			errMsg: `key 'tls.crt' not found in secret`,
 		},
 		{
 			name: "invalid certificate data",
@@ -399,7 +399,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 					secrets.PasswordKey: []byte("pass"),
 				},
 			},
-			errMsg: `key "address" not found in secret`,
+			errMsg: `key 'address' not found in secret`,
 		},
 		{
 			name: "empty address",
@@ -666,7 +666,7 @@ func TestBasicAuthFromSecret(t *testing.T) {
 					secrets.PasswordKey: []byte("pass"),
 				},
 			},
-			errMsg: `key "username" not found in secret`,
+			errMsg: `key 'username' not found in secret`,
 		},
 		{
 			name: "missing password key",
@@ -679,7 +679,7 @@ func TestBasicAuthFromSecret(t *testing.T) {
 					secrets.UsernameKey: []byte("user"),
 				},
 			},
-			errMsg: `key "password" not found in secret`,
+			errMsg: `key 'password' not found in secret`,
 		},
 	}
 

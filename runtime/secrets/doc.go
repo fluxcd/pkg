@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package secrets provides utilities for handling Kubernetes secrets
-// in Flux applications.
+// in Flux controllers.
 //
 // This package consolidates common secret handling patterns used across
 // Flux controllers including TLS certificate secrets, proxy configuration
