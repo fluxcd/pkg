@@ -154,17 +154,7 @@ func getSecret(ctx context.Context, c client.Client, name, namespace string) (*c
 }
 
 func getTLSCertificateData(secret *corev1.Secret, supportDeprecated bool) (*tlsCertificateData, error) {
-	data := &tlsCertificateData{
-		cert:   getSecretData(secret, TLSCertKey, TLSCertFileKey, supportDeprecated),
-		key:    getSecretData(secret, TLSKeyKey, TLSKeyFileKey, supportDeprecated),
-		caCert: getSecretData(secret, CACertKey, CACertFileKey, supportDeprecated),
-	}
-
-	if err := data.validate(); err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	return newTLSCertificateData(secret, supportDeprecated)
 }
 
 func buildTLSConfig(certData *tlsCertificateData) (*tls.Config, error) {
@@ -187,18 +177,4 @@ func buildTLSConfig(certData *tlsCertificateData) (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
-}
-
-func getSecretData(secret *corev1.Secret, key, fallbackKey string, supportDeprecated bool) []byte {
-	if data, exists := secret.Data[key]; exists {
-		return data
-	}
-
-	if supportDeprecated {
-		if data, exists := secret.Data[fallbackKey]; exists {
-			return data
-		}
-	}
-
-	return nil
 }

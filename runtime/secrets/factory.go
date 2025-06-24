@@ -17,7 +17,6 @@ limitations under the License.
 package secrets
 
 import (
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -81,25 +80,11 @@ func MakeTLSSecret(name, namespace string, opts ...TLSSecretOption) (*corev1.Sec
 		return nil, err
 	}
 
-	secretData := make(map[string]string)
-	var secretType corev1.SecretType
-
-	if data.hasCertPair() {
-		if _, err := tls.X509KeyPair(data.cert, data.key); err != nil {
-			return nil, fmt.Errorf("invalid TLS certificate and key pair: %w", err)
-		}
-		secretData[TLSCertKey] = string(data.cert)
-		secretData[TLSKeyKey] = string(data.key)
-		secretType = corev1.SecretTypeTLS
-	} else {
-		secretType = corev1.SecretTypeOpaque
+	if err := data.validateCertificatePairIfPresent(); err != nil {
+		return nil, err
 	}
 
-	if data.hasCA() {
-		secretData[CACertKey] = string(data.caCert)
-	}
-
-	return makeSecret(name, namespace, secretType, secretData), nil
+	return data.toSecret(name, namespace), nil
 }
 
 // MakeBasicAuthSecret creates a Kubernetes basic auth secret.

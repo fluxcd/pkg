@@ -17,9 +17,11 @@ limitations under the License.
 package secrets
 
 import (
+	"crypto/tls"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -58,6 +60,21 @@ type tlsCertificateData struct {
 	caCert []byte
 }
 
+// newTLSCertificateData creates tlsCertificateData from a Kubernetes secret.
+func newTLSCertificateData(secret *corev1.Secret, supportDeprecated bool) (*tlsCertificateData, error) {
+	data := &tlsCertificateData{
+		cert:   getSecretData(secret, TLSCertKey, TLSCertFileKey, supportDeprecated),
+		key:    getSecretData(secret, TLSKeyKey, TLSKeyFileKey, supportDeprecated),
+		caCert: getSecretData(secret, CACertKey, CACertFileKey, supportDeprecated),
+	}
+
+	if err := data.validate(); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 func (t *tlsCertificateData) validate() error {
 	hasCert := len(t.cert) > 0
 	hasKey := len(t.key) > 0
@@ -83,4 +100,56 @@ func (t *tlsCertificateData) hasCertPair() bool {
 
 func (t *tlsCertificateData) hasCA() bool {
 	return len(t.caCert) > 0
+}
+
+// validateCertificatePairIfPresent validates the certificate and key pair if both are present.
+func (t *tlsCertificateData) validateCertificatePairIfPresent() error {
+	if t.hasCertPair() {
+		if _, err := tls.X509KeyPair(t.cert, t.key); err != nil {
+			return fmt.Errorf("invalid TLS certificate and key pair: %w", err)
+		}
+	}
+	return nil
+}
+
+// toSecret creates a Kubernetes secret from the certificate data.
+func (t *tlsCertificateData) toSecret(name, namespace string) *corev1.Secret {
+	secretData := make(map[string]string)
+	var secretType corev1.SecretType
+
+	if t.hasCertPair() {
+		secretData[TLSCertKey] = string(t.cert)
+		secretData[TLSKeyKey] = string(t.key)
+		secretType = corev1.SecretTypeTLS
+	} else {
+		secretType = corev1.SecretTypeOpaque
+	}
+
+	if t.hasCA() {
+		secretData[CACertKey] = string(t.caCert)
+	}
+
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Type:       secretType,
+		StringData: secretData,
+	}
+}
+
+// getSecretData retrieves data from secret with fallback support for deprecated keys.
+func getSecretData(secret *corev1.Secret, key, fallbackKey string, supportDeprecated bool) []byte {
+	if data, exists := secret.Data[key]; exists {
+		return data
+	}
+
+	if supportDeprecated {
+		if data, exists := secret.Data[fallbackKey]; exists {
+			return data
+		}
+	}
+
+	return nil
 }
