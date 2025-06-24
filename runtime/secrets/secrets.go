@@ -82,13 +82,13 @@ func (t *tlsCertificateData) validate() error {
 
 	if hasCert != hasKey {
 		if hasCert {
-			return fmt.Errorf("found certificate but missing private key")
+			return &TLSValidationError{Type: ErrMissingPrivateKey}
 		}
-		return fmt.Errorf("found private key but missing certificate")
+		return &TLSValidationError{Type: ErrMissingCertificate}
 	}
 
 	if !hasCert && !hasCA {
-		return fmt.Errorf("no CA certificate or client certificate pair found")
+		return &TLSValidationError{Type: ErrNoCertificatePairOrCA}
 	}
 
 	return nil

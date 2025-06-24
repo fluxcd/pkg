@@ -19,6 +19,8 @@ package secrets
 import (
 	"errors"
 	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -37,4 +39,55 @@ func (e *KeyNotFoundError) Error() string {
 
 func (e *KeyNotFoundError) Is(target error) bool {
 	return errors.Is(target, ErrKeyNotFound)
+}
+
+// TLSValidationError represents TLS certificate validation errors.
+type TLSValidationError struct {
+	Type TLSValidationErrorType
+}
+
+// TLSValidationErrorType defines the type of TLS validation error.
+type TLSValidationErrorType int
+
+const (
+	// ErrMissingPrivateKey indicates that a certificate exists but the private key is missing.
+	ErrMissingPrivateKey TLSValidationErrorType = iota
+	// ErrMissingCertificate indicates that a private key exists but the certificate is missing.
+	ErrMissingCertificate
+	// ErrNoCertificatePairOrCA indicates that neither a certificate pair nor a CA certificate is present.
+	ErrNoCertificatePairOrCA
+)
+
+func (e *TLSValidationError) Error() string {
+	switch e.Type {
+	case ErrMissingPrivateKey:
+		return "found certificate but missing private key"
+	case ErrMissingCertificate:
+		return "found private key but missing certificate"
+	case ErrNoCertificatePairOrCA:
+		return "no CA certificate or client certificate pair found"
+	default:
+		return "TLS validation error"
+	}
+}
+
+// enhanceSecretValidationError enhances TLS validation errors with secret reference information.
+func enhanceSecretValidationError(err error, secret *corev1.Secret) error {
+	var tlsErr *TLSValidationError
+	if !errors.As(err, &tlsErr) {
+		return err
+	}
+
+	secretRef := fmt.Sprintf("'%s/%s'", secret.Namespace, secret.Name)
+
+	switch tlsErr.Type {
+	case ErrMissingPrivateKey:
+		return fmt.Errorf("secret %s contains '%s' but missing '%s'", secretRef, TLSCertKey, TLSKeyKey)
+	case ErrMissingCertificate:
+		return fmt.Errorf("secret %s contains '%s' but missing '%s'", secretRef, TLSKeyKey, TLSCertKey)
+	case ErrNoCertificatePairOrCA:
+		return fmt.Errorf("secret %s must contain either '%s' or both '%s' and '%s'", secretRef, CACertKey, TLSCertKey, TLSKeyKey)
+	default:
+		return err
+	}
 }

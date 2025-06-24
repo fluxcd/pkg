@@ -228,7 +228,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					secrets.TLSKeyFileKey:  tlsKey,
 				},
 			},
-			errMsg: "no CA certificate or client certificate pair found",
+			errMsg: "secret 'default/tls-secret' must contain either 'ca.crt' or both 'tls.crt' and 'tls.key'",
 		},
 		{
 			name: "invalid certificate data",
@@ -282,7 +282,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					secrets.TLSCertKey: tlsCert,
 				},
 			},
-			errMsg: "found certificate but missing private key",
+			errMsg: "secret 'default/tls-secret' contains 'tls.crt' but missing 'tls.key'",
 		},
 		{
 			name: "key without certificate",
@@ -295,7 +295,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					secrets.TLSKeyKey: tlsKey,
 				},
 			},
-			errMsg: "found private key but missing certificate",
+			errMsg: "secret 'default/tls-secret' contains 'tls.key' but missing 'tls.crt'",
 		},
 		{
 			name: "no certificates at all",
@@ -306,7 +306,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 				},
 				Data: map[string][]byte{},
 			},
-			errMsg: "no CA certificate or client certificate pair found",
+			errMsg: "secret 'default/tls-secret' must contain either 'ca.crt' or both 'tls.crt' and 'tls.key'",
 		},
 	}
 

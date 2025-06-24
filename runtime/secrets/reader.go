@@ -47,7 +47,7 @@ func TLSConfigFromSecret(ctx context.Context, c client.Client, name, namespace s
 
 	certData, err := getTLSCertificateData(secret, options.supportDeprecatedFields)
 	if err != nil {
-		return nil, err
+		return nil, enhanceSecretValidationError(err, secret)
 	}
 
 	return buildTLSConfig(certData)
