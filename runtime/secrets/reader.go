@@ -66,17 +66,17 @@ func ProxyURLFromSecret(ctx context.Context, c client.Client, name, namespace st
 
 	addressData, exists := secret.Data[ProxyAddressKey]
 	if !exists {
-		return nil, &KeyNotFoundError{Key: ProxyAddressKey}
+		return nil, &KeyNotFoundError{Key: ProxyAddressKey, Secret: secret}
 	}
 
 	address := string(addressData)
 	if address == "" {
-		return nil, fmt.Errorf("proxy address is empty")
+		return nil, fmt.Errorf("secret '%s': proxy address is empty", secretRef(secret))
 	}
 
 	proxyURL, err := url.Parse(address)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse proxy address '%s': %w", address, err)
+		return nil, fmt.Errorf("secret '%s': failed to parse proxy address '%s': %w", secretRef(secret), address, err)
 	}
 
 	username, hasUsername := secret.Data[UsernameKey]
@@ -103,12 +103,12 @@ func BasicAuthFromSecret(ctx context.Context, c client.Client, name, namespace s
 
 	usernameData, exists := secret.Data[UsernameKey]
 	if !exists {
-		return "", "", &KeyNotFoundError{Key: UsernameKey}
+		return "", "", &KeyNotFoundError{Key: UsernameKey, Secret: secret}
 	}
 
 	passwordData, exists := secret.Data[PasswordKey]
 	if !exists {
-		return "", "", &KeyNotFoundError{Key: PasswordKey}
+		return "", "", &KeyNotFoundError{Key: PasswordKey, Secret: secret}
 	}
 
 	return string(usernameData), string(passwordData), nil
@@ -119,14 +119,19 @@ func BasicAuthFromSecret(ctx context.Context, c client.Client, name, namespace s
 // The function resolves all secrets listed in the service account's imagePullSecrets field
 // and returns them as a slice. If any referenced secret cannot be found, an error is returned.
 func PullSecretsFromServiceAccount(ctx context.Context, c client.Client, name, namespace string) ([]corev1.Secret, error) {
-	serviceAccount := &corev1.ServiceAccount{}
+	sa := &corev1.ServiceAccount{}
+	sa.SetName(name)
+	sa.SetNamespace(namespace)
 	saKey := types.NamespacedName{Name: name, Namespace: namespace}
-	if err := c.Get(ctx, saKey, serviceAccount); err != nil {
-		return nil, formatResourceError("serviceaccount", namespace, name, err)
+	if err := c.Get(ctx, saKey, sa); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("serviceaccount '%s' not found", serviceAccountRef(sa))
+		}
+		return nil, fmt.Errorf("failed to get serviceaccount '%s': %w", serviceAccountRef(sa), err)
 	}
 
-	secrets := make([]corev1.Secret, 0, len(serviceAccount.ImagePullSecrets))
-	for _, imagePullSecret := range serviceAccount.ImagePullSecrets {
+	secrets := make([]corev1.Secret, 0, len(sa.ImagePullSecrets))
+	for _, imagePullSecret := range sa.ImagePullSecrets {
 		secret, err := getSecret(ctx, c, imagePullSecret.Name, namespace)
 		if err != nil {
 			return nil, err
@@ -137,18 +142,16 @@ func PullSecretsFromServiceAccount(ctx context.Context, c client.Client, name, n
 	return secrets, nil
 }
 
-func formatResourceError(resourceType, namespace, name string, err error) error {
-	if apierrors.IsNotFound(err) {
-		return fmt.Errorf("%s %s/%s not found", resourceType, namespace, name)
-	}
-	return fmt.Errorf("failed to get %s %s/%s: %w", resourceType, namespace, name, err)
-}
-
 func getSecret(ctx context.Context, c client.Client, name, namespace string) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
+	secret.SetName(name)
+	secret.SetNamespace(namespace)
 	secretKey := types.NamespacedName{Name: name, Namespace: namespace}
 	if err := c.Get(ctx, secretKey, secret); err != nil {
-		return nil, formatResourceError("secret", namespace, name, err)
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("secret '%s' not found", secretRef(secret))
+		}
+		return nil, fmt.Errorf("failed to get secret '%s': %w", secretRef(secret), err)
 	}
 	return secret, nil
 }

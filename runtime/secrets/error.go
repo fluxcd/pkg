@@ -30,15 +30,26 @@ var (
 
 // KeyNotFoundError is returned when a specific key is not found in a secret.
 type KeyNotFoundError struct {
-	Key string
+	Key    string
+	Secret *corev1.Secret
 }
 
 func (e *KeyNotFoundError) Error() string {
-	return fmt.Sprintf("key '%s' not found in secret", e.Key)
+	return fmt.Sprintf("secret '%s': key '%s' not found", secretRef(e.Secret), e.Key)
 }
 
 func (e *KeyNotFoundError) Is(target error) bool {
 	return errors.Is(target, ErrKeyNotFound)
+}
+
+// secretRef returns a string representation of a secret reference.
+func secretRef(secret *corev1.Secret) string {
+	return fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+}
+
+// serviceAccountRef returns a string representation of a service account reference.
+func serviceAccountRef(sa *corev1.ServiceAccount) string {
+	return fmt.Sprintf("%s/%s", sa.Namespace, sa.Name)
 }
 
 // TLSValidationError represents TLS certificate validation errors.
@@ -78,15 +89,15 @@ func enhanceSecretValidationError(err error, secret *corev1.Secret) error {
 		return err
 	}
 
-	secretRef := fmt.Sprintf("'%s/%s'", secret.Namespace, secret.Name)
+	ref := secretRef(secret)
 
 	switch tlsErr.Type {
 	case ErrMissingPrivateKey:
-		return fmt.Errorf("secret %s contains '%s' but missing '%s'", secretRef, TLSCertKey, TLSKeyKey)
+		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, TLSCertKey, TLSKeyKey)
 	case ErrMissingCertificate:
-		return fmt.Errorf("secret %s contains '%s' but missing '%s'", secretRef, TLSKeyKey, TLSCertKey)
+		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, TLSKeyKey, TLSCertKey)
 	case ErrNoCertificatePairOrCA:
-		return fmt.Errorf("secret %s must contain either '%s' or both '%s' and '%s'", secretRef, CACertKey, TLSCertKey, TLSKeyKey)
+		return fmt.Errorf("secret '%s' must contain either '%s' or both '%s' and '%s'", ref, CACertKey, TLSCertKey, TLSKeyKey)
 	default:
 		return err
 	}

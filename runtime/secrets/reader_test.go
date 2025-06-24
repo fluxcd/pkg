@@ -214,7 +214,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					Namespace: testNS,
 				},
 			},
-			errMsg: "secret default/tls-secret not found",
+			errMsg: "secret 'default/tls-secret' not found",
 		},
 		{
 			name: "deprecated fields without option",
@@ -421,7 +421,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 					Namespace: testNS,
 				},
 			},
-			errMsg: "secret default/proxy-secret not found",
+			errMsg: "secret 'default/proxy-secret' not found",
 		},
 		{
 			name: "missing address key",
@@ -435,7 +435,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 					secrets.PasswordKey: []byte("pass"),
 				},
 			},
-			errMsg: `key 'address' not found in secret`,
+			errMsg: `secret 'default/proxy-secret': key 'address' not found`,
 		},
 		{
 			name: "empty address",
@@ -448,7 +448,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 					secrets.ProxyAddressKey: []byte(""),
 				},
 			},
-			errMsg: "proxy address is empty",
+			errMsg: "secret 'default/proxy-secret': proxy address is empty",
 		},
 		{
 			name: "invalid URL",
@@ -461,7 +461,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 					secrets.ProxyAddressKey: []byte("://invalid-url"),
 				},
 			},
-			errMsg: "failed to parse proxy address",
+			errMsg: "secret 'default/proxy-secret': failed to parse proxy address",
 		},
 	}
 
@@ -575,7 +575,7 @@ func TestPullSecretsFromServiceAccount(t *testing.T) {
 				},
 			},
 			secrets: []*corev1.Secret{},
-			errMsg:  "serviceaccount default/test-sa not found",
+			errMsg:  "serviceaccount 'default/test-sa' not found",
 		},
 		{
 			name: "referenced secret not found",
@@ -589,7 +589,7 @@ func TestPullSecretsFromServiceAccount(t *testing.T) {
 				},
 			},
 			secrets: []*corev1.Secret{},
-			errMsg:  "secret default/missing-secret not found",
+			errMsg:  "secret 'default/missing-secret' not found",
 		},
 	}
 
@@ -689,7 +689,7 @@ func TestBasicAuthFromSecret(t *testing.T) {
 					Namespace: testNS,
 				},
 			},
-			errMsg: "secret default/auth-secret not found",
+			errMsg: "secret 'default/auth-secret' not found",
 		},
 		{
 			name: "missing username key",
@@ -702,7 +702,7 @@ func TestBasicAuthFromSecret(t *testing.T) {
 					secrets.PasswordKey: []byte("pass"),
 				},
 			},
-			errMsg: `key 'username' not found in secret`,
+			errMsg: `secret 'default/auth-secret': key 'username' not found`,
 		},
 		{
 			name: "missing password key",
@@ -715,7 +715,7 @@ func TestBasicAuthFromSecret(t *testing.T) {
 					secrets.UsernameKey: []byte("user"),
 				},
 			},
-			errMsg: `key 'password' not found in secret`,
+			errMsg: `secret 'default/auth-secret': key 'password' not found`,
 		},
 	}
 
