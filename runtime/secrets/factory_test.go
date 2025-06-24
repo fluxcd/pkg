@@ -66,41 +66,12 @@ func TestMakeTLSSecret(t *testing.T) {
 			},
 		},
 		{
-			name:         "empty TLS secret",
-			secretName:   "tls-secret",
-			namespace:    testNS,
-			certData:     nil,
-			keyData:      nil,
-			caData:       nil,
-			expectedData: map[string][]byte{},
-		},
-		{
 			name:       "invalid certificate and key pair",
 			secretName: "tls-secret",
 			namespace:  testNS,
 			certData:   []byte("invalid-cert"),
 			keyData:    []byte("invalid-key"),
 			errMsg:     "invalid TLS certificate and key pair",
-		},
-		{
-			name:       "only certificate without key",
-			secretName: "tls-secret",
-			namespace:  testNS,
-			certData:   tlsCert,
-			keyData:    nil,
-			expectedData: map[string][]byte{
-				secrets.TLSCertKey: tlsCert,
-			},
-		},
-		{
-			name:       "only key without certificate",
-			secretName: "tls-secret",
-			namespace:  testNS,
-			certData:   nil,
-			keyData:    tlsKey,
-			expectedData: map[string][]byte{
-				secrets.TLSKeyKey: tlsKey,
-			},
 		},
 	}
 
@@ -109,7 +80,13 @@ func TestMakeTLSSecret(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
 
-			secret, err := secrets.MakeTLSSecret(tt.secretName, tt.namespace, tt.certData, tt.keyData, tt.caData)
+			var secret *corev1.Secret
+			var err error
+			if len(tt.caData) > 0 {
+				secret, err = secrets.MakeTLSSecret(tt.secretName, tt.namespace, tt.certData, tt.keyData, secrets.WithCAData(tt.caData))
+			} else {
+				secret, err = secrets.MakeTLSSecret(tt.secretName, tt.namespace, tt.certData, tt.keyData)
+			}
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
@@ -126,6 +103,55 @@ func TestMakeTLSSecret(t *testing.T) {
 					expectedStringData[key] = string(value)
 				}
 				g.Expect(secret.StringData).To(Equal(expectedStringData))
+			}
+		})
+	}
+}
+
+func TestMakeCACertSecret(t *testing.T) {
+	t.Parallel()
+
+	_, caCert, _ := generateTestCertificates(t)
+
+	tests := []struct {
+		name       string
+		secretName string
+		namespace  string
+		caData     []byte
+		errMsg     string
+	}{
+		{
+			name:       "valid CA secret",
+			secretName: "ca-secret",
+			namespace:  testNS,
+			caData:     caCert,
+		},
+		{
+			name:       "empty CA data",
+			secretName: "ca-secret",
+			namespace:  testNS,
+			caData:     nil,
+			errMsg:     "CA certificate data is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			secret, err := secrets.MakeCACertSecret(tt.secretName, tt.namespace, tt.caData)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+				g.Expect(secret).To(BeNil())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Name).To(Equal(tt.secretName))
+				g.Expect(secret.Namespace).To(Equal(tt.namespace))
+				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
+				g.Expect(secret.StringData[secrets.CACertKey]).To(Equal(string(tt.caData)))
 			}
 		})
 	}

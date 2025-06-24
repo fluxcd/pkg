@@ -29,6 +29,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// tlsCertificateData holds TLS certificate, key, and optional CA data
+type tlsCertificateData struct {
+	cert   []byte
+	key    []byte
+	caCert []byte
+}
+
 // TLSConfigFromSecret creates a TLS configuration from a Kubernetes secret.
 //
 // The function looks for TLS certificate data in the secret using standard
@@ -45,37 +52,12 @@ func TLSConfigFromSecret(ctx context.Context, c client.Client, name, namespace s
 		return nil, err
 	}
 
-	tlsCert, err := getSecretData(secret, TLSCertKey, TLSCertFileKey, options.supportDeprecatedFields)
+	certData, err := getTLSCertificateData(secret, options.supportDeprecatedFields)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get TLS certificate: %w", err)
+		return nil, err
 	}
 
-	tlsKey, err := getSecretData(secret, TLSKeyKey, TLSKeyFileKey, options.supportDeprecatedFields)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get TLS private key: %w", err)
-	}
-
-	// CA certificate is optional, ignore error if not found
-	caCert, _ := getSecretData(secret, CACertKey, CACertFileKey, options.supportDeprecatedFields)
-
-	cert, err := tls.X509KeyPair(tlsCert, tlsKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse TLS certificate and key: %w", err)
-	}
-
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-	}
-
-	if len(caCert) > 0 {
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, fmt.Errorf("failed to parse CA certificate")
-		}
-		tlsConfig.RootCAs = caCertPool
-	}
-
-	return tlsConfig, nil
+	return buildTLSConfig(certData)
 }
 
 // ProxyURLFromSecret creates a proxy URL from a Kubernetes secret.
@@ -91,7 +73,7 @@ func ProxyURLFromSecret(ctx context.Context, c client.Client, name, namespace st
 
 	addressData, exists := secret.Data[ProxyAddressKey]
 	if !exists {
-		return nil, fmt.Errorf("key '%s' not found in secret", ProxyAddressKey)
+		return nil, &KeyNotFoundError{Key: ProxyAddressKey}
 	}
 
 	address := string(addressData)
@@ -128,12 +110,12 @@ func BasicAuthFromSecret(ctx context.Context, c client.Client, name, namespace s
 
 	usernameData, exists := secret.Data[UsernameKey]
 	if !exists {
-		return "", "", fmt.Errorf("key '%s' not found in secret", UsernameKey)
+		return "", "", &KeyNotFoundError{Key: UsernameKey}
 	}
 
 	passwordData, exists := secret.Data[PasswordKey]
 	if !exists {
-		return "", "", fmt.Errorf("key '%s' not found in secret", PasswordKey)
+		return "", "", &KeyNotFoundError{Key: PasswordKey}
 	}
 
 	return string(usernameData), string(passwordData), nil
@@ -147,10 +129,7 @@ func PullSecretsFromServiceAccount(ctx context.Context, c client.Client, name, n
 	serviceAccount := &corev1.ServiceAccount{}
 	saKey := types.NamespacedName{Name: name, Namespace: namespace}
 	if err := c.Get(ctx, saKey, serviceAccount); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("serviceaccount %s/%s not found", namespace, name)
-		}
-		return nil, fmt.Errorf("failed to get serviceaccount %s/%s: %w", namespace, name, err)
+		return nil, formatResourceError("serviceaccount", namespace, name, err)
 	}
 
 	if len(serviceAccount.ImagePullSecrets) == 0 {
@@ -169,16 +148,62 @@ func PullSecretsFromServiceAccount(ctx context.Context, c client.Client, name, n
 	return secrets, nil
 }
 
+func formatResourceError(resourceType, namespace, name string, err error) error {
+	if apierrors.IsNotFound(err) {
+		return fmt.Errorf("%s %s/%s not found", resourceType, namespace, name)
+	}
+	return fmt.Errorf("failed to get %s %s/%s: %w", resourceType, namespace, name, err)
+}
+
 func getSecret(ctx context.Context, c client.Client, name, namespace string) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
 	secretKey := types.NamespacedName{Name: name, Namespace: namespace}
 	if err := c.Get(ctx, secretKey, secret); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("secret %s/%s not found", namespace, name)
-		}
-		return nil, fmt.Errorf("failed to get secret %s/%s: %w", namespace, name, err)
+		return nil, formatResourceError("secret", namespace, name, err)
 	}
 	return secret, nil
+}
+
+func getTLSCertificateData(secret *corev1.Secret, supportDeprecated bool) (*tlsCertificateData, error) {
+	tlsCert, err := getSecretData(secret, TLSCertKey, TLSCertFileKey, supportDeprecated)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get TLS certificate: %w", err)
+	}
+
+	tlsKey, err := getSecretData(secret, TLSKeyKey, TLSKeyFileKey, supportDeprecated)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get TLS private key: %w", err)
+	}
+
+	// CA certificate is optional, ignore error if not found
+	caCert, _ := getSecretData(secret, CACertKey, CACertFileKey, supportDeprecated)
+
+	return &tlsCertificateData{
+		cert:   tlsCert,
+		key:    tlsKey,
+		caCert: caCert,
+	}, nil
+}
+
+func buildTLSConfig(certData *tlsCertificateData) (*tls.Config, error) {
+	cert, err := tls.X509KeyPair(certData.cert, certData.key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse TLS certificate and key: %w", err)
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
+	if len(certData.caCert) > 0 {
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(certData.caCert) {
+			return nil, fmt.Errorf("failed to parse CA certificate")
+		}
+		tlsConfig.RootCAs = caCertPool
+	}
+
+	return tlsConfig, nil
 }
 
 func getSecretData(secret *corev1.Secret, key, fallbackKey string, supportDeprecated bool) ([]byte, error) {
@@ -192,5 +217,5 @@ func getSecretData(secret *corev1.Secret, key, fallbackKey string, supportDeprec
 		}
 	}
 
-	return nil, fmt.Errorf("key '%s' not found in secret", key)
+	return nil, &KeyNotFoundError{Key: key}
 }

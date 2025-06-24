@@ -27,38 +27,79 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// MakeTLSSecret creates a Kubernetes TLS secret from certificate data.
-//
-// The function accepts certificate, private key, and optional CA certificate data.
-// If both certData and keyData are provided, they will be validated as a valid TLS pair.
-// Empty data fields will be omitted from the resulting secret.
-func MakeTLSSecret(name, namespace string, certData, keyData, caData []byte) (*corev1.Secret, error) {
-	if len(certData) > 0 && len(keyData) > 0 {
-		if _, err := tls.X509KeyPair(certData, keyData); err != nil {
-			return nil, fmt.Errorf("invalid TLS certificate and key pair: %w", err)
-		}
-	}
+type emptyCheckable interface {
+	~string | ~[]byte
+}
 
-	secret := &corev1.Secret{
+func validateRequired[T emptyCheckable](value T, fieldName string) error {
+	if len(value) == 0 {
+		return fmt.Errorf("%s is required", fieldName)
+	}
+	return nil
+}
+
+func makeSecret(name, namespace string, secretType corev1.SecretType, data map[string]string) *corev1.Secret {
+	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Type:       corev1.SecretTypeTLS,
-		StringData: make(map[string]string),
+		Type:       secretType,
+		StringData: data,
+	}
+}
+
+type tlsSecretConfig struct {
+	caData []byte
+}
+
+// TLSSecretOption configures a TLS secret.
+type TLSSecretOption func(*tlsSecretConfig)
+
+// WithCAData sets the CA certificate data for the TLS secret.
+func WithCAData(caData []byte) TLSSecretOption {
+	return func(cfg *tlsSecretConfig) {
+		cfg.caData = caData
+	}
+}
+
+// MakeTLSSecret creates a Kubernetes TLS secret from certificate data.
+//
+// The function requires certificate and private key data.
+// Optional CA certificate data can be provided using WithCAData option.
+func MakeTLSSecret(name, namespace string, certData, keyData []byte, opts ...TLSSecretOption) (*corev1.Secret, error) {
+	if _, err := tls.X509KeyPair(certData, keyData); err != nil {
+		return nil, fmt.Errorf("invalid TLS certificate and key pair: %w", err)
 	}
 
-	if len(certData) > 0 {
-		secret.StringData[TLSCertKey] = string(certData)
-	}
-	if len(keyData) > 0 {
-		secret.StringData[TLSKeyKey] = string(keyData)
-	}
-	if len(caData) > 0 {
-		secret.StringData[CACertKey] = string(caData)
+	cfg := &tlsSecretConfig{}
+	for _, opt := range opts {
+		opt(cfg)
 	}
 
-	return secret, nil
+	data := map[string]string{
+		TLSCertKey: string(certData),
+		TLSKeyKey:  string(keyData),
+	}
+
+	if len(cfg.caData) > 0 {
+		data[CACertKey] = string(cfg.caData)
+	}
+
+	return makeSecret(name, namespace, corev1.SecretTypeTLS, data), nil
+}
+
+// MakeCACertSecret creates a Kubernetes secret containing only CA certificate data.
+//
+// The function creates an Opaque secret type containing the CA certificate.
+func MakeCACertSecret(name, namespace string, caData []byte) (*corev1.Secret, error) {
+	if err := validateRequired(caData, "CA certificate data"); err != nil {
+		return nil, err
+	}
+
+	return makeSecret(name, namespace, corev1.SecretTypeOpaque, map[string]string{
+		CACertKey: string(caData),
+	}), nil
 }
 
 // MakeBasicAuthSecret creates a Kubernetes basic auth secret.
@@ -66,24 +107,17 @@ func MakeTLSSecret(name, namespace string, certData, keyData, caData []byte) (*c
 // The function requires both username and password to be non-empty.
 // The resulting secret will be of type kubernetes.io/basic-auth.
 func MakeBasicAuthSecret(name, namespace, username, password string) (*corev1.Secret, error) {
-	if username == "" {
-		return nil, fmt.Errorf("username is required")
+	if err := validateRequired(username, "username"); err != nil {
+		return nil, err
 	}
-	if password == "" {
-		return nil, fmt.Errorf("password is required")
+	if err := validateRequired(password, "password"); err != nil {
+		return nil, err
 	}
 
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeBasicAuth,
-		StringData: map[string]string{
-			UsernameKey: username,
-			PasswordKey: password,
-		},
-	}, nil
+	return makeSecret(name, namespace, corev1.SecretTypeBasicAuth, map[string]string{
+		UsernameKey: username,
+		PasswordKey: password,
+	}), nil
 }
 
 // MakeProxySecret creates a Kubernetes secret for proxy configuration.
@@ -92,33 +126,26 @@ func MakeBasicAuthSecret(name, namespace, username, password string) (*corev1.Se
 // Optional username and password can be provided for proxy authentication.
 // The resulting secret will be of type Opaque.
 func MakeProxySecret(name, namespace, address, username, password string) (*corev1.Secret, error) {
-	if address == "" {
-		return nil, fmt.Errorf("address is required")
+	if err := validateRequired(address, "address"); err != nil {
+		return nil, err
 	}
 
 	if _, err := url.Parse(address); err != nil {
 		return nil, fmt.Errorf("invalid proxy address: %w", err)
 	}
 
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeOpaque,
-		StringData: map[string]string{
-			ProxyAddressKey: address,
-		},
+	data := map[string]string{
+		ProxyAddressKey: address,
 	}
 
 	if username != "" {
-		secret.StringData[UsernameKey] = username
+		data[UsernameKey] = username
 	}
 	if password != "" {
-		secret.StringData[PasswordKey] = password
+		data[PasswordKey] = password
 	}
 
-	return secret, nil
+	return makeSecret(name, namespace, corev1.SecretTypeOpaque, data), nil
 }
 
 // MakeBearerTokenSecret creates a Kubernetes secret for bearer token authentication.
@@ -126,20 +153,13 @@ func MakeProxySecret(name, namespace, address, username, password string) (*core
 // The function requires a non-empty token value.
 // The resulting secret will be of type Opaque with the token stored under the "bearerToken" key.
 func MakeBearerTokenSecret(name, namespace, token string) (*corev1.Secret, error) {
-	if token == "" {
-		return nil, fmt.Errorf("token is required")
+	if err := validateRequired(token, "token"); err != nil {
+		return nil, err
 	}
 
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeOpaque,
-		StringData: map[string]string{
-			BearerTokenKey: token,
-		},
-	}, nil
+	return makeSecret(name, namespace, corev1.SecretTypeOpaque, map[string]string{
+		BearerTokenKey: token,
+	}), nil
 }
 
 // MakeTokenSecret creates a Kubernetes secret for generic API token authentication.
@@ -148,20 +168,13 @@ func MakeBearerTokenSecret(name, namespace, token string) (*corev1.Secret, error
 // The resulting secret will be of type Opaque with the token stored under the "token" key.
 // This is suitable for various API tokens like GitHub, Slack, Telegram, etc.
 func MakeTokenSecret(name, namespace, token string) (*corev1.Secret, error) {
-	if token == "" {
-		return nil, fmt.Errorf("token is required")
+	if err := validateRequired(token, "token"); err != nil {
+		return nil, err
 	}
 
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeOpaque,
-		StringData: map[string]string{
-			TokenKey: token,
-		},
-	}, nil
+	return makeSecret(name, namespace, corev1.SecretTypeOpaque, map[string]string{
+		TokenKey: token,
+	}), nil
 }
 
 // MakeRegistrySecret creates a Kubernetes Docker config secret for container registry authentication.
@@ -170,14 +183,14 @@ func MakeTokenSecret(name, namespace, token string) (*corev1.Secret, error) {
 // It generates a Docker config JSON with base64-encoded auth field containing "username:password".
 // The resulting secret will be of type kubernetes.io/dockerconfigjson.
 func MakeRegistrySecret(name, namespace, server, username, password string) (*corev1.Secret, error) {
-	if server == "" {
-		return nil, fmt.Errorf("server is required")
+	if err := validateRequired(server, "server"); err != nil {
+		return nil, err
 	}
-	if username == "" {
-		return nil, fmt.Errorf("username is required")
+	if err := validateRequired(username, "username"); err != nil {
+		return nil, err
 	}
-	if password == "" {
-		return nil, fmt.Errorf("password is required")
+	if err := validateRequired(password, "password"); err != nil {
+		return nil, err
 	}
 
 	type dockerAuth struct {
@@ -208,14 +221,7 @@ func MakeRegistrySecret(name, namespace, server, username, password string) (*co
 		return nil, fmt.Errorf("failed to marshal Docker config: %w", err)
 	}
 
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeDockerConfigJson,
-		StringData: map[string]string{
-			corev1.DockerConfigJsonKey: string(configData),
-		},
-	}, nil
+	return makeSecret(name, namespace, corev1.SecretTypeDockerConfigJson, map[string]string{
+		corev1.DockerConfigJsonKey: string(configData),
+	}), nil
 }
