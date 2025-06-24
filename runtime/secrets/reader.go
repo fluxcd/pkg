@@ -159,10 +159,6 @@ func PullSecretsFromServiceAccount(ctx context.Context, c client.Client, name, n
 		return nil, formatResourceError("serviceaccount", namespace, name, err)
 	}
 
-	if len(serviceAccount.ImagePullSecrets) == 0 {
-		return []corev1.Secret{}, nil
-	}
-
 	secrets := make([]corev1.Secret, 0, len(serviceAccount.ImagePullSecrets))
 	for _, imagePullSecret := range serviceAccount.ImagePullSecrets {
 		secret, err := getSecret(ctx, c, imagePullSecret.Name, namespace)
