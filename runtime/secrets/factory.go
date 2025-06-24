@@ -201,7 +201,7 @@ func MakeRegistrySecret(name, namespace, server, username, password string) (*co
 		},
 	}
 
-	configData, err := json.Marshal(config)
+	configData, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal Docker config: %w", err)
 	}

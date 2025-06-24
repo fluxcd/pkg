@@ -412,7 +412,15 @@ func TestMakeRegistrySecret(t *testing.T) {
 			server:     "registry.example.com",
 			username:   "user",
 			password:   "pass",
-			wantJSON:   `{"auths":{"registry.example.com":{"username":"user","password":"pass","auth":"dXNlcjpwYXNz"}}}`,
+			wantJSON: `{
+  "auths": {
+    "registry.example.com": {
+      "username": "user",
+      "password": "pass",
+      "auth": "dXNlcjpwYXNz"
+    }
+  }
+}`,
 		},
 		{
 			name:       "docker hub registry",
@@ -421,7 +429,15 @@ func TestMakeRegistrySecret(t *testing.T) {
 			server:     "docker.io",
 			username:   "dockeruser",
 			password:   "dockerpass",
-			wantJSON:   `{"auths":{"docker.io":{"username":"dockeruser","password":"dockerpass","auth":"ZG9ja2VydXNlcjpkb2NrZXJwYXNz"}}}`,
+			wantJSON: `{
+  "auths": {
+    "docker.io": {
+      "username": "dockeruser",
+      "password": "dockerpass",
+      "auth": "ZG9ja2VydXNlcjpkb2NrZXJwYXNz"
+    }
+  }
+}`,
 		},
 		{
 			name:       "registry with special characters in credentials",
@@ -430,7 +446,15 @@ func TestMakeRegistrySecret(t *testing.T) {
 			server:     "special.registry.com",
 			username:   `user"with"quotes`,
 			password:   `pass"word\with"special'chars`,
-			wantJSON:   `{"auths":{"special.registry.com":{"username":"user\"with\"quotes","password":"pass\"word\\with\"special'chars","auth":"dXNlciJ3aXRoInF1b3RlczpwYXNzIndvcmRcd2l0aCJzcGVjaWFsJ2NoYXJz"}}}`,
+			wantJSON: `{
+  "auths": {
+    "special.registry.com": {
+      "username": "user\"with\"quotes",
+      "password": "pass\"word\\with\"special'chars",
+      "auth": "dXNlciJ3aXRoInF1b3RlczpwYXNzIndvcmRcd2l0aCJzcGVjaWFsJ2NoYXJz"
+    }
+  }
+}`,
 		},
 		{
 			name:       "registry with JSON injection attempt",
@@ -439,7 +463,15 @@ func TestMakeRegistrySecret(t *testing.T) {
 			server:     "malicious.com",
 			username:   `"},"malicious":"injected`,
 			password:   `"},"admin":"true`,
-			wantJSON:   `{"auths":{"malicious.com":{"username":"\"},\"malicious\":\"injected","password":"\"},\"admin\":\"true","auth":"In0sIm1hbGljaW91cyI6ImluamVjdGVkOiJ9LCJhZG1pbiI6InRydWU="}}}`,
+			wantJSON: `{
+  "auths": {
+    "malicious.com": {
+      "username": "\"},\"malicious\":\"injected",
+      "password": "\"},\"admin\":\"true",
+      "auth": "In0sIm1hbGljaW91cyI6ImluamVjdGVkOiJ9LCJhZG1pbiI6InRydWU="
+    }
+  }
+}`,
 		},
 		{
 			name:       "empty server",
