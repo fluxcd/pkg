@@ -134,7 +134,7 @@ func PullSecretsFromServiceAccount(ctx context.Context, c client.Client, name, n
 	for _, imagePullSecret := range sa.ImagePullSecrets {
 		secret, err := getSecret(ctx, c, imagePullSecret.Name, namespace)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get image pull secret for serviceaccount '%s': %w", serviceAccountRef(sa), err)
 		}
 		secrets = append(secrets, *secret)
 	}

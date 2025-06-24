@@ -589,7 +589,7 @@ func TestPullSecretsFromServiceAccount(t *testing.T) {
 				},
 			},
 			secrets: []*corev1.Secret{},
-			errMsg:  "secret 'default/missing-secret' not found",
+			errMsg:  "failed to get image pull secret for serviceaccount 'default/test-sa': secret 'default/missing-secret' not found",
 		},
 	}
 

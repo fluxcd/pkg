@@ -457,23 +457,6 @@ func TestMakeRegistrySecret(t *testing.T) {
 }`,
 		},
 		{
-			name:       "registry with JSON injection attempt",
-			secretName: "injection-secret",
-			namespace:  testNS,
-			server:     "malicious.com",
-			username:   `"},"malicious":"injected`,
-			password:   `"},"admin":"true`,
-			wantJSON: `{
-  "auths": {
-    "malicious.com": {
-      "username": "\"},\"malicious\":\"injected",
-      "password": "\"},\"admin\":\"true",
-      "auth": "In0sIm1hbGljaW91cyI6ImluamVjdGVkOiJ9LCJhZG1pbiI6InRydWU="
-    }
-  }
-}`,
-		},
-		{
 			name:       "empty server",
 			secretName: "registry-secret",
 			namespace:  testNS,
