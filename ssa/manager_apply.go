@@ -157,6 +157,8 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 			i, object := i, object
 
 			g.Go(func() error {
+				utils.RemoveCABundleFromCRD(object)
+
 				existingObject := &unstructured.Unstructured{}
 				existingObject.SetGroupVersionKind(object.GroupVersionKind())
 				getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
