@@ -139,6 +139,10 @@ func BasicAuthFromSecret(ctx context.Context, c client.Client, name, namespace s
 	return string(usernameData), string(passwordData), nil
 }
 
+// PullSecretsFromServiceAccount retrieves all image pull secrets referenced by a service account.
+//
+// The function resolves all secrets listed in the service account's imagePullSecrets field
+// and returns them as a slice. If any referenced secret cannot be found, an error is returned.
 func PullSecretsFromServiceAccount(ctx context.Context, c client.Client, name, namespace string) ([]corev1.Secret, error) {
 	serviceAccount := &corev1.ServiceAccount{}
 	saKey := types.NamespacedName{Name: name, Namespace: namespace}

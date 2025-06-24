@@ -27,6 +27,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// MakeTLSSecret creates a Kubernetes TLS secret from certificate data.
+//
+// The function accepts certificate, private key, and optional CA certificate data.
+// If both certData and keyData are provided, they will be validated as a valid TLS pair.
+// Empty data fields will be omitted from the resulting secret.
 func MakeTLSSecret(name, namespace string, certData, keyData, caData []byte) (*corev1.Secret, error) {
 	if len(certData) > 0 && len(keyData) > 0 {
 		if _, err := tls.X509KeyPair(certData, keyData); err != nil {
@@ -56,6 +61,10 @@ func MakeTLSSecret(name, namespace string, certData, keyData, caData []byte) (*c
 	return secret, nil
 }
 
+// MakeBasicAuthSecret creates a Kubernetes basic auth secret.
+//
+// The function requires both username and password to be non-empty.
+// The resulting secret will be of type kubernetes.io/basic-auth.
 func MakeBasicAuthSecret(name, namespace, username, password string) (*corev1.Secret, error) {
 	if username == "" {
 		return nil, fmt.Errorf("username is required")
@@ -77,6 +86,11 @@ func MakeBasicAuthSecret(name, namespace, username, password string) (*corev1.Se
 	}, nil
 }
 
+// MakeProxySecret creates a Kubernetes secret for proxy configuration.
+//
+// The function requires a valid proxy address (URL format).
+// Optional username and password can be provided for proxy authentication.
+// The resulting secret will be of type Opaque.
 func MakeProxySecret(name, namespace, address, username, password string) (*corev1.Secret, error) {
 	if address == "" {
 		return nil, fmt.Errorf("address is required")
@@ -107,6 +121,10 @@ func MakeProxySecret(name, namespace, address, username, password string) (*core
 	return secret, nil
 }
 
+// MakeBearerTokenSecret creates a Kubernetes secret for bearer token authentication.
+//
+// The function requires a non-empty token value.
+// The resulting secret will be of type Opaque with the token stored under the "bearerToken" key.
 func MakeBearerTokenSecret(name, namespace, token string) (*corev1.Secret, error) {
 	if token == "" {
 		return nil, fmt.Errorf("token is required")
@@ -124,6 +142,11 @@ func MakeBearerTokenSecret(name, namespace, token string) (*corev1.Secret, error
 	}, nil
 }
 
+// MakeTokenSecret creates a Kubernetes secret for generic API token authentication.
+//
+// The function requires a non-empty token value.
+// The resulting secret will be of type Opaque with the token stored under the "token" key.
+// This is suitable for various API tokens like GitHub, Slack, Telegram, etc.
 func MakeTokenSecret(name, namespace, token string) (*corev1.Secret, error) {
 	if token == "" {
 		return nil, fmt.Errorf("token is required")
@@ -141,6 +164,11 @@ func MakeTokenSecret(name, namespace, token string) (*corev1.Secret, error) {
 	}, nil
 }
 
+// MakeRegistrySecret creates a Kubernetes Docker config secret for container registry authentication.
+//
+// The function requires server, username, and password to be non-empty.
+// It generates a Docker config JSON with base64-encoded auth field containing "username:password".
+// The resulting secret will be of type kubernetes.io/dockerconfigjson.
 func MakeRegistrySecret(name, namespace, server, username, password string) (*corev1.Secret, error) {
 	if server == "" {
 		return nil, fmt.Errorf("server is required")
