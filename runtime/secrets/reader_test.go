@@ -217,32 +217,6 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			errMsg: "secret default/tls-secret not found",
 		},
 		{
-			name: "missing certificate",
-			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tls-secret",
-					Namespace: testNS,
-				},
-				Data: map[string][]byte{
-					secrets.TLSKeyKey: tlsKey,
-				},
-			},
-			errMsg: "failed to get TLS certificate",
-		},
-		{
-			name: "missing private key",
-			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tls-secret",
-					Namespace: testNS,
-				},
-				Data: map[string][]byte{
-					secrets.TLSCertKey: tlsCert,
-				},
-			},
-			errMsg: "failed to get TLS private key",
-		},
-		{
 			name: "deprecated fields without option",
 			secret: &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -254,7 +228,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					secrets.TLSKeyFileKey:  tlsKey,
 				},
 			},
-			errMsg: `key 'tls.crt' not found in secret`,
+			errMsg: "no CA certificate or client certificate pair found",
 		},
 		{
 			name: "invalid certificate data",
@@ -285,6 +259,55 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			},
 			errMsg: "failed to parse CA certificate",
 		},
+		{
+			name: "CA certificate only",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tls-secret",
+					Namespace: testNS,
+				},
+				Data: map[string][]byte{
+					secrets.CACertKey: caCert,
+				},
+			},
+		},
+		{
+			name: "certificate without key",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tls-secret",
+					Namespace: testNS,
+				},
+				Data: map[string][]byte{
+					secrets.TLSCertKey: tlsCert,
+				},
+			},
+			errMsg: "found certificate but missing private key",
+		},
+		{
+			name: "key without certificate",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tls-secret",
+					Namespace: testNS,
+				},
+				Data: map[string][]byte{
+					secrets.TLSKeyKey: tlsKey,
+				},
+			},
+			errMsg: "found private key but missing certificate",
+		},
+		{
+			name: "no certificates at all",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tls-secret",
+					Namespace: testNS,
+				},
+				Data: map[string][]byte{},
+			},
+			errMsg: "no CA certificate or client certificate pair found",
+		},
 	}
 
 	for _, tt := range tests {
@@ -303,11 +326,24 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(tlsConfig).ToNot(BeNil())
-				g.Expect(tlsConfig.Certificates).To(HaveLen(1))
 
-				expectedCert, err := tls.X509KeyPair(tlsCert, tlsKey)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(tlsConfig.Certificates[0]).To(Equal(expectedCert))
+				hasCert := len(tt.secret.Data[secrets.TLSCertKey]) > 0 || len(tt.secret.Data[secrets.TLSCertFileKey]) > 0
+				hasKey := len(tt.secret.Data[secrets.TLSKeyKey]) > 0 || len(tt.secret.Data[secrets.TLSKeyFileKey]) > 0
+				hasCertPair := hasCert && hasKey
+
+				if hasCertPair {
+					g.Expect(tlsConfig.Certificates).To(HaveLen(1))
+					expectedCert, err := tls.X509KeyPair(tlsCert, tlsKey)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(tlsConfig.Certificates[0]).To(Equal(expectedCert))
+				} else {
+					g.Expect(tlsConfig.Certificates).To(BeEmpty())
+				}
+
+				hasCA := len(tt.secret.Data[secrets.CACertKey]) > 0 || len(tt.secret.Data[secrets.CACertFileKey]) > 0
+				if hasCA {
+					g.Expect(tlsConfig.RootCAs).ToNot(BeNil())
+				}
 			}
 		})
 	}

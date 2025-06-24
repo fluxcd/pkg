@@ -36,6 +36,33 @@ type tlsCertificateData struct {
 	caCert []byte
 }
 
+func (t *tlsCertificateData) validate() error {
+	hasCert := len(t.cert) > 0
+	hasKey := len(t.key) > 0
+	hasCA := len(t.caCert) > 0
+
+	if hasCert != hasKey {
+		if hasCert {
+			return fmt.Errorf("found certificate but missing private key")
+		}
+		return fmt.Errorf("found private key but missing certificate")
+	}
+
+	if !hasCert && !hasCA {
+		return fmt.Errorf("no CA certificate or client certificate pair found")
+	}
+
+	return nil
+}
+
+func (t *tlsCertificateData) hasCertPair() bool {
+	return len(t.cert) > 0 && len(t.key) > 0
+}
+
+func (t *tlsCertificateData) hasCA() bool {
+	return len(t.caCert) > 0
+}
+
 // TLSConfigFromSecret creates a TLS configuration from a Kubernetes secret.
 //
 // The function looks for TLS certificate data in the secret using standard
@@ -165,37 +192,31 @@ func getSecret(ctx context.Context, c client.Client, name, namespace string) (*c
 }
 
 func getTLSCertificateData(secret *corev1.Secret, supportDeprecated bool) (*tlsCertificateData, error) {
-	tlsCert, err := getSecretData(secret, TLSCertKey, TLSCertFileKey, supportDeprecated)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get TLS certificate: %w", err)
+	data := &tlsCertificateData{
+		cert:   getSecretData(secret, TLSCertKey, TLSCertFileKey, supportDeprecated),
+		key:    getSecretData(secret, TLSKeyKey, TLSKeyFileKey, supportDeprecated),
+		caCert: getSecretData(secret, CACertKey, CACertFileKey, supportDeprecated),
 	}
 
-	tlsKey, err := getSecretData(secret, TLSKeyKey, TLSKeyFileKey, supportDeprecated)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get TLS private key: %w", err)
+	if err := data.validate(); err != nil {
+		return nil, err
 	}
 
-	// CA certificate is optional, ignore error if not found
-	caCert, _ := getSecretData(secret, CACertKey, CACertFileKey, supportDeprecated)
-
-	return &tlsCertificateData{
-		cert:   tlsCert,
-		key:    tlsKey,
-		caCert: caCert,
-	}, nil
+	return data, nil
 }
 
 func buildTLSConfig(certData *tlsCertificateData) (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(certData.cert, certData.key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse TLS certificate and key: %w", err)
+	tlsConfig := &tls.Config{}
+
+	if certData.hasCertPair() {
+		cert, err := tls.X509KeyPair(certData.cert, certData.key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse TLS certificate and key: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-	}
-
-	if len(certData.caCert) > 0 {
+	if certData.hasCA() {
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM(certData.caCert) {
 			return nil, fmt.Errorf("failed to parse CA certificate")
@@ -206,16 +227,16 @@ func buildTLSConfig(certData *tlsCertificateData) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func getSecretData(secret *corev1.Secret, key, fallbackKey string, supportDeprecated bool) ([]byte, error) {
+func getSecretData(secret *corev1.Secret, key, fallbackKey string, supportDeprecated bool) []byte {
 	if data, exists := secret.Data[key]; exists {
-		return data, nil
+		return data
 	}
 
 	if supportDeprecated {
 		if data, exists := secret.Data[fallbackKey]; exists {
-			return data, nil
+			return data
 		}
 	}
 
-	return nil, &KeyNotFoundError{Key: key}
+	return nil
 }
