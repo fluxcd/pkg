@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,20 +33,17 @@ import (
 // TLSConfigFromSecret creates a TLS configuration from a Kubernetes secret.
 //
 // The function looks for TLS certificate data in the secret using standard
-// field names (tls.crt, tls.key, ca.crt). If WithDeprecatedFieldSupport
-// option is provided, it will also check deprecated field names (certFile,
-// keyFile, caFile) as fallbacks.
+// field names (tls.crt, tls.key, ca.crt). It also supports legacy field names
+// (certFile, keyFile, caFile) as fallbacks, logging warnings when they are used.
 //
-// Standard field names always take precedence over deprecated ones.
-func TLSConfigFromSecret(ctx context.Context, c client.Client, name, namespace string, opts ...Option) (*tls.Config, error) {
-	options := makeOptions(opts)
-
+// Standard field names always take precedence over legacy ones.
+func TLSConfigFromSecret(ctx context.Context, c client.Client, name, namespace string, logger logr.Logger) (*tls.Config, error) {
 	secret, err := getSecret(ctx, c, name, namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	certData, err := getTLSCertificateData(secret, options.supportDeprecatedFields)
+	certData, err := getTLSCertificateData(secret, logger)
 	if err != nil {
 		return nil, enhanceSecretValidationError(err, secret)
 	}
@@ -156,8 +154,8 @@ func getSecret(ctx context.Context, c client.Client, name, namespace string) (*c
 	return secret, nil
 }
 
-func getTLSCertificateData(secret *corev1.Secret, supportDeprecated bool) (*tlsCertificateData, error) {
-	return newTLSCertificateData(secret, supportDeprecated)
+func getTLSCertificateData(secret *corev1.Secret, logger logr.Logger) (*tlsCertificateData, error) {
+	return newTLSCertificateData(secret, logger)
 }
 
 func buildTLSConfig(certData *tlsCertificateData) (*tls.Config, error) {

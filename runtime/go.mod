@@ -17,6 +17,7 @@ require (
 	github.com/fluxcd/pkg/apis/kustomize v1.10.0
 	github.com/fluxcd/pkg/apis/meta v1.12.0
 	github.com/go-logr/logr v1.4.2
+	github.com/go-logr/zapr v1.3.0
 	github.com/google/cel-go v0.23.2
 	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
@@ -56,7 +57,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
-	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect

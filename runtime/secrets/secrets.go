@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -32,11 +33,11 @@ const (
 	// CACertKey is the standard key for CA certificate data in secrets.
 	CACertKey = "ca.crt"
 
-	// TLSCertFileKey is the deprecated key for TLS certificate data in secrets.
+	// TLSCertFileKey is the legacy key for TLS certificate data in secrets.
 	TLSCertFileKey = "certFile"
-	// TLSKeyFileKey is the deprecated key for TLS private key data in secrets.
+	// TLSKeyFileKey is the legacy key for TLS private key data in secrets.
 	TLSKeyFileKey = "keyFile"
-	// CACertFileKey is the deprecated key for CA certificate data in secrets.
+	// CACertFileKey is the legacy key for CA certificate data in secrets.
 	CACertFileKey = "caFile"
 
 	// UsernameKey is the key for username data in basic auth secrets.
@@ -61,11 +62,11 @@ type tlsCertificateData struct {
 }
 
 // newTLSCertificateData creates tlsCertificateData from a Kubernetes secret.
-func newTLSCertificateData(secret *corev1.Secret, supportDeprecated bool) (*tlsCertificateData, error) {
+func newTLSCertificateData(secret *corev1.Secret, logger logr.Logger) (*tlsCertificateData, error) {
 	data := &tlsCertificateData{
-		cert:   getSecretData(secret, TLSCertKey, TLSCertFileKey, supportDeprecated),
-		key:    getSecretData(secret, TLSKeyKey, TLSKeyFileKey, supportDeprecated),
-		caCert: getSecretData(secret, CACertKey, CACertFileKey, supportDeprecated),
+		cert:   getSecretData(secret, TLSCertKey, TLSCertFileKey, logger),
+		key:    getSecretData(secret, TLSKeyKey, TLSKeyFileKey, logger),
+		caCert: getSecretData(secret, CACertKey, CACertFileKey, logger),
 	}
 
 	if err := data.validate(); err != nil {
@@ -139,16 +140,19 @@ func (t *tlsCertificateData) toSecret(name, namespace string) *corev1.Secret {
 	}
 }
 
-// getSecretData retrieves data from secret with fallback support for deprecated keys.
-func getSecretData(secret *corev1.Secret, key, fallbackKey string, supportDeprecated bool) []byte {
+// getSecretData retrieves data from secret with fallback support for legacy keys.
+func getSecretData(secret *corev1.Secret, key, fallbackKey string, logger logr.Logger) []byte {
 	if data, exists := secret.Data[key]; exists {
 		return data
 	}
 
-	if supportDeprecated {
-		if data, exists := secret.Data[fallbackKey]; exists {
-			return data
-		}
+	// Always support legacy fields for consistency across Flux APIs
+	if data, exists := secret.Data[fallbackKey]; exists {
+		logger.Error(nil, "using legacy key in secret data",
+			"secret", secretRef(secret),
+			"key", fallbackKey,
+			"preferred", key)
+		return data
 	}
 
 	return nil
