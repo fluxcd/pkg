@@ -46,6 +46,28 @@ func TestGitCloneUsingProvider(t *testing.T) {
 	})
 }
 
+func TestGitCloneUsingSSH(t *testing.T) {
+	if !testGit {
+		t.Skip("Skipping git test, not supported for provider")
+	}
+
+	ctx := context.TODO()
+	tmpDir := t.TempDir()
+
+	if err := setUpGitRepository(ctx, tmpDir); err != nil {
+		t.Fatalf("failed setting up GitRepository: %v", err)
+	}
+	t.Run("Git ssh credential test", func(t *testing.T) {
+		args := []string{
+			"-category=git",
+			"-git-ssh=true",
+			fmt.Sprintf("-provider=%s", *targetProvider),
+			fmt.Sprintf("-repo=%s", gitSSHURL),
+		}
+		testjobExecutionWithArgs(t, args)
+	})
+}
+
 func TestGitCloneUsingObjectLevelWorkloadIdentity(t *testing.T) {
 	if !testGit {
 		t.Skip("Skipping git test, not supported for provider")

@@ -30,3 +30,11 @@ output "git_repo_url" {
 output "azure_devops_project_id" {
   value = var.enable_wi ? module.devops[0].project_id : ""
 }
+
+output "azure_devops_project_name" {
+  value = local.project_name
+}
+
+output "azure_devops_repo_name" {
+  value = local.repo_name
+}
