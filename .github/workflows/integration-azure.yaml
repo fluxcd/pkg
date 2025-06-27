@@ -50,6 +50,22 @@ jobs:
         run: cat .env
       - name: Build test app
         run: make docker-build
+      - name: Prepare Git SSH secrets
+        run: |
+          mkdir -p azure
+          cat <<EOF > azure/identity
+          $GIT_SSH_IDENTITY
+          EOF
+          cat <<EOF > azure/identity.pub
+          $GIT_SSH_IDENTITY_PUB
+          EOF
+          cat <<EOF > azure/known_hosts
+          $GIT_SSH_KNOWN_HOSTS
+          EOF
+        env:
+          GIT_SSH_IDENTITY: ${{ secrets.GIT_SSH_IDENTITY }}
+          GIT_SSH_IDENTITY_PUB: ${{ secrets.GIT_SSH_IDENTITY_PUB }}
+          GIT_SSH_KNOWN_HOSTS: ${{ secrets.GIT_SSH_KNOWN_HOSTS }}
       - name: Run tests
         run: . .env && make test-azure
         env:

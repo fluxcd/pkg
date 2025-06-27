@@ -240,3 +240,41 @@ func getGitTestConfigAzure(outputs map[string]*tfjson.StateOutput) (*gitTestConf
 
 	return config, nil
 }
+
+// loadGitSSHSecretAzure loads the SSH key pair for git authentication from the
+// file system.
+func loadGitSSHSecretAzure(outputs map[string]*tfjson.StateOutput) (map[string]string, string, error) {
+	b, err := os.ReadFile("azure/identity")
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read git ssh identity file: %w", err)
+	}
+	identity := strings.TrimSpace(string(b))
+	b, err = os.ReadFile("azure/identity.pub")
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read git ssh identity pub file: %w", err)
+	}
+	identityPub := strings.TrimSpace(string(b))
+	b, err = os.ReadFile("azure/known_hosts")
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read git ssh known hosts file: %w", err)
+	}
+	knownHosts := strings.TrimSpace(string(b))
+	m := map[string]string{
+		"identity":     identity,
+		"identity.pub": identityPub,
+		"known_hosts":  knownHosts,
+	}
+
+	org := os.Getenv(envVarAzureDevOpsOrg)
+	projName, ok := outputs["azure_devops_project_name"].Value.(string)
+	if !ok || org == "" {
+		return nil, "", fmt.Errorf("failed to obtain Azure DevOps project name from tf output")
+	}
+	repoName, ok := outputs["azure_devops_repo_name"].Value.(string)
+	if !ok || repoName == "" {
+		return nil, "", fmt.Errorf("failed to obtain Azure DevOps repository name from tf output")
+	}
+	sshURL := fmt.Sprintf("ssh://git@ssh.dev.azure.com/v3/%s/%s/%s", org, projName, repoName)
+
+	return m, sshURL, nil
+}

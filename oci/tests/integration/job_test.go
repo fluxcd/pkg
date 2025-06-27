@@ -22,11 +22,13 @@ package integration
 import (
 	"context"
 	"testing"
+	"time"
 
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -67,6 +69,10 @@ func testjobExecutionWithArgs(t *testing.T, args []string, opts ...jobOption) {
 	job.Namespace = wiSANamespace
 	job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
 
+	job.Spec.Template.Labels = map[string]string{
+		"test.fluxcd.io/job": job.Name,
+	}
+
 	if enableWI {
 		// Set pod SA.
 		saName := wiServiceAccount
@@ -90,20 +96,16 @@ func testjobExecutionWithArgs(t *testing.T, args []string, opts ...jobOption) {
 
 		// azure requires this label on the pod for workload identity to work.
 		if *targetProvider == "azure" && o.objectLevelWIMode == objectLevelWIModeDisabled {
-			job.Spec.Template.Labels = map[string]string{
-				"azure.workload.identity/use": "true",
-			}
+			job.Spec.Template.Labels["azure.workload.identity/use"] = "true"
 		}
 	}
 
-	job.Spec.Template.Spec.Containers = []corev1.Container{
-		{
-			Name:            "test-app",
-			Image:           testAppImage,
-			Args:            args,
-			ImagePullPolicy: corev1.PullAlways,
-		},
-	}
+	job.Spec.Template.Spec.Containers = []corev1.Container{{
+		Name:            "test-app",
+		Image:           testAppImage,
+		Args:            args,
+		ImagePullPolicy: corev1.PullAlways,
+	}}
 
 	key := client.ObjectKeyFromObject(job)
 
@@ -114,10 +116,54 @@ func testjobExecutionWithArgs(t *testing.T, args []string, opts ...jobOption) {
 		g.Expect(testEnv.Client.Delete(ctx, job, &client.DeleteOptions{PropagationPolicy: &background})).To(Succeed())
 	}()
 
-	g.Eventually(func() bool {
-		if err := testEnv.Client.Get(ctx, key, job); err != nil {
-			return false
+	if waitForJob(t, ctx, key, job) {
+		return
+	}
+
+	// Timeout, test failed. Print logs.
+
+	// List pods.
+	podList := &corev1.PodList{}
+	g.Expect(testEnv.Client.List(ctx, podList, &client.ListOptions{
+		Namespace: job.Namespace,
+		LabelSelector: labels.SelectorFromSet(labels.Set{
+			"test.fluxcd.io/job": job.Name,
+		}),
+	})).To(Succeed())
+
+	// Print pod logs.
+	for _, pod := range podList.Items {
+		logs, err := testEnv.
+			ClientGo.
+			CoreV1().
+			Pods(pod.Namespace).
+			GetLogs(pod.Name, &corev1.PodLogOptions{}).
+			DoRaw(ctx)
+		if err != nil {
+			t.Fatalf("failed to get logs for pod %s: %v", pod.Name, err)
 		}
-		return job.Status.Succeeded == 1 && job.Status.Active == 0
-	}, resultWaitTimeout).Should(BeTrue())
+		t.Logf("logs for pod %s:\n\n%s\n\n", pod.Name, string(logs))
+	}
+
+	t.Fail()
+}
+
+func waitForJob(t *testing.T, ctx context.Context, key client.ObjectKey, job *batchv1.Job) bool {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(ctx, resultWaitTimeout)
+	defer cancel()
+
+	for {
+		err := testEnv.Client.Get(ctx, key, job)
+		if err == nil && job.Status.Succeeded == 1 && job.Status.Active == 0 {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(2 * time.Second):
+			continue
+		}
+	}
 }

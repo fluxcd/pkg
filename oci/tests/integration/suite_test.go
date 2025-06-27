@@ -161,6 +161,9 @@ var (
 
 	// testGitCfg is a struct containing different variables needed for running git tests.
 	testGitCfg *gitTestConfig
+
+	// gitSSHURL is the SSH URL of the git repository used for testing.
+	gitSSHURL string
 )
 
 // registryLoginFunc is used to perform registry login against a provider based
@@ -191,6 +194,9 @@ type revokePermissionsToGitRepository func(ctx context.Context, cfg *gitTestConf
 
 // getGitTestConfig gets the configuration for the tests
 type getGitTestConfig func(output map[string]*tfjson.StateOutput) (*gitTestConfig, error)
+
+// loadGitSSHSecret is used to load the SSH key pair for git authentication.
+type loadGitSSHSecret func(output map[string]*tfjson.StateOutput) (map[string]string, string, error)
 
 // gitTestConfig hold different variable that will be needed by the different test functions.
 type gitTestConfig struct {
@@ -239,6 +245,8 @@ type ProviderConfig struct {
 	supportsWIFederation bool
 	// supportsGit is a boolean that indicates if the test should run for git.
 	supportsGit bool
+	// loadGitSSHSecret is used to load the SSH key pair for git authentication.
+	loadGitSSHSecret loadGitSSHSecret
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
@@ -408,6 +416,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryAzure,
 			getGitTestConfig:                 getGitTestConfigAzure,
 			supportsGit:                      enableWI, // azure only supports git with workload identity
+			loadGitSSHSecret:                 loadGitSSHSecretAzure,
 		}
 		return providerCfg
 	case "gcp":
@@ -458,6 +467,76 @@ func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, 
 		log.Println("Git is enabled, granting permissions to workload identity to access repository")
 		if err := providerCfg.grantPermissionsToGitRepository(ctx, testGitCfg, tfOutput); err != nil {
 			panic(fmt.Sprintf("Failed to grant permissions to repository: %v", err))
+		}
+
+		// Load the SSH key pair for git authentication, create a secret with it
+		// and allow all service accounts in the cluster to read it.
+		if providerCfg.loadGitSSHSecret != nil {
+			secretData, sshURL, err := providerCfg.loadGitSSHSecret(tfOutput)
+			if err != nil {
+				panic(err)
+			}
+			gitSSHURL = sshURL
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "git-ssh-key",
+					Namespace: wiSANamespace,
+				},
+				StringData: secretData,
+			}
+			_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, secret, func() error {
+				secret.StringData = secretData
+				return nil
+			})
+			if err != nil {
+				panic(err)
+			}
+			rules := []rbacv1.PolicyRule{{
+				APIGroups:     []string{""},
+				Resources:     []string{"secrets"},
+				Verbs:         []string{"get"},
+				ResourceNames: []string{"git-ssh-key"},
+			}}
+			role := &rbacv1.Role{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "git-ssh-key-reader",
+					Namespace: wiSANamespace,
+				},
+				Rules: rules,
+			}
+			_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, role, func() error {
+				role.Rules = rules
+				return nil
+			})
+			if err != nil {
+				panic(err)
+			}
+			roleRef := rbacv1.RoleRef{
+				APIGroup: rbacv1.SchemeGroupVersion.Group,
+				Kind:     "Role",
+				Name:     role.Name,
+			}
+			subjects := []rbacv1.Subject{{
+				APIGroup: rbacv1.SchemeGroupVersion.Group,
+				Kind:     "Group",
+				Name:     "system:serviceaccounts:" + wiSANamespace,
+			}}
+			roleBinding := &rbacv1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "git-ssh-key-reader",
+					Namespace: wiSANamespace,
+				},
+				Subjects: subjects,
+				RoleRef:  roleRef,
+			}
+			_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, roleBinding, func() error {
+				roleBinding.Subjects = subjects
+				roleBinding.RoleRef = roleRef
+				return nil
+			})
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 

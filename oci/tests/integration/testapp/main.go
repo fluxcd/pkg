@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -54,6 +55,7 @@ import (
 var (
 	registry      = flag.String("registry", "", "registry of the repository")
 	repo          = flag.String("repo", "", "git/oci repository to list")
+	gitSSH        = flag.Bool("git-ssh", false, "use git ssh authentication")
 	category      = flag.String("category", "", "Test category to run - oci/git")
 	provider      = flag.String("provider", "", "oidc provider - aws, azure, gcp")
 	wiSAName      = flag.String("wisa-name", "", "Name of the Workload Identity Service Account to use for authentication")
@@ -61,29 +63,30 @@ var (
 )
 
 var (
-	authOpts []auth.Option
+	authOpts   []auth.Option
+	kubeClient client.Client
 )
 
 func main() {
 	flag.Parse()
+	conf, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err)
+	}
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	kubeClient, err = client.New(conf, client.Options{Scheme: scheme})
+	if err != nil {
+		panic(err)
+	}
 	if *wiSAName != "" && *wiSANamespace != "" {
 		auth.EnableObjectLevelWorkloadIdentity()
-		conf, err := rest.InClusterConfig()
-		if err != nil {
-			panic(err)
-		}
-		scheme := runtime.NewScheme()
-		if err := clientgoscheme.AddToScheme(scheme); err != nil {
-			panic(err)
-		}
-		c, err := client.New(conf, client.Options{Scheme: scheme})
-		if err != nil {
-			panic(err)
-		}
 		authOpts = append(authOpts, auth.WithServiceAccount(client.ObjectKey{
 			Name:      *wiSAName,
 			Namespace: *wiSANamespace,
-		}, c))
+		}, kubeClient))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -152,17 +155,31 @@ func checkGit(ctx context.Context) {
 	}
 
 	var authData map[string][]byte
+	if *gitSSH {
+		var authSecret corev1.Secret
+		secretKey := client.ObjectKey{
+			Name:      "git-ssh-key",
+			Namespace: "default",
+		}
+		if err := kubeClient.Get(ctx, secretKey, &authSecret); err != nil {
+			panic(err)
+		}
+		authData = authSecret.Data
+	}
+
 	gitAuthOpts, err := git.NewAuthOptions(*u, authData)
 	if err != nil {
 		panic(err)
 	}
-	creds, err := authutils.GetGitCredentials(ctx, *provider, authOpts...)
-	if err != nil {
-		panic(err)
+	if !*gitSSH {
+		creds, err := authutils.GetGitCredentials(ctx, *provider, authOpts...)
+		if err != nil {
+			panic(err)
+		}
+		gitAuthOpts.BearerToken = creds.BearerToken
+		gitAuthOpts.Username = creds.Username
+		gitAuthOpts.Password = creds.Password
 	}
-	gitAuthOpts.BearerToken = creds.BearerToken
-	gitAuthOpts.Username = creds.Username
-	gitAuthOpts.Password = creds.Password
 	cloneDir, err := os.MkdirTemp("", "test-clone")
 	if err != nil {
 		panic(err)

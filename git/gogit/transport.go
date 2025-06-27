@@ -146,6 +146,12 @@ func (a *CustomPublicKeys) ClientConfig() (*gossh.ClientConfig, error) {
 		config.Config.KeyExchanges = git.KexAlgos
 	}
 
+	// Whenever ssh-rsa is being used, prioritise sha2-512 and sha2-256.
+	// TODO: deprecate SHA1 signing scheme.
+	if len(a.hkAlgos) == 1 && a.hkAlgos[0] == "ssh-rsa" {
+		a.hkAlgos = append([]string{"rsa-sha2-512", "rsa-sha2-256"}, a.hkAlgos[0])
+	}
+
 	config.HostKeyAlgorithms = a.hkAlgos
 	if len(git.HostKeyAlgos) > 0 {
 		config.HostKeyAlgorithms = git.HostKeyAlgos
