@@ -29,7 +29,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -149,10 +153,10 @@ func TestTLSConfigFromSecret(t *testing.T) {
 	caCert, tlsCert, tlsKey := generateTestCertificates(t)
 
 	tests := []struct {
-		name    string
-		secret  *corev1.Secret
-		options []secrets.Option
-		errMsg  string
+		name           string
+		secret         *corev1.Secret
+		errMsg         string
+		expectedFields map[string]string // legacy key -> preferred key mapping
 	}{
 		{
 			name: "valid TLS secret with standard fields",
@@ -174,7 +178,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			}),
 		},
 		{
-			name: "valid TLS secret with deprecated fields",
+			name: "valid TLS secret with legacy fields",
 			secret: &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "tls-secret",
@@ -186,10 +190,31 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					secrets.CACertFileKey:  caCert,
 				},
 			},
-			options: []secrets.Option{secrets.WithDeprecatedFieldSupport()},
+			expectedFields: map[string]string{
+				"certFile": "tls.crt",
+				"keyFile":  "tls.key",
+				"caFile":   "ca.crt",
+			},
 		},
 		{
-			name: "standard fields take precedence over deprecated",
+			name: "only legacy CA field used",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tls-secret",
+					Namespace: testNS,
+				},
+				Data: map[string][]byte{
+					secrets.TLSCertKey:    tlsCert,
+					secrets.TLSKeyKey:     tlsKey,
+					secrets.CACertFileKey: caCert,
+				},
+			},
+			expectedFields: map[string]string{
+				"caFile": "ca.crt",
+			},
+		},
+		{
+			name: "standard fields take precedence over legacy",
 			secret: &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "tls-secret",
@@ -204,7 +229,6 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					secrets.CACertFileKey:  []byte("ignored"),
 				},
 			},
-			options: []secrets.Option{secrets.WithDeprecatedFieldSupport()},
 		},
 		{
 			name: "secret not found",
@@ -215,20 +239,6 @@ func TestTLSConfigFromSecret(t *testing.T) {
 				},
 			},
 			errMsg: "secret 'default/tls-secret' not found",
-		},
-		{
-			name: "deprecated fields without option",
-			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tls-secret",
-					Namespace: testNS,
-				},
-				Data: map[string][]byte{
-					secrets.TLSCertFileKey: tlsCert,
-					secrets.TLSKeyFileKey:  tlsKey,
-				},
-			},
-			errMsg: "secret 'default/tls-secret' must contain either 'ca.crt' or both 'tls.crt' and 'tls.key'",
 		},
 		{
 			name: "invalid certificate data",
@@ -316,10 +326,23 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			g := NewWithT(t)
 
 			ctx := context.Background()
-
 			client := fakeClient(tt.secret)
 
-			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, client, "tls-secret", testNS, tt.options...)
+			var logger logr.Logger
+			var observedLogs *observer.ObservedLogs
+
+			if tt.expectedFields != nil {
+				// Use observer logger for tests that expect logging
+				observedZapCore, logs := observer.New(zap.InfoLevel)
+				zapLogger := zap.New(observedZapCore)
+				logger = zapr.NewLogger(zapLogger)
+				observedLogs = logs
+			} else {
+				// Use discard logger for tests that don't expect logging
+				logger = logr.Discard()
+			}
+
+			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, client, "tls-secret", testNS, logger)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
@@ -343,6 +366,33 @@ func TestTLSConfigFromSecret(t *testing.T) {
 				hasCA := len(tt.secret.Data[secrets.CACertKey]) > 0 || len(tt.secret.Data[secrets.CACertFileKey]) > 0
 				if hasCA {
 					g.Expect(tlsConfig.RootCAs).ToNot(BeNil())
+				}
+
+				// Verify logging behavior if expected
+				if tt.expectedFields != nil {
+					logs := observedLogs.All()
+					g.Expect(logs).To(HaveLen(len(tt.expectedFields)))
+
+					loggedFields := make(map[string]string)
+					for _, logEntry := range logs {
+						g.Expect(logEntry.Message).To(Equal("using legacy key in secret data"))
+
+						var field, preferred string
+						for _, contextField := range logEntry.Context {
+							switch contextField.Key {
+							case "key":
+								field = contextField.String
+							case "preferred":
+								preferred = contextField.String
+							}
+						}
+
+						g.Expect(field).ToNot(BeEmpty(), "key should be present in log")
+						g.Expect(preferred).ToNot(BeEmpty(), "preferred should be present in log")
+						loggedFields[field] = preferred
+					}
+
+					g.Expect(loggedFields).To(Equal(tt.expectedFields))
 				}
 			}
 		})
