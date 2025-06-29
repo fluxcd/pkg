@@ -1,0 +1,45 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "%[1]s"
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: "webhooks.example.com" 
+spec:
+  group: "webhooks.example.com"
+  names:
+    kind: Webhook
+    listKind: WebhookList
+    plural: webhooks
+    singular: webhook
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                url:
+                  type: string
+            status:
+              type: object
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        service:
+          name: webhook-service
+          namespace: "%[1]s"
+          path: /convert
+        caBundle: "CABundle"
+      conversionReviewVersions:
+        - v1
+        - v1beta1

@@ -977,3 +977,160 @@ func containsItemString(s []string, e string) bool {
 	}
 	return false
 }
+
+// exampleCert was generated from crypto/tls/generate_cert.go with the following command:
+//
+//	go run generate_cert.go  --rsa-bits 2048 --host example.com --ca --start-date "Jan 1 00:00:00 1970" --duration=1000000h - from
+//
+// this example is from https://github.com/kubernetes/kubernetes/blob/04d2f336419b5a824cb96cb88462ef18a90d619d/staging/src/k8s.io/apiserver/pkg/util/webhook/validation_test.go
+// Base64 encoded because caBundle field expects base64 string when stored in unstructured.Unstructured
+var exampleCert = base64.StdEncoding.EncodeToString([]byte(`-----BEGIN CERTIFICATE-----
+MIIDIDCCAgigAwIBAgIRALYg7UBIx7aeUpwohjIBhUEwDQYJKoZIhvcNAQELBQAw
+EjEQMA4GA1UEChMHQWNtZSBDbzAgFw03MDAxMDEwMDAwMDBaGA8yMDg0MDEyOTE2
+MDAwMFowEjEQMA4GA1UEChMHQWNtZSBDbzCCASIwDQYJKoZIhvcNAQEBBQADggEP
+ADCCAQoCggEBANJuxq11hL2nB6nygf5/q7JRkPZCYuXwkaqZm7Bk8e9+WzEy9/EW
+QtRP92IuKB8XysLY7a/vh9WOcUMw9zBICP754pBIUjgt2KveEYABDSkrAVWIGIO9
+IN6crS3OvHiMKyShCvqMMho9wxyTbtnl3lrlcxVyLCmMahnoSyIwWiQ3TMT81eKt
+FGEYXa8XEIJJFRX6wxtCgw0PqQy/NLM+G1QvYyKLSLm2cKUGH1A9RfAlMzsICOOf
+Rx+/zCAgAfXnjg0SUXfgOjc/Y8EdVyMmBfCWMfovbpwCwULxlEDHHsjVZy5azZjm
+E2AYW94BSdRd745M7fudchS6+9rGJi9lc5kCAwEAAaNvMG0wDgYDVR0PAQH/BAQD
+AgKkMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0O
+BBYEFL/WGYyHD90dPKo8SswyPSydkwG/MBYGA1UdEQQPMA2CC2V4YW1wbGUuY29t
+MA0GCSqGSIb3DQEBCwUAA4IBAQAS9qnl6mTF/HHRZSfQypxBj1lsDwYz99PsDAyw
+hoXetTVmkejsPe9EcQ5eBRook6dFIevXN9bY5dxYSjWoSg/kdsihJ3FsJsmAQEtK
+eM8ko9uvtZ+i0LUfg2l3kima1/oX0MCvnuePGgl7quyBhGUeg5tOudiX07hETWPW
+Kt/FgMvfzK63pqcJpLj2+2pnmieV3ploJjw1sIAboR3W5LO/9XgRK3h1vr1BbplZ
+dhv6TGB0Y1Zc9N64gh0A3xDOrBSllAWYw/XM6TodhvahFyE48fYSFBZVfZ3TZTfd
+Bdcg8G2SMXDSZoMBltEIO7ogTjNAqNUJ8MWZFNZz6HnE8UJC
+-----END CERTIFICATE-----`))
+
+func TestResourceManager_ApplyAllStaged_CRDWebhookCABundle(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	t.Run("removes invalid CA bundle and applies successfully", func(t *testing.T) {
+		id := generateName("remove-ca-bundle-invalid")
+		objects, err := readManifest("testdata/test11.yaml", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, crd := getFirstObject(objects, "CustomResourceDefinition", "webhooks.example.com")
+		uniqueGroup := fmt.Sprintf("%s.example.com", id)
+		crdName := fmt.Sprintf("webhooks.%s", uniqueGroup)
+		crd.SetName(crdName)
+		err = unstructured.SetNestedField(crd.Object, uniqueGroup, "spec", "group")
+		if err != nil {
+			t.Fatal(err)
+		}
+		invalidCABundle := "invalid-cert-data"
+		err = unstructured.SetNestedField(crd.Object, invalidCABundle, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager.SetOwnerLabels(objects, "test", "default")
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range changeSet.Entries {
+			if entry.Action != CreatedAction {
+				t.Errorf("Expected %s, got %s for %s", CreatedAction, entry.Action, entry.Subject)
+			}
+		}
+		crdClone := crd.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(crdClone), crdClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+		clusterCABundle, found, err := unstructured.NestedString(crdClone.Object, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if found && clusterCABundle != "" {
+			t.Errorf("Expected invalid CA bundle to be removed, but found: %s", clusterCABundle)
+		}
+	})
+	t.Run("removes valid CA bundle non base64 encoded and applies successfully", func(t *testing.T) {
+		id := generateName("remove-ca-bundle-non-base64")
+		objects, err := readManifest("testdata/test11.yaml", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, crd := getFirstObject(objects, "CustomResourceDefinition", "webhooks.example.com")
+		uniqueGroup := fmt.Sprintf("%s.example.com", id)
+		crdName := fmt.Sprintf("webhooks.%s", uniqueGroup)
+		crd.SetName(crdName)
+		err = unstructured.SetNestedField(crd.Object, uniqueGroup, "spec", "group")
+		if err != nil {
+			t.Fatal(err)
+		}
+		invalidCABundle, _ := base64.StdEncoding.DecodeString(exampleCert)
+		err = unstructured.SetNestedField(crd.Object, string(invalidCABundle), "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager.SetOwnerLabels(objects, "test", "default")
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range changeSet.Entries {
+			if entry.Action != CreatedAction {
+				t.Errorf("Expected %s, got %s for %s", CreatedAction, entry.Action, entry.Subject)
+			}
+		}
+		crdClone := crd.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(crdClone), crdClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+		clusterCABundle, found, err := unstructured.NestedString(crdClone.Object, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if found && clusterCABundle != "" {
+			t.Errorf("Expected invalid CA bundle to be removed, but found: %s", clusterCABundle)
+		}
+	})
+	t.Run("preserves valid CA bundle and applies successfully", func(t *testing.T) {
+		id := generateName("remove-ca-bundle-valid")
+		objects, err := readManifest("testdata/test11.yaml", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, crd := getFirstObject(objects, "CustomResourceDefinition", "webhooks.example.com")
+		uniqueGroup := fmt.Sprintf("%s.example.com", id)
+		crdName := fmt.Sprintf("webhooks.%s", uniqueGroup)
+		crd.SetName(crdName)
+		err = unstructured.SetNestedField(crd.Object, uniqueGroup, "spec", "group")
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = unstructured.SetNestedField(crd.Object, exampleCert, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager.SetOwnerLabels(objects, "test", "default")
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range changeSet.Entries {
+			if entry.Action != CreatedAction {
+				t.Errorf("Expected %s, got %s for %s", CreatedAction, entry.Action, entry.Subject)
+			}
+		}
+		crdClone := crd.DeepCopy()
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(crdClone), crdClone)
+		if err != nil {
+			t.Fatal(err)
+		}
+		clusterCABundle, found, err := unstructured.NestedString(crdClone.Object, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !found || clusterCABundle != exampleCert {
+			t.Errorf("Expected valid CA bundle to be preserved, got: %s", clusterCABundle)
+		}
+	})
+}

@@ -19,6 +19,7 @@ package ssa
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -629,4 +630,185 @@ func getKeys(m map[string]interface{}) []string {
 	}
 
 	return keys
+}
+
+func TestResourceManager_Diff_CRDWebhookCABundle(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	t.Run("diff removes invalid CA bundle from CRD", func(t *testing.T) {
+		id := generateName("diff-ca-bundle-invalid")
+
+		objects, err := readManifest("testdata/test11.yaml", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, crd := getFirstObject(objects, "CustomResourceDefinition", "webhooks.example.com")
+		uniqueGroup := fmt.Sprintf("%s.example.com", id)
+		crdName := fmt.Sprintf("webhooks.%s", uniqueGroup)
+		crd.SetName(crdName)
+		err = unstructured.SetNestedField(crd.Object, uniqueGroup, "spec", "group")
+		if err != nil {
+			t.Fatal(err)
+		}
+		validCABundle := exampleCert
+		err = unstructured.SetNestedField(crd.Object, validCABundle, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		manager.SetOwnerLabels(objects, "test", "default")
+
+		_, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		modifiedCRD := crd.DeepCopy()
+		err = unstructured.SetNestedField(modifiedCRD.Object, "invalid-cert-data", "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		changeSetEntry, existingObj, dryRunObj, err := manager.Diff(ctx, modifiedCRD, DefaultDiffOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if changeSetEntry.Action != ConfiguredAction {
+			t.Errorf("Expected %s, got %s", ConfiguredAction, changeSetEntry.Action)
+		}
+
+		if dryRunObj != nil {
+			dryRunCABundle, found, err := unstructured.NestedString(dryRunObj.Object, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if found && dryRunCABundle != "" {
+				t.Errorf("Expected invalid CA bundle to be removed in dry-run object, but found: %s", dryRunCABundle)
+			}
+		}
+
+		if existingObj != nil {
+			existingCABundle, found, err := unstructured.NestedString(existingObj.Object, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !found || existingCABundle != validCABundle {
+				t.Errorf("Expected existing object to have valid CA bundle, got: %s", existingCABundle)
+			}
+		}
+	})
+
+	t.Run("diff preserves valid CA bundle in CRD", func(t *testing.T) {
+		id := generateName("diff-ca-bundle-valid")
+
+		objects, err := readManifest("testdata/test11.yaml", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, crd := getFirstObject(objects, "CustomResourceDefinition", "webhooks.example.com")
+		uniqueGroup := fmt.Sprintf("%s.example.com", id)
+		crdName := fmt.Sprintf("webhooks.%s", uniqueGroup)
+		crd.SetName(crdName)
+		err = unstructured.SetNestedField(crd.Object, uniqueGroup, "spec", "group")
+		if err != nil {
+			t.Fatal(err)
+		}
+		validCABundle := exampleCert
+		err = unstructured.SetNestedField(crd.Object, validCABundle, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		manager.SetOwnerLabels(objects, "test", "default")
+
+		_, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		changeSetEntry, existingObj, dryRunObj, err := manager.Diff(ctx, crd, DefaultDiffOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if changeSetEntry.Action != UnchangedAction {
+			t.Errorf("Expected %s, got %s", UnchangedAction, changeSetEntry.Action)
+		}
+
+		if dryRunObj != nil || existingObj != nil {
+			t.Error("Expected no diff objects for unchanged CRD")
+		}
+	})
+
+	t.Run("diff with label change preserves valid CA bundle", func(t *testing.T) {
+		id := generateName("diff-ca-bundle-change")
+
+		objects, err := readManifest("testdata/test11.yaml", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, crd := getFirstObject(objects, "CustomResourceDefinition", "webhooks.example.com")
+		uniqueGroup := fmt.Sprintf("%s.example.com", id)
+		crdName := fmt.Sprintf("webhooks.%s", uniqueGroup)
+		crd.SetName(crdName)
+		err = unstructured.SetNestedField(crd.Object, uniqueGroup, "spec", "group")
+		if err != nil {
+			t.Fatal(err)
+		}
+		originalCABundle := exampleCert
+		err = unstructured.SetNestedField(crd.Object, originalCABundle, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		manager.SetOwnerLabels(objects, "test", "default")
+
+		_, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		modifiedCRD := crd.DeepCopy()
+		labels := modifiedCRD.GetLabels()
+		if labels == nil {
+			labels = make(map[string]string)
+		}
+		labels["test-change"] = "true"
+		modifiedCRD.SetLabels(labels)
+
+		changeSetEntry, existingObj, dryRunObj, err := manager.Diff(ctx, modifiedCRD, DefaultDiffOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if changeSetEntry.Action != ConfiguredAction {
+			t.Errorf("Expected %s, got %s", ConfiguredAction, changeSetEntry.Action)
+		}
+
+		if dryRunObj != nil {
+			dryRunCABundle, found, err := unstructured.NestedString(dryRunObj.Object, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !found || dryRunCABundle != originalCABundle {
+				t.Errorf("Expected dry-run object to preserve valid CA bundle, got: %s", dryRunCABundle)
+			}
+		}
+
+		if existingObj != nil {
+			existingCABundle, found, err := unstructured.NestedString(existingObj.Object, "spec", "conversion", "webhook", "clientConfig", "caBundle")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !found || existingCABundle != originalCABundle {
+				t.Errorf("Expected existing object to have original CA bundle, got: %s", existingCABundle)
+			}
+		}
+	})
 }

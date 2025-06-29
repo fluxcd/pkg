@@ -55,6 +55,7 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 	*unstructured.Unstructured,
 	error,
 ) {
+	utils.RemoveCABundleFromCRD(object)
 	existingObject := &unstructured.Unstructured{}
 	existingObject.SetGroupVersionKind(object.GroupVersionKind())
 	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
