@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/runtime/secrets"
 )
@@ -328,21 +329,21 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			ctx := context.Background()
 			client := fakeClient(tt.secret)
 
-			var logger logr.Logger
 			var observedLogs *observer.ObservedLogs
 
 			if tt.expectedFields != nil {
 				// Use observer logger for tests that expect logging
 				observedZapCore, logs := observer.New(zap.InfoLevel)
 				zapLogger := zap.New(observedZapCore)
-				logger = zapr.NewLogger(zapLogger)
+				logger := zapr.NewLogger(zapLogger)
+				ctx = log.IntoContext(ctx, logger)
 				observedLogs = logs
 			} else {
 				// Use discard logger for tests that don't expect logging
-				logger = logr.Discard()
+				ctx = log.IntoContext(ctx, logr.Discard())
 			}
 
-			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, client, "tls-secret", testNS, logger)
+			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, client, "tls-secret", testNS)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))

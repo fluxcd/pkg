@@ -28,6 +28,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // TLSConfigFromSecret creates a TLS configuration from a Kubernetes secret.
@@ -37,12 +38,13 @@ import (
 // (certFile, keyFile, caFile) as fallbacks, logging warnings when they are used.
 //
 // Standard field names always take precedence over legacy ones.
-func TLSConfigFromSecret(ctx context.Context, c client.Client, name, namespace string, logger logr.Logger) (*tls.Config, error) {
+func TLSConfigFromSecret(ctx context.Context, c client.Client, name, namespace string) (*tls.Config, error) {
 	secret, err := getSecret(ctx, c, name, namespace)
 	if err != nil {
 		return nil, err
 	}
 
+	logger := log.FromContext(ctx)
 	certData, err := getTLSCertificateData(secret, logger)
 	if err != nil {
 		return nil, enhanceSecretValidationError(err, secret)
