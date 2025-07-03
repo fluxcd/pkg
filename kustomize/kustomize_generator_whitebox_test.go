@@ -17,6 +17,7 @@ limitations under the License.
 package kustomize
 
 import (
+	"sort"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -56,9 +57,68 @@ func TestScanManifests(t *testing.T) {
 			g := NewWithT(t)
 			fs := filesys.MakeFsOnDisk()
 
-			paths, err := scanManifests(fs, tt.base)
+			paths, err := scanManifests(fs, tt.base, "")
 			g.Expect(paths).To(Equal(tt.wantPaths))
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+		})
+	}
+}
+
+func TestScanManifests_WithIgnorePatterns(t *testing.T) {
+	tests := []struct {
+		name           string
+		base           string
+		ignorePatterns string
+		wantPaths      []string
+		wantErr        bool
+	}{
+		{
+			name:      "basic directory - no ignore patterns",
+			base:      "./testdata/ignore-tests/basic",
+			wantPaths: []string{"testdata/ignore-tests/basic/deployment.yaml"},
+		},
+		{
+			name:           "with .sops.yaml - no ignore patterns (should fail)",
+			base:           "./testdata/ignore-tests/with-sops",
+			ignorePatterns: "",
+			wantErr:        true, // .sops.yaml should cause parsing error
+		},
+		{
+			name:           "with .sops.yaml - ignore .sops.yaml",
+			base:           "./testdata/ignore-tests/with-sops",
+			ignorePatterns: ".sops.yaml",
+			wantPaths:      []string{"testdata/ignore-tests/with-sops/deployment.yaml"},
+		},
+		{
+			name:           "with .gitlab-ci.yml - no ignore patterns (should fail)",
+			base:           "./testdata/ignore-tests/with-gitlab-ci",
+			ignorePatterns: "",
+			wantErr:        true, // .gitlab-ci.yml should cause parsing error
+		},
+		{
+			name:           "with .gitlab-ci.yml - ignore .gitlab-ci.yml",
+			base:           "./testdata/ignore-tests/with-gitlab-ci",
+			ignorePatterns: ".gitlab-ci.yml",
+			wantPaths:      []string{"testdata/ignore-tests/with-gitlab-ci/deployment.yaml"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			fs := filesys.MakeFsOnDisk()
+
+			paths, err := scanManifests(fs, tt.base, tt.ignorePatterns)
+
+			if tt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				return
+			}
+
+			g.Expect(err).NotTo(HaveOccurred())
+			sort.Strings(paths)
+			sort.Strings(tt.wantPaths)
+			g.Expect(paths).To(Equal(tt.wantPaths))
 		})
 	}
 }
