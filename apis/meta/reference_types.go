@@ -69,19 +69,59 @@ type SecretKeyReference struct {
 	Key string `json:"key,omitempty"`
 }
 
-// KubeConfigReference contains enough information to locate the referenced
-// Kubernetes secret that contains a kubeconfig file.
+// KubeConfigReference contains enough information build a kubeconfig
+// in memory for connecting to remote Kubernetes clusters.
+// +kubebuilder:validation:XValidation:rule="has(self.secretRef) || (has(self.provider) && self.provider != 'generic')", message=".secretRef is required for the 'generic' .provider"
+// +kubebuilder:validation:XValidation:rule="!has(self.secretRef) || !has(self.provider) || self.provider == 'generic'", message=".secretRef is not supported for the specified .provider"
+// +kubebuilder:validation:XValidation:rule="!has(self.serviceAccountName) || (has(self.provider) && self.provider != 'generic')", message=".serviceAccountName is not supported when .provider is empty or 'generic'"
+// +kubebuilder:validation:XValidation:rule="!has(self.cluster) || (has(self.provider) && self.provider != 'generic')", message=".cluster is not supported when .provider is empty or 'generic'"
+// +kubebuilder:validation:XValidation:rule="!has(self.address) || (has(self.provider) && self.provider != 'generic')", message=".address is not supported when .provider is empty or 'generic'"
 type KubeConfigReference struct {
-	// SecretRef holds the name of a secret that contains a key with
+	// Provider is the optional name of the cloud provider that should be used
+	// to authenticate to the Kubernetes API server. Can be one of "aws",
+	// "azure", "gcp", or "generic". Defaults to "generic".
+	// +kubebuilder:validation:Enum=aws;azure;gcp;generic
+	// +kubebuilder:default=generic
+	// +optional
+	Provider string `json:"provider,omitempty"`
+
+	// Cluster is the optional fully qualified resource name of the
+	// Kubernetes cluster in the cloud provider to connect to.
+	// Not supported for the generic provider, required for the
+	// other providers.
+	// +optional
+	Cluster string `json:"cluster,omitempty"`
+
+	// Address is the optional address of the Kubernetes API server.
+	// Not supported for the generic provider, optional for the
+	// other providers. The address is used to select among a list
+	// of endpoints in the cluster resource. If not set, the first
+	// endpoint on the list is used. If none of the addresses in the
+	// cluster resource match a provided address, the controller will
+	// error out and the reconciliation will fail. Must be a valid
+	// HTTPS endpoint, e.g. "https://api.example.com:6443".
+	// +kubebuilder:validation:Pattern=`^https://.*`
+	// +optional
+	Address string `json:"address,omitempty"`
+
+	// ServiceAccountName is the optional name of the Kubernetes
+	// ServiceAccount in the same namespace that should be used
+	// to authenticate to the Kubernetes API server. If not set,
+	// the controller ServiceAccount will be used. Not supported
+	// for the generic provider.
+	// +optional
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
+	// SecretRef holds an optional name of a secret that contains a key with
 	// the kubeconfig file as the value. If no key is set, the key will default
 	// to 'value'.
 	// It is recommended that the kubeconfig is self-contained, and the secret
 	// is regularly updated if credentials such as a cloud-access-token expire.
 	// Cloud specific `cmd-path` auth helpers will not function without adding
 	// binaries and credentials to the Pod that is responsible for reconciling
-	// Kubernetes resources.
-	// +required
-	SecretRef SecretKeyReference `json:"secretRef"`
+	// Kubernetes resources. Supported only for the generic provider.
+	// +optional
+	SecretRef *SecretKeyReference `json:"secretRef,omitempty"`
 }
 
 // ValuesReference contains a reference to a resource containing Helm values,

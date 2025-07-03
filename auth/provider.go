@@ -22,10 +22,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// Provider contains the logic to retrieve an access token for a cloud
-// provider from a ServiceAccount (OIDC/JWT) token.
+// Provider contains the logic to retrieve security credentials
+// for accessing resources in a cloud provider.
 type Provider interface {
-	// GetName returns the name of the provider.
+	// GetName returns the name of the cloud provider.
 	GetName() string
 
 	// NewControllerToken returns a token that can be used to authenticate
@@ -52,10 +52,14 @@ type Provider interface {
 	NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 		serviceAccount corev1.ServiceAccount, opts ...Option) (Token, error)
 
-	// ParseArtifactRepository parses the artifact repository to verify if it
-	// is a valid repository for the provider. As a result, it returns the
-	// input required for the provider to issue the registry credentials. This
-	// input is also included as part of the cache key for the issued credentials.
+	// GetAccessTokenOptionsForArtifactRepository returns the options that must be
+	// passed to the provider to retrieve access tokens for an artifact repository.
+	GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]Option, error)
+
+	// ParseArtifactRepository parses the artifact repository to verify
+	// it's a valid repository for the provider. As a result, it returns
+	// the input required for the provider to issue registry credentials.
+	// This input is included in the cache key for the issued credentials.
 	ParseArtifactRepository(artifactRepository string) (string, error)
 
 	// NewArtifactRegistryCredentials takes the registry input extracted by
@@ -63,4 +67,20 @@ type Provider interface {
 	// that can be used to authenticate with the registry.
 	NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
 		accessToken Token, opts ...Option) (*ArtifactRegistryCredentials, error)
+
+	// GetAccessTokenOptionsForCluster returns the options that must be
+	// passed to the provider to retrieve access tokens for a cluster.
+	// More than one access token may be required depending on the
+	// provider, with different options (e.g. scope). Hence the return
+	// type is a slice of slices.
+	GetAccessTokenOptionsForCluster(cluster string) ([][]Option, error)
+
+	// NewRESTConfig takes a cluster resource name and returns a RESTConfig
+	// that can be used to authenticate with the Kubernetes API server.
+	// The access tokens are used for looking up connection details like
+	// the API server address and CA certificate data, and for accessing
+	// the cluster API server itself via the IAM system of the cloud provider.
+	// If it's just a single token or multiple, it depends on the provider.
+	NewRESTConfig(ctx context.Context, cluster string,
+		accessTokens []Token, opts ...Option) (*RESTConfig, error)
 }

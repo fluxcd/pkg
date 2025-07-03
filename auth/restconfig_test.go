@@ -22,10 +22,10 @@ import (
 	"crypto/x509"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -37,70 +37,61 @@ import (
 	"github.com/fluxcd/pkg/cache"
 )
 
-func TestGetRegistryFromArtifactRepository(t *testing.T) {
-	for _, tt := range []struct {
-		name               string
-		artifactRepository string
-		expectedRegistry   string
+func TestParseClusterAddress(t *testing.T) {
+	tests := []struct {
+		address  string
+		expected string
+		err      string
 	}{
 		{
-			name:               "dot-less host with port",
-			artifactRepository: "localhost:5000",
-			expectedRegistry:   "localhost:5000",
+			address:  "https://example.com:443",
+			expected: "https://example.com:443",
 		},
 		{
-			name:               "dot-less host without port",
-			artifactRepository: "localhost",
-			expectedRegistry:   "localhost",
+			address:  "example.com",
+			expected: "https://example.com:443",
 		},
 		{
-			name:               "host with port",
-			artifactRepository: "registry.io:5000",
-			expectedRegistry:   "registry.io:5000",
+			address:  "EXAMPLE.COM:8080",
+			expected: "https://example.com:8080",
 		},
 		{
-			name:               "host without port",
-			artifactRepository: "registry.io",
-			expectedRegistry:   "registry.io",
+			address:  "34.44.60.80",
+			expected: "https://34.44.60.80:443",
 		},
 		{
-			name:               "dot-less repo with port",
-			artifactRepository: "localhost:5000/repo",
-			expectedRegistry:   "localhost:5000",
+			address: "",
+			err:     "empty address",
 		},
 		{
-			name:               "dot-less repo without port",
-			artifactRepository: "localhost/repo",
-			expectedRegistry:   "index.docker.io",
+			address: "------------\t",
+			err:     "failed to parse Kubernetes API server address 'https://------------	':",
 		},
 		{
-			name:               "repo with port",
-			artifactRepository: "registry.io:5000/repo",
-			expectedRegistry:   "registry.io:5000",
+			address: "http://example.com:443",
+			err:     "Kubernetes API server address 'http://example.com:443' must use https scheme",
 		},
-		{
-			name:               "repo without port",
-			artifactRepository: "registry.io/repo",
-			expectedRegistry:   "registry.io",
-		},
-		{
-			name:               "tag",
-			artifactRepository: "registry.io/repo:tag",
-			expectedRegistry:   "registry.io",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(strings.ReplaceAll(tt.address, "/", ""), func(t *testing.T) {
 			g := NewWithT(t)
 
-			reg, err := auth.GetRegistryFromArtifactRepository(tt.artifactRepository)
+			address, err := auth.ParseClusterAddress(tt.address)
 
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(reg).To(Equal(tt.expectedRegistry))
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(address).To(BeEmpty())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(address).To(Equal(tt.expected))
+			}
 		})
 	}
 }
 
-func TestGetArtifactRegistryCredentials(t *testing.T) {
+func TestGetRESTConfig(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -163,50 +154,64 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
 		provider           *mockProvider
-		artifactRepository string
+		cluster            string
 		opts               []auth.Option
 		disableObjectLevel bool
-		expectedCreds      *auth.ArtifactRegistryCredentials
+		expectedCreds      *auth.RESTConfig
 		expectedErr        string
 	}{
 		{
-			name: "registry token from controller access token",
+			name: "restconfig from controller access token",
 			provider: &mockProvider{
-				returnRegistryInput:   "some-registry.io/some/artifact",
 				returnControllerToken: &mockToken{token: "mock-default-token"},
-				returnRegistryToken: &auth.ArtifactRegistryCredentials{
-					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
+				returnRESTConfig: &auth.RESTConfig{
+					Host:        "https://cluster/resource/name",
+					BearerToken: "mock-bearer-token",
+					CAData:      []byte("ca-data"),
 				},
-				paramAccessToken:        &mockToken{token: "mock-default-token"},
-				paramArtifactRepository: "some-registry.io/some/artifact",
+				paramCluster:      "cluster/resource/name",
+				paramFirstScopes:  []string{"first-token"},
+				paramSecondScopes: []string{"second-token"},
+				paramAccessTokens: []auth.Token{
+					&mockToken{token: "mock-default-token"},
+					&mockToken{token: "mock-default-token"},
+				},
 			},
-			artifactRepository: "some-registry.io/some/artifact",
+			cluster: "cluster/resource/name",
 			opts: []auth.Option{
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 			},
-			expectedCreds: &auth.ArtifactRegistryCredentials{
-				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
+			expectedCreds: &auth.RESTConfig{
+				Host:        "https://cluster/resource/name",
+				BearerToken: "mock-bearer-token",
+				CAData:      []byte("ca-data"),
 			},
 		},
 		{
-			name: "registry token from access token from service account",
+			name: "restconfig from access token from service account",
 			provider: &mockProvider{
-				returnName:          "mock-provider",
-				returnAudience:      "mock-audience",
-				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
-				returnRegistryToken: &auth.ArtifactRegistryCredentials{
-					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
+				returnName:        "mock-provider",
+				returnAudience:    "mock-audience",
+				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnRESTConfig: &auth.RESTConfig{
+					Host:        "https://cluster/resource/name",
+					BearerToken: "mock-bearer-token",
+					CAData:      []byte("ca-data"),
 				},
-				paramServiceAccount:     *defaultServiceAccount,
-				paramOIDCTokenClient:    oidcClient,
-				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
+				paramServiceAccount:  *defaultServiceAccount,
+				paramOIDCTokenClient: oidcClient,
+				paramCluster:         "cluster/resource/name",
+				paramFirstScopes:     []string{"first-token"},
+				paramSecondScopes:    []string{"second-token"},
+				paramAccessTokens: []auth.Token{
+					&mockToken{token: "mock-access-token"},
+					&mockToken{token: "mock-access-token"},
+				},
 			},
-			artifactRepository: "some-registry.io/some/artifact",
+			cluster: "cluster/resource/name",
 			opts: []auth.Option{
 				auth.WithServiceAccount(saRef, kubeClient),
 				auth.WithScopes("scope1", "scope2"),
@@ -214,21 +219,24 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 			},
-			expectedCreds: &auth.ArtifactRegistryCredentials{
-				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
+			expectedCreds: &auth.RESTConfig{
+				Host:        "https://cluster/resource/name",
+				BearerToken: "mock-bearer-token",
+				CAData:      []byte("ca-data"),
 			},
 		},
 		{
 			name: "all the options are taken into account in the cache key",
 			provider: &mockProvider{
-				returnName:              "mock-provider",
-				returnAudience:          "mock-audience",
-				returnIdentity:          "mock-identity",
-				returnRegistryInput:     "artifact-cache-key",
-				paramServiceAccount:     *defaultServiceAccount,
-				paramArtifactRepository: "some-registry.io/some/artifact",
+				returnName:          "mock-provider",
+				returnAudience:      "mock-audience",
+				returnIdentity:      "mock-identity",
+				paramServiceAccount: *defaultServiceAccount,
+				paramCluster:        "cluster/resource/name",
+				paramFirstScopes:    []string{"first-token"},
+				paramSecondScopes:   []string{"second-token"},
 			},
-			artifactRepository: "some-registry.io/some/artifact",
+			cluster: "cluster/resource/name",
 			opts: []auth.Option{
 				auth.WithServiceAccount(saRef, kubeClient),
 				auth.WithScopes("scope1", "scope2"),
@@ -236,10 +244,10 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				func(o *auth.Options) {
-					tokenCache, err := cache.NewTokenCache(2)
+					tokenCache, err := cache.NewTokenCache(3)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const accessTokenKey = "ae7db4da77f53fba1d2acd49027e818c2146be91de80051177d93b9e6da48dca"
+					accessTokenKey := "4be101e2e5adac5ce660b83cea68103cf6f1f9e4bdf162dfd1a712345502be19"
 					var token auth.Token = &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -248,12 +256,23 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedToken).To(Equal(token))
 
-					const artifactRegistryCredentialsKey = "898d563b1f3bcb6c675d1c7b0dd826320b0477eeec93fbe599e701f50bdd641f"
-					token = &auth.ArtifactRegistryCredentials{
-						Authenticator: authn.FromConfig(authn.AuthConfig{Username: "cached-registry-token"}),
-						ExpiresAt:     now.Add(time.Hour),
+					accessTokenKey = "b9f570ceefc4521e2da1555d56354e201ffc146afb0de6d409e73aa439ab8062"
+					token = &mockToken{token: "cached-token"}
+					cachedToken, ok, err = tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
+						return token, nil
+					})
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(ok).To(BeFalse())
+					g.Expect(cachedToken).To(Equal(token))
+
+					const restConfigKey = "74204a2b428767b5b6736573baaa78cc420b52e5ce8d39fb2a14237f929a001c"
+					token = &auth.RESTConfig{
+						Host:        "https://cluster/resource/name",
+						BearerToken: "mock-bearer-token",
+						CAData:      []byte("ca-data"),
+						ExpiresAt:   now.Add(time.Hour),
 					}
-					cachedToken, ok, err = tokenCache.GetOrSet(ctx, artifactRegistryCredentialsKey, func(ctx context.Context) (cache.Token, error) {
+					cachedToken, ok, err = tokenCache.GetOrSet(ctx, restConfigKey, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
@@ -263,19 +282,21 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 					o.Cache = tokenCache
 				},
 			},
-			expectedCreds: &auth.ArtifactRegistryCredentials{
-				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "cached-registry-token"}),
-				ExpiresAt:     now.Add(time.Hour),
+			expectedCreds: &auth.RESTConfig{
+				Host:        "https://cluster/resource/name",
+				BearerToken: "mock-bearer-token",
+				CAData:      []byte("ca-data"),
+				ExpiresAt:   now.Add(time.Hour),
 			},
 		},
 		{
-			name: "error parsing artifact repository",
+			name: "error getting access token options for cluster",
 			provider: &mockProvider{
-				paramArtifactRepository: "some-registry.io/some/artifact",
-				returnRegistryErr:       "mock error",
+				paramCluster:            "cluster/resource/name",
+				returnRESTConfigOptsErr: "mock error",
 			},
-			artifactRepository: "some-registry.io/some/artifact",
-			expectedErr:        "mock error",
+			cluster:     "cluster/resource/name",
+			expectedErr: "mock error",
 		},
 		{
 			name: "disable object level workload identity",
@@ -284,6 +305,10 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 			},
 			disableObjectLevel: true,
 			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
@@ -298,7 +323,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				t.Setenv(auth.EnvVarEnableObjectLevelWorkloadIdentity, "true")
 			}
 
-			creds, err := auth.GetArtifactRegistryCredentials(ctx, tt.provider, tt.artifactRepository, tt.opts...)
+			creds, err := auth.GetRESTConfig(ctx, tt.provider, tt.cluster, tt.opts...)
 
 			if tt.expectedErr != "" {
 				g.Expect(err).To(HaveOccurred())
