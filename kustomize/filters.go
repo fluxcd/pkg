@@ -39,36 +39,29 @@ func ignoreFileFilter(ps []gitignore.Pattern, domain []string) filter {
 	}
 }
 
-func filterKsWithIgnoreFiles(ks *kustypes.Kustomization, dirPath string, ignore string) error {
+func filterKsWithIgnoreFiles(ks *kustypes.Kustomization, dirPath string, ignorePatterns []gitignore.Pattern, ignoreDomain []string) error {
 	path, err := filepath.Abs(dirPath)
 	if err != nil {
 		return err
 	}
 
-	ignoreDomain := strings.Split(path, string(filepath.Separator))
-	ps, err := sourceignore.LoadIgnorePatterns(path, ignoreDomain)
-	if err != nil {
-		return err
-	}
-
-	if ignore != "" {
-		ps = append(ps, sourceignore.ReadPatterns(strings.NewReader(ignore), ignoreDomain)...)
-	}
+	// Create the filter once with pre-loaded patterns
+	filterFunc := ignoreFileFilter(ignorePatterns, ignoreDomain)
 
 	// filter resources first
-	err = filterSlice(ks, path, &ks.Resources, resourcesField, ignoreFileFilter(ps, ignoreDomain))
+	err = filterSlice(ks, path, &ks.Resources, resourcesField, filterFunc)
 	if err != nil {
 		return err
 	}
 
 	// filter components second
-	err = filterSlice(ks, path, &ks.Components, componentsField, ignoreFileFilter(ps, ignoreDomain))
+	err = filterSlice(ks, path, &ks.Components, componentsField, filterFunc)
 	if err != nil {
 		return err
 	}
 
 	// filter crds third
-	err = filterSlice(ks, path, &ks.Crds, crdsField, ignoreFileFilter(ps, ignoreDomain))
+	err = filterSlice(ks, path, &ks.Crds, crdsField, filterFunc)
 	if err != nil {
 		return err
 	}
@@ -101,4 +94,24 @@ func filterSlice(ks *kustypes.Kustomization, path string, s *[]string, t string,
 	}
 	*s = (*s)[:start]
 	return nil
+}
+
+// shouldIgnoreFile returns true if the given file should be ignored based on pre-loaded ignore patterns.
+func shouldIgnoreFile(filePath string, ignorePatterns []gitignore.Pattern, ignoreDomain []string) bool {
+	if len(ignorePatterns) == 0 {
+		return false
+	}
+
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return false
+	}
+
+	info, err := os.Lstat(absFile)
+	if err != nil {
+		return false
+	}
+
+	filter := ignoreFileFilter(ignorePatterns, ignoreDomain)
+	return filter(absFile, info)
 }
