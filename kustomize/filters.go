@@ -102,3 +102,39 @@ func filterSlice(ks *kustypes.Kustomization, path string, s *[]string, t string,
 	*s = (*s)[:start]
 	return nil
 }
+
+// shouldIgnoreFile returns true if the given file should be ignored based on
+// ignore patterns loaded from the base path and any additional ignore patterns provided.
+func shouldIgnoreFile(filePath, basePath, ignorePatterns string) bool {
+	if ignorePatterns == "" {
+		return false
+	}
+
+	absBase, err := filepath.Abs(basePath)
+	if err != nil {
+		return false
+	}
+
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return false
+	}
+
+	ignoreDomain := strings.Split(absBase, string(filepath.Separator))
+	ps, err := sourceignore.LoadIgnorePatterns(absBase, ignoreDomain)
+	if err != nil {
+		return false
+	}
+
+	if ignorePatterns != "" {
+		ps = append(ps, sourceignore.ReadPatterns(strings.NewReader(ignorePatterns), ignoreDomain)...)
+	}
+
+	info, err := os.Lstat(absFile)
+	if err != nil {
+		return false
+	}
+
+	filter := ignoreFileFilter(ps, ignoreDomain)
+	return filter(absFile, info)
+}

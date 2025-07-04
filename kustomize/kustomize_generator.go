@@ -471,7 +471,7 @@ func (g *Generator) generateKustomization(dirPath string) (Action, string, error
 		return UnchangedAction, "", err
 	}
 
-	files, err := scanManifests(fs, abs)
+	files, err := scanManifests(fs, abs, g.ignore)
 	if err != nil {
 		return UnchangedAction, "", err
 	}
@@ -516,7 +516,7 @@ func (g *Generator) generateKustomization(dirPath string) (Action, string, error
 // scanManifests walks through the given base path parsing all the files and
 // collecting a list of all the yaml file paths which can be used as
 // kustomization resources.
-func scanManifests(fs filesys.FileSystem, base string) ([]string, error) {
+func scanManifests(fs filesys.FileSystem, base string, ignorePatterns string) ([]string, error) {
 	var paths []string
 	pvd := provider.NewDefaultDepProvider()
 	rf := pvd.GetResourceFactory()
@@ -542,6 +542,10 @@ func scanManifests(fs filesys.FileSystem, base string) ([]string, error) {
 
 		extension := filepath.Ext(path)
 		if extension != ".yaml" && extension != ".yml" {
+			return
+		}
+
+		if shouldIgnoreFile(path, base, ignorePatterns) {
 			return
 		}
 
