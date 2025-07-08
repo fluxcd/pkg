@@ -243,42 +243,67 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 	return changeSet, nil
 }
 
-// ApplyAllStaged extracts the CRDs and Namespaces, applies them with ApplyAll,
-// waits for CRDs and Namespaces to become ready, then is applies all the other objects.
-// This function should be used when the given objects have a mix of custom resource definition and custom resources,
-// or a mix of namespace definitions with namespaced objects.
+// ApplyAllStaged extracts the cluster and class definitions, applies them with ApplyAll,
+// waits for them to become ready, then it applies all the other objects.
+// This function should be used when the given objects have a mix of custom resource definition
+// and custom resources, or a mix of namespace definitions with namespaced objects.
+// If an error occurs during the apply of the cluster or class definitions, the change set is
+// returned with the applied entries, up to that point, and the error is returned.
 func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstructured.Unstructured, opts ApplyOptions) (*ChangeSet, error) {
 	changeSet := NewChangeSet()
 
-	// contains only CRDs and Namespaces
-	var stageOne []*unstructured.Unstructured
+	var (
+		// Contains only CRDs, ClusterRoles, and Namespaces.
+		defStage []*unstructured.Unstructured
 
-	// contains all objects except for CRDs and Namespaces
-	var stageTwo []*unstructured.Unstructured
+		// Contains only Class definitions.
+		classStage []*unstructured.Unstructured
 
-	for _, u := range objects {
-		if utils.IsClusterDefinition(u) {
-			stageOne = append(stageOne, u)
-		} else {
-			stageTwo = append(stageTwo, u)
+		// Contains all objects except for cluster definitions and class definitions.
+		resStage []*unstructured.Unstructured
+	)
+
+	for _, o := range objects {
+		switch {
+		case utils.IsClusterDefinition(o):
+			defStage = append(defStage, o)
+		case utils.IsClassDefinition(o):
+			classStage = append(classStage, o)
+		default:
+			resStage = append(resStage, o)
 		}
 	}
 
-	if len(stageOne) > 0 {
-		cs, err := m.ApplyAll(ctx, stageOne, opts)
+	// Apply CRDs, ClusterRoles, and Namespaces first and wait for them to become ready.
+	if len(defStage) > 0 {
+		cs, err := m.ApplyAll(ctx, defStage, opts)
 		if err != nil {
-			return nil, err
+			return changeSet, err
 		}
 		changeSet.Append(cs.Entries)
 
-		if err := m.Wait(stageOne, WaitOptions{opts.WaitInterval, opts.WaitTimeout, false}); err != nil {
-			return nil, err
+		if err := m.Wait(defStage, WaitOptions{opts.WaitInterval, opts.WaitTimeout, false}); err != nil {
+			return changeSet, err
 		}
 	}
 
-	cs, err := m.ApplyAll(ctx, stageTwo, opts)
+	// Apply Class definitions next, if any, and wait for them to become ready.
+	if len(classStage) > 0 {
+		cs, err := m.ApplyAll(ctx, classStage, opts)
+		if err != nil {
+			return changeSet, err
+		}
+		changeSet.Append(cs.Entries)
+
+		if err := m.Wait(classStage, WaitOptions{opts.WaitInterval, opts.WaitTimeout, false}); err != nil {
+			return changeSet, err
+		}
+	}
+
+	// Finally, apply all the other resources.
+	cs, err := m.ApplyAll(ctx, resStage, opts)
 	if err != nil {
-		return nil, err
+		return changeSet, err
 	}
 	changeSet.Append(cs.Entries)
 

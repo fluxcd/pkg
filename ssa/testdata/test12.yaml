@@ -1,0 +1,44 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "%[1]s"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "%[1]s"
+subjects:
+  - kind: ServiceAccount
+    name: "%[1]s"
+    namespace: "%[1]s"
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: "%[1]s"
+parameters:
+  encrypted: "false"
+  fsType: ext4
+  type: gp2
+provisioner: kubernetes.io/aws-ebs
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "%[1]s"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: "%[1]s"
+rules:
+  - apiGroups:
+      - apps
+    resources: ["*"]
+    verbs:
+      - get
+      - list
+      - watch
+
