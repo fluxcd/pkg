@@ -22,12 +22,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// IsClusterDefinition checks if the given object is a Kubernetes namespace or a custom resource definition.
+// IsClusterDefinition checks if the given object is a Kubernetes
+// custom resource definition, cluster role or namespace.
 func IsClusterDefinition(object *unstructured.Unstructured) bool {
 	switch {
 	case IsCRD(object):
 		return true
 	case IsNamespace(object):
+		return true
+	case IsClusterRole(object):
 		return true
 	default:
 		return false
@@ -43,6 +46,18 @@ func IsCRD(object *unstructured.Unstructured) bool {
 // IsNamespace returns true if the given object is a Namespace.
 func IsNamespace(object *unstructured.Unstructured) bool {
 	return strings.ToLower(object.GetKind()) == "namespace" && object.GetAPIVersion() == "v1"
+}
+
+// IsClassDefinition checks if the given object is a Kubernetes Class definition:
+// StorageClass, VolumeSnapshotClass, IngressClass, GatewayClass, ClusterClass, etc.
+func IsClassDefinition(object *unstructured.Unstructured) bool {
+	return strings.HasSuffix(object.GetKind(), "Class")
+}
+
+// IsClusterRole checks if the given object is a Kubernetes ClusterRole definition.
+func IsClusterRole(object *unstructured.Unstructured) bool {
+	return strings.ToLower(object.GetKind()) == "clusterrole" &&
+		strings.HasPrefix(object.GetAPIVersion(), "rbac.authorization.k8s.io/")
 }
 
 // IsKubernetesObject checks if the given object has the minimum required fields to be a Kubernetes object.
