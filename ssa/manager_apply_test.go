@@ -141,6 +141,84 @@ func TestApply(t *testing.T) {
 	})
 }
 
+func TestApplyAllStaged_PartialFailure(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	id := generateName("test-staged-fail")
+	objects, err := readManifest("testdata/test12.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	_, crb := getFirstObject(objects, "ClusterRoleBinding", id)
+
+	t.Run("creates objects in order", func(t *testing.T) {
+		// create objects
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// expected created order
+		expected := []string{
+			fmt.Sprintf("Namespace/%s", id),
+			fmt.Sprintf("ClusterRole/%s", id),
+			fmt.Sprintf("StorageClass/%s", id),
+			fmt.Sprintf("ClusterRoleBinding/%s", id),
+		}
+
+		var output []string
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(entry.Action, CreatedAction); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+			output = append(output, entry.Subject)
+		}
+
+		// verify the change set contains all objects in the right order
+		if diff := cmp.Diff(expected, output); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("returns change set on failed apply", func(t *testing.T) {
+		// update ClusterRoleBinding to trigger an immutable field error
+		err = unstructured.SetNestedField(crb.Object, "test", "roleRef", "name")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// apply and expect to fail
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err == nil {
+			t.Fatal("Expected error got none")
+		}
+
+		// expected change set after failed apply
+		expected := []string{
+			fmt.Sprintf("Namespace/%s", id),
+			fmt.Sprintf("ClusterRole/%s", id),
+			fmt.Sprintf("StorageClass/%s", id),
+		}
+
+		var output []string
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(entry.Action, UnchangedAction); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+			output = append(output, entry.Subject)
+		}
+
+		// verify the change set contains all applied objects in the right order
+		if diff := cmp.Diff(expected, output); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+	})
+}
+
 func TestApply_Force(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
