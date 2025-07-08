@@ -16,6 +16,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: "%[1]s"
+  namespace: "%[1]s" # This field should be ignored
 parameters:
   encrypted: "false"
   fsType: ext4
