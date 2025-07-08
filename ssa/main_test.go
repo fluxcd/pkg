@@ -37,6 +37,7 @@ import (
 )
 
 var (
+	cfg        *rest.Config
 	manager    *ResourceManager
 	restMapper meta.RESTMapper
 )
@@ -44,7 +45,8 @@ var (
 func TestMain(m *testing.M) {
 	testEnv := &envtest.Environment{}
 
-	cfg, err := testEnv.Start()
+	var err error
+	cfg, err = testEnv.Start()
 	if err != nil {
 		panic(err)
 	}

@@ -28,8 +28,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/ssa/normalize"
@@ -150,14 +152,92 @@ func TestApplyAllStaged_PartialFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	partialFailureID := fmt.Sprintf("%s-partial-failure", id)
 
-	manager.SetOwnerLabels(objects, "app1", "default")
+	// This test requires a non-cluster-admin client to
+	// make sure ClusterRoleBinding and ClusterRole objects can be
+	// applied in the same call to ApplyAllStaged.
+	partialFailureNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: partialFailureID,
+		},
+	}
+	if err := manager.client.Create(ctx, partialFailureNS); err != nil {
+		t.Fatal(err)
+	}
+	partialFailureSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      partialFailureID,
+			Namespace: partialFailureID,
+		},
+	}
+	if err := manager.client.Create(ctx, partialFailureSA); err != nil {
+		t.Fatal(err)
+	}
+	partialFailureCR := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: partialFailureID,
+		},
+		Rules: []rbacv1.PolicyRule{
+			// For applying the manifests from testdata/test12.yaml
+			{
+				APIGroups: []string{"", "rbac.authorization.k8s.io", "storage.k8s.io"},
+				Resources: []string{"namespaces", "clusterroles", "clusterrolebindings", "storageclasses"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// The ServiceAccount must have all the permissions it is indirectly granting
+			// through the ClusterRole manifest from testdata/test12.yaml
+			{
+				APIGroups: []string{"apps"},
+				Resources: []string{"*"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+		},
+	}
+	if err := manager.client.Create(ctx, partialFailureCR); err != nil {
+		t.Fatal(err)
+	}
+	partialFailureCRB := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: partialFailureID,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "ClusterRole",
+			Name:     partialFailureCR.Name,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      partialFailureSA.Name,
+			Namespace: partialFailureSA.Namespace,
+		}},
+	}
+	if err := manager.client.Create(ctx, partialFailureCRB); err != nil {
+		t.Fatal(err)
+	}
+
+	// Copy test suite manager and modify the client to one that isn't
+	// cluster-admin.
+	partialFailureManager := *manager
+	cfg := rest.CopyConfig(cfg)
+	cfg.Impersonate = rest.ImpersonationConfig{
+		UserName: fmt.Sprintf("system:serviceaccount:%s:%s", partialFailureSA.Namespace, partialFailureSA.Name),
+	}
+	client, err := client.New(cfg, client.Options{
+		Mapper: restMapper,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialFailureManager.client = client
+
+	partialFailureManager.SetOwnerLabels(objects, "app1", "default")
 
 	_, crb := getFirstObject(objects, "ClusterRoleBinding", id)
 
 	t.Run("creates objects in order", func(t *testing.T) {
 		// create objects
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		changeSet, err := partialFailureManager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,7 +272,7 @@ func TestApplyAllStaged_PartialFailure(t *testing.T) {
 		}
 
 		// apply and expect to fail
-		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		changeSet, err := partialFailureManager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
 		if err == nil {
 			t.Fatal("Expected error got none")
 		}
