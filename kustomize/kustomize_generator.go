@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,6 +41,7 @@ import (
 
 	"github.com/fluxcd/pkg/apis/kustomize"
 	securefs "github.com/fluxcd/pkg/kustomize/filesys"
+	"github.com/fluxcd/pkg/sourceignore"
 )
 
 const (
@@ -119,7 +121,7 @@ func WithSaveOriginalKustomization() SavingOptions {
 // It apply the flux kustomize resources to the kustomization.yaml and then write the
 // updated kustomization.yaml to the directory.
 // It returns an action that indicates if the kustomization.yaml was created or not.
-// It is the caller's responsability to clean up the directory by using the provided function CleanDirectory.
+// It is the caller's responsibility to clean up the directory by using the provided function CleanDirectory.
 // example:
 // err := CleanDirectory(dirPath, action)
 //
@@ -127,7 +129,30 @@ func WithSaveOriginalKustomization() SavingOptions {
 //		log.Fatal(err)
 //	}
 func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, error) {
-	action, kfile, err := g.generateKustomization(dirPath)
+	var ignorePatterns []gitignore.Pattern
+	var ignoreDomain []string
+
+	if g.filter || g.ignore != "" {
+		absPath, err := filepath.Abs(dirPath)
+		if err != nil {
+			return UnchangedAction, fmt.Errorf("failed to get absolute path: %w", err)
+		}
+
+		ignoreDomain = strings.Split(absPath, string(filepath.Separator))
+		ignorePatterns, err = sourceignore.LoadIgnorePatterns(absPath, ignoreDomain)
+		if err != nil {
+			return UnchangedAction, fmt.Errorf("failed to load ignore patterns: %w", err)
+		}
+
+		// Add additional patterns from command line
+		if g.ignore != "" {
+			ignorePatterns = append(ignorePatterns,
+				sourceignore.ReadPatterns(strings.NewReader(g.ignore), ignoreDomain)...)
+		}
+	}
+
+	action, kfile, err := g.generateKustomization(dirPath, ignorePatterns, ignoreDomain)
+
 	if err != nil {
 		errf := CleanDirectory(dirPath, action)
 		return action, fmt.Errorf("%v %v", err, errf)
@@ -159,7 +184,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	// apply filters if any
 	if g.filter {
-		err = filterKsWithIgnoreFiles(&kus, dirPath, g.ignore)
+		err = filterKsWithIgnoreFiles(&kus, dirPath, ignorePatterns, ignoreDomain)
 		if err != nil {
 			errf := CleanDirectory(dirPath, action)
 			return action, fmt.Errorf("%v %v", err, errf)
@@ -442,7 +467,7 @@ func (g *Generator) getNestedSlice(fields ...string) ([]interface{}, bool, error
 	return val, ok, nil
 }
 
-func (g *Generator) generateKustomization(dirPath string) (Action, string, error) {
+func (g *Generator) generateKustomization(dirPath string, ignorePatterns []gitignore.Pattern, ignoreDomain []string) (Action, string, error) {
 	var (
 		err error
 		fs  filesys.FileSystem
@@ -471,7 +496,7 @@ func (g *Generator) generateKustomization(dirPath string) (Action, string, error
 		return UnchangedAction, "", err
 	}
 
-	files, err := scanManifests(fs, abs)
+	files, err := scanManifests(fs, abs, ignorePatterns, ignoreDomain)
 	if err != nil {
 		return UnchangedAction, "", err
 	}
@@ -516,10 +541,11 @@ func (g *Generator) generateKustomization(dirPath string) (Action, string, error
 // scanManifests walks through the given base path parsing all the files and
 // collecting a list of all the yaml file paths which can be used as
 // kustomization resources.
-func scanManifests(fs filesys.FileSystem, base string) ([]string, error) {
+func scanManifests(fs filesys.FileSystem, base string, ignorePatterns []gitignore.Pattern, ignoreDomain []string) ([]string, error) {
 	var paths []string
 	pvd := provider.NewDefaultDepProvider()
 	rf := pvd.GetResourceFactory()
+
 	err := fs.Walk(base, func(path string, info os.FileInfo, err error) (walkErr error) {
 		if err != nil {
 			walkErr = err
@@ -530,7 +556,7 @@ func scanManifests(fs filesys.FileSystem, base string) ([]string, error) {
 		}
 		if info.IsDir() {
 			// If a sub-directory contains an existing kustomization file add the
-			// directory as a resource and do not decend into it.
+			// directory as a resource and do not descend into it.
 			for _, kfilename := range konfig.RecognizedKustomizationFileNames() {
 				if kpath := filepath.Join(path, kfilename); fs.Exists(kpath) && !fs.IsDir(kpath) {
 					paths = append(paths, path)
@@ -542,6 +568,10 @@ func scanManifests(fs filesys.FileSystem, base string) ([]string, error) {
 
 		extension := filepath.Ext(path)
 		if extension != ".yaml" && extension != ".yml" {
+			return
+		}
+
+		if shouldIgnoreFile(path, ignorePatterns, ignoreDomain) {
 			return
 		}
 

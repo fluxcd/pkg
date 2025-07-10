@@ -17,8 +17,13 @@ limitations under the License.
 package kustomize
 
 import (
+	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
+	"github.com/fluxcd/pkg/sourceignore"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
@@ -56,9 +61,87 @@ func TestScanManifests(t *testing.T) {
 			g := NewWithT(t)
 			fs := filesys.MakeFsOnDisk()
 
-			paths, err := scanManifests(fs, tt.base)
+			paths, err := scanManifests(fs, tt.base, nil, nil)
 			g.Expect(paths).To(Equal(tt.wantPaths))
 			g.Expect(err != nil).To(Equal(tt.wantErr))
+		})
+	}
+}
+
+func TestScanManifests_WithIgnorePatterns(t *testing.T) {
+	tests := []struct {
+		name           string
+		base           string
+		ignorePatterns string
+		wantPaths      []string
+		wantErr        bool
+	}{
+		{
+			name:      "basic directory - no ignore patterns",
+			base:      "./testdata/ignore-tests/basic",
+			wantPaths: []string{"testdata/ignore-tests/basic/deployment.yaml"},
+		},
+		{
+			name:           "with .sops.yaml - no ignore patterns (should fail)",
+			base:           "./testdata/ignore-tests/with-sops",
+			ignorePatterns: "",
+			wantErr:        true, // .sops.yaml should cause parsing error
+		},
+		{
+			name:           "with .sops.yaml - ignore .sops.yaml",
+			base:           "./testdata/ignore-tests/with-sops",
+			ignorePatterns: ".sops.yaml",
+			wantPaths:      []string{"testdata/ignore-tests/with-sops/deployment.yaml"},
+		},
+		{
+			name:           "with .gitlab-ci.yml - no ignore patterns (should fail)",
+			base:           "./testdata/ignore-tests/with-gitlab-ci",
+			ignorePatterns: "",
+			wantErr:        true, // .gitlab-ci.yml should cause parsing error
+		},
+		{
+			name:           "with .gitlab-ci.yml - ignore .gitlab-ci.yml",
+			base:           "./testdata/ignore-tests/with-gitlab-ci",
+			ignorePatterns: ".gitlab-ci.yml",
+			wantPaths:      []string{"testdata/ignore-tests/with-gitlab-ci/deployment.yaml"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			fs := filesys.MakeFsOnDisk()
+
+			// Convert string patterns to the expected format
+			var ignorePatterns []gitignore.Pattern
+			var ignoreDomain []string
+
+			if tt.ignorePatterns != "" {
+				absBase, err := filepath.Abs(tt.base)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				ignoreDomain = strings.Split(absBase, string(filepath.Separator))
+
+				// Load existing patterns from ignore files
+				ignorePatterns, err = sourceignore.LoadIgnorePatterns(absBase, ignoreDomain)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				// Add the test-specific patterns
+				ignorePatterns = append(ignorePatterns,
+					sourceignore.ReadPatterns(strings.NewReader(tt.ignorePatterns), ignoreDomain)...)
+			}
+
+			paths, err := scanManifests(fs, tt.base, ignorePatterns, ignoreDomain)
+
+			if tt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				return
+			}
+
+			g.Expect(err).NotTo(HaveOccurred())
+			sort.Strings(paths)
+			sort.Strings(tt.wantPaths)
+			g.Expect(paths).To(Equal(tt.wantPaths))
 		})
 	}
 }
