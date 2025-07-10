@@ -36,7 +36,12 @@ import (
 //
 // Most parts(including the functions below) are copied from https://github.com/google/go-containerregistry/blob/v0.14.0/pkg/v1/remote/options.go#L152
 // so we have the same transport used in the library but with a different retry backoff.
-func WithRetryTransport(ctx context.Context, ref name.Reference, auth authn.Authenticator, backoff remote.Backoff, scopes []string) (crane.Option, error) {
+func WithRetryTransport(ctx context.Context,
+	ref name.Reference,
+	auth authn.Authenticator,
+	backoff remote.Backoff,
+	scopes []string,
+	insecure bool) (crane.Option, error) {
 	var retryTransport http.RoundTripper
 	retryTransport = remote.DefaultTransport.(*http.Transport).Clone()
 	if logs.Enabled(logs.Debug) {
@@ -48,7 +53,16 @@ func WithRetryTransport(ctx context.Context, ref name.Reference, auth authn.Auth
 		transport.WithRetryBackoff(backoff))
 	retryTransport = transport.NewUserAgent(retryTransport, UserAgent)
 
-	t, err := transport.NewWithContext(ctx, ref.Context().Registry, auth, retryTransport, scopes)
+	registry := ref.Context().Registry
+	if insecure {
+		r, err := name.NewRegistry(ref.Context().RegistryStr(), name.Insecure)
+		if err != nil {
+			return nil, err
+		}
+		registry = r
+	}
+
+	t, err := transport.NewWithContext(ctx, registry, auth, retryTransport, scopes)
 	if err != nil {
 		return nil, err
 	}
