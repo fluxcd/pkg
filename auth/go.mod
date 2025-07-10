@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.33.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0
 	github.com/coreos/go-oidc/v3 v3.14.1
-	github.com/fluxcd/pkg/cache v0.9.0
+	github.com/fluxcd/pkg/cache v0.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/go-containerregistry v0.20.6
 	github.com/onsi/gomega v1.37.0

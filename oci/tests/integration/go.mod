@@ -7,13 +7,15 @@ replace (
 	github.com/fluxcd/pkg/cache => ../../../cache
 	github.com/fluxcd/pkg/git => ../../../git
 	github.com/fluxcd/pkg/git/gogit => ../../../git/gogit
+	github.com/fluxcd/pkg/gittestserver => ../../../gittestserver
 	github.com/fluxcd/pkg/ssh => ../../../ssh
+	github.com/fluxcd/pkg/version => ../../../version
 )
 
 require (
-	github.com/fluxcd/pkg/auth v0.18.0
-	github.com/fluxcd/pkg/git v0.32.0
-	github.com/fluxcd/pkg/git/gogit v0.35.1
+	github.com/fluxcd/pkg/auth v0.20.0
+	github.com/fluxcd/pkg/git v0.33.0
+	github.com/fluxcd/pkg/git/gogit v0.36.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/google/go-containerregistry v0.20.6
@@ -67,9 +69,9 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
-	github.com/fluxcd/pkg/cache v0.9.0 // indirect
-	github.com/fluxcd/pkg/ssh v0.19.0 // indirect
-	github.com/fluxcd/pkg/version v0.7.0 // indirect
+	github.com/fluxcd/pkg/cache v0.10.0 // indirect
+	github.com/fluxcd/pkg/ssh v0.20.0 // indirect
+	github.com/fluxcd/pkg/version v0.9.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
