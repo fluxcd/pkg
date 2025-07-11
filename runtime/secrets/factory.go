@@ -120,7 +120,7 @@ func MakeProxySecret(name, namespace, address, username, password string) (*core
 	}
 
 	data := map[string]string{
-		ProxyAddressKey: address,
+		AddressKey: address,
 	}
 
 	if username != "" {
