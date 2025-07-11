@@ -35,6 +35,82 @@ import (
 	"github.com/fluxcd/pkg/runtime/secrets"
 )
 
+func TestTLSConfigFromSecretRef(t *testing.T) {
+	t.Parallel()
+
+	caCert, tlsCert, tlsKey := generateTestCertificates(t)
+
+	tests := []struct {
+		name      string
+		secretRef types.NamespacedName
+		secret    *corev1.Secret // Secret to add to fake client (nil = not added)
+		errMsg    string
+	}{
+		{
+			name:      "integration test - basic TLS secret functionality",
+			secretRef: types.NamespacedName{Name: "tls-secret", Namespace: testNS},
+			secret: testSecret(
+				withName("tls-secret"),
+				withData(map[string][]byte{
+					secrets.TLSCertKey:       tlsCert,
+					secrets.TLSPrivateKeyKey: tlsKey,
+					secrets.CACertKey:        caCert,
+				}),
+			),
+		},
+		{
+			name:      "secret not found",
+			secretRef: types.NamespacedName{Name: "missing-secret", Namespace: testNS},
+			errMsg:    "secret 'default/missing-secret' not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx := context.Background()
+			// Use discard logger for integration tests
+			ctx = log.IntoContext(ctx, logr.Discard())
+
+			var objects []client.Object
+			if tt.secret != nil {
+				objects = append(objects, tt.secret)
+			}
+			c := fakeClient(objects...)
+
+			tlsConfig, err := secrets.TLSConfigFromSecretRef(ctx, c, tt.secretRef)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(tlsConfig).ToNot(BeNil())
+
+				hasCert := len(tt.secret.Data[secrets.TLSCertKey]) > 0 || len(tt.secret.Data[secrets.LegacyTLSCertFileKey]) > 0
+				hasKey := len(tt.secret.Data[secrets.TLSPrivateKeyKey]) > 0 || len(tt.secret.Data[secrets.LegacyTLSPrivateKeyKey]) > 0
+				hasCertPair := hasCert && hasKey
+
+				if hasCertPair {
+					g.Expect(tlsConfig.Certificates).To(HaveLen(1))
+					expectedCert, err := tls.X509KeyPair(tlsCert, tlsKey)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(tlsConfig.Certificates[0]).To(Equal(expectedCert))
+				} else {
+					g.Expect(tlsConfig.Certificates).To(BeEmpty())
+				}
+
+				hasCA := len(tt.secret.Data[secrets.CACertKey]) > 0 || len(tt.secret.Data[secrets.LegacyCACertKey]) > 0
+				if hasCA {
+					g.Expect(tlsConfig.RootCAs).ToNot(BeNil())
+				}
+
+			}
+		})
+	}
+}
+
 func TestTLSConfigFromSecret(t *testing.T) {
 	t.Parallel()
 
@@ -245,6 +321,61 @@ func TestTLSConfigFromSecret(t *testing.T) {
 
 					g.Expect(loggedFields).To(Equal(tt.expectedFields))
 				}
+			}
+		})
+	}
+}
+
+func TestProxyURLFromSecretRef(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		secretRef types.NamespacedName
+		secret    *corev1.Secret // Secret to add to fake client (nil = not added)
+		wantURL   string
+		errMsg    string
+	}{
+		{
+			name:      "integration test - basic proxy functionality",
+			secretRef: types.NamespacedName{Name: "proxy-secret", Namespace: testNS},
+			secret: testSecret(
+				withName("proxy-secret"),
+				withData(map[string][]byte{
+					secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
+					secrets.UsernameKey: []byte("user"),
+					secrets.PasswordKey: []byte("pass"),
+				}),
+			),
+			wantURL: "http://user:pass@proxy.example.com:8080",
+		},
+		{
+			name:      "secret not found",
+			secretRef: types.NamespacedName{Name: "missing-secret", Namespace: testNS},
+			errMsg:    "secret 'default/missing-secret' not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx := context.Background()
+
+			var objects []client.Object
+			if tt.secret != nil {
+				objects = append(objects, tt.secret)
+			}
+			c := fakeClient(objects...)
+
+			proxyURL, err := secrets.ProxyURLFromSecretRef(ctx, c, tt.secretRef)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(proxyURL.String()).To(Equal(tt.wantURL))
 			}
 		})
 	}

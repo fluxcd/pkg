@@ -31,6 +31,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// TLSConfigFromSecretRef creates a TLS configuration from a Kubernetes secret reference.
+//
+// The function fetches the secret from the API server and then processes it using
+// TLSConfigFromSecret. It supports the same field names and legacy field handling.
+func TLSConfigFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName) (*tls.Config, error) {
+	secret, err := getSecret(ctx, c, secretRef)
+	if err != nil {
+		return nil, err
+	}
+	return TLSConfigFromSecret(ctx, secret)
+}
+
 // TLSConfigFromSecret creates a TLS configuration from a Kubernetes secret.
 //
 // The function looks for TLS certificate data in the secret using standard
@@ -46,6 +58,18 @@ func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret) (*tls.Confi
 	}
 
 	return buildTLSConfig(certData)
+}
+
+// ProxyURLFromSecretRef creates a proxy URL from a Kubernetes secret reference.
+//
+// The function fetches the secret from the API server and then processes it using
+// ProxyURLFromSecret. It expects the same field structure for proxy configuration.
+func ProxyURLFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName) (*url.URL, error) {
+	secret, err := getSecret(ctx, c, secretRef)
+	if err != nil {
+		return nil, err
+	}
+	return ProxyURLFromSecret(ctx, secret)
 }
 
 // ProxyURLFromSecret creates a proxy URL from a Kubernetes secret.
