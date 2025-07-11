@@ -11,8 +11,8 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.16.0
 	github.com/cyphar/filepath-securejoin v0.4.1
-	github.com/fluxcd/pkg/cache v0.9.0
-	github.com/fluxcd/pkg/ssh v0.19.0
+	github.com/fluxcd/pkg/cache v0.10.0
+	github.com/fluxcd/pkg/ssh v0.20.0
 	github.com/onsi/gomega v1.37.0
 	golang.org/x/net v0.41.0
 )
