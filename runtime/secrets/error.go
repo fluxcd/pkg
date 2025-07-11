@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -35,21 +36,11 @@ type KeyNotFoundError struct {
 }
 
 func (e *KeyNotFoundError) Error() string {
-	return fmt.Sprintf("secret '%s': key '%s' not found", secretRef(e.Secret), e.Key)
+	return fmt.Sprintf("secret '%s': key '%s' not found", client.ObjectKeyFromObject(e.Secret), e.Key)
 }
 
 func (e *KeyNotFoundError) Is(target error) bool {
 	return errors.Is(target, ErrKeyNotFound)
-}
-
-// secretRef returns a string representation of a secret reference.
-func secretRef(secret *corev1.Secret) string {
-	return fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
-}
-
-// serviceAccountRef returns a string representation of a service account reference.
-func serviceAccountRef(sa *corev1.ServiceAccount) string {
-	return fmt.Sprintf("%s/%s", sa.Namespace, sa.Name)
 }
 
 // TLSValidationError represents TLS certificate validation errors.
@@ -89,15 +80,15 @@ func enhanceSecretValidationError(err error, secret *corev1.Secret) error {
 		return err
 	}
 
-	ref := secretRef(secret)
+	ref := client.ObjectKeyFromObject(secret)
 
 	switch tlsErr.Type {
 	case ErrMissingPrivateKey:
-		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, TLSCertKey, TLSKeyKey)
+		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, TLSCertKey, TLSPrivateKeyKey)
 	case ErrMissingCertificate:
-		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, TLSKeyKey, TLSCertKey)
+		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, TLSPrivateKeyKey, TLSCertKey)
 	case ErrNoCertificatePairOrCA:
-		return fmt.Errorf("secret '%s' must contain either '%s' or both '%s' and '%s'", ref, CACertKey, TLSCertKey, TLSKeyKey)
+		return fmt.Errorf("secret '%s' must contain either '%s' or both '%s' and '%s'", ref, CACertKey, TLSCertKey, TLSPrivateKeyKey)
 	default:
 		return err
 	}

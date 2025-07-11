@@ -45,9 +45,9 @@ func TestMakeTLSSecret(t *testing.T) {
 			namespace:  testNS,
 			options:    []secrets.TLSSecretOption{secrets.WithCertKeyPair(tlsCert, tlsKey), secrets.WithCAData(caCert)},
 			expectedData: map[string][]byte{
-				secrets.TLSCertKey: tlsCert,
-				secrets.TLSKeyKey:  tlsKey,
-				secrets.CACertKey:  caCert,
+				secrets.TLSCertKey:       tlsCert,
+				secrets.TLSPrivateKeyKey: tlsKey,
+				secrets.CACertKey:        caCert,
 			},
 			expectedType: corev1.SecretTypeTLS,
 		},
@@ -57,8 +57,8 @@ func TestMakeTLSSecret(t *testing.T) {
 			namespace:  testNS,
 			options:    []secrets.TLSSecretOption{secrets.WithCertKeyPair(tlsCert, tlsKey)},
 			expectedData: map[string][]byte{
-				secrets.TLSCertKey: tlsCert,
-				secrets.TLSKeyKey:  tlsKey,
+				secrets.TLSCertKey:       tlsCert,
+				secrets.TLSPrivateKeyKey: tlsKey,
 			},
 			expectedType: corev1.SecretTypeTLS,
 		},
@@ -209,9 +209,9 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "user",
 			password:   "pass",
 			expectedData: map[string][]byte{
-				secrets.ProxyAddressKey: []byte("http://proxy.example.com:8080"),
-				secrets.UsernameKey:     []byte("user"),
-				secrets.PasswordKey:     []byte("pass"),
+				secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
+				secrets.UsernameKey: []byte("user"),
+				secrets.PasswordKey: []byte("pass"),
 			},
 		},
 		{
@@ -222,7 +222,7 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "",
 			password:   "",
 			expectedData: map[string][]byte{
-				secrets.ProxyAddressKey: []byte("http://proxy.example.com:8080"),
+				secrets.AddressKey: []byte("http://proxy.example.com:8080"),
 			},
 		},
 		{
@@ -233,8 +233,8 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "user",
 			password:   "",
 			expectedData: map[string][]byte{
-				secrets.ProxyAddressKey: []byte("http://proxy.example.com:8080"),
-				secrets.UsernameKey:     []byte("user"),
+				secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
+				secrets.UsernameKey: []byte("user"),
 			},
 		},
 		{

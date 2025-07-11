@@ -23,30 +23,31 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	// TLSCertKey is the standard key for TLS certificate data in secrets.
 	TLSCertKey = corev1.TLSCertKey
-	// TLSKeyKey is the standard key for TLS private key data in secrets.
-	TLSKeyKey = corev1.TLSPrivateKeyKey
+	// TLSPrivateKeyKey is the standard key for TLS private key data in secrets.
+	TLSPrivateKeyKey = corev1.TLSPrivateKeyKey
 	// CACertKey is the standard key for CA certificate data in secrets.
 	CACertKey = "ca.crt"
 
-	// TLSCertFileKey is the legacy key for TLS certificate data in secrets.
-	TLSCertFileKey = "certFile"
-	// TLSKeyFileKey is the legacy key for TLS private key data in secrets.
-	TLSKeyFileKey = "keyFile"
-	// CACertFileKey is the legacy key for CA certificate data in secrets.
-	CACertFileKey = "caFile"
+	// LegacyTLSCertFileKey is the legacy key for TLS certificate data in secrets.
+	LegacyTLSCertFileKey = "certFile"
+	// LegacyTLSPrivateKeyKey is the legacy key for TLS private key data in secrets.
+	LegacyTLSPrivateKeyKey = "keyFile"
+	// LegacyCACertKey is the legacy key for CA certificate data in secrets.
+	LegacyCACertKey = "caFile"
 
 	// UsernameKey is the key for username data in basic auth secrets.
 	UsernameKey = "username"
 	// PasswordKey is the key for password data in basic auth secrets.
 	PasswordKey = "password"
 
-	// ProxyAddressKey is the key for proxy address data in proxy secrets.
-	ProxyAddressKey = "address"
+	// AddressKey is the key for proxy address data in proxy secrets.
+	AddressKey = "address"
 
 	// BearerTokenKey is the key for bearer token data in secrets.
 	BearerTokenKey = "bearerToken"
@@ -64,9 +65,9 @@ type tlsCertificateData struct {
 // newTLSCertificateData creates tlsCertificateData from a Kubernetes secret.
 func newTLSCertificateData(secret *corev1.Secret, logger logr.Logger) (*tlsCertificateData, error) {
 	data := &tlsCertificateData{
-		cert:   getSecretData(secret, TLSCertKey, TLSCertFileKey, logger),
-		key:    getSecretData(secret, TLSKeyKey, TLSKeyFileKey, logger),
-		caCert: getSecretData(secret, CACertKey, CACertFileKey, logger),
+		cert:   getSecretData(secret, TLSCertKey, LegacyTLSCertFileKey, logger),
+		key:    getSecretData(secret, TLSPrivateKeyKey, LegacyTLSPrivateKeyKey, logger),
+		caCert: getSecretData(secret, CACertKey, LegacyCACertKey, logger),
 	}
 
 	if err := data.validate(); err != nil {
@@ -120,7 +121,7 @@ func (t *tlsCertificateData) toSecret(name, namespace string) *corev1.Secret {
 
 	if t.hasCertPair() {
 		secretData[TLSCertKey] = string(t.cert)
-		secretData[TLSKeyKey] = string(t.key)
+		secretData[TLSPrivateKeyKey] = string(t.key)
 		secretType = corev1.SecretTypeTLS
 	} else {
 		secretType = corev1.SecretTypeOpaque
@@ -149,7 +150,7 @@ func getSecretData(secret *corev1.Secret, key, fallbackKey string, logger logr.L
 	// Always support legacy fields for consistency across Flux APIs
 	if data, exists := secret.Data[fallbackKey]; exists {
 		logger.Error(nil, "using legacy key in secret data",
-			"secret", secretRef(secret),
+			"secret", client.ObjectKeyFromObject(secret),
 			"key", fallbackKey,
 			"preferred", key)
 		return data
