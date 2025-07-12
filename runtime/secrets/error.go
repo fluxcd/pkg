@@ -84,11 +84,11 @@ func enhanceSecretValidationError(err error, secret *corev1.Secret) error {
 
 	switch tlsErr.Type {
 	case ErrMissingPrivateKey:
-		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, TLSCertKey, TLSPrivateKeyKey)
+		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, KeyTLSCert, KeyTLSPrivateKey)
 	case ErrMissingCertificate:
-		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, TLSPrivateKeyKey, TLSCertKey)
+		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, KeyTLSPrivateKey, KeyTLSCert)
 	case ErrNoCertificatePairOrCA:
-		return fmt.Errorf("secret '%s' must contain either '%s' or both '%s' and '%s'", ref, CACertKey, TLSCertKey, TLSPrivateKeyKey)
+		return fmt.Errorf("secret '%s' must contain either '%s' or both '%s' and '%s'", ref, KeyCACert, KeyTLSCert, KeyTLSPrivateKey)
 	default:
 		return err
 	}

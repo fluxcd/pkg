@@ -45,9 +45,9 @@ func TestMakeTLSSecret(t *testing.T) {
 			namespace:  testNS,
 			options:    []secrets.TLSSecretOption{secrets.WithCertKeyPair(tlsCert, tlsKey), secrets.WithCAData(caCert)},
 			expectedData: map[string][]byte{
-				secrets.TLSCertKey:       tlsCert,
-				secrets.TLSPrivateKeyKey: tlsKey,
-				secrets.CACertKey:        caCert,
+				secrets.KeyTLSCert:       tlsCert,
+				secrets.KeyTLSPrivateKey: tlsKey,
+				secrets.KeyCACert:        caCert,
 			},
 			expectedType: corev1.SecretTypeTLS,
 		},
@@ -57,8 +57,8 @@ func TestMakeTLSSecret(t *testing.T) {
 			namespace:  testNS,
 			options:    []secrets.TLSSecretOption{secrets.WithCertKeyPair(tlsCert, tlsKey)},
 			expectedData: map[string][]byte{
-				secrets.TLSCertKey:       tlsCert,
-				secrets.TLSPrivateKeyKey: tlsKey,
+				secrets.KeyTLSCert:       tlsCert,
+				secrets.KeyTLSPrivateKey: tlsKey,
 			},
 			expectedType: corev1.SecretTypeTLS,
 		},
@@ -68,7 +68,7 @@ func TestMakeTLSSecret(t *testing.T) {
 			namespace:  testNS,
 			options:    []secrets.TLSSecretOption{secrets.WithCAData(caCert)},
 			expectedData: map[string][]byte{
-				secrets.CACertKey: caCert,
+				secrets.KeyCACert: caCert,
 			},
 			expectedType: corev1.SecretTypeOpaque,
 		},
@@ -181,8 +181,8 @@ func TestMakeBasicAuthSecret(t *testing.T) {
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeBasicAuth))
-				g.Expect(secret.StringData[secrets.UsernameKey]).To(Equal(tt.username))
-				g.Expect(secret.StringData[secrets.PasswordKey]).To(Equal(tt.password))
+				g.Expect(secret.StringData[secrets.KeyUsername]).To(Equal(tt.username))
+				g.Expect(secret.StringData[secrets.KeyPassword]).To(Equal(tt.password))
 			}
 		})
 	}
@@ -209,9 +209,9 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "user",
 			password:   "pass",
 			expectedData: map[string][]byte{
-				secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
-				secrets.UsernameKey: []byte("user"),
-				secrets.PasswordKey: []byte("pass"),
+				secrets.KeyAddress:  []byte("http://proxy.example.com:8080"),
+				secrets.KeyUsername: []byte("user"),
+				secrets.KeyPassword: []byte("pass"),
 			},
 		},
 		{
@@ -222,7 +222,7 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "",
 			password:   "",
 			expectedData: map[string][]byte{
-				secrets.AddressKey: []byte("http://proxy.example.com:8080"),
+				secrets.KeyAddress: []byte("http://proxy.example.com:8080"),
 			},
 		},
 		{
@@ -233,8 +233,8 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "user",
 			password:   "",
 			expectedData: map[string][]byte{
-				secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
-				secrets.UsernameKey: []byte("user"),
+				secrets.KeyAddress:  []byte("http://proxy.example.com:8080"),
+				secrets.KeyUsername: []byte("user"),
 			},
 		},
 		{
@@ -321,7 +321,7 @@ func TestMakeBearerTokenSecret(t *testing.T) {
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
-				g.Expect(secret.StringData[secrets.BearerTokenKey]).To(Equal(tt.token))
+				g.Expect(secret.StringData[secrets.KeyBearerToken]).To(Equal(tt.token))
 			}
 		})
 	}
@@ -386,7 +386,7 @@ func TestMakeTokenSecret(t *testing.T) {
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
-				g.Expect(secret.StringData[secrets.TokenKey]).To(Equal(tt.token))
+				g.Expect(secret.StringData[secrets.KeyToken]).To(Equal(tt.token))
 			}
 		})
 	}
@@ -530,10 +530,10 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
 			baseURL:        "https://github.enterprise.com",
 			expectedData: map[string][]byte{
-				secrets.GitHubAppIDKey:             []byte("123456"),
-				secrets.GitHubAppInstallationIDKey: []byte("7891011"),
-				secrets.GitHubAppPrivateKey:        []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."),
-				secrets.GitHubAppBaseUrlKey:        []byte("https://github.enterprise.com"),
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7891011"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."),
+				secrets.KeyGitHubAppBaseURL:        []byte("https://github.enterprise.com"),
 			},
 		},
 		{
@@ -545,9 +545,9 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
 			baseURL:        "",
 			expectedData: map[string][]byte{
-				secrets.GitHubAppIDKey:             []byte("123456"),
-				secrets.GitHubAppInstallationIDKey: []byte("7891011"),
-				secrets.GitHubAppPrivateKey:        []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."),
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7891011"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."),
 			},
 		},
 		{
@@ -629,10 +629,10 @@ func TestMakeSSHSecret(t *testing.T) {
 			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
 			password:   "passphrase123",
 			expectedData: map[string][]byte{
-				secrets.SSHPrivateKey:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
-				secrets.SSHPublicKey:     []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB..."),
-				secrets.SSHKnownHostsKey: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
-				secrets.PasswordKey:      []byte("passphrase123"),
+				secrets.KeySSHPrivateKey: []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.KeySSHPublicKey:  []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB..."),
+				secrets.KeySSHKnownHosts: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+				secrets.KeyPassword:      []byte("passphrase123"),
 			},
 		},
 		{
@@ -644,8 +644,8 @@ func TestMakeSSHSecret(t *testing.T) {
 			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
 			password:   "",
 			expectedData: map[string][]byte{
-				secrets.SSHPrivateKey:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
-				secrets.SSHKnownHostsKey: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+				secrets.KeySSHPrivateKey: []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.KeySSHKnownHosts: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
 			},
 		},
 		{
@@ -657,9 +657,9 @@ func TestMakeSSHSecret(t *testing.T) {
 			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
 			password:   "",
 			expectedData: map[string][]byte{
-				secrets.SSHPrivateKey:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
-				secrets.SSHPublicKey:     []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB..."),
-				secrets.SSHKnownHostsKey: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+				secrets.KeySSHPrivateKey: []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.KeySSHPublicKey:  []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB..."),
+				secrets.KeySSHKnownHosts: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
 			},
 		},
 		{
@@ -671,9 +671,9 @@ func TestMakeSSHSecret(t *testing.T) {
 			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
 			password:   "secret-passphrase",
 			expectedData: map[string][]byte{
-				secrets.SSHPrivateKey:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
-				secrets.SSHKnownHostsKey: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
-				secrets.PasswordKey:      []byte("secret-passphrase"),
+				secrets.KeySSHPrivateKey: []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.KeySSHKnownHosts: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+				secrets.KeyPassword:      []byte("secret-passphrase"),
 			},
 		},
 		{

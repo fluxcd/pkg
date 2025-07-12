@@ -27,48 +27,48 @@ import (
 )
 
 const (
-	// TLSCertKey is the standard key for TLS certificate data in secrets.
-	TLSCertKey = corev1.TLSCertKey
-	// TLSPrivateKeyKey is the standard key for TLS private key data in secrets.
-	TLSPrivateKeyKey = corev1.TLSPrivateKeyKey
-	// CACertKey is the standard key for CA certificate data in secrets.
-	CACertKey = "ca.crt"
+	// KeyTLSCert is the standard key for TLS certificate data in secrets.
+	KeyTLSCert = corev1.TLSCertKey
+	// KeyTLSPrivateKey is the standard key for TLS private key data in secrets.
+	KeyTLSPrivateKey = corev1.TLSPrivateKeyKey
+	// KeyCACert is the standard key for CA certificate data in secrets.
+	KeyCACert = "ca.crt"
 
-	// LegacyTLSCertFileKey is the legacy key for TLS certificate data in secrets.
-	LegacyTLSCertFileKey = "certFile"
-	// LegacyTLSPrivateKeyKey is the legacy key for TLS private key data in secrets.
-	LegacyTLSPrivateKeyKey = "keyFile"
-	// LegacyCACertKey is the legacy key for CA certificate data in secrets.
-	LegacyCACertKey = "caFile"
+	// LegacyKeyTLSCert is the legacy key for TLS certificate data in secrets.
+	LegacyKeyTLSCert = "certFile"
+	// LegacyKeyTLSPrivateKey is the legacy key for TLS private key data in secrets.
+	LegacyKeyTLSPrivateKey = "keyFile"
+	// LegacyKeyCACert is the legacy key for CA certificate data in secrets.
+	LegacyKeyCACert = "caFile"
 
-	// UsernameKey is the key for username data in basic auth secrets.
-	UsernameKey = "username"
-	// PasswordKey is the key for password data in basic auth secrets.
-	PasswordKey = "password"
+	// KeyUsername is the key for username data in basic auth secrets.
+	KeyUsername = "username"
+	// KeyPassword is the key for password data in basic auth secrets.
+	KeyPassword = "password"
 
-	// AddressKey is the key for proxy address data in proxy secrets.
-	AddressKey = "address"
+	// KeyAddress is the key for proxy address data in proxy secrets.
+	KeyAddress = "address"
 
-	// BearerTokenKey is the key for bearer token data in secrets.
-	BearerTokenKey = "bearerToken"
-	// TokenKey is the key for generic API token data in secrets.
-	TokenKey = "token"
+	// KeyBearerToken is the key for bearer token data in secrets.
+	KeyBearerToken = "bearerToken"
+	// KeyToken is the key for generic API token data in secrets.
+	KeyToken = "token"
 
-	// GitHubAppIDKey is the key for GitHub App ID data in secrets.
-	GitHubAppIDKey = "githubAppID"
-	// GitHubAppInstallationIDKey is the key for GitHub App installation ID data in secrets.
-	GitHubAppInstallationIDKey = "githubAppInstallationID"
-	// GitHubAppPrivateKey is the key for GitHub App private key data in secrets.
-	GitHubAppPrivateKey = "githubAppPrivateKey"
-	// GitHubAppBaseUrlKey is the key for GitHub App base URL data in secrets.
-	GitHubAppBaseUrlKey = "githubAppBaseURL"
+	// KeyGitHubAppID is the key for GitHub App ID data in secrets.
+	KeyGitHubAppID = "githubAppID"
+	// KeyGitHubAppInstallationID is the key for GitHub App installation ID data in secrets.
+	KeyGitHubAppInstallationID = "githubAppInstallationID"
+	// KeyGitHubAppPrivateKey is the key for GitHub App private key data in secrets.
+	KeyGitHubAppPrivateKey = "githubAppPrivateKey"
+	// KeyGitHubAppBaseURL is the key for GitHub App base URL data in secrets.
+	KeyGitHubAppBaseURL = "githubAppBaseURL"
 
-	// SSHPrivateKey is the key for SSH private key data in secrets.
-	SSHPrivateKey = "identity"
-	// SSHPublicKey is the key for SSH public key data in secrets.
-	SSHPublicKey = "identity.pub"
-	// SSHKnownHostsKey is the key for SSH known hosts data in secrets.
-	SSHKnownHostsKey = "known_hosts"
+	// KeySSHPrivateKey is the key for SSH private key data in secrets.
+	KeySSHPrivateKey = "identity"
+	// KeySSHPublicKey is the key for SSH public key data in secrets.
+	KeySSHPublicKey = "identity.pub"
+	// KeySSHKnownHosts is the key for SSH known hosts data in secrets.
+	KeySSHKnownHosts = "known_hosts"
 )
 
 // tlsCertificateData holds TLS certificate, key, and optional CA data
@@ -81,9 +81,9 @@ type tlsCertificateData struct {
 // newTLSCertificateData creates tlsCertificateData from a Kubernetes secret.
 func newTLSCertificateData(secret *corev1.Secret, logger logr.Logger) (*tlsCertificateData, error) {
 	data := &tlsCertificateData{
-		cert:   getSecretData(secret, TLSCertKey, LegacyTLSCertFileKey, logger),
-		key:    getSecretData(secret, TLSPrivateKeyKey, LegacyTLSPrivateKeyKey, logger),
-		caCert: getSecretData(secret, CACertKey, LegacyCACertKey, logger),
+		cert:   getSecretData(secret, KeyTLSCert, LegacyKeyTLSCert, logger),
+		key:    getSecretData(secret, KeyTLSPrivateKey, LegacyKeyTLSPrivateKey, logger),
+		caCert: getSecretData(secret, KeyCACert, LegacyKeyCACert, logger),
 	}
 
 	if err := data.validate(); err != nil {
@@ -136,15 +136,15 @@ func (t *tlsCertificateData) toSecret(name, namespace string) *corev1.Secret {
 	var secretType corev1.SecretType
 
 	if t.hasCertPair() {
-		secretData[TLSCertKey] = string(t.cert)
-		secretData[TLSPrivateKeyKey] = string(t.key)
+		secretData[KeyTLSCert] = string(t.cert)
+		secretData[KeyTLSPrivateKey] = string(t.key)
 		secretType = corev1.SecretTypeTLS
 	} else {
 		secretType = corev1.SecretTypeOpaque
 	}
 
 	if t.hasCA() {
-		secretData[CACertKey] = string(t.caCert)
+		secretData[KeyCACert] = string(t.caCert)
 	}
 
 	return &corev1.Secret{
