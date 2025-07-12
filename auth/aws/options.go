@@ -45,7 +45,7 @@ func ValidateSTSEndpoint(endpoint string) error {
 	return nil
 }
 
-const roleARNPattern = `^arn:aws:iam::[0-9]{1,30}:role/.{1,200}$`
+const roleARNPattern = `^arn:aws[\w-]*:iam::[0-9]{1,30}:role/.{1,200}$`
 
 var roleARNRegex = regexp.MustCompile(roleARNPattern)
 
@@ -63,4 +63,19 @@ func getRoleSessionName(serviceAccount corev1.ServiceAccount, region string) str
 	name := serviceAccount.Name
 	namespace := serviceAccount.Namespace
 	return fmt.Sprintf("%s.%s.%s.fluxcd.io", name, namespace, region)
+}
+
+const clusterPattern = `^arn:aws[\w-]*:eks:([^:]{1,100}):[0-9]{1,30}:cluster/(.{1,200})$`
+
+var clusterRegex = regexp.MustCompile(clusterPattern)
+
+func parseCluster(cluster string) (string, string, error) {
+	m := clusterRegex.FindStringSubmatch(cluster)
+	if len(m) != 3 {
+		return "", "", fmt.Errorf("invalid EKS cluster ARN: '%s'. must match %s",
+			cluster, clusterPattern)
+	}
+	region := m[1]
+	name := m[2]
+	return region, name, nil
 }
