@@ -92,10 +92,10 @@ func MakeTLSSecret(name, namespace string, opts ...TLSSecretOption) (*corev1.Sec
 // The function requires both username and password to be non-empty.
 // The resulting secret will be of type kubernetes.io/basic-auth.
 func MakeBasicAuthSecret(name, namespace, username, password string) (*corev1.Secret, error) {
-	if err := validateRequired(username, "username"); err != nil {
+	if err := validateRequired(username, UsernameKey); err != nil {
 		return nil, err
 	}
-	if err := validateRequired(password, "password"); err != nil {
+	if err := validateRequired(password, PasswordKey); err != nil {
 		return nil, err
 	}
 
@@ -111,7 +111,7 @@ func MakeBasicAuthSecret(name, namespace, username, password string) (*corev1.Se
 // Optional username and password can be provided for proxy authentication.
 // The resulting secret will be of type Opaque.
 func MakeProxySecret(name, namespace, address, username, password string) (*corev1.Secret, error) {
-	if err := validateRequired(address, "address"); err != nil {
+	if err := validateRequired(address, AddressKey); err != nil {
 		return nil, err
 	}
 
@@ -138,7 +138,7 @@ func MakeProxySecret(name, namespace, address, username, password string) (*core
 // The function requires a non-empty token value.
 // The resulting secret will be of type Opaque with the token stored under the "bearerToken" key.
 func MakeBearerTokenSecret(name, namespace, token string) (*corev1.Secret, error) {
-	if err := validateRequired(token, "token"); err != nil {
+	if err := validateRequired(token, BearerTokenKey); err != nil {
 		return nil, err
 	}
 
@@ -153,7 +153,7 @@ func MakeBearerTokenSecret(name, namespace, token string) (*corev1.Secret, error
 // The resulting secret will be of type Opaque with the token stored under the "token" key.
 // This is suitable for various API tokens like GitHub, Slack, Telegram, etc.
 func MakeTokenSecret(name, namespace, token string) (*corev1.Secret, error) {
-	if err := validateRequired(token, "token"); err != nil {
+	if err := validateRequired(token, TokenKey); err != nil {
 		return nil, err
 	}
 
@@ -209,4 +209,33 @@ func MakeRegistrySecret(name, namespace, server, username, password string) (*co
 	return makeSecret(name, namespace, corev1.SecretTypeDockerConfigJson, map[string]string{
 		corev1.DockerConfigJsonKey: string(configData),
 	}), nil
+}
+
+// MakeGitHubAppSecret creates a Kubernetes secret for GitHub App authentication.
+//
+// The function requires appID, installationID, and privateKey to be non-empty.
+// Optional baseURL can be provided for GitHub Enterprise Server instances.
+// The resulting secret will be of type Opaque.
+func MakeGitHubAppSecret(name, namespace, appID, installationID, privateKey, baseURL string) (*corev1.Secret, error) {
+	if err := validateRequired(appID, GitHubAppIDKey); err != nil {
+		return nil, err
+	}
+	if err := validateRequired(installationID, GitHubAppInstallationIDKey); err != nil {
+		return nil, err
+	}
+	if err := validateRequired(privateKey, GitHubAppPrivateKey); err != nil {
+		return nil, err
+	}
+
+	data := map[string]string{
+		GitHubAppIDKey:             appID,
+		GitHubAppInstallationIDKey: installationID,
+		GitHubAppPrivateKey:        privateKey,
+	}
+
+	if baseURL != "" {
+		data[GitHubAppBaseUrlKey] = baseURL
+	}
+
+	return makeSecret(name, namespace, corev1.SecretTypeOpaque, data), nil
 }

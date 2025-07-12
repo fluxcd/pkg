@@ -301,7 +301,7 @@ func TestMakeBearerTokenSecret(t *testing.T) {
 			secretName: "token-secret",
 			namespace:  testNS,
 			token:      "",
-			errMsg:     "token is required",
+			errMsg:     "bearerToken is required",
 		},
 	}
 
@@ -502,6 +502,105 @@ func TestMakeRegistrySecret(t *testing.T) {
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeDockerConfigJson))
 				g.Expect(secret.StringData[corev1.DockerConfigJsonKey]).To(Equal(tt.wantJSON))
+			}
+		})
+	}
+}
+
+func TestMakeGitHubAppSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		secretName     string
+		namespace      string
+		appID          string
+		installationID string
+		privateKey     string
+		baseURL        string
+		expectedData   map[string][]byte
+		errMsg         string
+	}{
+		{
+			name:           "github app secret with base URL",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "123456",
+			installationID: "7891011",
+			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
+			baseURL:        "https://github.enterprise.com",
+			expectedData: map[string][]byte{
+				secrets.GitHubAppIDKey:             []byte("123456"),
+				secrets.GitHubAppInstallationIDKey: []byte("7891011"),
+				secrets.GitHubAppPrivateKey:        []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."),
+				secrets.GitHubAppBaseUrlKey:        []byte("https://github.enterprise.com"),
+			},
+		},
+		{
+			name:           "github app secret without base URL",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "123456",
+			installationID: "7891011",
+			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
+			baseURL:        "",
+			expectedData: map[string][]byte{
+				secrets.GitHubAppIDKey:             []byte("123456"),
+				secrets.GitHubAppInstallationIDKey: []byte("7891011"),
+				secrets.GitHubAppPrivateKey:        []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."),
+			},
+		},
+		{
+			name:           "empty app ID",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "",
+			installationID: "7891011",
+			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
+			errMsg:         "githubAppID is required",
+		},
+		{
+			name:           "empty installation ID",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "123456",
+			installationID: "",
+			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
+			errMsg:         "githubAppInstallationID is required",
+		},
+		{
+			name:           "empty private key",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "123456",
+			installationID: "7891011",
+			privateKey:     "",
+			errMsg:         "githubAppPrivateKey is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			secret, err := secrets.MakeGitHubAppSecret(tt.secretName, tt.namespace, tt.appID, tt.installationID, tt.privateKey, tt.baseURL)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+				g.Expect(secret).To(BeNil())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Name).To(Equal(tt.secretName))
+				g.Expect(secret.Namespace).To(Equal(tt.namespace))
+				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
+
+				expectedStringData := make(map[string]string)
+				for key, value := range tt.expectedData {
+					expectedStringData[key] = string(value)
+				}
+				g.Expect(secret.StringData).To(Equal(expectedStringData))
 			}
 		})
 	}

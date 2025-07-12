@@ -53,6 +53,15 @@ const (
 	BearerTokenKey = "bearerToken"
 	// TokenKey is the key for generic API token data in secrets.
 	TokenKey = "token"
+
+	// GitHubAppIDKey is the key for GitHub App ID data in secrets.
+	GitHubAppIDKey = "githubAppID"
+	// GitHubAppInstallationIDKey is the key for GitHub App installation ID data in secrets.
+	GitHubAppInstallationIDKey = "githubAppInstallationID"
+	// GitHubAppPrivateKey is the key for GitHub App private key data in secrets.
+	GitHubAppPrivateKey = "githubAppPrivateKey"
+	// GitHubAppBaseUrlKey is the key for GitHub App base URL data in secrets.
+	GitHubAppBaseUrlKey = "githubAppBaseURL"
 )
 
 // tlsCertificateData holds TLS certificate, key, and optional CA data
