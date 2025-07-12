@@ -605,3 +605,122 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeSSHSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		secretName   string
+		namespace    string
+		privateKey   string
+		publicKey    string
+		knownHosts   string
+		password     string
+		expectedData map[string][]byte
+		errMsg       string
+	}{
+		{
+			name:       "ssh secret with all fields",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "passphrase123",
+			expectedData: map[string][]byte{
+				secrets.SSHPrivateKey:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.SSHPublicKey:     []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB..."),
+				secrets.SSHKnownHostsKey: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+				secrets.PasswordKey:      []byte("passphrase123"),
+			},
+		},
+		{
+			name:       "ssh secret without optional fields",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "",
+			expectedData: map[string][]byte{
+				secrets.SSHPrivateKey:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.SSHKnownHostsKey: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+			},
+		},
+		{
+			name:       "ssh secret with publicKey only",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "",
+			expectedData: map[string][]byte{
+				secrets.SSHPrivateKey:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.SSHPublicKey:     []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB..."),
+				secrets.SSHKnownHostsKey: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+			},
+		},
+		{
+			name:       "ssh secret with password only",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "secret-passphrase",
+			expectedData: map[string][]byte{
+				secrets.SSHPrivateKey:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.SSHKnownHostsKey: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+				secrets.PasswordKey:      []byte("secret-passphrase"),
+			},
+		},
+		{
+			name:       "empty private key",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "",
+			publicKey:  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "",
+			errMsg:     "identity is required",
+		},
+		{
+			name:       "empty known hosts",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...",
+			knownHosts: "",
+			password:   "",
+			errMsg:     "known_hosts is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			secret, err := secrets.MakeSSHSecret(tt.secretName, tt.namespace, tt.privateKey, tt.publicKey, tt.knownHosts, tt.password)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+				g.Expect(secret).To(BeNil())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Name).To(Equal(tt.secretName))
+				g.Expect(secret.Namespace).To(Equal(tt.namespace))
+				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
+
+				expectedStringData := make(map[string]string)
+				for key, value := range tt.expectedData {
+					expectedStringData[key] = string(value)
+				}
+				g.Expect(secret.StringData).To(Equal(expectedStringData))
+			}
+		})
+	}
+}

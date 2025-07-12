@@ -62,6 +62,13 @@ const (
 	GitHubAppPrivateKey = "githubAppPrivateKey"
 	// GitHubAppBaseUrlKey is the key for GitHub App base URL data in secrets.
 	GitHubAppBaseUrlKey = "githubAppBaseURL"
+
+	// SSHPrivateKey is the key for SSH private key data in secrets.
+	SSHPrivateKey = "identity"
+	// SSHPublicKey is the key for SSH public key data in secrets.
+	SSHPublicKey = "identity.pub"
+	// SSHKnownHostsKey is the key for SSH known hosts data in secrets.
+	SSHKnownHostsKey = "known_hosts"
 )
 
 // tlsCertificateData holds TLS certificate, key, and optional CA data

@@ -239,3 +239,31 @@ func MakeGitHubAppSecret(name, namespace, appID, installationID, privateKey, bas
 
 	return makeSecret(name, namespace, corev1.SecretTypeOpaque, data), nil
 }
+
+// MakeSSHSecret creates a Kubernetes secret for Git over SSH authentication.
+//
+// The function requires privateKey and knownHosts to be non-empty.
+// Optionally, the publicKey and private key password can be provided.
+// The resulting secret will be of type Opaque.
+func MakeSSHSecret(name, namespace, privateKey, publicKey, knownHosts, password string) (*corev1.Secret, error) {
+	if err := validateRequired(privateKey, SSHPrivateKey); err != nil {
+		return nil, err
+	}
+	if err := validateRequired(knownHosts, SSHKnownHostsKey); err != nil {
+		return nil, err
+	}
+
+	data := map[string]string{
+		SSHPrivateKey:    privateKey,
+		SSHKnownHostsKey: knownHosts,
+	}
+
+	if publicKey != "" {
+		data[SSHPublicKey] = publicKey
+	}
+	if password != "" {
+		data[PasswordKey] = password
+	}
+
+	return makeSecret(name, namespace, corev1.SecretTypeOpaque, data), nil
+}
