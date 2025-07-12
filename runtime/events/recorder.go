@@ -250,16 +250,20 @@ func (r *Recorder) AnnotatedEventf(
 		return
 	}
 
-	// avoid retrying rate limited requests
-	if res, _ := r.Client.HTTPClient.Post(r.Webhook, "application/json", bytes.NewReader(body)); res != nil &&
-		(res.StatusCode == http.StatusTooManyRequests || res.StatusCode == http.StatusAccepted) {
-		return
-	}
+	// Execute the actual HTTP POST request in a goroutine to avoid blocking the
+	// reconciler loop.
+	go func() {
+		// avoid retrying rate limited requests
+		if res, _ := r.Client.HTTPClient.Post(r.Webhook, "application/json", bytes.NewReader(body)); res != nil &&
+			(res.StatusCode == http.StatusTooManyRequests || res.StatusCode == http.StatusAccepted) {
+			return
+		}
 
-	if _, err := r.Client.Post(r.Webhook, "application/json", body); err != nil {
-		log.Error(err, "unable to record event")
-		return
-	}
+		if _, err := r.Client.Post(r.Webhook, "application/json", body); err != nil {
+			log.Error(err, "unable to record event")
+			return
+		}
+	}()
 }
 
 // eventTypeToSeverity maps the given eventType string to a GOTK event severity
