@@ -45,9 +45,9 @@ func TestMakeTLSSecret(t *testing.T) {
 			namespace:  testNS,
 			options:    []secrets.TLSSecretOption{secrets.WithCertKeyPair(tlsCert, tlsKey), secrets.WithCAData(caCert)},
 			expectedData: map[string][]byte{
-				secrets.TLSCertKey:       tlsCert,
-				secrets.TLSPrivateKeyKey: tlsKey,
-				secrets.CACertKey:        caCert,
+				secrets.KeyTLSCert:       tlsCert,
+				secrets.KeyTLSPrivateKey: tlsKey,
+				secrets.KeyCACert:        caCert,
 			},
 			expectedType: corev1.SecretTypeTLS,
 		},
@@ -57,8 +57,8 @@ func TestMakeTLSSecret(t *testing.T) {
 			namespace:  testNS,
 			options:    []secrets.TLSSecretOption{secrets.WithCertKeyPair(tlsCert, tlsKey)},
 			expectedData: map[string][]byte{
-				secrets.TLSCertKey:       tlsCert,
-				secrets.TLSPrivateKeyKey: tlsKey,
+				secrets.KeyTLSCert:       tlsCert,
+				secrets.KeyTLSPrivateKey: tlsKey,
 			},
 			expectedType: corev1.SecretTypeTLS,
 		},
@@ -68,7 +68,7 @@ func TestMakeTLSSecret(t *testing.T) {
 			namespace:  testNS,
 			options:    []secrets.TLSSecretOption{secrets.WithCAData(caCert)},
 			expectedData: map[string][]byte{
-				secrets.CACertKey: caCert,
+				secrets.KeyCACert: caCert,
 			},
 			expectedType: corev1.SecretTypeOpaque,
 		},
@@ -181,8 +181,8 @@ func TestMakeBasicAuthSecret(t *testing.T) {
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeBasicAuth))
-				g.Expect(secret.StringData[secrets.UsernameKey]).To(Equal(tt.username))
-				g.Expect(secret.StringData[secrets.PasswordKey]).To(Equal(tt.password))
+				g.Expect(secret.StringData[secrets.KeyUsername]).To(Equal(tt.username))
+				g.Expect(secret.StringData[secrets.KeyPassword]).To(Equal(tt.password))
 			}
 		})
 	}
@@ -209,9 +209,9 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "user",
 			password:   "pass",
 			expectedData: map[string][]byte{
-				secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
-				secrets.UsernameKey: []byte("user"),
-				secrets.PasswordKey: []byte("pass"),
+				secrets.KeyAddress:  []byte("http://proxy.example.com:8080"),
+				secrets.KeyUsername: []byte("user"),
+				secrets.KeyPassword: []byte("pass"),
 			},
 		},
 		{
@@ -222,7 +222,7 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "",
 			password:   "",
 			expectedData: map[string][]byte{
-				secrets.AddressKey: []byte("http://proxy.example.com:8080"),
+				secrets.KeyAddress: []byte("http://proxy.example.com:8080"),
 			},
 		},
 		{
@@ -233,8 +233,8 @@ func TestMakeProxySecret(t *testing.T) {
 			username:   "user",
 			password:   "",
 			expectedData: map[string][]byte{
-				secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
-				secrets.UsernameKey: []byte("user"),
+				secrets.KeyAddress:  []byte("http://proxy.example.com:8080"),
+				secrets.KeyUsername: []byte("user"),
 			},
 		},
 		{
@@ -301,7 +301,7 @@ func TestMakeBearerTokenSecret(t *testing.T) {
 			secretName: "token-secret",
 			namespace:  testNS,
 			token:      "",
-			errMsg:     "token is required",
+			errMsg:     "bearerToken is required",
 		},
 	}
 
@@ -321,7 +321,7 @@ func TestMakeBearerTokenSecret(t *testing.T) {
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
-				g.Expect(secret.StringData[secrets.BearerTokenKey]).To(Equal(tt.token))
+				g.Expect(secret.StringData[secrets.KeyBearerToken]).To(Equal(tt.token))
 			}
 		})
 	}
@@ -386,7 +386,7 @@ func TestMakeTokenSecret(t *testing.T) {
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
-				g.Expect(secret.StringData[secrets.TokenKey]).To(Equal(tt.token))
+				g.Expect(secret.StringData[secrets.KeyToken]).To(Equal(tt.token))
 			}
 		})
 	}
@@ -502,6 +502,224 @@ func TestMakeRegistrySecret(t *testing.T) {
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeDockerConfigJson))
 				g.Expect(secret.StringData[corev1.DockerConfigJsonKey]).To(Equal(tt.wantJSON))
+			}
+		})
+	}
+}
+
+func TestMakeGitHubAppSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		secretName     string
+		namespace      string
+		appID          string
+		installationID string
+		privateKey     string
+		baseURL        string
+		expectedData   map[string][]byte
+		errMsg         string
+	}{
+		{
+			name:           "github app secret with base URL",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "123456",
+			installationID: "7891011",
+			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
+			baseURL:        "https://github.enterprise.com",
+			expectedData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7891011"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."),
+				secrets.KeyGitHubAppBaseURL:        []byte("https://github.enterprise.com"),
+			},
+		},
+		{
+			name:           "github app secret without base URL",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "123456",
+			installationID: "7891011",
+			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
+			baseURL:        "",
+			expectedData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7891011"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."),
+			},
+		},
+		{
+			name:           "empty app ID",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "",
+			installationID: "7891011",
+			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
+			errMsg:         "githubAppID is required",
+		},
+		{
+			name:           "empty installation ID",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "123456",
+			installationID: "",
+			privateKey:     "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
+			errMsg:         "githubAppInstallationID is required",
+		},
+		{
+			name:           "empty private key",
+			secretName:     "github-app-secret",
+			namespace:      testNS,
+			appID:          "123456",
+			installationID: "7891011",
+			privateKey:     "",
+			errMsg:         "githubAppPrivateKey is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			secret, err := secrets.MakeGitHubAppSecret(tt.secretName, tt.namespace, tt.appID, tt.installationID, tt.privateKey, tt.baseURL)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+				g.Expect(secret).To(BeNil())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Name).To(Equal(tt.secretName))
+				g.Expect(secret.Namespace).To(Equal(tt.namespace))
+				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
+
+				expectedStringData := make(map[string]string)
+				for key, value := range tt.expectedData {
+					expectedStringData[key] = string(value)
+				}
+				g.Expect(secret.StringData).To(Equal(expectedStringData))
+			}
+		})
+	}
+}
+
+func TestMakeSSHSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		secretName   string
+		namespace    string
+		privateKey   string
+		publicKey    string
+		knownHosts   string
+		password     string
+		expectedData map[string][]byte
+		errMsg       string
+	}{
+		{
+			name:       "ssh secret with all fields",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "passphrase123",
+			expectedData: map[string][]byte{
+				secrets.KeySSHPrivateKey: []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.KeySSHPublicKey:  []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB..."),
+				secrets.KeySSHKnownHosts: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+				secrets.KeyPassword:      []byte("passphrase123"),
+			},
+		},
+		{
+			name:       "ssh secret without optional fields",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "",
+			expectedData: map[string][]byte{
+				secrets.KeySSHPrivateKey: []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.KeySSHKnownHosts: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+			},
+		},
+		{
+			name:       "ssh secret with publicKey only",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "",
+			expectedData: map[string][]byte{
+				secrets.KeySSHPrivateKey: []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.KeySSHPublicKey:  []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB..."),
+				secrets.KeySSHKnownHosts: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+			},
+		},
+		{
+			name:       "ssh secret with password only",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "secret-passphrase",
+			expectedData: map[string][]byte{
+				secrets.KeySSHPrivateKey: []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA..."),
+				secrets.KeySSHKnownHosts: []byte("github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI..."),
+				secrets.KeyPassword:      []byte("secret-passphrase"),
+			},
+		},
+		{
+			name:       "empty private key",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "",
+			publicKey:  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...",
+			knownHosts: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABI...",
+			password:   "",
+			errMsg:     "identity is required",
+		},
+		{
+			name:       "empty known hosts",
+			secretName: "ssh-secret",
+			namespace:  testNS,
+			privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...",
+			publicKey:  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...",
+			knownHosts: "",
+			password:   "",
+			errMsg:     "known_hosts is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			secret, err := secrets.MakeSSHSecret(tt.secretName, tt.namespace, tt.privateKey, tt.publicKey, tt.knownHosts, tt.password)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+				g.Expect(secret).To(BeNil())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Name).To(Equal(tt.secretName))
+				g.Expect(secret.Namespace).To(Equal(tt.namespace))
+				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
+
+				expectedStringData := make(map[string]string)
+				for key, value := range tt.expectedData {
+					expectedStringData[key] = string(value)
+				}
+				g.Expect(secret.StringData).To(Equal(expectedStringData))
 			}
 		})
 	}

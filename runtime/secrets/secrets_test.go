@@ -58,21 +58,9 @@ func withName(name string) func(*corev1.Secret) {
 	}
 }
 
-func withNamespace(namespace string) func(*corev1.Secret) {
-	return func(s *corev1.Secret) {
-		s.Namespace = namespace
-	}
-}
-
 func withData(data map[string][]byte) func(*corev1.Secret) {
 	return func(s *corev1.Secret) {
 		s.Data = data
-	}
-}
-
-func withType(secretType corev1.SecretType) func(*corev1.Secret) {
-	return func(s *corev1.Secret) {
-		s.Type = secretType
 	}
 }
 

@@ -49,9 +49,9 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSCertKey:       tlsCert,
-					secrets.TLSPrivateKeyKey: tlsKey,
-					secrets.CACertKey:        caCert,
+					secrets.KeyTLSCert:       tlsCert,
+					secrets.KeyTLSPrivateKey: tlsKey,
+					secrets.KeyCACert:        caCert,
 				}),
 			),
 		},
@@ -85,8 +85,8 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(tlsConfig).ToNot(BeNil())
 
-				hasCert := len(tt.secret.Data[secrets.TLSCertKey]) > 0 || len(tt.secret.Data[secrets.LegacyTLSCertFileKey]) > 0
-				hasKey := len(tt.secret.Data[secrets.TLSPrivateKeyKey]) > 0 || len(tt.secret.Data[secrets.LegacyTLSPrivateKeyKey]) > 0
+				hasCert := len(tt.secret.Data[secrets.KeyTLSCert]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSCert]) > 0
+				hasKey := len(tt.secret.Data[secrets.KeyTLSPrivateKey]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSPrivateKey]) > 0
 				hasCertPair := hasCert && hasKey
 
 				if hasCertPair {
@@ -98,7 +98,7 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 					g.Expect(tlsConfig.Certificates).To(BeEmpty())
 				}
 
-				hasCA := len(tt.secret.Data[secrets.CACertKey]) > 0 || len(tt.secret.Data[secrets.LegacyCACertKey]) > 0
+				hasCA := len(tt.secret.Data[secrets.KeyCACert]) > 0 || len(tt.secret.Data[secrets.LegacyKeyCACert]) > 0
 				if hasCA {
 					g.Expect(tlsConfig.RootCAs).ToNot(BeNil())
 				}
@@ -124,9 +124,9 @@ func TestProxyURLFromSecretRef(t *testing.T) {
 			secret: testSecret(
 				withName("proxy-secret"),
 				withData(map[string][]byte{
-					secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
-					secrets.UsernameKey: []byte("user"),
-					secrets.PasswordKey: []byte("pass"),
+					secrets.KeyAddress:  []byte("http://proxy.example.com:8080"),
+					secrets.KeyUsername: []byte("user"),
+					secrets.KeyPassword: []byte("pass"),
 				}),
 			),
 			wantURL: "http://user:pass@proxy.example.com:8080",

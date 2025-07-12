@@ -48,9 +48,9 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSCertKey:       tlsCert,
-					secrets.TLSPrivateKeyKey: tlsKey,
-					secrets.CACertKey:        caCert,
+					secrets.KeyTLSCert:       tlsCert,
+					secrets.KeyTLSPrivateKey: tlsKey,
+					secrets.KeyCACert:        caCert,
 				}),
 			),
 		},
@@ -59,8 +59,8 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSCertKey:       tlsCert,
-					secrets.TLSPrivateKeyKey: tlsKey,
+					secrets.KeyTLSCert:       tlsCert,
+					secrets.KeyTLSPrivateKey: tlsKey,
 				}),
 			),
 		},
@@ -69,9 +69,9 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.LegacyTLSCertFileKey:   tlsCert,
-					secrets.LegacyTLSPrivateKeyKey: tlsKey,
-					secrets.LegacyCACertKey:        caCert,
+					secrets.LegacyKeyTLSCert:       tlsCert,
+					secrets.LegacyKeyTLSPrivateKey: tlsKey,
+					secrets.LegacyKeyCACert:        caCert,
 				}),
 			),
 			expectedFields: map[string]string{
@@ -85,9 +85,9 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSCertKey:       tlsCert,
-					secrets.TLSPrivateKeyKey: tlsKey,
-					secrets.LegacyCACertKey:  caCert,
+					secrets.KeyTLSCert:       tlsCert,
+					secrets.KeyTLSPrivateKey: tlsKey,
+					secrets.LegacyKeyCACert:  caCert,
 				}),
 			),
 			expectedFields: map[string]string{
@@ -99,12 +99,12 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSCertKey:             tlsCert,
-					secrets.TLSPrivateKeyKey:       tlsKey,
-					secrets.CACertKey:              caCert,
-					secrets.LegacyTLSCertFileKey:   []byte("ignored"),
-					secrets.LegacyTLSPrivateKeyKey: []byte("ignored"),
-					secrets.LegacyCACertKey:        []byte("ignored"),
+					secrets.KeyTLSCert:             tlsCert,
+					secrets.KeyTLSPrivateKey:       tlsKey,
+					secrets.KeyCACert:              caCert,
+					secrets.LegacyKeyTLSCert:       []byte("ignored"),
+					secrets.LegacyKeyTLSPrivateKey: []byte("ignored"),
+					secrets.LegacyKeyCACert:        []byte("ignored"),
 				}),
 			),
 		},
@@ -113,8 +113,8 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSCertKey:       []byte("invalid-cert-data"),
-					secrets.TLSPrivateKeyKey: []byte("invalid-key-data"),
+					secrets.KeyTLSCert:       []byte("invalid-cert-data"),
+					secrets.KeyTLSPrivateKey: []byte("invalid-key-data"),
 				}),
 			),
 			errMsg: "failed to parse TLS certificate and key",
@@ -124,9 +124,9 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSCertKey:       tlsCert,
-					secrets.TLSPrivateKeyKey: tlsKey,
-					secrets.CACertKey:        []byte("invalid-ca-data"),
+					secrets.KeyTLSCert:       tlsCert,
+					secrets.KeyTLSPrivateKey: tlsKey,
+					secrets.KeyCACert:        []byte("invalid-ca-data"),
 				}),
 			),
 			errMsg: "failed to parse CA certificate",
@@ -136,7 +136,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.CACertKey: caCert,
+					secrets.KeyCACert: caCert,
 				}),
 			),
 		},
@@ -145,7 +145,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSCertKey: tlsCert,
+					secrets.KeyTLSCert: tlsCert,
 				}),
 			),
 			errMsg: "secret 'default/tls-secret' contains 'tls.crt' but missing 'tls.key'",
@@ -155,7 +155,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("tls-secret"),
 				withData(map[string][]byte{
-					secrets.TLSPrivateKeyKey: tlsKey,
+					secrets.KeyTLSPrivateKey: tlsKey,
 				}),
 			),
 			errMsg: "secret 'default/tls-secret' contains 'tls.key' but missing 'tls.crt'",
@@ -198,8 +198,8 @@ func TestTLSConfigFromSecret(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(tlsConfig).ToNot(BeNil())
 
-				hasCert := len(tt.secret.Data[secrets.TLSCertKey]) > 0 || len(tt.secret.Data[secrets.LegacyTLSCertFileKey]) > 0
-				hasKey := len(tt.secret.Data[secrets.TLSPrivateKeyKey]) > 0 || len(tt.secret.Data[secrets.LegacyTLSPrivateKeyKey]) > 0
+				hasCert := len(tt.secret.Data[secrets.KeyTLSCert]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSCert]) > 0
+				hasKey := len(tt.secret.Data[secrets.KeyTLSPrivateKey]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSPrivateKey]) > 0
 				hasCertPair := hasCert && hasKey
 
 				if hasCertPair {
@@ -211,7 +211,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 					g.Expect(tlsConfig.Certificates).To(BeEmpty())
 				}
 
-				hasCA := len(tt.secret.Data[secrets.CACertKey]) > 0 || len(tt.secret.Data[secrets.LegacyCACertKey]) > 0
+				hasCA := len(tt.secret.Data[secrets.KeyCACert]) > 0 || len(tt.secret.Data[secrets.LegacyKeyCACert]) > 0
 				if hasCA {
 					g.Expect(tlsConfig.RootCAs).ToNot(BeNil())
 				}
@@ -261,9 +261,9 @@ func TestProxyURLFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("proxy-secret"),
 				withData(map[string][]byte{
-					secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
-					secrets.UsernameKey: []byte("user"),
-					secrets.PasswordKey: []byte("pass"),
+					secrets.KeyAddress:  []byte("http://proxy.example.com:8080"),
+					secrets.KeyUsername: []byte("user"),
+					secrets.KeyPassword: []byte("pass"),
 				}),
 			),
 			wantURL: "http://user:pass@proxy.example.com:8080",
@@ -273,8 +273,8 @@ func TestProxyURLFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("proxy-secret"),
 				withData(map[string][]byte{
-					secrets.AddressKey:  []byte("http://proxy.example.com:8080"),
-					secrets.UsernameKey: []byte("user"),
+					secrets.KeyAddress:  []byte("http://proxy.example.com:8080"),
+					secrets.KeyUsername: []byte("user"),
 				}),
 			),
 			wantURL: "http://user@proxy.example.com:8080",
@@ -284,7 +284,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("proxy-secret"),
 				withData(map[string][]byte{
-					secrets.AddressKey: []byte("http://proxy.example.com:8080"),
+					secrets.KeyAddress: []byte("http://proxy.example.com:8080"),
 				}),
 			),
 			wantURL: "http://proxy.example.com:8080",
@@ -294,7 +294,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("proxy-secret"),
 				withData(map[string][]byte{
-					secrets.AddressKey: []byte("https://secure-proxy.example.com:8443"),
+					secrets.KeyAddress: []byte("https://secure-proxy.example.com:8443"),
 				}),
 			),
 			wantURL: "https://secure-proxy.example.com:8443",
@@ -304,8 +304,8 @@ func TestProxyURLFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("proxy-secret"),
 				withData(map[string][]byte{
-					secrets.UsernameKey: []byte("user"),
-					secrets.PasswordKey: []byte("pass"),
+					secrets.KeyUsername: []byte("user"),
+					secrets.KeyPassword: []byte("pass"),
 				}),
 			),
 			errMsg: `secret 'default/proxy-secret': key 'address' not found`,
@@ -315,7 +315,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("proxy-secret"),
 				withData(map[string][]byte{
-					secrets.AddressKey: []byte(""),
+					secrets.KeyAddress: []byte(""),
 				}),
 			),
 			errMsg: "secret 'default/proxy-secret': proxy address is empty",
@@ -325,7 +325,7 @@ func TestProxyURLFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("proxy-secret"),
 				withData(map[string][]byte{
-					secrets.AddressKey: []byte("://invalid-url"),
+					secrets.KeyAddress: []byte("://invalid-url"),
 				}),
 			),
 			errMsg: "secret 'default/proxy-secret': failed to parse proxy address",
@@ -366,8 +366,8 @@ func TestBasicAuthFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("auth-secret"),
 				withData(map[string][]byte{
-					secrets.UsernameKey: []byte("user"),
-					secrets.PasswordKey: []byte("pass"),
+					secrets.KeyUsername: []byte("user"),
+					secrets.KeyPassword: []byte("pass"),
 				}),
 			),
 			wantUsername: "user",
@@ -378,8 +378,8 @@ func TestBasicAuthFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("auth-secret"),
 				withData(map[string][]byte{
-					secrets.UsernameKey: []byte(""),
-					secrets.PasswordKey: []byte(""),
+					secrets.KeyUsername: []byte(""),
+					secrets.KeyPassword: []byte(""),
 				}),
 			),
 			wantUsername: "",
@@ -390,8 +390,8 @@ func TestBasicAuthFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("auth-secret"),
 				withData(map[string][]byte{
-					secrets.UsernameKey: []byte("user@domain.com"),
-					secrets.PasswordKey: []byte("p@ssw0rd!@#$%"),
+					secrets.KeyUsername: []byte("user@domain.com"),
+					secrets.KeyPassword: []byte("p@ssw0rd!@#$%"),
 				}),
 			),
 			wantUsername: "user@domain.com",
@@ -402,7 +402,7 @@ func TestBasicAuthFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("auth-secret"),
 				withData(map[string][]byte{
-					secrets.PasswordKey: []byte("pass"),
+					secrets.KeyPassword: []byte("pass"),
 				}),
 			),
 			errMsg: `secret 'default/auth-secret': key 'username' not found`,
@@ -412,7 +412,7 @@ func TestBasicAuthFromSecret(t *testing.T) {
 			secret: testSecret(
 				withName("auth-secret"),
 				withData(map[string][]byte{
-					secrets.UsernameKey: []byte("user"),
+					secrets.KeyUsername: []byte("user"),
 				}),
 			),
 			errMsg: `secret 'default/auth-secret': key 'password' not found`,

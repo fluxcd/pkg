@@ -52,9 +52,9 @@ func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret) (*tls.Confi
 // proxy URL. Optional "username" and "password" fields can be provided
 // for proxy authentication.
 func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, error) {
-	addressData, exists := secret.Data[AddressKey]
+	addressData, exists := secret.Data[KeyAddress]
 	if !exists {
-		return nil, &KeyNotFoundError{Key: AddressKey, Secret: secret}
+		return nil, &KeyNotFoundError{Key: KeyAddress, Secret: secret}
 	}
 
 	address := string(addressData)
@@ -69,8 +69,8 @@ func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, e
 		return nil, fmt.Errorf("secret '%s': failed to parse proxy address '%s': %w", ref, address, err)
 	}
 
-	username, hasUsername := secret.Data[UsernameKey]
-	password, hasPassword := secret.Data[PasswordKey]
+	username, hasUsername := secret.Data[KeyUsername]
+	password, hasPassword := secret.Data[KeyPassword]
 
 	if hasUsername && hasPassword {
 		proxyURL.User = url.UserPassword(string(username), string(password))
@@ -86,14 +86,14 @@ func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, e
 // The function expects the secret to contain "username" and "password" fields.
 // Both fields are required and the function will return an error if either is missing.
 func BasicAuthFromSecret(ctx context.Context, secret *corev1.Secret) (string, string, error) {
-	usernameData, exists := secret.Data[UsernameKey]
+	usernameData, exists := secret.Data[KeyUsername]
 	if !exists {
-		return "", "", &KeyNotFoundError{Key: UsernameKey, Secret: secret}
+		return "", "", &KeyNotFoundError{Key: KeyUsername, Secret: secret}
 	}
 
-	passwordData, exists := secret.Data[PasswordKey]
+	passwordData, exists := secret.Data[KeyPassword]
 	if !exists {
-		return "", "", &KeyNotFoundError{Key: PasswordKey, Secret: secret}
+		return "", "", &KeyNotFoundError{Key: KeyPassword, Secret: secret}
 	}
 
 	return string(usernameData), string(passwordData), nil
