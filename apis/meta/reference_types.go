@@ -35,6 +35,14 @@ type NamespacedObjectReference struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
+// String implements the fmt.Stringer interface for NamespacedObjectReference.
+func (in NamespacedObjectReference) String() string {
+	if in.Namespace != "" {
+		return in.Namespace + "/" + in.Name
+	}
+	return in.Name
+}
+
 // NamespacedObjectKindReference contains enough information to locate the typed referenced Kubernetes resource object
 // in any namespace.
 type NamespacedObjectKindReference struct {

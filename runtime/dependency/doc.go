@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package dependency contains an utility for sorting a set of Kubernetes resource objects that implement the
-// Dependent interface.
+// Package dependency contains an utility for sorting a set of Kubernetes
+// resource objects that implement the Dependent interface.
 package dependency

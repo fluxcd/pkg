@@ -14,239 +14,179 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dependency
+package dependency_test
 
 import (
-	"reflect"
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/fluxcd/pkg/apis/meta"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/fluxcd/pkg/runtime/dependency"
 )
 
-type MockDependent struct {
-	corev1.Node
-	DependsOn []meta.NamespacedObjectReference
+type object struct {
+	name      string
+	namespace string
+	dependsOn []meta.NamespacedObjectReference
 }
 
-func (d MockDependent) GetDependsOn() []meta.NamespacedObjectReference {
-	return d.DependsOn
+func (in object) GetName() string {
+	return in.name
 }
 
-func TestDependencySort(t *testing.T) {
-	tests := []struct {
+func (in object) GetNamespace() string {
+	return in.namespace
+}
+
+func (in object) GetDependsOn() []meta.NamespacedObjectReference {
+	return in.dependsOn
+}
+
+func TestSort(t *testing.T) {
+	for _, tt := range []struct {
 		name    string
-		d       []Dependent
+		objects []dependency.Dependent
 		want    []meta.NamespacedObjectReference
-		wantErr bool
+		err     string
 	}{
 		{
-			"simple",
-			[]Dependent{
-				&MockDependent{
-					Node: corev1.Node{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace: "default",
-							Name:      "frontend",
-						},
-					},
-					DependsOn: []meta.NamespacedObjectReference{
-						{
-							Namespace: "linkerd",
-							Name:      "linkerd",
-						},
-						{
-							Namespace: "default",
-							Name:      "backend",
-						},
+			name: "simple",
+			objects: []dependency.Dependent{
+				&object{
+					name:      "frontend",
+					namespace: "default",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Namespace: "linkerd", Name: "linkerd"},
+						{Namespace: "default", Name: "backend"},
 					},
 				},
-				&MockDependent{
-					Node: corev1.Node{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace: "linkerd",
-							Name:      "linkerd",
-						},
-					},
+				&object{
+					name:      "linkerd",
+					namespace: "linkerd",
 				},
-				&MockDependent{
-					Node: corev1.Node{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace: "default",
-							Name:      "backend",
-						},
-					},
-					DependsOn: []meta.NamespacedObjectReference{
-						{
-							Namespace: "linkerd",
-							Name:      "linkerd",
-						},
+				&object{
+					namespace: "default",
+					name:      "backend",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Namespace: "linkerd", Name: "linkerd"},
 					},
 				},
 			},
-			[]meta.NamespacedObjectReference{
-				{
-					Namespace: "linkerd",
-					Name:      "linkerd",
-				},
-				{
-					Namespace: "default",
-					Name:      "backend",
-				},
-				{
-					Namespace: "default",
-					Name:      "frontend",
-				},
+			want: []meta.NamespacedObjectReference{
+				{Namespace: "linkerd", Name: "linkerd"},
+				{Namespace: "default", Name: "backend"},
+				{Namespace: "default", Name: "frontend"},
 			},
-			false,
 		},
 		{
-			"circular dependency",
-			[]Dependent{
-				&MockDependent{
-					Node: corev1.Node{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace: "default",
-							Name:      "dependency",
-						},
-					},
-					DependsOn: []meta.NamespacedObjectReference{
-						{
-							Namespace: "default",
-							Name:      "endless",
-						},
+			name: "circular dependency",
+			objects: []dependency.Dependent{
+				&object{
+					name:      "dependency",
+					namespace: "default",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Namespace: "default", Name: "endless"},
 					},
 				},
-				&MockDependent{
-					Node: corev1.Node{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace: "default",
-							Name:      "endless",
-						},
-					},
-					DependsOn: []meta.NamespacedObjectReference{
-						{
-							Namespace: "default",
-							Name:      "circular",
-						},
+				&object{
+					name:      "endless",
+					namespace: "default",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Namespace: "default", Name: "circular"},
 					},
 				},
-				&MockDependent{
-					Node: corev1.Node{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace: "default",
-							Name:      "circular",
-						},
-					},
-					DependsOn: []meta.NamespacedObjectReference{
-						{
-							Namespace: "default",
-							Name:      "dependency",
-						},
+				&object{
+					name:      "circular",
+					namespace: "default",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Namespace: "default", Name: "dependency"},
 					},
 				},
 			},
-			nil,
-			true,
+			err: "circular dependency detected: default/dependency -> default/endless -> default/circular -> default/dependency",
 		},
 		{
-			"missing namespace",
-			[]Dependent{
-				&MockDependent{
-					Node: corev1.Node{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace: "application",
-							Name:      "backend",
-						},
-					},
+			name: "missing namespace",
+			objects: []dependency.Dependent{
+				&object{
+					name:      "backend",
+					namespace: "application",
 				},
-				&MockDependent{
-					Node: corev1.Node{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace: "application",
-							Name:      "frontend",
-						},
-					},
-					DependsOn: []meta.NamespacedObjectReference{
-						{
-							Name: "backend",
-						},
+				&object{
+					name:      "frontend",
+					namespace: "application",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Name: "backend"},
 					},
 				},
 			},
-			[]meta.NamespacedObjectReference{
-				{
-					Namespace: "application",
-					Name:      "backend",
-				},
-				{
-					Namespace: "application",
-					Name:      "frontend",
-				},
+			want: []meta.NamespacedObjectReference{
+				{Namespace: "application", Name: "backend"},
+				{Namespace: "application", Name: "frontend"},
 			},
-			false,
 		},
-	}
-	for _, tt := range tests {
+		{
+			name: "dead end",
+			objects: []dependency.Dependent{
+				&object{
+					name:      "backend",
+					namespace: "default",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Namespace: "default", Name: "common"},
+					},
+				},
+				&object{
+					name:      "frontend",
+					namespace: "default",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Namespace: "default", Name: "infra"},
+					},
+				},
+				&object{
+					name:      "common",
+					namespace: "default",
+				},
+			},
+			want: []meta.NamespacedObjectReference{
+				{Namespace: "default", Name: "common"},
+				{Namespace: "default", Name: "backend"},
+				{Namespace: "default", Name: "infra"},
+				{Namespace: "default", Name: "frontend"},
+			},
+		},
+		{
+			name: "vertices not in the input list",
+			objects: []dependency.Dependent{
+				&object{
+					name:      "frontend",
+					namespace: "default",
+					dependsOn: []meta.NamespacedObjectReference{
+						{Namespace: "linkerd", Name: "linkerd"},
+						{Namespace: "default", Name: "backend"},
+					},
+				},
+			},
+			want: []meta.NamespacedObjectReference{
+				{Namespace: "linkerd", Name: "linkerd"},
+				{Namespace: "default", Name: "backend"},
+				{Namespace: "default", Name: "frontend"},
+			},
+		},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Sort(tt.d)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Sort() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Sort() got = %v, want %v", got, tt.want)
+			g := NewWithT(t)
+
+			got, err := dependency.Sort(tt.objects)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(Equal(tt.err))
+				g.Expect(got).To(BeNil())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(got).To(Equal(tt.want))
 			}
 		})
-	}
-}
-
-func TestDependencySort_DeadEnd(t *testing.T) {
-	d := []Dependent{
-		&MockDependent{
-			Node: corev1.Node{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "default",
-					Name:      "backend",
-				},
-			},
-			DependsOn: []meta.NamespacedObjectReference{
-				{
-					Namespace: "default",
-					Name:      "common",
-				},
-			},
-		},
-		&MockDependent{
-			Node: corev1.Node{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "default",
-					Name:      "frontend",
-				},
-			},
-			DependsOn: []meta.NamespacedObjectReference{
-				{
-					Namespace: "default",
-					Name:      "infra",
-				},
-			},
-		},
-		&MockDependent{
-			Node: corev1.Node{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "default",
-					Name:      "common",
-				},
-			},
-		},
-	}
-	got, err := Sort(d)
-	if err != nil {
-		t.Errorf("Sort() error = %v", err)
-		return
-	}
-	if len(got) != len(d) {
-		t.Errorf("Sort() len = %v, want %v", len(got), len(d))
 	}
 }
