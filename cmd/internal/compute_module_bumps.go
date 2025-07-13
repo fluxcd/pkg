@@ -19,6 +19,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -39,6 +40,12 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 		return nil, fmt.Errorf("failed to enumerate taggable modules: %w", err)
 	}
 	bumpables := EnumerateBumpableModules(taggables)
+	isTaggable := make(map[string]bool)
+	for _, bumpable := range bumpables {
+		if slices.Contains(taggables, bumpable) {
+			isTaggable[bumpable] = true
+		}
+	}
 
 	// Open the current Git repository.
 	repo, err := git.PlainOpen(".")
@@ -159,19 +166,57 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 		}
 	}
 
-	// For each changed module, bump all bumpable modules.
+	// For each taggable module that needs to receive a new release,
+	// bump it inside other bumpable modules.
 	targetModules := make([][]string, len(moduleBumps))
 	mustBumpInternalModules := false
-	for i, bump := range moduleBumps {
+	for i := 0; i < len(moduleBumps); i++ { // moduleBumps grows dynamically inside this loop.
+		bump := moduleBumps[i]
 		for _, targetModule := range bumpables {
+			if targetModule == bump.module {
+				continue
+			}
 			ok, err := bump.DryRunApply(ctx, targetModule)
 			if err != nil {
 				return nil, fmt.Errorf("failed to apply bump %s to module %s: %w", bump, targetModule, err)
 			}
 			if ok {
 				targetModules[i] = append(targetModules[i], targetModule)
+
+				// After updating the targetModule, if targetModule is taggable,
+				// then it must be bumped as well.
+				if !isTaggable[targetModule] {
+					continue
+				}
+				willBeBumpedAlready := false
+				for _, existingBump := range moduleBumps {
+					if targetModule == existingBump.module {
+						willBeBumpedAlready = true
+						break
+					}
+				}
+				if !willBeBumpedAlready {
+					var newBump *ModuleBump
+					latest, ok := moduleLatest[targetModule]
+					if !ok {
+						// This is a new module that was never tagged before.
+						newBump, err = NewModuleBumpForNewModule(targetModule)
+						if err != nil {
+							return nil, fmt.Errorf("failed to create module bump for new module %s: %w", targetModule, err)
+						}
+					} else {
+						// This is an existing module that already has a tag.
+						newBump, err = NewModuleBump(targetModule, latest.Original(), latest.IncMinor().String())
+						if err != nil {
+							return nil, fmt.Errorf("failed to create module bump for %s: %w", targetModule, err)
+						}
+					}
+					moduleBumps = append(moduleBumps, newBump)
+					targetModules = append(targetModules, nil)
+				}
 			}
 		}
+
 		if len(targetModules[i]) > 0 {
 			mustBumpInternalModules = true
 		}

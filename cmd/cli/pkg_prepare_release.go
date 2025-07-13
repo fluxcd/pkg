@@ -50,7 +50,7 @@ func runPrepareRelease(cmd *cobra.Command, args []string) error {
 	res.PrintBumps()
 
 	// Prompt for confirmation to apply changes.
-	fmt.Println("\nConfirm applying changes above to file system? (Y/n, only uppercase Y will apply)")
+	fmt.Println("\nConfirm applying changes above to file system? (Y/n, only uppercase Y will confirm)")
 	var response string
 	fmt.Scanln(&response)
 	if response != "Y" {
