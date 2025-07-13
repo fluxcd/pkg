@@ -119,3 +119,22 @@ fuzz-smoketest: fuzz-build
 		-e ENVTEST_BIN_VERSION=$(ENVTEST_KUBERNETES_VERSION) \
 		local-fuzzing:latest \
 		bash -c "/runner.sh"
+
+# Prepare release for Go modules.
+.PHONY: prep
+prep: tools
+	@./bin/flux-tools pkg prep
+
+# Release Go modules.
+.PHONY: release
+release: tools
+	@./bin/flux-tools pkg release
+
+# Run vet for tools.
+.PHONY: tools
+tools:
+	@cd cmd; \
+	go mod tidy; \
+	go fmt ./internal/... ./cli/...; \
+	go vet ./internal/... ./cli/...; \
+	go build -o ../bin/flux-tools ./cli
