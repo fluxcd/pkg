@@ -53,7 +53,7 @@ func runRelease(cmd *cobra.Command, args []string) error {
 	res.PrintTags()
 
 	// Prompt for confirmation to push the tags.
-	fmt.Println("\nConfirm pushing tags above to Git repository? (Y/n, only uppercase Y will apply)")
+	fmt.Println("\nConfirm pushing tags above to Git repository? (Y/n, only uppercase Y will confirm)")
 	var response string
 	fmt.Scanln(&response)
 	if response != "Y" {
