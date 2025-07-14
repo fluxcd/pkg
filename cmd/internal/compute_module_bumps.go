@@ -264,9 +264,7 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 		tagsToPush = append(tagsToPush, tag)
 	}
 	for i := range moduleBumps {
-		if mark[i] == unmarked {
-			depthFirstSearch(i)
-		}
+		depthFirstSearch(i)
 	}
 
 	return &ModuleBumps{

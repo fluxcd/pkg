@@ -18,84 +18,82 @@ package dependency
 
 import (
 	"fmt"
-
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"slices"
+	"strings"
 
 	"github.com/fluxcd/pkg/apis/meta"
-	"github.com/fluxcd/pkg/runtime/internal/tarjan"
 )
 
-// Dependent interface defines methods that a Kubernetes resource object should implement in order to use the dependency
-// package for ordering dependencies.
+// Dependent interface defines methods that a Kubernetes resource object should
+// implement in order to use the dependency package for ordering dependencies.
 type Dependent interface {
-	client.Object
+	GetName() string
+	GetNamespace() string
 	meta.ObjectWithDependencies
 }
 
-// CircularDependencyError contains the circular dependency chains that were detected while sorting the Dependent
-// dependencies.
-type CircularDependencyError [][]string
+const (
+	unmarked = iota
+	permanentMark
+	temporaryMark
+)
 
-func (e CircularDependencyError) Error() string {
-	return fmt.Sprintf("circular dependencies: %v", [][]string(e))
-}
+// Sort takes a slice of Dependent objects and returns a sorted slice of
+// NamespacedObjectReference based on their dependencies. It performs a
+// topological sort using a depth-first search algorithm, which has
+// runtime complexity of O(|V| + |E|), where |V| is the number of
+// vertices (objects) and |E| is the number of edges (dependencies).
+//
+// Reference:
+// https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
+func Sort(objects []Dependent) ([]meta.NamespacedObjectReference, error) {
+	// Build vertices and edges.
+	vertices := make([]meta.NamespacedObjectReference, 0, len(objects))
+	edges := make(map[meta.NamespacedObjectReference][]meta.NamespacedObjectReference)
+	for _, obj := range objects {
+		u := meta.NamespacedObjectReference{
+			Name:      obj.GetName(),
+			Namespace: obj.GetNamespace(),
+		}
+		vertices = append(vertices, u)
+		for _, v := range obj.GetDependsOn() {
+			if v.Namespace == "" {
+				v.Namespace = obj.GetNamespace()
+			}
+			edges[u] = append(edges[u], v)
+		}
+	}
 
-// Sort sorts the Dependent slice based on their listed dependencies using Tarjan's strongly connected components
-// algorithm.
-func Sort(d []Dependent) ([]meta.NamespacedObjectReference, error) {
-	g, l := buildGraph(d)
-	sccs := tarjan.SCC(g)
+	// Compute topological order with depth-first search.
 	var sorted []meta.NamespacedObjectReference
-	var circular CircularDependencyError
-	for i := 0; i < len(sccs); i++ {
-		s := sccs[i]
-		if len(s) != 1 {
-			circular = append(circular, s)
-			continue
+	var depthFirstSearch func(u meta.NamespacedObjectReference) (cycle []string)
+	mark := make(map[meta.NamespacedObjectReference]byte)
+	depthFirstSearch = func(u meta.NamespacedObjectReference) []string {
+		mark[u] = temporaryMark
+		for _, v := range edges[u] {
+			if mark[v] == permanentMark {
+				continue
+			}
+			if mark[v] == temporaryMark {
+				// Cycle detected.
+				return []string{v.String(), u.String()}
+			}
+			if cycle := depthFirstSearch(v); len(cycle) > 0 {
+				return append(cycle, u.String())
+			}
 		}
-		if n, ok := l[s[0]]; ok {
-			sorted = append(sorted, n)
-		}
-	}
-	if circular != nil {
-		for i, j := 0, len(circular)-1; i < j; i, j = i+1, j-1 {
-			circular[i], circular[j] = circular[j], circular[i]
-		}
-		return nil, circular
-	}
-	return sorted, nil
-}
-
-func buildGraph(d []Dependent) (tarjan.Graph, map[string]meta.NamespacedObjectReference) {
-	g := make(tarjan.Graph)
-	l := make(map[string]meta.NamespacedObjectReference)
-	for i := 0; i < len(d); i++ {
-		ref := meta.NamespacedObjectReference{
-			Namespace: d[i].GetNamespace(),
-			Name:      d[i].GetName(),
-		}
-		deps := d[i].GetDependsOn()
-		g[namespacedNameObjRef(ref)] = buildEdges(deps, ref.Namespace)
-		l[namespacedNameObjRef(ref)] = ref
-	}
-	return g, l
-}
-
-func buildEdges(d []meta.NamespacedObjectReference, defaultNamespace string) tarjan.Edges {
-	if len(d) == 0 {
+		mark[u] = permanentMark
+		sorted = append(sorted, u)
 		return nil
 	}
-	e := make(tarjan.Edges)
-	for _, v := range d {
-		if v.Namespace == "" {
-			v.Namespace = defaultNamespace
+	for _, u := range vertices {
+		if mark[u] == unmarked {
+			if cycle := depthFirstSearch(u); len(cycle) > 0 {
+				slices.Reverse(cycle)
+				return nil, fmt.Errorf("circular dependency detected: %v", strings.Join(cycle, " -> "))
+			}
 		}
-		e[namespacedNameObjRef(v)] = struct{}{}
 	}
-	return e
-}
 
-func namespacedNameObjRef(ref meta.NamespacedObjectReference) string {
-	return ref.Namespace + string(types.Separator) + ref.Name
+	return sorted, nil
 }
