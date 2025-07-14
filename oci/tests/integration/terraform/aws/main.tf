@@ -86,9 +86,20 @@ resource "aws_iam_policy" "wi_role_policy" {
         Action = [
           "ecr-public:GetAuthorizationToken",
           "sts:GetServiceBearerToken",
+          "eks:DescribeCluster",
         ]
         Resource = "*"
       },
     ],
   })
+}
+
+resource "aws_eks_access_entry" "wi_access_entry" {
+  count = var.enable_wi ? 1 : 0
+
+  depends_on = [ module.eks ]
+
+  cluster_name  = local.name
+  principal_arn = aws_iam_role.assume_role[0].arn
+  user_name     = aws_iam_role.assume_role[0].arn
 }

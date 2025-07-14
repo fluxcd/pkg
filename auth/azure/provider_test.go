@@ -21,14 +21,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
@@ -40,60 +38,51 @@ import (
 )
 
 func TestProvider_NewControllerToken(t *testing.T) {
-	g := NewWithT(t)
+	for _, tt := range []struct {
+		name     string
+		shellOut bool
+	}{
+		{
+			name:     "without shell out",
+			shellOut: false,
+		},
+		{
+			name:     "with shell out",
+			shellOut: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-	impl := &mockImplementation{
-		t:           t,
-		argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
-		argScopes:   []string{"scope1", "scope2"},
-		returnToken: "access-token",
+			impl := &mockImplementation{
+				t:           t,
+				shellOut:    tt.shellOut,
+				argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				argScopes:   []string{"scope1", "scope2"},
+				returnToken: "access-token",
+			}
+
+			opts := []auth.Option{
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+				auth.WithScopes("scope1", "scope2"),
+			}
+
+			if tt.shellOut {
+				opts = append(opts, auth.WithAllowShellOut())
+			}
+
+			provider := azure.Provider{Implementation: impl}
+			token, err := provider.NewControllerToken(context.Background(), opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{
+				Token:     "access-token",
+				ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			}}))
+		})
 	}
-
-	opts := []auth.Option{
-		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-		auth.WithScopes("scope1", "scope2"),
-	}
-
-	provider := azure.Provider{Implementation: impl}
-	token, err := provider.NewControllerToken(context.Background(), opts...)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
-}
-
-func TestProvider_NewControllerTokenWithShellOut(t *testing.T) {
-	g := NewWithT(t)
-
-	impl := &mockImplementation{
-		t:           t,
-		shellOut:    true,
-		argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
-		argScopes:   []string{"scope1", "scope2"},
-		returnToken: "access-token",
-	}
-
-	opts := []auth.Option{
-		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-		auth.WithScopes("scope1", "scope2"),
-		auth.WithAllowShellOut(),
-	}
-
-	provider := azure.Provider{Implementation: impl}
-	token, err := provider.NewControllerToken(context.Background(), opts...)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
 }
 
 func TestProvider_NewTokenForServiceAccount(t *testing.T) {
-	impl := &mockImplementation{
-		t:            t,
-		argTenantID:  "tenant-id",
-		argClientID:  "client-id",
-		argOIDCToken: "oidc-token",
-		argProxyURL:  &url.URL{Scheme: "http", Host: "proxy.example.com"},
-		argScopes:    []string{"scope1", "scope2"},
-		returnToken:  "access-token",
-	}
-
 	for _, tt := range []struct {
 		name        string
 		annotations map[string]string
@@ -124,6 +113,16 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
+			impl := &mockImplementation{
+				t:            t,
+				argTenantID:  "tenant-id",
+				argClientID:  "client-id",
+				argOIDCToken: "oidc-token",
+				argProxyURL:  &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				argScopes:    []string{"scope1", "scope2"},
+				returnToken:  "access-token",
+			}
+
 			oidcToken := "oidc-token"
 			serviceAccount := corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
@@ -140,7 +139,10 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
+				g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{
+					Token:     "access-token",
+					ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+				}}))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
@@ -150,11 +152,11 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	}
 }
 
-func TestProvider_GetAudience(t *testing.T) {
+func TestProvider_GetAudiences(t *testing.T) {
 	g := NewWithT(t)
-	aud, err := azure.Provider{}.GetAudience(context.Background(), corev1.ServiceAccount{})
+	aud, err := azure.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(aud).To(Equal("api://AzureADTokenExchange"))
+	g.Expect(aud).To(Equal([]string{"api://AzureADTokenExchange"}))
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
@@ -204,36 +206,24 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 			g := NewWithT(t)
 
 			impl := &mockImplementation{
-				t:           t,
-				argURL:      fmt.Sprintf("https://%s/oauth2/exchange", tt.registry),
-				argBody:     fmt.Sprintf("access_token=access-token&grant_type=access_token&service=%s", tt.registry),
-				argProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com"},
-				argScopes:   []string{tt.expectedScope},
-				returnToken: "access-token",
-				returnResp: &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(strings.NewReader(fmt.Sprintf(`{"refresh_token":"%s"}`, refreshToken))),
-				},
+				t:              t,
+				argRegistry:    tt.registry,
+				argToken:       "access-token",
+				argProxyURL:    &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				argScopes:      []string{tt.expectedScope},
+				returnToken:    "access-token",
+				returnACRToken: refreshToken,
 			}
 			provider := azure.Provider{Implementation: impl}
 
 			artifactRepository := fmt.Sprintf("%s/repo", tt.registry)
 			opts := []auth.Option{
-				auth.WithArtifactRepository(artifactRepository),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 			}
 
-			registryURL, err := provider.ParseArtifactRepository(artifactRepository)
+			creds, err := auth.GetArtifactRegistryCredentials(context.Background(), provider, artifactRepository, opts...)
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(registryURL).To(Equal(fmt.Sprintf("https://%s", tt.registry)))
-
-			accessToken, err := provider.NewControllerToken(context.Background(), opts...)
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(accessToken).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{Token: "access-token"}}))
-
-			token, err := provider.NewArtifactRegistryCredentials(context.Background(), registryURL, accessToken, opts...)
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(token).To(Equal(&auth.ArtifactRegistryCredentials{
+			g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{
 					Username: "00000000-0000-0000-0000-000000000000",
 					Password: refreshToken,
@@ -251,31 +241,31 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 		expectValid         bool
 	}{
 		{
-			artifactRepository:  "foo.azurecr.io",
-			expectedRegistryURL: "https://foo.azurecr.io",
+			artifactRepository:  "foo.azurecr.io/repo",
+			expectedRegistryURL: "foo.azurecr.io",
 			expectValid:         true,
 		},
 		{
-			artifactRepository:  "foo.azurecr.cn",
-			expectedRegistryURL: "https://foo.azurecr.cn",
+			artifactRepository:  "foo.azurecr.cn/repo",
+			expectedRegistryURL: "foo.azurecr.cn",
 			expectValid:         true,
 		},
 		{
-			artifactRepository:  "foo.azurecr.de",
-			expectedRegistryURL: "https://foo.azurecr.de",
+			artifactRepository:  "foo.azurecr.de/repo",
+			expectedRegistryURL: "foo.azurecr.de",
 			expectValid:         true,
 		},
 		{
-			artifactRepository:  "foo.azurecr.us",
-			expectedRegistryURL: "https://foo.azurecr.us",
+			artifactRepository:  "foo.azurecr.us/repo",
+			expectedRegistryURL: "foo.azurecr.us",
 			expectValid:         true,
 		},
 		{
-			artifactRepository: "foo.azurecr.com",
+			artifactRepository: "foo.azurecr.com/repo",
 			expectValid:        false,
 		},
 		{
-			artifactRepository: ".azurecr.io",
+			artifactRepository: ".azurecr.io/repo",
 			expectValid:        false,
 		},
 		{
@@ -297,4 +287,247 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProvider_NewRESTConfig(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		cluster        string
+		clusterAddress string
+		caData         string
+		aadProfile     *armcontainerservice.ManagedClusterAADProfile
+		kubeconfigs    []*armcontainerservice.CredentialResult
+		err            string
+	}{
+		{
+			name:    "valid AKS cluster",
+			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+				{
+					Name:  &[]string{"clusterUser-secondary"}[0],
+					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
+				},
+			},
+		},
+		{
+			name:    "valid AKS cluster - lowercase",
+			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourcegroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+				{
+					Name:  &[]string{"clusterUser-secondary"}[0],
+					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
+				},
+			},
+		},
+		{
+			name:           "valid AKS cluster with address match",
+			cluster:        "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			clusterAddress: "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443",
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+				{
+					Name:  &[]string{"clusterUser-secondary"}[0],
+					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
+				},
+			},
+		},
+		{
+			name:    "valid AKS cluster with CA",
+			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			caData:  "-----BEGIN CERTIFICATE-----",
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+				{
+					Name:  &[]string{"clusterUser-secondary"}[0],
+					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
+				},
+			},
+		},
+		{
+			name:           "CA and address only",
+			clusterAddress: "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443",
+			caData:         "-----BEGIN CERTIFICATE-----",
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+				{
+					Name:  &[]string{"clusterUser-secondary"}[0],
+					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
+				},
+			},
+		},
+		{
+			name:           "cluster address mismatch",
+			cluster:        "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			clusterAddress: "https://different-cluster.hcp.eastus.azmk8s.io:443",
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+			},
+			err: "AKS cluster /subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster does not match specified address 'https://different-cluster.hcp.eastus.azmk8s.io:443'. cluster addresses: ['https://test-cluster-12345678.hcp.eastus.azmk8s.io:443']",
+		},
+		{
+			name:    "cluster without AAD integration",
+			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			err:     "AKS cluster /subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster does not have Microsoft Entra ID integration enabled. See docs for enabling: https://learn.microsoft.com/en-us/azure/aks/enable-authentication-microsoft-entra-id",
+		},
+		{
+			name:    "invalid cluster ID",
+			cluster: "invalid-cluster-id",
+			err:     `invalid AKS cluster ID: 'invalid-cluster-id'. must match (?i)^/subscriptions/([^/]{36})/resourceGroups/([^/]{1,200})/providers/Microsoft\.ContainerService/managedClusters/([^/]{1,200})$`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			impl := &mockImplementation{
+				t:                t,
+				expectAKSAPICall: tt.clusterAddress == "" || tt.caData == "",
+				argToken:         "access-token",
+				argFirstScopes:   []string{"6dae42f8-4368-4678-94ff-3960e28e3630/.default"},
+				argSecondScopes:  []string{"https://management.core.windows.net//.default"},
+				argSubscription:  "12345678-1234-1234-1234-123456789012",
+				argResourceGroup: "test-rg",
+				argClusterName:   "test-cluster",
+				argProxyURL:      &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				returnToken:      "access-token",
+				returnCluster: armcontainerservice.ManagedCluster{
+					Properties: &armcontainerservice.ManagedClusterProperties{
+						AADProfile: tt.aadProfile,
+					},
+				},
+				returnKubeconfigs: tt.kubeconfigs,
+			}
+
+			opts := []auth.Option{
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+			}
+
+			if tt.cluster != "" {
+				opts = append(opts, auth.WithClusterResource(tt.cluster))
+			}
+
+			if tt.clusterAddress != "" {
+				opts = append(opts, auth.WithClusterAddress(tt.clusterAddress))
+			}
+
+			if tt.caData != "" {
+				opts = append(opts, auth.WithCAData(tt.caData))
+			}
+
+			provider := azure.Provider{Implementation: impl}
+			restConfig, err := auth.GetRESTConfig(context.Background(), provider, opts...)
+
+			if tt.err == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(restConfig).NotTo(BeNil())
+				expectedHost := "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"
+				if tt.clusterAddress != "" {
+					expectedHost = tt.clusterAddress
+				}
+				g.Expect(restConfig.Host).To(Equal(expectedHost))
+				g.Expect(restConfig.BearerToken).To(Equal("access-token"))
+				g.Expect(restConfig.CAData).To(Equal([]byte("-----BEGIN CERTIFICATE-----")))
+				g.Expect(restConfig.ExpiresAt).To(Equal(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)))
+			} else {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(restConfig).To(BeNil())
+			}
+		})
+	}
+}
+
+func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("needs to fetch cluster", func(t *testing.T) {
+		opts, err := azure.Provider{}.GetAccessTokenOptionsForCluster(
+			auth.WithClusterResource("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(opts).To(HaveLen(2))
+
+		// AKS token options
+		var aksOptions auth.Options
+		aksOptions.Apply(opts[0]...)
+		g.Expect(aksOptions.Scopes).To(Equal([]string{"6dae42f8-4368-4678-94ff-3960e28e3630/.default"}))
+
+		// ARM token options
+		var armOptions auth.Options
+		armOptions.Apply(opts[1]...)
+		g.Expect(armOptions.Scopes).To(Equal([]string{"https://management.core.windows.net//.default"}))
+	})
+
+	t.Run("no need to fetch cluster", func(t *testing.T) {
+		opts, err := azure.Provider{}.GetAccessTokenOptionsForCluster(
+			auth.WithClusterAddress("https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+			auth.WithCAData("-----BEGIN CERTIFICATE-----"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(opts).To(HaveLen(1))
+
+		// AKS token options
+		var aksOptions auth.Options
+		aksOptions.Apply(opts[0]...)
+		g.Expect(aksOptions.Scopes).To(Equal([]string{"6dae42f8-4368-4678-94ff-3960e28e3630/.default"}))
+	})
+}
+
+func createKubeconfig(clusterName, serverURL string) []byte {
+	return []byte(fmt.Sprintf(`apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t
+    server: %s
+  name: %s
+contexts:
+- context:
+    cluster: %s
+    user: clusterUser_test-rg_%s
+  name: %s
+current-context: %s
+kind: Config
+users:
+- name: clusterUser_test-rg_%s
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: kubelogin
+      env: null
+`, serverURL, clusterName, clusterName, clusterName, clusterName, clusterName, clusterName))
 }

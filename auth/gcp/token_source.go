@@ -37,7 +37,7 @@ func NewTokenSource(ctx context.Context, opts ...auth.Option) oauth2.TokenSource
 
 // Token implements oauth2.TokenSource.
 func (t *tokenSource) Token() (*oauth2.Token, error) {
-	token, err := auth.GetToken(t.ctx, Provider{}, t.opts...)
+	token, err := auth.GetAccessToken(t.ctx, Provider{}, t.opts...)
 	if err != nil {
 		return nil, err
 	}

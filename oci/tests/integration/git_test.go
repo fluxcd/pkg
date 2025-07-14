@@ -27,23 +27,59 @@ import (
 
 func TestGitCloneUsingProvider(t *testing.T) {
 	if !testGit {
-		t.Skip("Skipping git test, not supported for provider")
+		t.Skip(skippedMessage)
 	}
 
-	ctx := context.TODO()
-	tmpDir := t.TempDir()
+	for _, tt := range []struct {
+		name string
+		skip bool
+		opts []jobOption
+	}{
+		{
+			name: "controller-level workload identity",
+			skip: false,
+		},
+		{
+			name: "object-level workload identity (impersonation)",
+			skip: false,
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeImpersonation)},
+		},
+		{
+			name: "object-level workload identity (direct access)",
+			skip: !testWIDirectAccess,
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeDirectAccess)},
+		},
+		{
+			name: "object-level workload identity (impersonation, federation)",
+			skip: !testWIFederation,
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeImpersonationFederation)},
+		},
+		{
+			name: "object-level workload identity (direct access, federation)",
+			skip: !testWIDirectAccess || !testWIFederation,
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeDirectAccessFederation)},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip {
+				t.Skip(skippedMessage)
+			}
 
-	if err := setUpGitRepository(ctx, tmpDir); err != nil {
-		t.Fatalf("failed setting up GitRepository: %v", err)
+			ctx := context.TODO()
+			tmpDir := t.TempDir()
+
+			if err := setUpGitRepository(ctx, tmpDir); err != nil {
+				t.Fatalf("failed setting up GitRepository: %v", err)
+			}
+
+			args := []string{
+				"-category=git",
+				fmt.Sprintf("-provider=%s", *targetProvider),
+				fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
+			}
+			testjobExecutionWithArgs(t, args, tt.opts...)
+		})
 	}
-	t.Run("Git oidc credential test", func(t *testing.T) {
-		args := []string{
-			"-category=git",
-			fmt.Sprintf("-provider=%s", *targetProvider),
-			fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
-		}
-		testjobExecutionWithArgs(t, args)
-	})
 }
 
 func TestGitCloneUsingSSH(t *testing.T) {
@@ -65,51 +101,5 @@ func TestGitCloneUsingSSH(t *testing.T) {
 			fmt.Sprintf("-repo=%s", gitSSHURL),
 		}
 		testjobExecutionWithArgs(t, args)
-	})
-}
-
-func TestGitCloneUsingObjectLevelWorkloadIdentity(t *testing.T) {
-	if !testGit {
-		t.Skip("Skipping git test, not supported for provider")
-	}
-
-	ctx := context.TODO()
-	tmpDir := t.TempDir()
-
-	if err := setUpGitRepository(ctx, tmpDir); err != nil {
-		t.Fatalf("failed setting up GitRepository: %v", err)
-	}
-	t.Run("Git oidc credential test", func(t *testing.T) {
-		args := []string{
-			"-category=git",
-			fmt.Sprintf("-provider=%s", *targetProvider),
-			fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
-		}
-		testjobExecutionWithArgs(t, args, withObjectLevelWI(objectLevelWIModeImpersonation))
-	})
-}
-
-func TestGitCloneUsingObjectLevelWorkloadIdentityWithDirectAccess(t *testing.T) {
-	if !testGit {
-		t.Skip("Skipping git test, not supported for provider")
-	}
-
-	if !testWIDirectAccess {
-		t.Skip("Skipping workload identity direct access test, not supported for provider")
-	}
-
-	ctx := context.TODO()
-	tmpDir := t.TempDir()
-
-	if err := setUpGitRepository(ctx, tmpDir); err != nil {
-		t.Fatalf("failed setting up GitRepository: %v", err)
-	}
-	t.Run("Git oidc credential test", func(t *testing.T) {
-		args := []string{
-			"-category=git",
-			fmt.Sprintf("-provider=%s", *targetProvider),
-			fmt.Sprintf("-repo=%s", testGitCfg.applicationRepositoryWithoutUser),
-		}
-		testjobExecutionWithArgs(t, args, withObjectLevelWI(objectLevelWIModeDirectAccess))
 	})
 }

@@ -18,14 +18,19 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/elazarl/goproxy"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -37,14 +42,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/clusterreader"
+	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/engine"
+
+	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/auth/gcp"
 	authutils "github.com/fluxcd/pkg/auth/utils"
+	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
 	"github.com/fluxcd/pkg/git/repository"
+	runtimeClient "github.com/fluxcd/pkg/runtime/client"
 )
 
 // registry and repo flags are to facilitate testing of two login scenarios:
@@ -56,7 +67,7 @@ var (
 	registry      = flag.String("registry", "", "registry of the repository")
 	repo          = flag.String("repo", "", "git/oci repository to list")
 	gitSSH        = flag.Bool("git-ssh", false, "use git ssh authentication")
-	category      = flag.String("category", "", "Test category to run - oci/git")
+	category      = flag.String("category", "", "Test category to run - oci/git/restconfig")
 	provider      = flag.String("provider", "", "oidc provider - aws, azure, gcp")
 	wiSAName      = flag.String("wisa-name", "", "Name of the Workload Identity Service Account to use for authentication")
 	wiSANamespace = flag.String("wisa-namespace", "", "Namespace of the Workload Identity Service Account to use for authentication")
@@ -65,10 +76,13 @@ var (
 var (
 	authOpts   []auth.Option
 	kubeClient client.Client
+	proxyURL   *url.URL
 )
 
 func main() {
 	flag.Parse()
+
+	// Create in-cluster kube client.
 	conf, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err)
@@ -81,6 +95,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Configure object-level workload identity.
 	if *wiSAName != "" && *wiSANamespace != "" {
 		auth.EnableObjectLevelWorkloadIdentity()
 		authOpts = append(authOpts, auth.WithServiceAccount(client.ObjectKey{
@@ -88,14 +107,57 @@ func main() {
 			Namespace: *wiSANamespace,
 		}, kubeClient))
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+
+	// Configure a token cache.
+	tokenCache, err := cache.NewTokenCache(100)
+	if err != nil {
+		panic(err)
+	}
+	authOpts = append(authOpts, auth.WithCache(*tokenCache, cache.InvolvedObject{
+		Kind:      "TestApp",
+		Name:      "testapp",
+		Namespace: "default",
+		Operation: "test",
+	}))
+
+	// Create and configure a test proxy.
+	proxy := goproxy.NewProxyHttpServer()
+	proxy.Verbose = true
+	lis, err := net.Listen("tcp", ":0")
+	if err != nil {
+		panic(err)
+	}
+	s := &http.Server{
+		Addr:    lis.Addr().String(),
+		Handler: proxy,
+	}
+	go func() {
+		if err := s.Serve(lis); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			panic(err)
+		}
+	}()
+	defer func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := s.Shutdown(ctx); err != nil {
+			panic(err)
+		}
+	}()
+	proxyURL = &url.URL{
+		Scheme: "http",
+		Host:   lis.Addr().String(),
+	}
+	authOpts = append(authOpts, auth.WithProxyURL(*proxyURL))
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	if *category == "oci" {
+	switch *category {
+	case "oci":
 		checkOci(ctx)
-	} else if *category == "git" {
+	case "git":
 		checkGit(ctx)
-	} else {
+	case "restconfig":
+		checkRESTConfig(ctx)
+	default:
 		panic("unsupported category")
 	}
 }
@@ -125,7 +187,12 @@ func checkOci(ctx context.Context) {
 		panic(err)
 	}
 
-	for _, provider := range []auth.Provider{aws.Provider{}, azure.Provider{}, gcp.Provider{}} {
+	providers := []auth.ArtifactRegistryCredentialsProvider{
+		aws.Provider{},
+		azure.Provider{},
+		gcp.Provider{},
+	}
+	for _, provider := range providers {
 		if _, err = provider.ParseArtifactRepository(loginURL); err == nil {
 			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL, authOpts...)
 			break
@@ -212,4 +279,40 @@ func checkGit(ctx context.Context) {
 		panic(err)
 	}
 	log.Println(string(contents))
+}
+
+func checkRESTConfig(ctx context.Context) {
+	// Create client.
+	const namespace = "default"
+	kubeConfigRef := meta.KubeConfigReference{
+		ConfigMapRef: &meta.LocalObjectReference{
+			Name: "kubeconfig",
+		},
+	}
+	provider := runtimeClient.ProviderRESTConfigFetcher(authutils.GetRESTConfigFetcher(authOpts...))
+	impersonatorOpts := []runtimeClient.ImpersonatorOption{
+		runtimeClient.WithPolling(engine.ClusterReaderFactoryFunc(clusterreader.NewDirectClusterReader)),
+		runtimeClient.WithKubeConfig(&kubeConfigRef, runtimeClient.KubeConfigOptions{}, namespace, provider),
+	}
+	impersonator := runtimeClient.NewImpersonator(kubeClient, impersonatorOpts...)
+	c, _, err := impersonator.GetClient(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	// Listing secrets in the default namespace should work, as the user is namespace admin.
+	secrets := &corev1.SecretList{}
+	if err := c.List(ctx, secrets, &client.ListOptions{Namespace: namespace}); err != nil {
+		panic(err)
+	}
+
+	// Listing secrets in the kube-system namespace should fail, as the user is not cluster admin.
+	secrets = &corev1.SecretList{}
+	err = c.List(ctx, secrets, &client.ListOptions{Namespace: "kube-system"})
+	if err == nil {
+		panic("expected error when listing secrets in kube-system namespace, but got none")
+	}
+	if !strings.Contains(err.Error(), `cannot list resource "secrets" in API group "" in the namespace "kube-system"`) {
+		panic(fmt.Sprintf("expected permission error, got: %s", err.Error()))
+	}
 }

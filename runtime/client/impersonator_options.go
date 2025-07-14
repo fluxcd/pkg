@@ -17,8 +17,12 @@ limitations under the License.
 package client
 
 import (
+	"context"
+
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling"
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/engine"
@@ -28,6 +32,11 @@ import (
 
 // ImpersonatorOption is a functional option for configuring the Impersonator.
 type ImpersonatorOption func(*Impersonator)
+
+// ProviderRESTConfigFetcher is a function that retrieves a *rest.Config for a
+// given KubeConfigReference, a namespace, and a controller-runtime client.
+type ProviderRESTConfigFetcher func(ctx context.Context, ref meta.KubeConfigReference,
+	namespace string, ctrlClient client.Client) (*rest.Config, error)
 
 // WithScheme sets the scheme for the Impersonator.
 func WithScheme(scheme *runtime.Scheme) ImpersonatorOption {
@@ -46,11 +55,13 @@ func WithServiceAccount(defaultName, name, namespace string) ImpersonatorOption 
 }
 
 // WithKubeConfig sets the kubeconfig options for the Impersonator.
-func WithKubeConfig(ref *meta.KubeConfigReference, opts KubeConfigOptions, namespace string) ImpersonatorOption {
+func WithKubeConfig(ref *meta.KubeConfigReference, opts KubeConfigOptions,
+	namespace string, provider ProviderRESTConfigFetcher) ImpersonatorOption {
 	return func(i *Impersonator) {
 		i.kubeConfigRef = ref
 		i.kubeConfigOpts = opts
 		i.kubeConfigNamespace = namespace
+		i.kubeConfigProvider = provider
 	}
 }
 

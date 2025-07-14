@@ -25,6 +25,8 @@ import (
 
 	tfjson "github.com/hashicorp/terraform-json"
 
+	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/test-infra/tftestenv"
 )
 
@@ -108,6 +110,32 @@ func getWISAAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]st
 	return map[string]string{
 		eksRoleArnAnnotation: iamARN,
 	}, nil
+}
+
+// getClusterConfigMapAWS returns the cluster configmap data for kubeconfig auth tests.
+func getClusterConfigMapAWS(output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	clusterResource := output["eks_cluster_arn"].Value.(string)
+	if clusterResource == "" {
+		return nil, fmt.Errorf("no EKS cluster id in terraform output")
+	}
+	clusterAddress := output["eks_cluster_endpoint"].Value.(string)
+	if clusterAddress == "" {
+		return nil, fmt.Errorf("no EKS cluster address in terraform output")
+	}
+	return map[string]string{
+		meta.KubeConfigKeyProvider: aws.ProviderName,
+		meta.KubeConfigKeyCluster:  clusterResource,
+		meta.KubeConfigKeyAddress:  clusterAddress,
+	}, nil
+}
+
+// getClusterUsersAWS returns the cluster users for kubeconfig auth tests.
+func getClusterUsersAWS(output map[string]*tfjson.StateOutput) ([]string, error) {
+	clusterUser := output["aws_wi_iam_arn"].Value.(string)
+	if clusterUser == "" {
+		return nil, fmt.Errorf("no EKS cluster user id in terraform output")
+	}
+	return []string{clusterUser}, nil
 }
 
 // When implemented, getGitTestConfigAws would return the git-specific test config for AWS

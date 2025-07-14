@@ -34,8 +34,7 @@ func (t *Token) GetDuration() time.Duration {
 	return time.Until(t.ExpiresOn)
 }
 
-// Credential gets a token credential for the token to use with Azure libraries.
-func (t *Token) Credential() azcore.TokenCredential {
+func (t *Token) credential() azcore.TokenCredential {
 	return &staticTokenCredential{t.AccessToken}
 }
 
