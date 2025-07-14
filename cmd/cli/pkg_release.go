@@ -32,8 +32,15 @@ var pkgReleaseCmd = &cobra.Command{
 	RunE:  runRelease,
 }
 
+var pkgReleaseCmdFlags struct {
+	preview bool
+}
+
 func init() {
 	pkgCmd.AddCommand(pkgReleaseCmd)
+
+	pkgReleaseCmd.Flags().BoolVar(&pkgReleaseCmdFlags.preview, "preview", false,
+		"Preview the release changes without applying them.")
 }
 
 func runRelease(cmd *cobra.Command, args []string) error {
@@ -51,6 +58,10 @@ func runRelease(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	res.PrintTags()
+
+	if pkgReleaseCmdFlags.preview {
+		return nil
+	}
 
 	// Prompt for confirmation to push the tags.
 	fmt.Println("\nConfirm pushing tags above to Git repository? (Y/n, only uppercase Y will confirm)")

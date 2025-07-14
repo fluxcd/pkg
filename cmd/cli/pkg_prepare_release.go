@@ -33,8 +33,16 @@ var pkgPrepareReleaseCmd = &cobra.Command{
 	RunE:  runPrepareRelease,
 }
 
+var pkgPrepareReleaseCmdFlags struct {
+	yes bool
+}
+
 func init() {
 	pkgCmd.AddCommand(pkgPrepareReleaseCmd)
+
+	pkgPrepareReleaseCmd.Flags().BoolVar(&pkgPrepareReleaseCmdFlags.yes, "yes", false,
+		"Skip confirmation prompt and apply changes directly. Use with caution.")
+	pkgPrepareReleaseCmd.Flags().MarkHidden("yes")
 }
 
 func runPrepareRelease(cmd *cobra.Command, args []string) error {
@@ -50,12 +58,14 @@ func runPrepareRelease(cmd *cobra.Command, args []string) error {
 	res.PrintBumps()
 
 	// Prompt for confirmation to apply changes.
-	fmt.Println("\nConfirm applying changes above to file system? (Y/n, only uppercase Y will confirm)")
-	var response string
-	fmt.Scanln(&response)
-	if response != "Y" {
-		fmt.Println("Aborting changes.")
-		return nil
+	if !pkgPrepareReleaseCmdFlags.yes {
+		fmt.Println("\nConfirm applying changes above to file system? (Y/n, only uppercase Y will confirm)")
+		var response string
+		fmt.Scanln(&response)
+		if response != "Y" {
+			fmt.Println("Aborting changes.")
+			return nil
+		}
 	}
 
 	// Apply changes to the file system.
