@@ -149,9 +149,11 @@ func TestGitHubE2E(t *testing.T) {
 				var data map[string][]byte
 				authOptions, err = git.NewAuthOptions(*repoURL, data)
 				username, password, err := pkggithub.GetCredentials(context.Background(),
-					pkggithub.WithAppID(githubAppID),
-					pkggithub.WithInstllationID(githubAppInstallID),
-					pkggithub.WithPrivateKey(githubAppPrivateKey))
+					pkggithub.WithAppData(map[string][]byte{
+						pkggithub.KeyAppID:             []byte(githubAppID),
+						pkggithub.KeyAppInstallationID: []byte(githubAppInstallID),
+						pkggithub.KeyAppPrivateKey:     githubAppPrivateKey,
+					}))
 				if err != nil {
 					return nil, nil, err
 				}
