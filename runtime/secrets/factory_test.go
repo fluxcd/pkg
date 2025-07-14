@@ -115,6 +115,8 @@ func TestMakeTLSSecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(tt.expectedType))
@@ -178,6 +180,8 @@ func TestMakeBasicAuthSecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeBasicAuth))
@@ -266,6 +270,8 @@ func TestMakeProxySecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
@@ -318,6 +324,8 @@ func TestMakeBearerTokenSecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
@@ -383,6 +391,8 @@ func TestMakeTokenSecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
@@ -498,6 +508,8 @@ func TestMakeRegistrySecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeDockerConfigJson))
@@ -592,6 +604,8 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
@@ -711,6 +725,8 @@ func TestMakeSSHSecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
 				g.Expect(secret.Name).To(Equal(tt.secretName))
 				g.Expect(secret.Namespace).To(Equal(tt.namespace))
 				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))

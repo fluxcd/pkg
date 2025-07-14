@@ -147,7 +147,7 @@ func (t *tlsCertificateData) toSecret(name, namespace string) *corev1.Secret {
 		secretData[KeyCACert] = string(t.caCert)
 	}
 
-	return &corev1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -155,6 +155,8 @@ func (t *tlsCertificateData) toSecret(name, namespace string) *corev1.Secret {
 		Type:       secretType,
 		StringData: secretData,
 	}
+	secret.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Secret"))
+	return secret
 }
 
 // getSecretData retrieves data from secret with fallback support for legacy keys.
