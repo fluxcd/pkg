@@ -46,25 +46,32 @@ func TestClient_Options(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "Create new client",
-			opts: []OptFunc{WithInstllationID(installationID), WithAppID(appID), WithPrivateKey(kp.PrivateKey)},
+			name: "Create new client with proxy",
+			opts: []OptFunc{
+				WithAppData(map[string][]byte{
+					KeyAppID:             []byte(appID),
+					KeyAppInstallationID: []byte(installationID),
+					KeyAppPrivateKey:     kp.PrivateKey,
+				}),
+				WithProxyURL(proxy),
+			},
 		},
 		{
-			name: "Create new client with proxy",
-			opts: []OptFunc{WithInstllationID(installationID), WithAppID(appID), WithPrivateKey(kp.PrivateKey), WithProxyURL((proxy))},
+			name: "Create new client",
+			opts: []OptFunc{WithAppData(map[string][]byte{
+				KeyAppID:             []byte(appID),
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppPrivateKey:     kp.PrivateKey,
+			})},
 		},
 		{
 			name: "Create new client with custom api url",
-			opts: []OptFunc{WithAppBaseURL(gitHubEnterpriseURL), WithInstllationID(installationID), WithAppID(appID), WithPrivateKey(kp.PrivateKey)},
-		},
-		{
-			name: "Create new client with app data",
 			opts: []OptFunc{WithAppData(map[string][]byte{
-				AppIDKey:             []byte(appID),
-				AppInstallationIDKey: []byte(installationID),
-				AppPrivateKey:        kp.PrivateKey,
-			},
-			)},
+				KeyAppID:             []byte(appID),
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppBaseURL:        []byte(gitHubEnterpriseURL),
+				KeyAppPrivateKey:     kp.PrivateKey,
+			})},
 		},
 		{
 			name:    "Create new client with empty data",
@@ -74,8 +81,8 @@ func TestClient_Options(t *testing.T) {
 		{
 			name: "Create new client with app data with missing AppID Key",
 			opts: []OptFunc{WithAppData(map[string][]byte{
-				AppInstallationIDKey: []byte(installationID),
-				AppPrivateKey:        kp.PrivateKey,
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppPrivateKey:     kp.PrivateKey,
 			},
 			)},
 			wantErr: errors.New("app ID must be provided to use github app authentication"),
@@ -83,8 +90,8 @@ func TestClient_Options(t *testing.T) {
 		{
 			name: "Create new client with app data with missing AppInstallationID Key",
 			opts: []OptFunc{WithAppData(map[string][]byte{
-				AppIDKey:      []byte("123"),
-				AppPrivateKey: kp.PrivateKey,
+				KeyAppID:         []byte("123"),
+				KeyAppPrivateKey: kp.PrivateKey,
 			},
 			)},
 			wantErr: errors.New("app installation ID must be provided to use github app authentication"),
@@ -92,8 +99,8 @@ func TestClient_Options(t *testing.T) {
 		{
 			name: "Create new client with app data with missing private Key",
 			opts: []OptFunc{WithAppData(map[string][]byte{
-				AppIDKey:             []byte(appID),
-				AppInstallationIDKey: []byte(installationID),
+				KeyAppID:             []byte(appID),
+				KeyAppInstallationID: []byte(installationID),
 			},
 			)},
 			wantErr: errors.New("private key must be provided to use github app authentication"),
@@ -101,9 +108,9 @@ func TestClient_Options(t *testing.T) {
 		{
 			name: "Create new client with invalid appID in app data",
 			opts: []OptFunc{WithAppData(map[string][]byte{
-				AppIDKey:             []byte("abc"),
-				AppInstallationIDKey: []byte(installationID),
-				AppPrivateKey:        kp.PrivateKey,
+				KeyAppID:             []byte("abc"),
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppPrivateKey:     kp.PrivateKey,
 			},
 			)},
 			wantErr: errors.New("invalid app id, err: strconv.Atoi: parsing \"abc\": invalid syntax"),
@@ -111,9 +118,9 @@ func TestClient_Options(t *testing.T) {
 		{
 			name: "Create new client with invalid installationID in app data",
 			opts: []OptFunc{WithAppData(map[string][]byte{
-				AppIDKey:             []byte(appID),
-				AppInstallationIDKey: []byte("abc"),
-				AppPrivateKey:        kp.PrivateKey,
+				KeyAppID:             []byte(appID),
+				KeyAppInstallationID: []byte("abc"),
+				KeyAppPrivateKey:     kp.PrivateKey,
 			},
 			)},
 			wantErr: errors.New("invalid app installation id, err: strconv.Atoi: parsing \"abc\": invalid syntax"),
@@ -121,9 +128,9 @@ func TestClient_Options(t *testing.T) {
 		{
 			name: "Create new client with invalid private key in app data",
 			opts: []OptFunc{WithAppData(map[string][]byte{
-				AppIDKey:             []byte(appID),
-				AppInstallationIDKey: []byte(installationID),
-				AppPrivateKey:        []byte("  "),
+				KeyAppID:             []byte(appID),
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppPrivateKey:     []byte("  "),
 			},
 			)},
 			wantErr: errors.New("could not parse private key: invalid key: Key must be a PEM encoded PKCS1 or PKCS8 key"),
@@ -230,7 +237,12 @@ func TestClient_GetCredentials(t *testing.T) {
 			kp, err := ssh.GenerateKeyPair(ssh.RSA_4096)
 			g.Expect(err).ToNot(HaveOccurred())
 			opts := []OptFunc{
-				WithAppBaseURL(srv.URL), WithInstllationID("123"), WithAppID("456"), WithPrivateKey(kp.PrivateKey),
+				WithAppData(map[string][]byte{
+					KeyAppID:             []byte("123"),
+					KeyAppInstallationID: []byte("456"),
+					KeyAppBaseURL:        []byte(srv.URL),
+					KeyAppPrivateKey:     kp.PrivateKey,
+				}),
 			}
 			opts = append(opts, tt.opts...)
 

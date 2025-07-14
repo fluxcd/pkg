@@ -33,10 +33,10 @@ import (
 )
 
 const (
-	AppIDKey             = "githubAppID"
-	AppInstallationIDKey = "githubAppInstallationID"
-	AppPrivateKey        = "githubAppPrivateKey"
-	AppBaseUrlKey        = "githubAppBaseURL"
+	KeyAppID             = "githubAppID"
+	KeyAppInstallationID = "githubAppInstallationID"
+	KeyAppPrivateKey     = "githubAppPrivateKey"
+	KeyAppBaseURL        = "githubAppBaseURL"
 
 	AccessTokenUsername = "x-access-token"
 )
@@ -111,51 +111,22 @@ func New(opts ...OptFunc) (*Client, error) {
 	return p, nil
 }
 
-// WithInstallationID configures the installation ID of the GitHub App.
-func WithInstllationID(installationID string) OptFunc {
-	return func(p *Client) {
-		p.installationID = installationID
-	}
-}
-
-// WithAppID configures the app ID of the GitHub App.
-func WithAppID(appID string) OptFunc {
-	return func(p *Client) {
-		p.appID = appID
-	}
-}
-
-// WithPrivateKey configures the private key of the GitHub App.
-func WithPrivateKey(pk []byte) OptFunc {
-	return func(p *Client) {
-		p.privateKey = pk
-	}
-}
-
-// WithAppBaseURL configures the GitHub API endpoint to use to fetch GitHub App
-// installation token.
-func WithAppBaseURL(appBaseURL string) OptFunc {
-	return func(p *Client) {
-		p.apiURL = appBaseURL
-	}
-}
-
 // WithAppData configures the client using data from a map
 func WithAppData(appData map[string][]byte) OptFunc {
 	return func(p *Client) {
-		val, ok := appData[AppIDKey]
+		val, ok := appData[KeyAppID]
 		if ok {
 			p.appID = string(val)
 		}
-		val, ok = appData[AppInstallationIDKey]
+		val, ok = appData[KeyAppInstallationID]
 		if ok {
 			p.installationID = string(val)
 		}
-		val, ok = appData[AppPrivateKey]
+		val, ok = appData[KeyAppPrivateKey]
 		if ok {
 			p.privateKey = val
 		}
-		val, ok = appData[AppBaseUrlKey]
+		val, ok = appData[KeyAppBaseURL]
 		if ok {
 			p.apiURL = string(val)
 		}
@@ -249,10 +220,10 @@ func GetCredentials(ctx context.Context, opts ...OptFunc) (string, string, error
 
 func (p *Client) buildCacheKey() string {
 	keyParts := []string{
-		fmt.Sprintf("%s=%s", AppIDKey, p.appID),
-		fmt.Sprintf("%s=%s", AppInstallationIDKey, p.installationID),
-		fmt.Sprintf("%s=%s", AppBaseUrlKey, p.apiURL),
-		fmt.Sprintf("%s=%s", AppPrivateKey, string(p.privateKey)),
+		fmt.Sprintf("%s=%s", KeyAppID, p.appID),
+		fmt.Sprintf("%s=%s", KeyAppInstallationID, p.installationID),
+		fmt.Sprintf("%s=%s", KeyAppBaseURL, p.apiURL),
+		fmt.Sprintf("%s=%s", KeyAppPrivateKey, string(p.privateKey)),
 	}
 	rawKey := strings.Join(keyParts, ",")
 	hash := sha256.Sum256([]byte(rawKey))
