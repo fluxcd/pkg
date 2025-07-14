@@ -740,3 +740,141 @@ func TestMakeSSHSecret(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeSOPSSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		secretName string
+		namespace  string
+		ageKeys    []string
+		gpgKeys    []string
+		errMsg     string
+	}{
+		{
+			name:       "sops secret with age keys only",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    []string{"age1abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
+			gpgKeys:    nil,
+		},
+		{
+			name:       "sops secret with gpg keys only",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    nil,
+			gpgKeys:    []string{"-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n\nmQENBFa..."},
+		},
+		{
+			name:       "sops secret with both age and gpg keys",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    []string{"age1abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
+			gpgKeys:    []string{"-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n\nmQENBFa..."},
+		},
+		{
+			name:       "sops secret with multiple age keys",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    []string{"age1abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", "age1xyz9876543210xyz9876543210xyz9876543210xyz9876543210xyz9876543210"},
+			gpgKeys:    nil,
+		},
+		{
+			name:       "sops secret with multiple gpg keys",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    nil,
+			gpgKeys:    []string{"-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n\nmQENBFa...", "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v2\n\nmQENBFb..."},
+		},
+		{
+			name:       "no keys provided",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    nil,
+			gpgKeys:    nil,
+			errMsg:     "at least one key must be provided",
+		},
+		{
+			name:       "empty age key",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    []string{""},
+			gpgKeys:    nil,
+			errMsg:     "Age key cannot be empty",
+		},
+		{
+			name:       "empty gpg key",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    nil,
+			gpgKeys:    []string{""},
+			errMsg:     "GPG key cannot be empty",
+		},
+		{
+			name:       "empty age key in mixed keys",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    []string{"age1abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", ""},
+			gpgKeys:    []string{"-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n\nmQENBFa..."},
+			errMsg:     "Age key cannot be empty",
+		},
+		{
+			name:       "empty gpg key in mixed keys",
+			secretName: "sops-secret",
+			namespace:  testNS,
+			ageKeys:    []string{"age1abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
+			gpgKeys:    []string{"-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n\nmQENBFa...", ""},
+			errMsg:     "GPG key cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			secret, err := secrets.MakeSOPSSecret(tt.secretName, tt.namespace, tt.ageKeys, tt.gpgKeys)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+				g.Expect(secret).To(BeNil())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secret).ToNot(BeNil())
+				g.Expect(secret.Kind).To(Equal("Secret"))
+				g.Expect(secret.APIVersion).To(Equal("v1"))
+				g.Expect(secret.Name).To(Equal(tt.secretName))
+				g.Expect(secret.Namespace).To(Equal(tt.namespace))
+				g.Expect(secret.Type).To(Equal(corev1.SecretTypeOpaque))
+
+				expectedKeyCount := len(tt.ageKeys) + len(tt.gpgKeys)
+				g.Expect(secret.StringData).To(HaveLen(expectedKeyCount))
+
+				for _, ageKey := range tt.ageKeys {
+					found := false
+					for key, value := range secret.StringData {
+						if value == ageKey && key != "" {
+							g.Expect(key).To(HaveSuffix(".agekey"))
+							found = true
+							break
+						}
+					}
+					g.Expect(found).To(BeTrue(), "Age key not found in secret data")
+				}
+
+				for _, gpgKey := range tt.gpgKeys {
+					found := false
+					for key, value := range secret.StringData {
+						if value == gpgKey && key != "" {
+							g.Expect(key).To(HaveSuffix(".asc"))
+							found = true
+							break
+						}
+					}
+					g.Expect(found).To(BeTrue(), "GPG key not found in secret data")
+				}
+			}
+		})
+	}
+}

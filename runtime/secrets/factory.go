@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"hash/adler32"
 	"net/url"
 
 	corev1 "k8s.io/api/core/v1"
@@ -37,14 +38,14 @@ func validateRequired[T emptyCheckable](value T, fieldName string) error {
 	return nil
 }
 
-func makeSecret(name, namespace string, secretType corev1.SecretType, data map[string]string) *corev1.Secret {
+func makeSecret(name, namespace string, secretType corev1.SecretType, stringData map[string]string) *corev1.Secret {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 		Type:       secretType,
-		StringData: data,
+		StringData: stringData,
 	}
 	secret.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Secret"))
 	return secret
@@ -265,6 +266,37 @@ func MakeSSHSecret(name, namespace, privateKey, publicKey, knownHosts, password 
 	}
 	if password != "" {
 		data[KeyPassword] = password
+	}
+
+	return makeSecret(name, namespace, corev1.SecretTypeOpaque, data), nil
+}
+
+// MakeSOPSSecret creates a Kubernetes secret with Age and/or GPG keys for Flux SOPS decryption.
+//
+// The function requires at least one Age or GPG private key to be provided.
+// It generates unique names for each provided key using Adler-32 checksum to avoid collisions.
+// The resulting secret will be of type Opaque.
+func MakeSOPSSecret(name, namespace string, ageKeys, gpgKeys []string) (*corev1.Secret, error) {
+	if len(ageKeys) == 0 && len(gpgKeys) == 0 {
+		return nil, fmt.Errorf("at least one key must be provided")
+	}
+
+	data := make(map[string]string)
+
+	for _, k := range ageKeys {
+		if k == "" {
+			return nil, fmt.Errorf("Age key cannot be empty")
+		}
+		keyName := fmt.Sprintf("%v.agekey", adler32.Checksum([]byte(k)))
+		data[keyName] = k
+	}
+
+	for _, k := range gpgKeys {
+		if k == "" {
+			return nil, fmt.Errorf("GPG key cannot be empty")
+		}
+		keyName := fmt.Sprintf("%v.asc", adler32.Checksum([]byte(k)))
+		data[keyName] = k
 	}
 
 	return makeSecret(name, namespace, corev1.SecretTypeOpaque, data), nil
