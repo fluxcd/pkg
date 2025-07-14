@@ -38,7 +38,7 @@ func validateRequired[T emptyCheckable](value T, fieldName string) error {
 }
 
 func makeSecret(name, namespace string, secretType corev1.SecretType, data map[string]string) *corev1.Secret {
-	return &corev1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -46,6 +46,8 @@ func makeSecret(name, namespace string, secretType corev1.SecretType, data map[s
 		Type:       secretType,
 		StringData: data,
 	}
+	secret.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Secret"))
+	return secret
 }
 
 // TLSSecretOption configures a TLS secret.
