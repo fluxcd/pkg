@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package controller_test
 
 import (
 	"os"
@@ -23,6 +23,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/spf13/pflag"
 	"golang.org/x/net/http/httpproxy"
+
+	"github.com/fluxcd/pkg/runtime/controller"
 )
 
 func Test_ConnectionOptions_BindFlags(t *testing.T) {
@@ -48,7 +50,7 @@ func Test_ConnectionOptions_BindFlags(t *testing.T) {
 			g := NewWithT(t)
 
 			f := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			opts := ConnectionOptions{}
+			opts := controller.ConnectionOptions{}
 			opts.BindFlags(f)
 
 			err := f.Parse(tt.args)
@@ -59,7 +61,6 @@ func Test_ConnectionOptions_BindFlags(t *testing.T) {
 }
 
 func Test_ConnectionOptions_CheckEnvironmentCompatibility(t *testing.T) {
-	proxyFromEnvironment = mockProxyEnvironmentConfig
 	tests := []struct {
 		name        string
 		allowHTTP   bool
@@ -117,8 +118,9 @@ func Test_ConnectionOptions_CheckEnvironmentCompatibility(t *testing.T) {
 				tt.beforeFunc()
 			}
 
-			opts := &ConnectionOptions{
-				AllowHTTP: tt.allowHTTP,
+			opts := &controller.ConnectionOptions{
+				AllowHTTP:            tt.allowHTTP,
+				ProxyFromEnvironment: mockProxyEnvironmentConfig,
 			}
 			err := opts.CheckEnvironmentCompatibility()
 
