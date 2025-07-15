@@ -9,7 +9,7 @@ replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 replace github.com/opencontainers/go-digest => github.com/opencontainers/go-digest v1.0.1-0.20231025023718-d50d2fec9c98
 
 require (
-	github.com/fluxcd/pkg/apis/meta v1.18.0
+	github.com/fluxcd/pkg/apis/meta v1.17.0
 	github.com/go-logr/logr v1.4.2
 	github.com/onsi/gomega v1.37.0
 	github.com/opencontainers/go-digest v1.0.0
