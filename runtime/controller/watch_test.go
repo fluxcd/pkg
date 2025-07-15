@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package controller_test
 
 import (
 	"testing"
@@ -25,6 +25,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+
+	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/runtime/controller"
 )
 
 func Test_WatchOptions_BindFlags(t *testing.T) {
@@ -107,13 +111,13 @@ func Test_WatchOptions_BindFlags(t *testing.T) {
 			g := NewWithT(t)
 
 			f := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			opts := WatchOptions{}
+			opts := controller.WatchOptions{}
 			opts.BindFlags(f)
 
 			err := f.Parse(tt.commandLine)
 			g.Expect(err).NotTo(HaveOccurred())
 
-			sel, err := GetWatchSelector(opts)
+			sel, err := controller.GetWatchSelector(opts)
 			g.Expect(err).NotTo(HaveOccurred())
 
 			for _, object := range tt.objects {
@@ -135,6 +139,71 @@ func Test_WatchOptions_BindFlags(t *testing.T) {
 					g.Expect(found).ToNot(BeTrue())
 				}
 			}
+		})
+	}
+}
+
+func TestGetWatchConfigsPredicate(t *testing.T) {
+	for _, tt := range []struct {
+		name               string
+		arguments          []string
+		shouldMatchDefault bool
+		shouldMatchCustom  bool
+	}{
+		{
+			name:               "default selector",
+			arguments:          []string{},
+			shouldMatchDefault: true,
+			shouldMatchCustom:  false,
+		},
+		{
+			name:               "custom selector",
+			arguments:          []string{"--watch-configs-label-selector=app=my-app"},
+			shouldMatchDefault: false,
+			shouldMatchCustom:  true,
+		},
+		{
+			name:               "empty selector",
+			arguments:          []string{"--watch-configs-label-selector="},
+			shouldMatchDefault: false,
+			shouldMatchCustom:  false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Build predicate.
+			f := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			var opts controller.WatchOptions
+			opts.BindFlags(f)
+			err := f.Parse(tt.arguments)
+			g.Expect(err).NotTo(HaveOccurred())
+			pred, err := controller.GetWatchConfigsPredicate(opts)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(pred).NotTo(BeNil())
+
+			ev := event.CreateEvent{
+				Object: &corev1.ConfigMap{},
+			}
+
+			// Test default label.
+			ev.Object.SetLabels(map[string]string{
+				meta.LabelKeyWatch: meta.LabelValueWatchEnabled,
+			})
+			ok := pred.Create(ev)
+			g.Expect(ok).To(Equal(tt.shouldMatchDefault))
+
+			// Test custom label.
+			ev.Object.SetLabels(map[string]string{
+				"app": "my-app",
+			})
+			ok = pred.Create(ev)
+			g.Expect(ok).To(Equal(tt.shouldMatchCustom))
+
+			// Test empty labels.
+			ev.Object.SetLabels(map[string]string{})
+			ok = pred.Create(ev)
+			g.Expect(ok).To(BeFalse())
 		})
 	}
 }
