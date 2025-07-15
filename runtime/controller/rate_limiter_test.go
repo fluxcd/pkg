@@ -14,15 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package controller_test
 
 import (
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
-
 	"github.com/spf13/pflag"
+
+	"github.com/fluxcd/pkg/runtime/controller"
 )
 
 func Test_RateLimiterOptions_BindFlags(t *testing.T) {
@@ -66,7 +67,7 @@ func Test_RateLimiterOptions_BindFlags(t *testing.T) {
 			g := NewWithT(t)
 
 			f := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			opts := RateLimiterOptions{}
+			opts := controller.RateLimiterOptions{}
 			opts.BindFlags(f)
 
 			err := f.Parse(tt.commandLine)
