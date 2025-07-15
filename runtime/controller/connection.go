@@ -29,10 +29,6 @@ const (
 	flagInsecureAllowHTTP = "insecure-allow-http"
 )
 
-// proxyFromEnvironment is the function that returns the environment's
-// proxy configuration.
-var proxyFromEnvironment = httpproxy.FromEnvironment
-
 // ErrInsecureHTTPBlocked signals that the use of insecure plain HTTP
 // connections was requested but such behavior is blocked.
 var ErrInsecureHTTPBlocked = errors.New("use of insecure plain HTTP connections is blocked")
@@ -44,6 +40,10 @@ type ConnectionOptions struct {
 	// AllowHTTP, if set to true allows the controller to make plain HTTP
 	// connections to external services.
 	AllowHTTP bool
+
+	// ProxyFromEnvironment is a function that returns the proxy configuration
+	// from the environment. If not specified, defaults to httpproxy.FromEnvironment.
+	ProxyFromEnvironment func() *httpproxy.Config
 }
 
 // BindFlags will parse the given pflag.FlagSet for the controller and
@@ -57,6 +57,10 @@ func (o *ConnectionOptions) BindFlags(fs *pflag.FlagSet) {
 // the configured connection options.
 func (o *ConnectionOptions) CheckEnvironmentCompatibility() error {
 	if !o.AllowHTTP {
+		proxyFromEnvironment := o.ProxyFromEnvironment
+		if proxyFromEnvironment == nil {
+			proxyFromEnvironment = httpproxy.FromEnvironment
+		}
 		config := proxyFromEnvironment()
 		if config.HTTPProxy != "" {
 			return fmt.Errorf("%w: found HTTP proxy set in environment", ErrInsecureHTTPBlocked)

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package controller_test
 
 import (
 	"testing"
@@ -22,8 +22,10 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/fluxcd/pkg/runtime/conditions/testdata"
+	"github.com/fluxcd/pkg/runtime/controller"
 )
 
 func TestMetrics_IsDelete(t *testing.T) {
@@ -51,7 +53,11 @@ func TestMetrics_IsDelete(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			metrics := Metrics{ownedFinalizers: tt.ownedFinalizers}
+			mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{})
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(mgr).NotTo(BeNil())
+
+			metrics := controller.NewMetrics(mgr, nil, tt.ownedFinalizers...)
 			obj := &testdata.Fake{}
 			obj.SetFinalizers(tt.finalizers)
 			obj.SetDeletionTimestamp(tt.deleteTimestamp)
