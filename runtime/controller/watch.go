@@ -20,11 +20,16 @@ import (
 	"github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	"github.com/fluxcd/pkg/apis/meta"
 )
 
 const (
-	flagWatchWatchAllNamespaces = "watch-all-namespaces"
-	flagWatchLabelSelector      = "watch-label-selector"
+	flagWatchWatchAllNamespaces   = "watch-all-namespaces"
+	flagWatchLabelSelector        = "watch-label-selector"
+	flagWatchConfigsLabelSelector = "watch-configs-label-selector"
 )
 
 // WatchOptions defines the configurable options for reconciler resources watcher.
@@ -37,6 +42,11 @@ type WatchOptions struct {
 	// When set, the reconciler will only watch for changes of those resources with matching labels.
 	// Docs: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#list-and-watch-filtering.
 	LabelSelector string
+
+	// ConfigsLabelSelector defines the watch filter for ConfigMaps and Secrets based on matching label expressions.
+	// When set, the reconciler will only watch for changes of those resources with matching labels.
+	// Docs: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#list-and-watch-filtering.
+	ConfigsLabelSelector string
 }
 
 // BindFlags will parse the given pflag.FlagSet for the controller and
@@ -46,6 +56,8 @@ func (o *WatchOptions) BindFlags(fs *pflag.FlagSet) {
 		"Watch for resources in all namespaces, if set to false it will only watch the runtime namespace.")
 	fs.StringVar(&o.LabelSelector, flagWatchLabelSelector, "",
 		"Watch for resources with matching labels e.g. 'sharding.fluxcd.io/shard=shard1'.")
+	fs.StringVar(&o.ConfigsLabelSelector, flagWatchConfigsLabelSelector, meta.LabelKeyWatch+"="+meta.LabelValueWatchEnabled,
+		"Watch for ConfigMaps and Secrets with matching labels.")
 }
 
 // GetWatchLabelSelector parses the label selector option from WatchOptions
@@ -71,4 +83,22 @@ func GetWatchSelector(opts WatchOptions) (labels.Selector, error) {
 	}
 
 	return metav1.LabelSelectorAsSelector(ls)
+}
+
+// GetWatchConfigsPredicate parses the label selector option from WatchOptions
+// and returns the controller-runtime predicate ready for setting up the watch.
+func GetWatchConfigsPredicate(opts WatchOptions) (predicate.Predicate, error) {
+	selector := labels.Nothing()
+
+	if opts.ConfigsLabelSelector != "" {
+		var err error
+		selector, err = labels.Parse(opts.ConfigsLabelSelector)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return predicate.NewPredicateFuncs(func(o client.Object) bool {
+		return selector.Matches(labels.Set(o.GetLabels()))
+	}), nil
 }
