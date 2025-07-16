@@ -150,6 +150,7 @@ func TestGetWatchConfigsPredicate(t *testing.T) {
 		shouldMatchDefault bool
 		shouldMatchCustom  bool
 		shouldMatchEmpty   bool
+		shouldMatchHelm    bool
 	}{
 		{
 			name:               "default selector",
@@ -157,6 +158,7 @@ func TestGetWatchConfigsPredicate(t *testing.T) {
 			shouldMatchDefault: true,
 			shouldMatchCustom:  false,
 			shouldMatchEmpty:   false,
+			shouldMatchHelm:    false,
 		},
 		{
 			name:               "custom selector",
@@ -164,6 +166,7 @@ func TestGetWatchConfigsPredicate(t *testing.T) {
 			shouldMatchDefault: false,
 			shouldMatchCustom:  true,
 			shouldMatchEmpty:   false,
+			shouldMatchHelm:    false,
 		},
 		{
 			name:               "empty selector",
@@ -171,6 +174,15 @@ func TestGetWatchConfigsPredicate(t *testing.T) {
 			shouldMatchDefault: true,
 			shouldMatchCustom:  true,
 			shouldMatchEmpty:   true,
+			shouldMatchHelm:    true,
+		},
+		{
+			name:               "not helm",
+			arguments:          []string{"--watch-configs-label-selector=owner!=helm"},
+			shouldMatchDefault: true,
+			shouldMatchCustom:  true,
+			shouldMatchEmpty:   true,
+			shouldMatchHelm:    false,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -208,6 +220,13 @@ func TestGetWatchConfigsPredicate(t *testing.T) {
 			ev.Object.SetLabels(map[string]string{})
 			ok = pred.Create(ev)
 			g.Expect(ok).To(Equal(tt.shouldMatchEmpty))
+
+			// Test Helm label.
+			ev.Object.SetLabels(map[string]string{
+				"owner": "helm",
+			})
+			ok = pred.Create(ev)
+			g.Expect(ok).To(Equal(tt.shouldMatchHelm))
 		})
 	}
 }
