@@ -149,24 +149,28 @@ func TestGetWatchConfigsPredicate(t *testing.T) {
 		arguments          []string
 		shouldMatchDefault bool
 		shouldMatchCustom  bool
+		shouldMatchEmpty   bool
 	}{
 		{
 			name:               "default selector",
 			arguments:          []string{},
 			shouldMatchDefault: true,
 			shouldMatchCustom:  false,
+			shouldMatchEmpty:   false,
 		},
 		{
 			name:               "custom selector",
 			arguments:          []string{"--watch-configs-label-selector=app=my-app"},
 			shouldMatchDefault: false,
 			shouldMatchCustom:  true,
+			shouldMatchEmpty:   false,
 		},
 		{
 			name:               "empty selector",
 			arguments:          []string{"--watch-configs-label-selector="},
-			shouldMatchDefault: false,
-			shouldMatchCustom:  false,
+			shouldMatchDefault: true,
+			shouldMatchCustom:  true,
+			shouldMatchEmpty:   true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -203,7 +207,7 @@ func TestGetWatchConfigsPredicate(t *testing.T) {
 			// Test empty labels.
 			ev.Object.SetLabels(map[string]string{})
 			ok = pred.Create(ev)
-			g.Expect(ok).To(BeFalse())
+			g.Expect(ok).To(Equal(tt.shouldMatchEmpty))
 		})
 	}
 }

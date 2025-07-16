@@ -88,7 +88,7 @@ func GetWatchSelector(opts WatchOptions) (labels.Selector, error) {
 // GetWatchConfigsPredicate parses the label selector option from WatchOptions
 // and returns the controller-runtime predicate ready for setting up the watch.
 func GetWatchConfigsPredicate(opts WatchOptions) (predicate.Predicate, error) {
-	selector := labels.Nothing()
+	selector := labels.Everything()
 
 	if opts.ConfigsLabelSelector != "" {
 		var err error
