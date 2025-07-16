@@ -19,6 +19,7 @@ package secrets_test
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -27,10 +28,202 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/runtime/secrets"
 )
+
+func TestAuthMethodsFromSecret(t *testing.T) {
+	validCACert, _, _ := generateTestCertificates(t)
+
+	tests := []struct {
+		name       string
+		secretData map[string][]byte
+		wantBasic  bool
+		wantBearer bool
+		wantSSH    bool
+		wantTLS    bool
+		wantErr    error
+	}{
+		{
+			name:       "empty secret",
+			secretData: map[string][]byte{},
+			wantBasic:  false,
+			wantBearer: false,
+			wantSSH:    false,
+			wantTLS:    false,
+		},
+		{
+			name: "basic auth only",
+			secretData: map[string][]byte{
+				secrets.KeyUsername: []byte("testuser"),
+				secrets.KeyPassword: []byte("testpass"),
+			},
+			wantBasic:  true,
+			wantBearer: false,
+			wantSSH:    false,
+			wantTLS:    false,
+		},
+		{
+			name: "bearer token only",
+			secretData: map[string][]byte{
+				secrets.KeyBearerToken: []byte("token123"),
+			},
+			wantBasic:  false,
+			wantBearer: true,
+			wantSSH:    false,
+			wantTLS:    false,
+		},
+		{
+			name: "SSH auth only",
+			secretData: map[string][]byte{
+				secrets.KeySSHPrivateKey: []byte(sshPrivateKey),
+				secrets.KeySSHKnownHosts: []byte(sshKnownHosts),
+			},
+			wantBasic:  false,
+			wantBearer: false,
+			wantSSH:    true,
+			wantTLS:    false,
+		},
+		{
+			name: "TLS only",
+			secretData: map[string][]byte{
+				secrets.KeyCACert: validCACert,
+			},
+			wantBasic:  false,
+			wantBearer: false,
+			wantSSH:    false,
+			wantTLS:    true,
+		},
+		{
+			name: "basic auth + TLS",
+			secretData: map[string][]byte{
+				secrets.KeyUsername: []byte("testuser"),
+				secrets.KeyPassword: []byte("testpass"),
+				secrets.KeyCACert:   validCACert,
+			},
+			wantBasic:  true,
+			wantBearer: false,
+			wantSSH:    false,
+			wantTLS:    true,
+		},
+		{
+			name: "bearer token + TLS",
+			secretData: map[string][]byte{
+				secrets.KeyBearerToken: []byte("token123"),
+				secrets.KeyCACert:      validCACert,
+			},
+			wantBasic:  false,
+			wantBearer: true,
+			wantSSH:    false,
+			wantTLS:    true,
+		},
+		{
+			name: "all authentication methods",
+			secretData: map[string][]byte{
+				secrets.KeyUsername:      []byte("testuser"),
+				secrets.KeyPassword:      []byte("testpass"),
+				secrets.KeyBearerToken:   []byte("token123"),
+				secrets.KeySSHPrivateKey: []byte(sshPrivateKey),
+				secrets.KeySSHKnownHosts: []byte(sshKnownHosts),
+				secrets.KeyCACert:        validCACert,
+			},
+			wantBasic:  true,
+			wantBearer: true,
+			wantSSH:    true,
+			wantTLS:    true,
+		},
+		{
+			name: "malformed SSH auth with valid TLS",
+			secretData: map[string][]byte{
+				secrets.KeySSHPrivateKey: []byte(sshPrivateKey), // known_hosts missing
+				secrets.KeyCACert:        validCACert,
+			},
+			wantBasic:  false,
+			wantBearer: false,
+			wantSSH:    false, // SSH auth should fail
+			wantTLS:    true,  // TLS should succeed
+		},
+		{
+			name: "malformed basic auth - username only",
+			secretData: map[string][]byte{
+				secrets.KeyUsername: []byte("testuser"), // password missing
+			},
+			wantErr: fmt.Errorf("secret 'test-namespace/test-secret': malformed basic auth - has 'username' but missing 'password'"),
+		},
+		{
+			name: "malformed basic auth - password only",
+			secretData: map[string][]byte{
+				secrets.KeyPassword: []byte("testpass"), // username missing
+			},
+			wantErr: fmt.Errorf("secret 'test-namespace/test-secret': malformed basic auth - has 'password' but missing 'username'"),
+		},
+		{
+			name: "malformed basic auth with valid bearer token",
+			secretData: map[string][]byte{
+				secrets.KeyUsername:    []byte("testuser"), // password missing
+				secrets.KeyBearerToken: []byte("token123"), // this should be ignored due to error
+			},
+			wantErr: fmt.Errorf("secret 'test-namespace/test-secret': malformed basic auth - has 'username' but missing 'password'"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := context.TODO()
+
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret",
+					Namespace: "test-namespace",
+				},
+				Data: tt.secretData,
+			}
+
+			result, err := secrets.AuthMethodsFromSecret(ctx, secret)
+
+			if tt.wantErr != nil {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(result).To(BeNil())
+				g.Expect(err.Error()).To(Equal(tt.wantErr.Error()))
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(result).ToNot(BeNil())
+
+			g.Expect(result.HasBasicAuth()).To(Equal(tt.wantBasic))
+			g.Expect(result.HasBearerAuth()).To(Equal(tt.wantBearer))
+			g.Expect(result.HasSSH()).To(Equal(tt.wantSSH))
+			g.Expect(result.HasTLS()).To(Equal(tt.wantTLS))
+
+			if tt.wantBasic {
+				g.Expect(result.Basic).ToNot(BeNil())
+				g.Expect(result.Basic.Username).To(Equal("testuser"))
+				g.Expect(result.Basic.Password).To(Equal("testpass"))
+			}
+
+			if tt.wantBearer {
+				g.Expect(result.Bearer).ToNot(BeNil())
+				g.Expect(result.Bearer.Token).To(Equal("token123"))
+			}
+
+			if tt.wantSSH {
+				g.Expect(result.SSH).ToNot(BeNil())
+				g.Expect(result.SSH.PrivateKey).ToNot(BeEmpty())
+				g.Expect(result.SSH.KnownHosts).ToNot(BeEmpty())
+			}
+
+			if tt.wantTLS {
+				g.Expect(result.TLS).ToNot(BeNil())
+				g.Expect(result.TLS.RootCAs).ToNot(BeNil())
+			}
+
+		})
+	}
+}
 
 func TestTLSConfigFromSecret(t *testing.T) {
 	t.Parallel()
@@ -405,7 +598,7 @@ func TestBasicAuthFromSecret(t *testing.T) {
 					secrets.KeyPassword: []byte("pass"),
 				}),
 			),
-			errMsg: `secret 'default/auth-secret': key 'username' not found`,
+			errMsg: `secret 'default/auth-secret': malformed basic auth - has 'password' but missing 'username'`,
 		},
 		{
 			name: "missing password key",
@@ -415,7 +608,15 @@ func TestBasicAuthFromSecret(t *testing.T) {
 					secrets.KeyUsername: []byte("user"),
 				}),
 			),
-			errMsg: `secret 'default/auth-secret': key 'password' not found`,
+			errMsg: `secret 'default/auth-secret': malformed basic auth - has 'username' but missing 'password'`,
+		},
+		{
+			name: "completely empty secret",
+			secret: testSecret(
+				withName("empty-secret"),
+				withData(map[string][]byte{}),
+			),
+			errMsg: `secret 'default/empty-secret': key 'username' not found`,
 		},
 	}
 
@@ -426,14 +627,176 @@ func TestBasicAuthFromSecret(t *testing.T) {
 
 			ctx := context.Background()
 
-			username, password, err := secrets.BasicAuthFromSecret(ctx, tt.secret)
+			basicAuth, err := secrets.BasicAuthFromSecret(ctx, tt.secret)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(username).To(Equal(tt.wantUsername))
-				g.Expect(password).To(Equal(tt.wantPassword))
+				g.Expect(basicAuth.Username).To(Equal(tt.wantUsername))
+				g.Expect(basicAuth.Password).To(Equal(tt.wantPassword))
+			}
+		})
+	}
+}
+
+func TestBearerAuthFromSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		secret    *corev1.Secret
+		wantToken string
+		errMsg    string
+	}{
+		{
+			name: "valid bearer token",
+			secret: testSecret(
+				withName("bearer-secret"),
+				withData(map[string][]byte{
+					secrets.KeyBearerToken: []byte("token123"),
+				}),
+			),
+			wantToken: "token123",
+		},
+		{
+			name: "empty bearer token",
+			secret: testSecret(
+				withName("bearer-secret"),
+				withData(map[string][]byte{
+					secrets.KeyBearerToken: []byte(""),
+				}),
+			),
+			wantToken: "",
+		},
+		{
+			name: "special characters in token",
+			secret: testSecret(
+				withName("bearer-secret"),
+				withData(map[string][]byte{
+					secrets.KeyBearerToken: []byte("ghp_1234567890abcdef"),
+				}),
+			),
+			wantToken: "ghp_1234567890abcdef",
+		},
+		{
+			name: "missing bearer token key",
+			secret: testSecret(
+				withName("bearer-secret"),
+				withData(map[string][]byte{}),
+			),
+			errMsg: `secret 'default/bearer-secret': key 'bearerToken' not found`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx := context.Background()
+
+			bearerAuth, err := secrets.BearerAuthFromSecret(ctx, tt.secret)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(bearerAuth.Token).To(Equal(tt.wantToken))
+			}
+		})
+	}
+}
+
+func TestSSHAuthFromSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		secret         *corev1.Secret
+		wantPrivateKey []byte
+		wantKnownHosts string
+		wantPublicKey  []byte
+		wantPassword   string
+		errMsg         string
+	}{
+		{
+			name: "valid SSH auth with all fields",
+			secret: testSecret(
+				withName("ssh-secret"),
+				withData(map[string][]byte{
+					secrets.KeySSHPrivateKey: []byte(sshPrivateKey),
+					secrets.KeySSHKnownHosts: []byte(sshKnownHosts),
+					secrets.KeySSHPublicKey:  []byte(sshPublicKey),
+					secrets.KeyPassword:      []byte("passphrase"),
+				}),
+			),
+			wantPrivateKey: []byte(sshPrivateKey),
+			wantKnownHosts: sshKnownHosts,
+			wantPublicKey:  []byte(sshPublicKey),
+			wantPassword:   "passphrase",
+		},
+		{
+			name: "SSH auth with required fields only",
+			secret: testSecret(
+				withName("ssh-secret"),
+				withData(map[string][]byte{
+					secrets.KeySSHPrivateKey: []byte(sshPrivateKey),
+					secrets.KeySSHKnownHosts: []byte(sshKnownHosts),
+				}),
+			),
+			wantPrivateKey: []byte(sshPrivateKey),
+			wantKnownHosts: sshKnownHosts,
+		},
+		{
+			name: "missing private key",
+			secret: testSecret(
+				withName("ssh-secret"),
+				withData(map[string][]byte{
+					secrets.KeySSHKnownHosts: []byte(sshKnownHosts),
+				}),
+			),
+			errMsg: `secret 'default/ssh-secret': key 'identity' not found`,
+		},
+		{
+			name: "missing known hosts",
+			secret: testSecret(
+				withName("ssh-secret"),
+				withData(map[string][]byte{
+					secrets.KeySSHPrivateKey: []byte(sshPrivateKey),
+				}),
+			),
+			errMsg: `secret 'default/ssh-secret': key 'known_hosts' not found`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx := context.Background()
+
+			sshAuth, err := secrets.SSHAuthFromSecret(ctx, tt.secret)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(sshAuth.PrivateKey).To(Equal(tt.wantPrivateKey))
+				g.Expect(sshAuth.KnownHosts).To(Equal(tt.wantKnownHosts))
+
+				if tt.wantPublicKey != nil {
+					g.Expect(sshAuth.PublicKey).To(Equal(tt.wantPublicKey))
+				} else {
+					g.Expect(sshAuth.PublicKey).To(BeNil())
+				}
+
+				if tt.wantPassword != "" {
+					g.Expect(sshAuth.Password).To(Equal(tt.wantPassword))
+				} else {
+					g.Expect(sshAuth.Password).To(Equal(""))
+				}
 			}
 		})
 	}
