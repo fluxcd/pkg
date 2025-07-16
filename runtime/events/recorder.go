@@ -17,7 +17,7 @@ limitations under the License.
 package events
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,7 +93,7 @@ func NewRecorder(mgr ctrl.Manager, log logr.Logger, webhook, reportingController
 
 	httpClient := retryablehttp.NewClient()
 	httpClient.HTTPClient.Timeout = 5 * time.Second
-	httpClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
+	httpClient.CheckRetry = checkRetry
 	httpClient.Logger = nil
 
 	return &Recorder{
@@ -120,7 +120,7 @@ func NewRecorderForScheme(scheme *runtime.Scheme,
 
 	httpClient := retryablehttp.NewClient()
 	httpClient.HTTPClient.Timeout = 5 * time.Second
-	httpClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
+	httpClient.CheckRetry = checkRetry
 	httpClient.Logger = nil
 
 	return &Recorder{
@@ -131,6 +131,20 @@ func NewRecorderForScheme(scheme *runtime.Scheme,
 		EventRecorder:       eventRecorder,
 		Log:                 log,
 	}, nil
+}
+
+func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	if resp != nil && responseIsEventDuplicated(resp) {
+		return false, nil // Don't retry
+	}
+	return retryablehttp.ErrorPropagatedRetryPolicy(ctx, resp, err)
+}
+
+// responseIsEventDuplicated checks if the received response is a signal of a duplicate event.
+// The Notification Controller returns a 429 Too-Many-Requests response when the posted message
+// is a duplicate (within a certain time window).
+func responseIsEventDuplicated(resp *http.Response) bool {
+	return resp.StatusCode == http.StatusTooManyRequests
 }
 
 // Event records an event in the webhook address.
@@ -247,12 +261,6 @@ func (r *Recorder) AnnotatedEventf(
 	body, err := json.Marshal(event)
 	if err != nil {
 		log.Error(err, "failed to marshal object into json")
-		return
-	}
-
-	// avoid retrying rate limited requests
-	if res, _ := r.Client.HTTPClient.Post(r.Webhook, "application/json", bytes.NewReader(body)); res != nil &&
-		(res.StatusCode == http.StatusTooManyRequests || res.StatusCode == http.StatusAccepted) {
 		return
 	}
 

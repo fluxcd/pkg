@@ -118,11 +118,11 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 			const msg = "sync object"
 
 			eventRecorder.AnnotatedEventf(obj, tt.inputAnnotations, corev1.EventTypeNormal, "sync", "%s", msg)
-			require.Equal(t, 2, requestCount)
+			require.Equal(t, 1, requestCount)
 
 			// When a trace event is sent, it's dropped, no new request.
 			eventRecorder.AnnotatedEventf(obj, tt.inputAnnotations, eventv1.EventTypeTrace, "sync", "%s", msg)
-			require.Equal(t, 2, requestCount)
+			require.Equal(t, 1, requestCount)
 		})
 	}
 }
