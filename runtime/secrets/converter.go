@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -28,6 +29,42 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+// AuthMethodsFromSecret extracts all available authentication methods from a Kubernetes secret.
+//
+// The function attempts to parse all supported authentication methods from the secret data.
+// It does not fail if a particular authentication method is not present, but will return
+// an error if the secret contains malformed authentication data.
+//
+// Supported authentication methods:
+//   - Basic authentication (username/password)
+//   - Bearer token authentication
+//   - SSH authentication (private key, known hosts)
+//   - TLS client certificates
+//
+// Multiple authentication methods can be present in a single secret and will be extracted
+// simultaneously, enabling use cases like Basic Auth + TLS or Bearer Token + TLS.
+func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret) (*AuthMethods, error) {
+	var methods AuthMethods
+
+	if err := trySetAuth(ctx, secret, &methods.Basic, BasicAuthFromSecret); err != nil {
+		return nil, err
+	}
+
+	if err := trySetAuth(ctx, secret, &methods.Bearer, BearerAuthFromSecret); err != nil {
+		return nil, err
+	}
+
+	if err := trySetAuth(ctx, secret, &methods.SSH, SSHAuthFromSecret); err != nil {
+		return nil, err
+	}
+
+	if err := trySetAuth(ctx, secret, &methods.TLS, TLSConfigFromSecret); err != nil {
+		return nil, err
+	}
+
+	return &methods, nil
+}
 
 // TLSConfigFromSecret creates a TLS configuration from a Kubernetes secret.
 //
@@ -40,7 +77,14 @@ func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret) (*tls.Confi
 	logger := log.FromContext(ctx)
 	certData, err := getTLSCertificateData(secret, logger)
 	if err != nil {
-		return nil, enhanceSecretValidationError(err, secret)
+		var tlsErr *TLSValidationError
+		if errors.As(err, &tlsErr) {
+			return nil, &SecretTLSValidationError{
+				TLSValidationError: tlsErr,
+				Secret:             secret,
+			}
+		}
+		return nil, err
 	}
 
 	return buildTLSConfig(certData)
@@ -85,18 +129,85 @@ func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, e
 //
 // The function expects the secret to contain "username" and "password" fields.
 // Both fields are required and the function will return an error if either is missing.
-func BasicAuthFromSecret(ctx context.Context, secret *corev1.Secret) (string, string, error) {
-	usernameData, exists := secret.Data[KeyUsername]
-	if !exists {
-		return "", "", &KeyNotFoundError{Key: KeyUsername, Secret: secret}
+// Partial presence (username without password, or password without username) is treated
+// as malformed and will return a BasicAuthMalformedError.
+func BasicAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*BasicAuth, error) {
+	_, hasUsername := secret.Data[KeyUsername]
+	_, hasPassword := secret.Data[KeyPassword]
+
+	// Complete absence - return KeyNotFoundError (will be ignored by trySetAuth)
+	if !hasUsername && !hasPassword {
+		return nil, &KeyNotFoundError{Key: KeyUsername, Secret: secret}
 	}
 
-	passwordData, exists := secret.Data[KeyPassword]
-	if !exists {
-		return "", "", &KeyNotFoundError{Key: KeyPassword, Secret: secret}
+	// Partial presence - return BasicAuthMalformedError (will be propagated by trySetAuth)
+	if hasUsername && !hasPassword {
+		return nil, &BasicAuthMalformedError{
+			Present: KeyUsername,
+			Missing: KeyPassword,
+			Secret:  secret,
+		}
+	}
+	if !hasUsername && hasPassword {
+		return nil, &BasicAuthMalformedError{
+			Present: KeyPassword,
+			Missing: KeyUsername,
+			Secret:  secret,
+		}
 	}
 
-	return string(usernameData), string(passwordData), nil
+	// Complete presence - normal processing
+	return &BasicAuth{
+		Username: string(secret.Data[KeyUsername]),
+		Password: string(secret.Data[KeyPassword]),
+	}, nil
+}
+
+// BearerAuthFromSecret retrieves bearer token authentication credentials from a Kubernetes secret.
+//
+// The function expects the secret to contain "bearerToken" field.
+// The field is required and the function will return an error if it is missing.
+func BearerAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*BearerAuth, error) {
+	tokenData, exists := secret.Data[KeyBearerToken]
+	if !exists {
+		return nil, &KeyNotFoundError{Key: KeyBearerToken, Secret: secret}
+	}
+
+	return &BearerAuth{
+		Token: string(tokenData),
+	}, nil
+}
+
+// SSHAuthFromSecret retrieves SSH authentication credentials from a Kubernetes secret.
+//
+// The function expects the secret to contain "identity" and "known_hosts" fields.
+// Both fields are required and the function will return an error if either is missing.
+// Optional "identity.pub" and "password" fields can be present.
+func SSHAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*SSHAuth, error) {
+	privateKeyData, exists := secret.Data[KeySSHPrivateKey]
+	if !exists {
+		return nil, &KeyNotFoundError{Key: KeySSHPrivateKey, Secret: secret}
+	}
+
+	knownHostsData, exists := secret.Data[KeySSHKnownHosts]
+	if !exists {
+		return nil, &KeyNotFoundError{Key: KeySSHKnownHosts, Secret: secret}
+	}
+
+	auth := &SSHAuth{
+		PrivateKey: privateKeyData,
+		KnownHosts: string(knownHostsData),
+	}
+
+	if publicKeyData, exists := secret.Data[KeySSHPublicKey]; exists {
+		auth.PublicKey = publicKeyData
+	}
+
+	if passwordData, exists := secret.Data[KeyPassword]; exists {
+		auth.Password = string(passwordData)
+	}
+
+	return auth, nil
 }
 
 func getTLSCertificateData(secret *corev1.Secret, logger logr.Logger) (*tlsCertificateData, error) {
@@ -123,4 +234,23 @@ func buildTLSConfig(certData *tlsCertificateData) (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
+}
+
+// trySetAuth is a helper function to reduce repetition in AuthMethodsFromSecret.
+// It ignores KeyNotFoundError (complete absence of authentication data) but propagates
+// other errors including BasicAuthMalformedError (partial/malformed authentication data).
+func trySetAuth[T any](ctx context.Context, secret *corev1.Secret, target *T, fn func(context.Context, *corev1.Secret) (T, error)) error {
+	if result, err := fn(ctx, secret); err == nil {
+		*target = result
+	} else if !errors.Is(err, ErrKeyNotFound) {
+		// Propagate all errors except KeyNotFoundError
+		// This includes BasicAuthMalformedError and other malformed authentication errors
+		var tlsErr *TLSValidationError
+		if errors.As(err, &tlsErr) {
+			// TLS validation errors are ignored (for now, to maintain compatibility)
+			return nil
+		}
+		return err
+	}
+	return nil
 }

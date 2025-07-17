@@ -71,6 +71,34 @@ const (
 	KeySSHKnownHosts = "known_hosts"
 )
 
+// AuthMethods holds all available authentication methods detected from a secret.
+type AuthMethods struct {
+	Basic  *BasicAuth
+	Bearer *BearerAuth
+	SSH    *SSHAuth
+	TLS    *tls.Config
+}
+
+// HasBasicAuth returns true if basic authentication is available.
+func (am *AuthMethods) HasBasicAuth() bool {
+	return am.Basic != nil
+}
+
+// HasBearerAuth returns true if bearer token authentication is available.
+func (am *AuthMethods) HasBearerAuth() bool {
+	return am.Bearer != nil
+}
+
+// HasSSH returns true if SSH authentication is available.
+func (am *AuthMethods) HasSSH() bool {
+	return am.SSH != nil
+}
+
+// HasTLS returns true if TLS configuration is available.
+func (am *AuthMethods) HasTLS() bool {
+	return am.TLS != nil
+}
+
 // tlsCertificateData holds TLS certificate, key, and optional CA data
 type tlsCertificateData struct {
 	cert   []byte
@@ -157,6 +185,33 @@ func (t *tlsCertificateData) toSecret(name, namespace string) *corev1.Secret {
 	}
 	secret.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Secret"))
 	return secret
+}
+
+// BasicAuth holds basic authentication credentials.
+type BasicAuth struct {
+	Username string
+	Password string
+}
+
+// BearerAuth holds bearer token authentication credentials.
+type BearerAuth struct {
+	Token string
+}
+
+// SSHAuth holds SSH authentication credentials.
+type SSHAuth struct {
+	PrivateKey []byte
+	PublicKey  []byte
+	KnownHosts string
+	Password   string
+}
+
+// GitHubAppAuth holds GitHub App authentication credentials.
+type GitHubAppAuth struct {
+	AppID          string
+	InstallationID string
+	PrivateKey     []byte
+	BaseURL        string
 }
 
 // getSecretData retrieves data from secret with fallback support for legacy keys.

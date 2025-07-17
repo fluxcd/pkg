@@ -34,9 +34,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+const (
+	testNS              = "default"
+	githubAppPrivateKey = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC5"
+	sshPrivateKey       = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC5"
+	sshKnownHosts       = "github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7vbqajDw"
+	sshPublicKey        = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7vbqajDw"
+)
+
 var (
 	fixedNow = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	testNS   = "default"
 )
 
 func testSecret(opts ...func(*corev1.Secret)) *corev1.Secret {

@@ -18,6 +18,7 @@ limitations under the License.
 // in Flux controllers.
 //
 // This package consolidates common secret handling patterns used across
-// Flux controllers including TLS certificate secrets, proxy configuration
-// secrets, basic authentication secrets, API token secrets, and image pull secrets.
+// Flux controllers including TLS certificates, proxy configuration,
+// basic authentication, API tokens, SSH authentication, GitHub App
+// authentication, and image pull secrets.
 package secrets

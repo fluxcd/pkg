@@ -73,23 +73,41 @@ func (e *TLSValidationError) Error() string {
 	}
 }
 
-// enhanceSecretValidationError enhances TLS validation errors with secret reference information.
-func enhanceSecretValidationError(err error, secret *corev1.Secret) error {
-	var tlsErr *TLSValidationError
-	if !errors.As(err, &tlsErr) {
-		return err
-	}
+// SecretTLSValidationError wraps TLSValidationError with secret reference information.
+type SecretTLSValidationError struct {
+	*TLSValidationError
+	Secret *corev1.Secret
+}
 
-	ref := client.ObjectKeyFromObject(secret)
+func (e *SecretTLSValidationError) Error() string {
+	ref := client.ObjectKeyFromObject(e.Secret)
 
-	switch tlsErr.Type {
+	switch e.Type {
 	case ErrMissingPrivateKey:
-		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, KeyTLSCert, KeyTLSPrivateKey)
+		return fmt.Sprintf("secret '%s' contains '%s' but missing '%s'", ref, KeyTLSCert, KeyTLSPrivateKey)
 	case ErrMissingCertificate:
-		return fmt.Errorf("secret '%s' contains '%s' but missing '%s'", ref, KeyTLSPrivateKey, KeyTLSCert)
+		return fmt.Sprintf("secret '%s' contains '%s' but missing '%s'", ref, KeyTLSPrivateKey, KeyTLSCert)
 	case ErrNoCertificatePairOrCA:
-		return fmt.Errorf("secret '%s' must contain either '%s' or both '%s' and '%s'", ref, KeyCACert, KeyTLSCert, KeyTLSPrivateKey)
+		return fmt.Sprintf("secret '%s' must contain either '%s' or both '%s' and '%s'", ref, KeyCACert, KeyTLSCert, KeyTLSPrivateKey)
 	default:
-		return err
+		return "TLS validation error"
 	}
+}
+
+func (e *SecretTLSValidationError) Unwrap() error {
+	return e.TLSValidationError
+}
+
+// BasicAuthMalformedError is returned when a secret contains partial basic auth data.
+// This indicates a configuration error where one of username/password is present but the other is missing.
+type BasicAuthMalformedError struct {
+	Present string
+	Missing string
+	Secret  *corev1.Secret
+}
+
+func (e *BasicAuthMalformedError) Error() string {
+	ref := client.ObjectKeyFromObject(e.Secret)
+	return fmt.Sprintf("secret '%s': malformed basic auth - has '%s' but missing '%s'",
+		ref, e.Present, e.Missing)
 }
