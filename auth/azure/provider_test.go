@@ -297,6 +297,8 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 		caData         string
 		aadProfile     *armcontainerservice.ManagedClusterAADProfile
 		kubeconfigs    []*armcontainerservice.CredentialResult
+		authorityHost  string
+		secondScope    string
 		err            string
 	}{
 		{
@@ -315,6 +317,44 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
 				},
 			},
+		},
+		{
+			name:    "valid AKS cluster - china",
+			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+				{
+					Name:  &[]string{"clusterUser-secondary"}[0],
+					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
+				},
+			},
+			authorityHost: "https://login.chinacloudapi.cn/",
+			secondScope:   "https://management.core.chinacloudapi.cn/.default",
+		},
+		{
+			name:    "valid AKS cluster - us gov",
+			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+				{
+					Name:  &[]string{"clusterUser-secondary"}[0],
+					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
+				},
+			},
+			authorityHost: "https://login.microsoftonline.us/",
+			secondScope:   "https://management.core.usgovcloudapi.net/.default",
 		},
 		{
 			name:    "valid AKS cluster - lowercase",
@@ -416,12 +456,21 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
+			if tt.authorityHost != "" {
+				t.Setenv("AZURE_AUTHORITY_HOST", tt.authorityHost)
+			}
+
+			secondScope := "https://management.core.windows.net//.default"
+			if tt.secondScope != "" {
+				secondScope = tt.secondScope
+			}
+
 			impl := &mockImplementation{
 				t:                t,
 				expectAKSAPICall: tt.clusterAddress == "" || tt.caData == "",
 				argToken:         "access-token",
 				argFirstScopes:   []string{"6dae42f8-4368-4678-94ff-3960e28e3630/.default"},
-				argSecondScopes:  []string{"https://management.core.windows.net//.default"},
+				argSecondScopes:  []string{secondScope},
 				argSubscription:  "12345678-1234-1234-1234-123456789012",
 				argResourceGroup: "test-rg",
 				argClusterName:   "test-cluster",
