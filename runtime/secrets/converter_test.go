@@ -42,6 +42,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 		secretData map[string][]byte
 		wantBasic  bool
 		wantBearer bool
+		wantToken  bool
 		wantSSH    bool
 		wantTLS    bool
 		wantErr    error
@@ -51,6 +52,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			secretData: map[string][]byte{},
 			wantBasic:  false,
 			wantBearer: false,
+			wantToken:  false,
 			wantSSH:    false,
 			wantTLS:    false,
 		},
@@ -62,6 +64,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			},
 			wantBasic:  true,
 			wantBearer: false,
+			wantToken:  false,
 			wantSSH:    false,
 			wantTLS:    false,
 		},
@@ -72,6 +75,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			},
 			wantBasic:  false,
 			wantBearer: true,
+			wantToken:  false,
 			wantSSH:    false,
 			wantTLS:    false,
 		},
@@ -83,6 +87,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			},
 			wantBasic:  false,
 			wantBearer: false,
+			wantToken:  false,
 			wantSSH:    true,
 			wantTLS:    false,
 		},
@@ -93,6 +98,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			},
 			wantBasic:  false,
 			wantBearer: false,
+			wantToken:  false,
 			wantSSH:    false,
 			wantTLS:    true,
 		},
@@ -105,6 +111,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			},
 			wantBasic:  true,
 			wantBearer: false,
+			wantToken:  false,
 			wantSSH:    false,
 			wantTLS:    true,
 		},
@@ -116,8 +123,33 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			},
 			wantBasic:  false,
 			wantBearer: true,
+			wantToken:  false,
 			wantSSH:    false,
 			wantTLS:    true,
+		},
+		{
+			name: "token only",
+			secretData: map[string][]byte{
+				secrets.KeyToken: []byte("api-token-123"),
+			},
+			wantBasic:  false,
+			wantBearer: false,
+			wantToken:  true,
+			wantSSH:    false,
+			wantTLS:    false,
+		},
+		{
+			name: "bearer token + basic auth",
+			secretData: map[string][]byte{
+				secrets.KeyUsername:    []byte("testuser"),
+				secrets.KeyPassword:    []byte("testpass"),
+				secrets.KeyBearerToken: []byte("token123"),
+			},
+			wantBasic:  true,
+			wantBearer: true,
+			wantToken:  false,
+			wantSSH:    false,
+			wantTLS:    false,
 		},
 		{
 			name: "all authentication methods",
@@ -125,12 +157,14 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 				secrets.KeyUsername:      []byte("testuser"),
 				secrets.KeyPassword:      []byte("testpass"),
 				secrets.KeyBearerToken:   []byte("token123"),
+				secrets.KeyToken:         []byte("api-token-123"),
 				secrets.KeySSHPrivateKey: []byte(sshPrivateKey),
 				secrets.KeySSHKnownHosts: []byte(sshKnownHosts),
 				secrets.KeyCACert:        validCACert,
 			},
 			wantBasic:  true,
 			wantBearer: true,
+			wantToken:  true,
 			wantSSH:    true,
 			wantTLS:    true,
 		},
@@ -196,6 +230,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 
 			g.Expect(result.HasBasicAuth()).To(Equal(tt.wantBasic))
 			g.Expect(result.HasBearerAuth()).To(Equal(tt.wantBearer))
+			g.Expect(result.HasTokenAuth()).To(Equal(tt.wantToken))
 			g.Expect(result.HasSSH()).To(Equal(tt.wantSSH))
 			g.Expect(result.HasTLS()).To(Equal(tt.wantTLS))
 
@@ -206,8 +241,13 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			}
 
 			if tt.wantBearer {
-				g.Expect(result.Bearer).ToNot(BeNil())
-				g.Expect(result.Bearer.Token).To(Equal("token123"))
+				g.Expect(result.Bearer).ToNot(BeEmpty())
+				g.Expect(string(result.Bearer)).To(Equal("token123"))
+			}
+
+			if tt.wantToken {
+				g.Expect(result.Token).ToNot(BeEmpty())
+				g.Expect(string(result.Token)).To(Equal("api-token-123"))
 			}
 
 			if tt.wantSSH {
@@ -702,7 +742,65 @@ func TestBearerAuthFromSecret(t *testing.T) {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(bearerAuth.Token).To(Equal(tt.wantToken))
+				g.Expect(string(bearerAuth)).To(Equal(tt.wantToken))
+			}
+		})
+	}
+}
+
+func TestTokenAuthFromSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		secret    *corev1.Secret
+		wantToken string
+		errMsg    string
+	}{
+		{
+			name: "valid token",
+			secret: testSecret(
+				withName("token-secret"),
+				withData(map[string][]byte{
+					secrets.KeyToken: []byte("api-token-123"),
+				}),
+			),
+			wantToken: "api-token-123",
+		},
+		{
+			name: "empty token",
+			secret: testSecret(
+				withName("token-secret"),
+				withData(map[string][]byte{
+					secrets.KeyToken: []byte(""),
+				}),
+			),
+			wantToken: "",
+		},
+		{
+			name: "missing token key",
+			secret: testSecret(
+				withName("token-secret"),
+				withData(map[string][]byte{}),
+			),
+			errMsg: `secret 'default/token-secret': key 'token' not found`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx := context.Background()
+
+			tokenAuth, err := secrets.TokenAuthFromSecret(ctx, tt.secret)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(string(tokenAuth)).To(Equal(tt.wantToken))
 			}
 		})
 	}
