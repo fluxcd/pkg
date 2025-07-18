@@ -19,6 +19,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -234,7 +235,14 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 
 	// Token needed for looking up details of the cluster resource.
 	if o.ClusterAddress == "" || o.CAData == "" {
-		armScope := cloud.AzurePublic.Services[cloud.ResourceManager].Audience + "/.default"
+		conf := &cloud.AzurePublic
+		switch authorityHost := os.Getenv("AZURE_AUTHORITY_HOST"); {
+		case strings.Contains(authorityHost, "chinacloudapi.cn"):
+			conf = &cloud.AzureChina
+		case strings.Contains(authorityHost, "microsoftonline.us"):
+			conf = &cloud.AzureGovernment
+		}
+		armScope := conf.Services[cloud.ResourceManager].Audience + "/.default"
 		armTokenOpts := []auth.Option{auth.WithScopes(armScope)}
 		atOpts = append(atOpts, armTokenOpts)
 	}
