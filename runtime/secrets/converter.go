@@ -39,6 +39,7 @@ import (
 // Supported authentication methods:
 //   - Basic authentication (username/password)
 //   - Bearer token authentication
+//   - Token authentication
 //   - SSH authentication (private key, known hosts)
 //   - TLS client certificates
 //
@@ -52,6 +53,10 @@ func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret) (*AuthMet
 	}
 
 	if err := trySetAuth(ctx, secret, &methods.Bearer, BearerAuthFromSecret); err != nil {
+		return nil, err
+	}
+
+	if err := trySetAuth(ctx, secret, &methods.Token, TokenAuthFromSecret); err != nil {
 		return nil, err
 	}
 
@@ -174,6 +179,19 @@ func BearerAuthFromSecret(ctx context.Context, secret *corev1.Secret) (BearerAut
 	}
 
 	return BearerAuth(tokenData), nil
+}
+
+// TokenAuthFromSecret retrieves token authentication credentials from a Kubernetes secret.
+//
+// The function expects the secret to contain "token" field.
+// The field is required and the function will return an error if it is missing.
+func TokenAuthFromSecret(ctx context.Context, secret *corev1.Secret) (TokenAuth, error) {
+	tokenData, exists := secret.Data[KeyToken]
+	if !exists {
+		return "", &KeyNotFoundError{Key: KeyToken, Secret: secret}
+	}
+
+	return TokenAuth(tokenData), nil
 }
 
 // SSHAuthFromSecret retrieves SSH authentication credentials from a Kubernetes secret.
