@@ -206,8 +206,8 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			}
 
 			if tt.wantBearer {
-				g.Expect(result.Bearer).ToNot(BeNil())
-				g.Expect(result.Bearer.Token).To(Equal("token123"))
+				g.Expect(result.Bearer).ToNot(BeEmpty())
+				g.Expect(string(result.Bearer)).To(Equal("token123"))
 			}
 
 			if tt.wantSSH {
@@ -702,7 +702,7 @@ func TestBearerAuthFromSecret(t *testing.T) {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(bearerAuth.Token).To(Equal(tt.wantToken))
+				g.Expect(string(bearerAuth)).To(Equal(tt.wantToken))
 			}
 		})
 	}

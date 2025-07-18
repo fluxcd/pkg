@@ -74,7 +74,7 @@ const (
 // AuthMethods holds all available authentication methods detected from a secret.
 type AuthMethods struct {
 	Basic  *BasicAuth
-	Bearer *BearerAuth
+	Bearer BearerAuth
 	SSH    *SSHAuth
 	TLS    *tls.Config
 }
@@ -86,7 +86,7 @@ func (am *AuthMethods) HasBasicAuth() bool {
 
 // HasBearerAuth returns true if bearer token authentication is available.
 func (am *AuthMethods) HasBearerAuth() bool {
-	return am.Bearer != nil
+	return am.Bearer != ""
 }
 
 // HasSSH returns true if SSH authentication is available.
@@ -194,9 +194,7 @@ type BasicAuth struct {
 }
 
 // BearerAuth holds bearer token authentication credentials.
-type BearerAuth struct {
-	Token string
-}
+type BearerAuth string
 
 // SSHAuth holds SSH authentication credentials.
 type SSHAuth struct {

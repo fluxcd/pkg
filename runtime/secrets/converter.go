@@ -167,15 +167,13 @@ func BasicAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*BasicAuth
 //
 // The function expects the secret to contain "bearerToken" field.
 // The field is required and the function will return an error if it is missing.
-func BearerAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*BearerAuth, error) {
+func BearerAuthFromSecret(ctx context.Context, secret *corev1.Secret) (BearerAuth, error) {
 	tokenData, exists := secret.Data[KeyBearerToken]
 	if !exists {
-		return nil, &KeyNotFoundError{Key: KeyBearerToken, Secret: secret}
+		return "", &KeyNotFoundError{Key: KeyBearerToken, Secret: secret}
 	}
 
-	return &BearerAuth{
-		Token: string(tokenData),
-	}, nil
+	return BearerAuth(tokenData), nil
 }
 
 // SSHAuthFromSecret retrieves SSH authentication credentials from a Kubernetes secret.
