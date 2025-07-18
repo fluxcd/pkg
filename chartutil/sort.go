@@ -19,8 +19,18 @@ package chartutil
 import (
 	"sort"
 
-	goyaml "sigs.k8s.io/yaml/goyaml.v2"
+	goyaml "go.yaml.in/yaml/v2"
 )
+
+func sortSlice(s []interface{}) {
+	for _, item := range s {
+		if nestedMS, ok := item.(goyaml.MapSlice); ok {
+			SortMapSlice(nestedMS)
+		} else if nestedSlice, ok := item.([]interface{}); ok {
+			sortSlice(nestedSlice)
+		}
+	}
+}
 
 // SortMapSlice recursively sorts the given goyaml.MapSlice by key.
 // It can be used in combination with Encode to sort YAML by key
@@ -34,11 +44,7 @@ func SortMapSlice(ms goyaml.MapSlice) {
 		if nestedMS, ok := item.Value.(goyaml.MapSlice); ok {
 			SortMapSlice(nestedMS)
 		} else if nestedSlice, ok := item.Value.([]interface{}); ok {
-			for _, vItem := range nestedSlice {
-				if nestedMS, ok := vItem.(goyaml.MapSlice); ok {
-					SortMapSlice(nestedMS)
-				}
-			}
+			sortSlice(nestedSlice)
 		}
 	}
 }
