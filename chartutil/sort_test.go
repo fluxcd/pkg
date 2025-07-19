@@ -20,8 +20,8 @@ import (
 	"bytes"
 	"testing"
 
+	goyaml "go.yaml.in/yaml/v2"
 	"sigs.k8s.io/yaml"
-	goyaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
 func TestSortMapSlice(t *testing.T) {
@@ -124,6 +124,54 @@ func TestSortMapSlice(t *testing.T) {
 					"r": "value-r",
 				},
 				"e": []interface{}{"strawberry", "banana"},
+				"f": []interface{}{
+					[]interface{}{
+						map[string]interface{}{
+							"f1": map[string]interface{}{
+								"f1q": "value-f1q",
+								"f1p": "value-f1p",
+								"f1r": "value-f1r",
+							},
+						},
+						map[string]interface{}{
+							"f2": map[string]interface{}{
+								"f2q": "value-f2q",
+								"f2p": "value-f2p",
+								"f2r": "value-f2r",
+							},
+						},
+						map[string]interface{}{
+							"f3": map[string]interface{}{
+								"f3q": "value-f3q",
+								"f3p": "value-f3p",
+								"f3r": "value-f3r",
+							},
+						},
+					},
+					[]interface{}{
+						map[string]interface{}{
+							"F1": map[string]interface{}{
+								"F1q": "value-F1q",
+								"F1p": "value-F1p",
+								"F1r": "value-F1r",
+							},
+						},
+						map[string]interface{}{
+							"F2": map[string]interface{}{
+								"F2q": "value-F2q",
+								"F2p": "value-F2p",
+								"F2r": "value-F2r",
+							},
+						},
+						map[string]interface{}{
+							"F3": map[string]interface{}{
+								"F3q": "value-F3q",
+								"F3p": "value-F3p",
+								"F3r": "value-F3r",
+							},
+						},
+					},
+				},
 			},
 			want: map[string]interface{}{
 				"a": map[string]interface{}{
@@ -146,6 +194,54 @@ func TestSortMapSlice(t *testing.T) {
 					"r": "value-r",
 				},
 				"e": []interface{}{"strawberry", "banana"},
+				"f": []interface{}{
+					[]interface{}{
+						map[string]interface{}{
+							"f1": map[string]interface{}{
+								"f1p": "value-f1p",
+								"f1q": "value-f1q",
+								"f1r": "value-f1r",
+							},
+						},
+						map[string]interface{}{
+							"f2": map[string]interface{}{
+								"f2p": "value-f2p",
+								"f2q": "value-f2q",
+								"f2r": "value-f2r",
+							},
+						},
+						map[string]interface{}{
+							"f3": map[string]interface{}{
+								"f3p": "value-f3p",
+								"f3q": "value-f3q",
+								"f3r": "value-f3r",
+							},
+						},
+					},
+					[]interface{}{
+						map[string]interface{}{
+							"F1": map[string]interface{}{
+								"F1p": "value-F1p",
+								"F1q": "value-F1q",
+								"F1r": "value-F1r",
+							},
+						},
+						map[string]interface{}{
+							"F2": map[string]interface{}{
+								"F2p": "value-F2p",
+								"F2q": "value-F2q",
+								"F2r": "value-F2r",
+							},
+						},
+						map[string]interface{}{
+							"F3": map[string]interface{}{
+								"F3p": "value-F3p",
+								"F3q": "value-F3q",
+								"F3r": "value-F3r",
+							},
+						},
+					},
+				},
 			},
 		},
 		{
