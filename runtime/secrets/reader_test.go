@@ -38,10 +38,14 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 	caCert, tlsCert, tlsKey := generateTestCertificates(t)
 
 	tests := []struct {
-		name      string
-		secretRef types.NamespacedName
-		secret    *corev1.Secret // Secret to add to fake client (nil = not added)
-		errMsg    string
+		name                       string
+		secretRef                  types.NamespacedName
+		secret                     *corev1.Secret // Secret to add to fake client (nil = not added)
+		targetURL                  string
+		insecure                   bool
+		expectedServerName         string
+		expectedInsecureSkipVerify bool
+		errMsg                     string
 	}{
 		{
 			name:      "integration test - basic TLS secret functionality",
@@ -60,6 +64,20 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 			secretRef: types.NamespacedName{Name: "missing-secret", Namespace: testNS},
 			errMsg:    "secret 'default/missing-secret' not found",
 		},
+		{
+			name:      "TLS secret with parameters",
+			secretRef: types.NamespacedName{Name: "tls-secret", Namespace: testNS},
+			secret: testSecret(
+				withName("tls-secret"),
+				withData(map[string][]byte{
+					secrets.KeyCACert: caCert,
+				}),
+			),
+			targetURL:                  "https://example.com",
+			insecure:                   true,
+			expectedServerName:         "example.com",
+			expectedInsecureSkipVerify: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -77,13 +95,16 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 			}
 			c := fakeClient(objects...)
 
-			tlsConfig, err := secrets.TLSConfigFromSecretRef(ctx, c, tt.secretRef)
+			tlsConfig, err := secrets.TLSConfigFromSecretRef(ctx, c, tt.secretRef, tt.targetURL, tt.insecure)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(tlsConfig).ToNot(BeNil())
+
+				g.Expect(tlsConfig.ServerName).To(Equal(tt.expectedServerName))
+				g.Expect(tlsConfig.InsecureSkipVerify).To(Equal(tt.expectedInsecureSkipVerify))
 
 				hasCert := len(tt.secret.Data[secrets.KeyTLSCert]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSCert]) > 0
 				hasKey := len(tt.secret.Data[secrets.KeyTLSPrivateKey]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSPrivateKey]) > 0
