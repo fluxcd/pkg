@@ -105,6 +105,37 @@ func (am *AuthMethods) HasTLS() bool {
 	return am.TLS != nil
 }
 
+// AuthMethodsOption configures the behavior of AuthMethodsFromSecret.
+type AuthMethodsOption func(*authMethodsConfig)
+
+// authMethodsConfig holds configuration for AuthMethods extraction.
+type authMethodsConfig struct {
+	tlsConfig *tlsConfig
+}
+
+// tlsConfig holds TLS-specific configuration options.
+type tlsConfig struct {
+	targetURL string
+	insecure  bool
+}
+
+// WithTLS configures TLS extraction with complete ServerName and InsecureSkipVerify settings.
+// This ensures the TLS config is immediately usable without additional completion steps.
+//
+// Unlike TLSConfigFromSecret which requires explicit URL parameters to prevent oversight,
+// WithTLS is optional for AuthMethodsFromSecret because:
+//   - AuthMethodsFromSecret typically processes mixed authentication data (Basic+TLS, etc.)
+//   - TLS certificates are commonly stored alone in dedicated secrets (certSecretRef)
+//   - Callers can use AuthMethodsFromSecret without TLS concerns, then apply TLS separately
+func WithTLS(targetURL string, insecure bool) AuthMethodsOption {
+	return func(cfg *authMethodsConfig) {
+		cfg.tlsConfig = &tlsConfig{
+			targetURL: targetURL,
+			insecure:  insecure,
+		}
+	}
+}
+
 // tlsCertificateData holds TLS certificate, key, and optional CA data
 type tlsCertificateData struct {
 	cert   []byte

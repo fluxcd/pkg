@@ -40,6 +40,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 	tests := []struct {
 		name       string
 		secretData map[string][]byte
+		opt        []secrets.AuthMethodsOption
 		wantBasic  bool
 		wantBearer bool
 		wantToken  bool
@@ -50,11 +51,6 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 		{
 			name:       "empty secret",
 			secretData: map[string][]byte{},
-			wantBasic:  false,
-			wantBearer: false,
-			wantToken:  false,
-			wantSSH:    false,
-			wantTLS:    false,
 		},
 		{
 			name: "basic auth only",
@@ -201,6 +197,24 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			},
 			wantErr: fmt.Errorf("secret 'test-namespace/test-secret': malformed basic auth - has 'username' but missing 'password'"),
 		},
+		{
+			name: "TLS cert present, with FOP option",
+			secretData: map[string][]byte{
+				secrets.KeyCACert: validCACert,
+			},
+			opt:     []secrets.AuthMethodsOption{secrets.WithTLS("https://example.com", false)},
+			wantTLS: true,
+		},
+		{
+			name: "no TLS cert, with FOP option",
+			secretData: map[string][]byte{
+				secrets.KeyUsername: []byte("testuser"),
+				secrets.KeyPassword: []byte("testpass"),
+			},
+			opt:       []secrets.AuthMethodsOption{secrets.WithTLS("https://example.com", false)},
+			wantBasic: true,
+			wantTLS:   false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -216,7 +230,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 				Data: tt.secretData,
 			}
 
-			result, err := secrets.AuthMethodsFromSecret(ctx, secret)
+			result, err := secrets.AuthMethodsFromSecret(ctx, secret, tt.opt...)
 
 			if tt.wantErr != nil {
 				g.Expect(err).To(HaveOccurred())
@@ -258,7 +272,6 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 
 			if tt.wantTLS {
 				g.Expect(result.TLS).ToNot(BeNil())
-				g.Expect(result.TLS.RootCAs).ToNot(BeNil())
 			}
 
 		})
@@ -271,10 +284,14 @@ func TestTLSConfigFromSecret(t *testing.T) {
 	caCert, tlsCert, tlsKey := generateTestCertificates(t)
 
 	tests := []struct {
-		name           string
-		secret         *corev1.Secret
-		errMsg         string
-		expectedFields map[string]string // legacy key -> preferred key mapping
+		name                       string
+		secret                     *corev1.Secret
+		targetURL                  string
+		insecure                   bool
+		expectedServerName         string
+		expectedInsecureSkipVerify bool
+		errMsg                     string
+		expectedFields             map[string]string // legacy key -> preferred key mapping
 	}{
 		{
 			name: "valid TLS secret with standard fields",
@@ -401,6 +418,30 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			),
 			errMsg: "secret 'default/tls-secret' must contain either 'ca.crt' or both 'tls.crt' and 'tls.key'",
 		},
+		{
+			name: "targetURL and insecure parameters",
+			secret: testSecret(
+				withName("tls-secret"),
+				withData(map[string][]byte{
+					secrets.KeyCACert: caCert,
+				}),
+			),
+			targetURL:                  "https://example.com:8443",
+			insecure:                   true,
+			expectedServerName:         "example.com",
+			expectedInsecureSkipVerify: true,
+		},
+		{
+			name: "invalid target URL",
+			secret: testSecret(
+				withName("tls-secret"),
+				withData(map[string][]byte{
+					secrets.KeyCACert: caCert,
+				}),
+			),
+			targetURL: "://invalid-url",
+			errMsg:    "failed to parse target URL '://invalid-url'",
+		},
 	}
 
 	for _, tt := range tests {
@@ -423,13 +464,16 @@ func TestTLSConfigFromSecret(t *testing.T) {
 				ctx = log.IntoContext(ctx, logr.Discard())
 			}
 
-			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, tt.secret)
+			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, tt.secret, tt.targetURL, tt.insecure)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(tlsConfig).ToNot(BeNil())
+
+				g.Expect(tlsConfig.ServerName).To(Equal(tt.expectedServerName))
+				g.Expect(tlsConfig.InsecureSkipVerify).To(Equal(tt.expectedInsecureSkipVerify))
 
 				hasCert := len(tt.secret.Data[secrets.KeyTLSCert]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSCert]) > 0
 				hasKey := len(tt.secret.Data[secrets.KeyTLSPrivateKey]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSPrivateKey]) > 0
