@@ -767,6 +767,121 @@ func TestApply_IfNotPresent(t *testing.T) {
 	})
 }
 
+func TestApply_Cleanup_ExactMatch(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("cleanup-exact")
+	objects, err := readManifest("testdata/test2.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	_, deployObject := getFirstObject(objects, "Deployment", id)
+
+	if err = normalize.UnstructuredList(objects); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("creates objects as different managers", func(t *testing.T) {
+		// Apply all with prefix manager
+		for _, object := range objects {
+			obj := object.DeepCopy()
+			if err := manager.client.Patch(ctx, obj, client.Apply, client.FieldOwner("flux-apply-prefix")); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		// Apply deployment with exact match manager
+		deploy := deployObject.DeepCopy()
+		if err := manager.client.Patch(ctx, deploy, client.Apply, client.FieldOwner("flux")); err != nil {
+			t.Fatal(err)
+		}
+
+		// Check that the deployment has both managers
+		resultDeploy := deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(deploy), resultDeploy)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		managedFields := resultDeploy.GetManagedFields()
+		foundExact := false
+		foundPrefix := false
+
+		for _, field := range managedFields {
+			if field.Manager == "flux" && field.Operation == metav1.ManagedFieldsOperationApply {
+				foundExact = true
+			}
+			if field.Manager == "flux-apply-prefix" && field.Operation == metav1.ManagedFieldsOperationApply {
+				foundPrefix = true
+			}
+		}
+
+		if !foundExact {
+			t.Errorf("Expected to find exact match manager 'flux' with Apply operation")
+		}
+		if !foundPrefix {
+			t.Errorf("Expected to find prefix manager 'flux-apply-prefix' with Apply operation")
+		}
+	})
+
+	t.Run("cleanup removes only exact match", func(t *testing.T) {
+		applyOpts := DefaultApplyOptions()
+		applyOpts.Cleanup = ApplyCleanupOptions{
+			FieldManagers: []FieldManager{
+				{
+					Name:          "flux",
+					OperationType: metav1.ManagedFieldsOperationApply,
+					ExactMatch:    true,
+				},
+			},
+		}
+
+		_, err := manager.ApplyAllStaged(ctx, objects, applyOpts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Check that only exact match was removed
+		resultDeploy := deployObject.DeepCopy()
+		err = manager.Client().Get(ctx, client.ObjectKeyFromObject(resultDeploy), resultDeploy)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		managedFields := resultDeploy.GetManagedFields()
+		foundExact := false
+		foundPrefix := false
+		foundManager := false
+
+		for _, field := range managedFields {
+			t.Logf("Found managed field: Manager=%s, Operation=%s", field.Manager, field.Operation)
+			if field.Manager == "flux" {
+				foundExact = true
+			}
+			if field.Manager == "flux-apply-prefix" {
+				foundPrefix = true
+			}
+			if field.Manager == manager.owner.Field {
+				foundManager = true
+			}
+		}
+
+		if foundExact {
+			t.Errorf("Expected exact match 'flux' to be removed, but it was still present")
+		}
+		if !foundPrefix {
+			t.Errorf("Expected prefix match 'flux-apply-prefix' to remain, but it was not found")
+		}
+		if !foundManager {
+			t.Errorf("Expected manager '%s' to be present, but it was not found", manager.owner.Field)
+		}
+	})
+}
+
 func TestApply_Cleanup(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
