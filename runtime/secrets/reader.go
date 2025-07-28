@@ -34,14 +34,13 @@ import (
 // TLSConfigFromSecret. It supports the same field names and legacy field handling.
 //
 // The targetURL parameter is used to set the ServerName for proper SNI support
-// in virtual hosting environments. The insecure parameter controls whether
-// to skip TLS certificate verification.
-func TLSConfigFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName, targetURL string, insecure bool) (*tls.Config, error) {
+// in virtual hosting environments.
+func TLSConfigFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName, targetURL string) (*tls.Config, error) {
 	secret, err := getSecret(ctx, c, secretRef)
 	if err != nil {
 		return nil, err
 	}
-	return TLSConfigFromSecret(ctx, secret, targetURL, insecure)
+	return TLSConfigFromSecret(ctx, secret, targetURL)
 }
 
 // ProxyURLFromSecretRef creates a proxy URL from a Kubernetes secret reference.

@@ -46,13 +46,12 @@ import (
 // Multiple authentication methods can be present in a single secret and will be extracted
 // simultaneously, enabling use cases like Basic Auth + TLS or Bearer Token + TLS.
 //
-// Options can be provided to configure TLS extraction behavior. Use WithTLS() to specify
-// target URL and insecure flag for complete TLS configuration.
+// Options can be provided to configure TLS extraction behavior. Use WithTargetURL() to specify
+// target URL for complete TLS configuration.
 func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...AuthMethodsOption) (*AuthMethods, error) {
 	config := &authMethodsConfig{
 		tlsConfig: &tlsConfig{
 			targetURL: "",
-			insecure:  false,
 		},
 	}
 	for _, opt := range opts {
@@ -78,7 +77,7 @@ func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...A
 	}
 
 	if err := trySetAuth(ctx, secret, &methods.TLS, func(ctx context.Context, secret *corev1.Secret) (*tls.Config, error) {
-		return TLSConfigFromSecret(ctx, secret, config.tlsConfig.targetURL, config.tlsConfig.insecure)
+		return TLSConfigFromSecret(ctx, secret, config.tlsConfig.targetURL)
 	}); err != nil {
 		return nil, err
 	}
@@ -95,9 +94,8 @@ func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...A
 // Standard field names always take precedence over legacy ones.
 //
 // The targetURL parameter is used to set the ServerName for proper SNI support
-// in virtual hosting environments. The insecure parameter controls whether
-// to skip TLS certificate verification.
-func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, targetURL string, insecure bool) (*tls.Config, error) {
+// in virtual hosting environments.
+func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, targetURL string) (*tls.Config, error) {
 	logger := log.FromContext(ctx)
 	certData, err := getTLSCertificateData(secret, logger)
 	if err != nil {
@@ -111,7 +109,7 @@ func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, targetURL s
 		return nil, err
 	}
 
-	return buildTLSConfig(certData, targetURL, insecure)
+	return buildTLSConfig(certData, targetURL)
 }
 
 // ProxyURLFromSecret creates a proxy URL from a Kubernetes secret.
@@ -249,9 +247,11 @@ func getTLSCertificateData(secret *corev1.Secret, logger logr.Logger) (*tlsCerti
 	return newTLSCertificateData(secret, logger)
 }
 
-func buildTLSConfig(certData *tlsCertificateData, targetURL string, insecure bool) (*tls.Config, error) {
+func buildTLSConfig(certData *tlsCertificateData, targetURL string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: insecure,
+		// Note: InsecureSkipVerify is explicitly set to false in accordance with Flux security policy.
+		// TLS certificates must be validated using CA certificates or the system trust store.
+		InsecureSkipVerify: false,
 	}
 
 	// Set ServerName for proper SNI support if targetURL is provided
