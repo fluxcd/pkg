@@ -59,11 +59,27 @@ type FieldManager struct {
 	// Name is the name of the workflow managing fields.
 	Name string `json:"name"`
 
+	// ExactMatch controls the matching behavior for the manager name.
+	// When true, requires an exact match. When false, it uses prefix matching.
+	ExactMatch bool `json:"exactMatch"`
+
 	// OperationType is the type of operation performed by this manager, can be 'update' or 'apply'.
 	OperationType metav1.ManagedFieldsOperationType `json:"operationType"`
 }
 
-// PatchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching prefix and operation type.
+// matchFieldManager checks if the given ManagedFieldsEntry matches the specified FieldManager.
+func matchFieldManager(entry metav1.ManagedFieldsEntry, manager FieldManager) bool {
+	if entry.Operation != manager.OperationType || entry.Subresource != "" {
+		return false
+	}
+
+	if manager.ExactMatch {
+		return entry.Manager == manager.Name
+	}
+	return strings.HasPrefix(entry.Manager, manager.Name)
+}
+
+// PatchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching name or prefix.
 func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FieldManager) []jsonPatch {
 	objEntries := object.GetManagedFields()
 
@@ -72,9 +88,7 @@ func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fie
 	for _, entry := range objEntries {
 		exclude := false
 		for _, manager := range managers {
-			if strings.HasPrefix(entry.Manager, manager.Name) &&
-				entry.Operation == manager.OperationType &&
-				entry.Subresource == "" {
+			if matchFieldManager(entry, manager) {
 				exclude = true
 				break
 			}
@@ -95,8 +109,8 @@ func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fie
 	return append(patches, newPatchReplace(managedFieldsPath, entries))
 }
 
-// PatchReplaceFieldsManagers returns a jsonPatch array for replacing the managers with matching prefix and operation type
-// with the specified manager name and an apply operation.
+// PatchReplaceFieldsManagers returns a jsonPatch array for replacing the managers with matching
+// name and operation type with the specified manager name and an apply operation.
 func PatchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FieldManager, name string) ([]jsonPatch, error) {
 	objEntries := object.GetManagedFields()
 
@@ -124,9 +138,7 @@ each_entry:
 		}
 
 		for _, manager := range managers {
-			if strings.HasPrefix(entry.Manager, manager.Name) &&
-				entry.Operation == manager.OperationType &&
-				entry.Subresource == "" {
+			if matchFieldManager(entry, manager) {
 
 				// if no previous managedField was found,
 				// rename the first match.
