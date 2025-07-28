@@ -116,22 +116,13 @@ type authMethodsConfig struct {
 // tlsConfig holds TLS-specific configuration options.
 type tlsConfig struct {
 	targetURL string
-	insecure  bool
 }
 
-// WithTLS configures TLS extraction with complete ServerName and InsecureSkipVerify settings.
-// This ensures the TLS config is immediately usable without additional completion steps.
-//
-// Unlike TLSConfigFromSecret which requires explicit URL parameters to prevent oversight,
-// WithTLS is optional for AuthMethodsFromSecret because:
-//   - AuthMethodsFromSecret typically processes mixed authentication data (Basic+TLS, etc.)
-//   - TLS certificates are commonly stored alone in dedicated secrets (certSecretRef)
-//   - Callers can use AuthMethodsFromSecret without TLS concerns, then apply TLS separately
-func WithTLS(targetURL string, insecure bool) AuthMethodsOption {
+// WithTargetURL configures TLS extraction with the specified target URL for ServerName configuration.
+func WithTargetURL(targetURL string) AuthMethodsOption {
 	return func(cfg *authMethodsConfig) {
 		cfg.tlsConfig = &tlsConfig{
 			targetURL: targetURL,
-			insecure:  insecure,
 		}
 	}
 }

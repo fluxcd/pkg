@@ -38,14 +38,12 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 	caCert, tlsCert, tlsKey := generateTestCertificates(t)
 
 	tests := []struct {
-		name                       string
-		secretRef                  types.NamespacedName
-		secret                     *corev1.Secret // Secret to add to fake client (nil = not added)
-		targetURL                  string
-		insecure                   bool
-		expectedServerName         string
-		expectedInsecureSkipVerify bool
-		errMsg                     string
+		name               string
+		secretRef          types.NamespacedName
+		secret             *corev1.Secret // Secret to add to fake client (nil = not added)
+		targetURL          string
+		expectedServerName string
+		errMsg             string
 	}{
 		{
 			name:      "integration test - basic TLS secret functionality",
@@ -73,10 +71,8 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 					secrets.KeyCACert: caCert,
 				}),
 			),
-			targetURL:                  "https://example.com",
-			insecure:                   true,
-			expectedServerName:         "example.com",
-			expectedInsecureSkipVerify: true,
+			targetURL:          "https://example.com",
+			expectedServerName: "example.com",
 		},
 	}
 
@@ -95,7 +91,7 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 			}
 			c := fakeClient(objects...)
 
-			tlsConfig, err := secrets.TLSConfigFromSecretRef(ctx, c, tt.secretRef, tt.targetURL, tt.insecure)
+			tlsConfig, err := secrets.TLSConfigFromSecretRef(ctx, c, tt.secretRef, tt.targetURL)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
@@ -104,7 +100,9 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 				g.Expect(tlsConfig).ToNot(BeNil())
 
 				g.Expect(tlsConfig.ServerName).To(Equal(tt.expectedServerName))
-				g.Expect(tlsConfig.InsecureSkipVerify).To(Equal(tt.expectedInsecureSkipVerify))
+				// InsecureSkipVerify must always be false per Flux security policy.
+				// The insecure parameter was removed to prevent bypassing certificate validation.
+				g.Expect(tlsConfig.InsecureSkipVerify).To(BeFalse())
 
 				hasCert := len(tt.secret.Data[secrets.KeyTLSCert]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSCert]) > 0
 				hasKey := len(tt.secret.Data[secrets.KeyTLSPrivateKey]) > 0 || len(tt.secret.Data[secrets.LegacyKeyTLSPrivateKey]) > 0
