@@ -110,20 +110,28 @@ type AuthMethodsOption func(*authMethodsConfig)
 
 // authMethodsConfig holds configuration for AuthMethods extraction.
 type authMethodsConfig struct {
-	tlsConfig *tlsConfig
+	tlsConfigOpts []TLSConfigOption
 }
 
 // tlsConfig holds TLS-specific configuration options.
 type tlsConfig struct {
-	targetURL string
+	targetURL         string
+	useSystemCertPool bool
 }
 
 // WithTargetURL configures TLS extraction with the specified target URL for ServerName configuration.
 func WithTargetURL(targetURL string) AuthMethodsOption {
 	return func(cfg *authMethodsConfig) {
-		cfg.tlsConfig = &tlsConfig{
-			targetURL: targetURL,
-		}
+		cfg.tlsConfigOpts = append(cfg.tlsConfigOpts, func(c *tlsConfig) {
+			c.targetURL = targetURL
+		})
+	}
+}
+
+// WithTLSSystemCertPool enables the use of system certificate pool in addition to user-provided CA certificates.
+func WithTLSSystemCertPool() AuthMethodsOption {
+	return func(cfg *authMethodsConfig) {
+		cfg.tlsConfigOpts = append(cfg.tlsConfigOpts, WithSystemCertPool())
 	}
 }
 

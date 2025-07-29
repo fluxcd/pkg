@@ -198,20 +198,20 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			wantErr: fmt.Errorf("secret 'test-namespace/test-secret': malformed basic auth - has 'username' but missing 'password'"),
 		},
 		{
-			name: "TLS cert present, with FOP option",
+			name: "TLS cert present, with all options",
 			secretData: map[string][]byte{
 				secrets.KeyCACert: validCACert,
 			},
-			opt:     []secrets.AuthMethodsOption{secrets.WithTargetURL("https://example.com")},
+			opt:     []secrets.AuthMethodsOption{secrets.WithTargetURL("https://example.com"), secrets.WithTLSSystemCertPool()},
 			wantTLS: true,
 		},
 		{
-			name: "no TLS cert, with FOP option",
+			name: "no TLS cert, with all options",
 			secretData: map[string][]byte{
 				secrets.KeyUsername: []byte("testuser"),
 				secrets.KeyPassword: []byte("testpass"),
 			},
-			opt:       []secrets.AuthMethodsOption{secrets.WithTargetURL("https://example.com")},
+			opt:       []secrets.AuthMethodsOption{secrets.WithTargetURL("https://example.com"), secrets.WithTLSSystemCertPool()},
 			wantBasic: true,
 			wantTLS:   false,
 		},
@@ -287,6 +287,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 		name               string
 		secret             *corev1.Secret
 		targetURL          string
+		opts               []secrets.TLSConfigOption
 		expectedServerName string
 		errMsg             string
 		expectedFields     map[string]string // legacy key -> preferred key mapping
@@ -438,6 +439,16 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			targetURL: "://invalid-url",
 			errMsg:    "failed to parse target URL '://invalid-url'",
 		},
+		{
+			name: "WithSystemCertPool option",
+			secret: testSecret(
+				withName("tls-secret"),
+				withData(map[string][]byte{
+					secrets.KeyCACert: caCert,
+				}),
+			),
+			opts: []secrets.TLSConfigOption{secrets.WithSystemCertPool()},
+		},
 	}
 
 	for _, tt := range tests {
@@ -460,7 +471,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 				ctx = log.IntoContext(ctx, logr.Discard())
 			}
 
-			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, tt.secret, tt.targetURL)
+			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, tt.secret, tt.targetURL, tt.opts...)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))

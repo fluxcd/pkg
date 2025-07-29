@@ -30,6 +30,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// TLSConfigOption is a functional option for configuring TLS behavior.
+type TLSConfigOption func(*tlsConfig)
+
+// WithSystemCertPool enables the use of system certificate pool in addition to user-provided CA certificates.
+func WithSystemCertPool() TLSConfigOption {
+	return func(c *tlsConfig) {
+		c.useSystemCertPool = true
+	}
+}
+
 // AuthMethodsFromSecret extracts all available authentication methods from a Kubernetes secret.
 //
 // The function attempts to parse all supported authentication methods from the secret data.
@@ -49,11 +59,7 @@ import (
 // Options can be provided to configure TLS extraction behavior. Use WithTargetURL() to specify
 // target URL for complete TLS configuration.
 func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...AuthMethodsOption) (*AuthMethods, error) {
-	config := &authMethodsConfig{
-		tlsConfig: &tlsConfig{
-			targetURL: "",
-		},
-	}
+	config := &authMethodsConfig{}
 	for _, opt := range opts {
 		opt(config)
 	}
@@ -77,7 +83,9 @@ func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...A
 	}
 
 	if err := trySetAuth(ctx, secret, &methods.TLS, func(ctx context.Context, secret *corev1.Secret) (*tls.Config, error) {
-		return TLSConfigFromSecret(ctx, secret, config.tlsConfig.targetURL)
+		// targetURL is empty here but will be set by TLSConfigOption if WithTargetURL was specified
+		const targetURL = ""
+		return TLSConfigFromSecret(ctx, secret, targetURL, config.tlsConfigOpts...)
 	}); err != nil {
 		return nil, err
 	}
@@ -95,7 +103,17 @@ func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...A
 //
 // The targetURL parameter is used to set the ServerName for proper SNI support
 // in virtual hosting environments.
-func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, targetURL string) (*tls.Config, error) {
+//
+// Optional TLSConfigOption parameters can be used to configure CA certificate handling:
+//   - WithSystemCertPool(): Include system certificates in addition to user-provided CA
+func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, targetURL string, opts ...TLSConfigOption) (*tls.Config, error) {
+	config := &tlsConfig{
+		targetURL: targetURL,
+	}
+	for _, opt := range opts {
+		opt(config)
+	}
+
 	logger := log.FromContext(ctx)
 	certData, err := getTLSCertificateData(secret, logger)
 	if err != nil {
@@ -109,7 +127,7 @@ func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, targetURL s
 		return nil, err
 	}
 
-	return buildTLSConfig(certData, targetURL)
+	return buildTLSConfig(certData, config)
 }
 
 // ProxyURLFromSecret creates a proxy URL from a Kubernetes secret.
@@ -247,7 +265,7 @@ func getTLSCertificateData(secret *corev1.Secret, logger logr.Logger) (*tlsCerti
 	return newTLSCertificateData(secret, logger)
 }
 
-func buildTLSConfig(certData *tlsCertificateData, targetURL string) (*tls.Config, error) {
+func buildTLSConfig(certData *tlsCertificateData, config *tlsConfig) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		// Note: InsecureSkipVerify is explicitly set to false in accordance with Flux security policy.
 		// TLS certificates must be validated using CA certificates or the system trust store.
@@ -255,10 +273,10 @@ func buildTLSConfig(certData *tlsCertificateData, targetURL string) (*tls.Config
 	}
 
 	// Set ServerName for proper SNI support if targetURL is provided
-	if targetURL != "" {
-		u, err := url.Parse(targetURL)
+	if config.targetURL != "" {
+		u, err := url.Parse(config.targetURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse target URL '%s': %w", targetURL, err)
+			return nil, fmt.Errorf("failed to parse target URL '%s': %w", config.targetURL, err)
 		}
 		if hostname := u.Hostname(); hostname != "" {
 			tlsConfig.ServerName = hostname
@@ -274,7 +292,17 @@ func buildTLSConfig(certData *tlsCertificateData, targetURL string) (*tls.Config
 	}
 
 	if certData.hasCA() {
-		caCertPool := x509.NewCertPool()
+		var caCertPool *x509.CertPool
+		if config.useSystemCertPool {
+			var err error
+			caCertPool, err = x509.SystemCertPool()
+			if err != nil {
+				return nil, fmt.Errorf("cannot retrieve system certificate pool: %w", err)
+			}
+		} else {
+			caCertPool = x509.NewCertPool()
+		}
+
 		if !caCertPool.AppendCertsFromPEM(certData.caCert) {
 			return nil, fmt.Errorf("failed to parse CA certificate")
 		}
