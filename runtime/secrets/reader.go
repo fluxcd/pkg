@@ -35,12 +35,15 @@ import (
 //
 // The targetURL parameter is used to set the ServerName for proper SNI support
 // in virtual hosting environments.
-func TLSConfigFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName, targetURL string) (*tls.Config, error) {
+//
+// Optional TLSConfigOption parameters can be used to configure CA certificate handling:
+//   - WithSystemCertPool(): Include system certificates in addition to user-provided CA
+func TLSConfigFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName, targetURL string, opts ...TLSConfigOption) (*tls.Config, error) {
 	secret, err := getSecret(ctx, c, secretRef)
 	if err != nil {
 		return nil, err
 	}
-	return TLSConfigFromSecret(ctx, secret, targetURL)
+	return TLSConfigFromSecret(ctx, secret, targetURL, opts...)
 }
 
 // ProxyURLFromSecretRef creates a proxy URL from a Kubernetes secret reference.
