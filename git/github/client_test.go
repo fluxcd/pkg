@@ -18,6 +18,8 @@ package github
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -256,4 +258,56 @@ func TestClient_GetCredentials(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClient_TLS_RootCA(t *testing.T) {
+	g := NewWithT(t)
+
+	// spin up a TLS server with a self-signed cert
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		tok := &AppToken{
+			Token:     "enterprise-token",
+			ExpiresAt: time.Now().Add(time.Hour),
+		}
+		_ = json.NewEncoder(w).Encode(tok)
+	})
+	srv := httptest.NewTLSServer(handler)
+	defer srv.Close()
+
+	// generate a dummy GitHub App keypair
+	kp, err := ssh.GenerateKeyPair(ssh.RSA_4096)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	opts := []OptFunc{
+		WithAppData(map[string][]byte{
+			KeyAppID:             []byte("123"),
+			KeyAppInstallationID: []byte("456"),
+			KeyAppPrivateKey:     kp.PrivateKey,
+			KeyAppBaseURL:        []byte(srv.URL),
+		}),
+	}
+
+	t.Run("it should error out if a Root CA is not provided", func(t *testing.T) {
+		g := NewWithT(t)
+		// with no TLSConfig, system roots won’t trust our server’s cert
+		_, _, err := GetCredentials(context.Background(), opts...)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("certificate signed by unknown authority"))
+	})
+
+	t.Run("it should succeed when Root CA is provided", func(t *testing.T) {
+		g := NewWithT(t)
+		// create a cert pool with server cert
+		certPool := x509.NewCertPool()
+		certPool.AddCert(srv.Certificate())
+
+		opts := append(opts,
+			WithTLSConfig(&tls.Config{RootCAs: certPool}),
+		)
+		user, pass, err := GetCredentials(context.Background(), opts...)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(user).To(Equal(AccessTokenUsername))
+		g.Expect(pass).To(Equal("enterprise-token"))
+	})
 }
