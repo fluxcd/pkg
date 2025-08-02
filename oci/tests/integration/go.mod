@@ -20,8 +20,8 @@ require (
 	github.com/fluxcd/pkg/apis/meta v1.18.0
 	github.com/fluxcd/pkg/auth v0.23.0
 	github.com/fluxcd/pkg/cache v0.10.0
-	github.com/fluxcd/pkg/git v0.34.0
-	github.com/fluxcd/pkg/git/gogit v0.37.0
+	github.com/fluxcd/pkg/git v0.35.0
+	github.com/fluxcd/pkg/git/gogit v0.38.0
 	github.com/fluxcd/pkg/runtime v0.78.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.16.2

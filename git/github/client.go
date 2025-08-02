@@ -19,6 +19,7 @@ package github
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -54,6 +55,7 @@ type Client struct {
 	name           string
 	namespace      string
 	operation      string
+	tlsConfig      *tls.Config
 }
 
 // OptFunc enables specifying options for the provider.
@@ -67,6 +69,9 @@ func New(opts ...OptFunc) (*Client, error) {
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if p.tlsConfig != nil {
+		transport.TLSClientConfig = p.tlsConfig
+	}
 	if p.proxyURL != nil {
 		proxyStr := p.proxyURL.String()
 		proxyConfig := &httpproxy.Config{
@@ -109,6 +114,13 @@ func New(opts ...OptFunc) (*Client, error) {
 	}
 
 	return p, nil
+}
+
+// WithTLSConfig sets the tls config to use with the transport.
+func WithTLSConfig(tlsConfig *tls.Config) OptFunc {
+	return func(p *Client) {
+		p.tlsConfig = tlsConfig
+	}
 }
 
 // WithAppData configures the client using data from a map
