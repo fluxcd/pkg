@@ -14,7 +14,7 @@ require (
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v1.7.2
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/git v0.34.0
+	github.com/fluxcd/pkg/git v0.35.0
 	github.com/fluxcd/pkg/gittestserver v0.18.0
 	github.com/fluxcd/pkg/ssh v0.20.0
 	github.com/fluxcd/pkg/version v0.9.0
