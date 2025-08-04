@@ -19,6 +19,7 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"golang.org/x/oauth2"
 
@@ -26,18 +27,47 @@ import (
 )
 
 type tokenSource struct {
-	ctx  context.Context
-	opts []auth.Option
+	ctx    context.Context
+	client *http.Client
+	opts   []auth.Option
 }
 
 // NewTokenSource creates a new token source for the given context and options.
 func NewTokenSource(ctx context.Context, opts ...auth.Option) oauth2.TokenSource {
-	return &tokenSource{ctx, opts}
+	options := &auth.Options{}
+	options.Apply(opts...)
+
+	return &tokenSource{
+		ctx:    ctx,
+		client: options.GetHTTPClient(),
+		opts:   opts,
+	}
+}
+
+// NewPersistentTokenSource creates a new long-lived token source that uses
+// context.Background() internally and is safe for concurrent use across
+// multiple requests. This should be used instead of NewTokenSource for
+// persistent authentication scenarios where the TokenSource will be reused.
+func NewPersistentTokenSource(opts ...auth.Option) oauth2.TokenSource {
+	options := &auth.Options{}
+	options.Apply(opts...)
+
+	return &tokenSource{
+		ctx:    context.Background(),
+		client: options.GetHTTPClient(),
+		opts:   opts,
+	}
 }
 
 // Token implements oauth2.TokenSource.
 func (t *tokenSource) Token() (*oauth2.Token, error) {
-	token, err := auth.GetAccessToken(t.ctx, Provider{}, t.opts...)
+	ctx := t.ctx
+
+	if t.client != nil {
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, t.client)
+	}
+
+	token, err := auth.GetAccessToken(ctx, Provider{}, t.opts...)
 	if err != nil {
 		return nil, err
 	}

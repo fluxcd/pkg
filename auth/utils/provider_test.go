@@ -45,7 +45,7 @@ func TestProviderByName(t *testing.T) {
 			},
 			{
 				name:     gcp.ProviderName,
-				provider: gcp.Provider{},
+				provider: gcp.NewProvider(),
 			},
 			{
 				name:     generic.ProviderName,
@@ -76,7 +76,7 @@ func TestProviderByName(t *testing.T) {
 			},
 			{
 				name:     gcp.ProviderName,
-				provider: gcp.Provider{},
+				provider: gcp.NewProvider(),
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestProviderByName(t *testing.T) {
 			},
 			{
 				name:     gcp.ProviderName,
-				provider: gcp.Provider{},
+				provider: gcp.NewProvider(),
 			},
 			{
 				name:     generic.ProviderName,
@@ -144,7 +144,7 @@ func TestProviderByName(t *testing.T) {
 			},
 			{
 				name:     gcp.ProviderName,
-				provider: gcp.Provider{},
+				provider: gcp.NewProvider(),
 			},
 			{
 				name:     generic.ProviderName,

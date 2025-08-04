@@ -36,7 +36,7 @@ func ProviderByName[T any](name string) (T, error) {
 	case azure.ProviderName:
 		p = azure.Provider{}
 	case gcp.ProviderName:
-		p = gcp.Provider{}
+		p = gcp.NewProvider()
 	case generic.ProviderName:
 		p = generic.Provider{}
 	default:

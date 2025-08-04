@@ -43,7 +43,26 @@ var scopes = []string{
 }
 
 // Provider implements the auth.Provider interface for GCP authentication.
-type Provider struct{ Implementation }
+type Provider struct {
+	Implementation
+	tokenSourceManager *TokenSourceManager
+}
+
+// NewProvider creates a new Provider instance with TokenSourceManager for caching.
+func NewProvider() Provider {
+	return Provider{
+		tokenSourceManager: NewTokenSourceManager(),
+	}
+}
+
+// GetOrCreateTokenSource is the primary API for obtaining TokenSources.
+// It automatically determines authentication type based on options:
+// - If ServiceAccount option is provided: Object-level authentication
+// - If no ServiceAccount option: Controller-level authentication using default GCP auth chain
+// This ensures efficient reuse of TokenSources and avoids short-lived context issues.
+func (p Provider) GetOrCreateTokenSource(opts ...auth.Option) oauth2.TokenSource {
+	return p.tokenSourceManager.GetOrCreateTokenSource(opts...)
+}
 
 // GetName implements auth.Provider.
 func (Provider) GetName() string {

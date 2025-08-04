@@ -17,8 +17,13 @@ limitations under the License.
 package auth
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
+	"strings"
+	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -152,14 +157,72 @@ func (o *Options) Apply(opts ...Option) {
 	}
 }
 
-// GetHTTPClient returns a *http.Client with the configured proxy URL
-// or nil if no proxy URL is set.
+// GetHTTPClient returns a *http.Client with appropriate timeouts and proxy settings.
 func (o *Options) GetHTTPClient() *http.Client {
-	if o.ProxyURL == nil {
-		return nil
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
+	if o.ProxyURL != nil {
+		transport.Proxy = http.ProxyURL(o.ProxyURL)
 	}
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = http.ProxyURL(o.ProxyURL)
-	return &http.Client{Transport: transport}
+	return &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second, // Token acquisition timeout
+	}
+}
+
+// CacheKey creates a cache key based on these auth options.
+// This method determines authentication type and generates appropriate cache keys:
+// - Controller-level: "controller" + options hash
+// - Object-level: "sa:namespace/name" + options hash
+//
+// IMPORTANT: Why hash is needed even for ServiceAccount-level authentication:
+// While a ServiceAccount represents a single identity, the oauth2.TokenSource behavior
+// depends on the acquisition configuration and cannot be safely shared across different
+// configurations:
+//
+//  1. oauth2.TokenSource locks configuration at creation time - scopes, STS endpoint,
+//     HTTP transport (proxy/TLS) are fixed for the lifetime of the TokenSource
+//  2. Different scopes require separate TokenSources to avoid authorization errors
+//     or privilege leakage between different access requirements
+//  3. Different STS endpoints (e.g., different cloud providers or identity providers)
+//     cannot share the same TokenSource due to different token exchange mechanisms
+//  4. Different HTTP transports (proxy vs direct) will cause connection failures
+//     if mixed in the same TokenSource
+//
+// Therefore, cache keys must distinguish both identity (SA) AND acquisition path (hash).
+func (o *Options) CacheKey() string {
+	var keyParts []string
+
+	if o.ServiceAccount != nil {
+		keyParts = append(keyParts, fmt.Sprintf("sa:%s/%s", o.ServiceAccount.Namespace, o.ServiceAccount.Name))
+	} else {
+		keyParts = append(keyParts, "controller")
+	}
+
+	var configParts []string
+
+	if o.ProxyURL != nil {
+		configParts = append(configParts, fmt.Sprintf("proxy:%s", o.ProxyURL.String()))
+	}
+	if o.STSEndpoint != "" {
+		configParts = append(configParts, fmt.Sprintf("sts:%s", o.STSEndpoint))
+	}
+
+	if len(o.Scopes) > 0 {
+		sort.Strings(o.Scopes)
+		configParts = append(configParts, fmt.Sprintf("scopes:%s", strings.Join(o.Scopes, ",")))
+	}
+
+	if len(configParts) > 0 {
+		// Create deterministic hash from configuration options that affect TokenSource behavior.
+		// Using SHA256 (first 8 bytes) to avoid key length issues while ensuring uniqueness.
+		// The hash prevents cache key collisions when the same identity uses different
+		// acquisition paths (different scopes, endpoints, or transport settings).
+		sort.Strings(configParts)
+		configHash := sha256.Sum256([]byte(strings.Join(configParts, "|")))
+		keyParts = append(keyParts, fmt.Sprintf("%x", configHash[:8]))
+	}
+
+	return strings.Join(keyParts, "-")
 }
