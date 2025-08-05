@@ -73,11 +73,12 @@ const (
 
 // AuthMethods holds all available authentication methods detected from a secret.
 type AuthMethods struct {
-	Basic  *BasicAuth
-	Bearer BearerAuth
-	Token  TokenAuth
-	SSH    *SSHAuth
-	TLS    *tls.Config
+	Basic         *BasicAuth
+	Bearer        BearerAuth
+	Token         TokenAuth
+	SSH           *SSHAuth
+	GitHubAppData GitHubAppData
+	TLS           *tls.Config
 }
 
 // HasBasicAuth returns true if basic authentication is available.
@@ -98,6 +99,11 @@ func (am *AuthMethods) HasTokenAuth() bool {
 // HasSSH returns true if SSH authentication is available.
 func (am *AuthMethods) HasSSH() bool {
 	return am.SSH != nil
+}
+
+// HasGitHubAppData returns true if GitHub App authentication data is available.
+func (am *AuthMethods) HasGitHubAppData() bool {
+	return len(am.GitHubAppData) > 0
 }
 
 // HasTLS returns true if TLS configuration is available.
@@ -235,20 +241,15 @@ type BearerAuth string
 // TokenAuth holds generic token authentication credentials.
 type TokenAuth string
 
+// GitHubAppData holds GitHub App authentication data as key-value pairs.
+type GitHubAppData = map[string][]byte
+
 // SSHAuth holds SSH authentication credentials.
 type SSHAuth struct {
 	PrivateKey []byte
 	PublicKey  []byte
 	KnownHosts string
 	Password   string
-}
-
-// GitHubAppAuth holds GitHub App authentication credentials.
-type GitHubAppAuth struct {
-	AppID          string
-	InstallationID string
-	PrivateKey     []byte
-	BaseURL        string
 }
 
 // getSecretData retrieves data from secret with fallback support for legacy keys.
