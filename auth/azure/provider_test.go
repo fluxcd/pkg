@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -236,9 +237,10 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 
 func TestProvider_ParseArtifactRegistry(t *testing.T) {
 	for _, tt := range []struct {
-		artifactRepository  string
-		expectedRegistryURL string
-		expectValid         bool
+		artifactRepository         string
+		expectedRegistryURL        string
+		containerRegistryDNSSuffix string
+		expectValid                bool
 	}{
 		{
 			artifactRepository:  "foo.azurecr.io/repo",
@@ -272,10 +274,32 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com",
 			expectValid:        false,
 		},
+		{
+			artifactRepository:         "foo.azurecr.private/repo",
+			expectedRegistryURL:        "foo.azurecr.private",
+			containerRegistryDNSSuffix: "azurecr.private",
+			expectValid:                true,
+		},
+		{
+			artifactRepository:         "foo.azurecr.private/repo",
+			expectedRegistryURL:        "foo.azurecr.private",
+			containerRegistryDNSSuffix: "azurecr.pr",
+			expectValid:                false,
+		},
 	} {
 		t.Run(tt.artifactRepository, func(t *testing.T) {
 			g := NewWithT(t)
 
+			// Create a temporary JSON file if containerRegistryDNS is defined
+			if tt.containerRegistryDNSSuffix != "" {
+				envContent := fmt.Sprintf(`{"containerRegistryDNSSuffix": "%s"}`, tt.containerRegistryDNSSuffix)
+				tempFileName, err := createTempAzureEnvFile(envContent)
+				g.Expect(err).NotTo(HaveOccurred())
+				defer os.Remove(tempFileName)
+
+				// Set the environment variable to point to the temp file
+				t.Setenv("AZURE_ENVIRONMENT_FILEPATH", tempFileName)
+			}
 			registryURL, err := azure.Provider{}.ParseArtifactRepository(tt.artifactRepository)
 
 			if tt.expectValid {
@@ -285,6 +309,67 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(registryURL).To(BeEmpty())
 			}
+		})
+	}
+}
+
+func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
+	for _, tt := range []struct {
+		name               string
+		artifactRepository string
+		readFromEnv        bool
+		expectedScope      string
+	}{
+		{
+			name:               "Azure Public Cloud",
+			artifactRepository: "myregistry.azurecr.io",
+			expectedScope:      "https://management.azure.com/.default",
+		},
+		{
+			name:               "Azure China Cloud",
+			artifactRepository: "myregistry.azurecr.cn",
+			expectedScope:      "https://management.chinacloudapi.cn/.default",
+		},
+		{
+			name:               "Azure Government Cloud",
+			artifactRepository: "myregistry.azurecr.us",
+			expectedScope:      "https://management.usgovcloudapi.net/.default",
+		},
+		{
+			name:               "Invalid registry",
+			artifactRepository: "myregistry.invalid.io",
+			expectedScope:      "https://management.azure.com/.default",
+		},
+		{
+			name:               "Custom environment file",
+			artifactRepository: "myregistry.private.io",
+			readFromEnv:        true,
+			expectedScope:      "https://management.core.azure.private/.default",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			if tt.readFromEnv {
+				envContent := fmt.Sprintf(`{"resourceManagerEndpoint": "%s", "tokenAudience": "%s", "extraField": "%s"}`, "https://management.core.azure.private", "https://management.core.azure.private", "random-extra-field-for-testing")
+				tempFileName, err := createTempAzureEnvFile(envContent)
+				g.Expect(err).NotTo(HaveOccurred())
+				defer os.Remove(tempFileName)
+
+				// Set the environment variable to point to the temp file
+				t.Setenv("AZURE_ENVIRONMENT_FILEPATH", tempFileName)
+			}
+
+			provider := azure.Provider{}
+			opts, err := provider.GetAccessTokenOptionsForArtifactRepository(tt.artifactRepository)
+
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(opts).To(HaveLen(1))
+
+			var armOptions auth.Options
+			armOptions.Apply(opts...)
+			g.Expect(armOptions.Scopes).To(Equal([]string{tt.expectedScope}))
+
 		})
 	}
 }
@@ -543,6 +628,31 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 		g.Expect(armOptions.Scopes).To(Equal([]string{"https://management.core.windows.net//.default"}))
 	})
 
+	t.Run("needs to fetch cluster arm options from env", func(t *testing.T) {
+		envContent := fmt.Sprintf(`{"resourceManagerEndpoint": "%s", "tokenAudience": "%s", "extraField": "%s"}`, "https://management.core.azure.private/", "https://management.core.azure.private/", "random-extra-field-for-testing")
+		tempFileName, err := createTempAzureEnvFile(envContent)
+		g.Expect(err).NotTo(HaveOccurred())
+		defer os.Remove(tempFileName)
+
+		// Set the environment variable to point to the temp file
+		t.Setenv("AZURE_ENVIRONMENT_FILEPATH", tempFileName)
+
+		opts, err := azure.Provider{}.GetAccessTokenOptionsForCluster(
+			auth.WithClusterResource("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(opts).To(HaveLen(2))
+
+		// AKS token options
+		var aksOptions auth.Options
+		aksOptions.Apply(opts[0]...)
+		g.Expect(aksOptions.Scopes).To(Equal([]string{"6dae42f8-4368-4678-94ff-3960e28e3630/.default"}))
+
+		// ARM token options
+		var armOptions auth.Options
+		armOptions.Apply(opts[1]...)
+		g.Expect(armOptions.Scopes).To(Equal([]string{"https://management.core.azure.private//.default"}))
+	})
+
 	t.Run("no need to fetch cluster", func(t *testing.T) {
 		opts, err := azure.Provider{}.GetAccessTokenOptionsForCluster(
 			auth.WithClusterAddress("https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
@@ -579,4 +689,22 @@ users:
       command: kubelogin
       env: null
 `, serverURL, clusterName, clusterName, clusterName, clusterName, clusterName, clusterName))
+}
+
+func createTempAzureEnvFile(content string) (string, error) {
+	tempFile, err := os.CreateTemp("", "azure_env_*.json")
+	if err != nil {
+		return "", err
+	}
+
+	if err := tempFile.Close(); err != nil {
+		os.Remove(tempFile.Name())
+		return "", err
+	}
+
+	if err := os.WriteFile(tempFile.Name(), []byte(content), 0644); err != nil {
+		return "", err
+	}
+
+	return tempFile.Name(), nil
 }

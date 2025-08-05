@@ -137,6 +137,12 @@ func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository 
 
 	var conf *cloud.Configuration
 	switch {
+	case hasEnvironmentFile():
+		var err error
+		conf, err = getCloudConfigFromEnvironment()
+		if err != nil {
+			return nil, err
+		}
 	case strings.HasSuffix(registry, ".azurecr.cn"):
 		conf = &cloud.AzureChina
 	case strings.HasSuffix(registry, ".azurecr.us"):
@@ -162,13 +168,27 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 		return "", err
 	}
 
-	if !registryRegex.MatchString(registry) {
-		return "", fmt.Errorf("invalid Azure registry: '%s'. must match %s",
-			registry, registryPattern)
+	// For issuing Azure registry credentials the registry host is required.
+	if registryRegex.MatchString(registry) {
+		return registry, nil
 	}
 
-	// For issuing Azure registry credentials the registry host is required.
-	return registry, nil
+	// Check if environment variable is configured for container registry suffix
+	if hasEnvironmentFile() {
+		// Load the environment configuration from the file
+		registrySuffix, err := getContainerRegistryDNSSuffix()
+		if err != nil {
+			return "", fmt.Errorf("failed to get container registry suffix from environment file: %w", err)
+		}
+		if strings.HasSuffix(registry, registrySuffix) {
+			return registry, nil
+		}
+		return "", fmt.Errorf("invalid Azure registry: '%s'. must end with %s",
+			registry, registrySuffix)
+	}
+
+	return "", fmt.Errorf("invalid Azure registry: '%s'. must match %s",
+		registry, registryPattern)
 }
 
 // NewArtifactRegistryCredentials implements auth.Provider.
@@ -239,6 +259,12 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 	if o.ClusterAddress == "" || o.CAData == "" {
 		conf := &cloud.AzurePublic
 		switch authorityHost := os.Getenv("AZURE_AUTHORITY_HOST"); {
+		case hasEnvironmentFile():
+			var err error
+			conf, err = getCloudConfigFromEnvironment()
+			if err != nil {
+				return nil, err
+			}
 		case strings.Contains(authorityHost, "chinacloudapi.cn"):
 			conf = &cloud.AzureChina
 		case strings.Contains(authorityHost, "microsoftonline.us"):
