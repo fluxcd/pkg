@@ -38,15 +38,16 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 	validCACert, _, _ := generateTestCertificates(t)
 
 	tests := []struct {
-		name       string
-		secretData map[string][]byte
-		opt        []secrets.AuthMethodsOption
-		wantBasic  bool
-		wantBearer bool
-		wantToken  bool
-		wantSSH    bool
-		wantTLS    bool
-		wantErr    error
+		name          string
+		secretData    map[string][]byte
+		opt           []secrets.AuthMethodsOption
+		wantBasic     bool
+		wantBearer    bool
+		wantToken     bool
+		wantSSH       bool
+		wantGitHubApp bool
+		wantTLS       bool
+		wantErr       error
 	}{
 		{
 			name:       "empty secret",
@@ -150,19 +151,43 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 		{
 			name: "all authentication methods",
 			secretData: map[string][]byte{
-				secrets.KeyUsername:      []byte("testuser"),
-				secrets.KeyPassword:      []byte("testpass"),
-				secrets.KeyBearerToken:   []byte("token123"),
-				secrets.KeyToken:         []byte("api-token-123"),
-				secrets.KeySSHPrivateKey: []byte(sshPrivateKey),
-				secrets.KeySSHKnownHosts: []byte(sshKnownHosts),
-				secrets.KeyCACert:        validCACert,
+				secrets.KeyUsername:                []byte("testuser"),
+				secrets.KeyPassword:                []byte("testpass"),
+				secrets.KeyBearerToken:             []byte("token123"),
+				secrets.KeyToken:                   []byte("api-token-123"),
+				secrets.KeySSHPrivateKey:           []byte(sshPrivateKey),
+				secrets.KeySSHKnownHosts:           []byte(sshKnownHosts),
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+				secrets.KeyCACert:                  validCACert,
 			},
-			wantBasic:  true,
-			wantBearer: true,
-			wantToken:  true,
-			wantSSH:    true,
-			wantTLS:    true,
+			wantBasic:     true,
+			wantBearer:    true,
+			wantToken:     true,
+			wantSSH:       true,
+			wantGitHubApp: true,
+			wantTLS:       true,
+		},
+		{
+			name: "GitHub App only",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+			wantGitHubApp: true,
+		},
+		{
+			name: "GitHub App + CA (source-controller PR scenario)",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+				secrets.KeyCACert:                  validCACert,
+			},
+			wantGitHubApp: true,
+			wantTLS:       true,
 		},
 		{
 			name: "malformed SSH auth with valid TLS",
@@ -246,6 +271,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			g.Expect(result.HasBearerAuth()).To(Equal(tt.wantBearer))
 			g.Expect(result.HasTokenAuth()).To(Equal(tt.wantToken))
 			g.Expect(result.HasSSH()).To(Equal(tt.wantSSH))
+			g.Expect(result.HasGitHubAppData()).To(Equal(tt.wantGitHubApp))
 			g.Expect(result.HasTLS()).To(Equal(tt.wantTLS))
 
 			if tt.wantBasic {
@@ -270,10 +296,143 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 				g.Expect(result.SSH.KnownHosts).ToNot(BeEmpty())
 			}
 
+			if tt.wantGitHubApp {
+				g.Expect(result.GitHubAppData).ToNot(BeNil())
+				g.Expect(result.GitHubAppData).To(HaveKey(secrets.KeyGitHubAppID))
+				g.Expect(result.GitHubAppData).To(HaveKey(secrets.KeyGitHubAppInstallationID))
+				g.Expect(result.GitHubAppData).To(HaveKey(secrets.KeyGitHubAppPrivateKey))
+			}
+
 			if tt.wantTLS {
 				g.Expect(result.TLS).ToNot(BeNil())
 			}
 
+		})
+	}
+}
+
+func TestGitHubAppDataFromSecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		secretData map[string][]byte
+		wantData   map[string][]byte
+		errMsg     string
+	}{
+		{
+			name: "valid GitHub App data with all fields",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+				secrets.KeyGitHubAppBaseURL:        []byte("https://github.example.com"),
+			},
+			wantData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+				secrets.KeyGitHubAppBaseURL:        []byte("https://github.example.com"),
+			},
+		},
+		{
+			name: "valid GitHub App data with required fields only",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+			wantData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+		},
+		{
+			name: "missing app ID",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+			errMsg: `secret 'default/github-app-secret': key 'githubAppID' not found`,
+		},
+		{
+			name: "missing installation ID",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:         []byte("123456"),
+				secrets.KeyGitHubAppPrivateKey: []byte("test-private-key"),
+			},
+			errMsg: `secret 'default/github-app-secret': key 'githubAppInstallationID' not found`,
+		},
+		{
+			name: "missing private key",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+			},
+			errMsg: `secret 'default/github-app-secret': key 'githubAppPrivateKey' not found`,
+		},
+		{
+			name:       "completely empty secret",
+			secretData: map[string][]byte{},
+			errMsg:     `secret 'default/github-app-secret': key 'githubAppID' not found`,
+		},
+		{
+			name: "partial GitHub App data - only app ID",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID: []byte("123456"),
+			},
+			errMsg: `secret 'default/github-app-secret': key 'githubAppInstallationID' not found`,
+		},
+		{
+			name: "partial GitHub App data - app ID and installation ID only",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+			},
+			errMsg: `secret 'default/github-app-secret': key 'githubAppPrivateKey' not found`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx := context.Background()
+			secret := testSecret(
+				withName("github-app-secret"),
+				withData(tt.secretData),
+			)
+
+			result, err := secrets.GitHubAppDataFromSecret(ctx, secret)
+
+			if tt.errMsg != "" {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
+				g.Expect(result).To(BeNil())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(result).ToNot(BeNil())
+				g.Expect(result).To(Equal(tt.wantData))
+
+				// Verify required fields are present
+				g.Expect(result).To(HaveKey(secrets.KeyGitHubAppID))
+				g.Expect(result).To(HaveKey(secrets.KeyGitHubAppInstallationID))
+				g.Expect(result).To(HaveKey(secrets.KeyGitHubAppPrivateKey))
+
+				// Verify content
+				g.Expect(string(result[secrets.KeyGitHubAppID])).To(Equal("123456"))
+				g.Expect(string(result[secrets.KeyGitHubAppInstallationID])).To(Equal("7890123"))
+				g.Expect(string(result[secrets.KeyGitHubAppPrivateKey])).To(Equal("test-private-key"))
+
+				// BaseURL should only be present if it was in the input
+				if tt.wantData[secrets.KeyGitHubAppBaseURL] != nil {
+					g.Expect(result).To(HaveKey(secrets.KeyGitHubAppBaseURL))
+					g.Expect(string(result[secrets.KeyGitHubAppBaseURL])).To(Equal("https://github.example.com"))
+				} else {
+					g.Expect(result).ToNot(HaveKey(secrets.KeyGitHubAppBaseURL))
+				}
+			}
 		})
 	}
 }

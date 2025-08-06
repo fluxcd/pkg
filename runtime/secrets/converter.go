@@ -51,6 +51,7 @@ func WithSystemCertPool() TLSConfigOption {
 //   - Bearer token authentication
 //   - Token authentication
 //   - SSH authentication (private key, known hosts)
+//   - GitHub App authentication (app ID, installation ID, private key)
 //   - TLS client certificates
 //
 // Multiple authentication methods can be present in a single secret and will be extracted
@@ -79,6 +80,10 @@ func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...A
 	}
 
 	if err := trySetAuth(ctx, secret, &methods.SSH, SSHAuthFromSecret); err != nil {
+		return nil, err
+	}
+
+	if err := trySetAuth(ctx, secret, &methods.GitHubAppData, GitHubAppDataFromSecret); err != nil {
 		return nil, err
 	}
 
@@ -259,6 +264,46 @@ func SSHAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*SSHAuth, er
 	}
 
 	return auth, nil
+}
+
+// GitHubAppDataFromSecret retrieves GitHub App authentication data from a Kubernetes secret.
+//
+// The function expects the secret to contain "githubAppID", "githubAppInstallationID", and
+// "githubAppPrivateKey" fields. All three fields are required and the function will return
+// an error if any is missing. Optional "githubAppBaseURL" field can be present for GitHub
+// Enterprise Server instances.
+func GitHubAppDataFromSecret(ctx context.Context, secret *corev1.Secret) (GitHubAppData, error) {
+	_, hasAppID := secret.Data[KeyGitHubAppID]
+	_, hasInstallationID := secret.Data[KeyGitHubAppInstallationID]
+	_, hasPrivateKey := secret.Data[KeyGitHubAppPrivateKey]
+
+	// Complete absence - return KeyNotFoundError (will be ignored by trySetAuth)
+	if !hasAppID && !hasInstallationID && !hasPrivateKey {
+		return nil, &KeyNotFoundError{Key: KeyGitHubAppID, Secret: secret}
+	}
+
+	// Check for required fields - partial presence is an error
+	if !hasAppID {
+		return nil, &KeyNotFoundError{Key: KeyGitHubAppID, Secret: secret}
+	}
+	if !hasInstallationID {
+		return nil, &KeyNotFoundError{Key: KeyGitHubAppInstallationID, Secret: secret}
+	}
+	if !hasPrivateKey {
+		return nil, &KeyNotFoundError{Key: KeyGitHubAppPrivateKey, Secret: secret}
+	}
+
+	data := GitHubAppData{
+		KeyGitHubAppID:             secret.Data[KeyGitHubAppID],
+		KeyGitHubAppInstallationID: secret.Data[KeyGitHubAppInstallationID],
+		KeyGitHubAppPrivateKey:     secret.Data[KeyGitHubAppPrivateKey],
+	}
+
+	if baseURLData, exists := secret.Data[KeyGitHubAppBaseURL]; exists {
+		data[KeyGitHubAppBaseURL] = baseURLData
+	}
+
+	return data, nil
 }
 
 func getTLSCertificateData(secret *corev1.Secret, logger logr.Logger) (*tlsCertificateData, error) {

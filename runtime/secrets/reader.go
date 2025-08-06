@@ -58,6 +58,18 @@ func ProxyURLFromSecretRef(ctx context.Context, c client.Client, secretRef types
 	return ProxyURLFromSecret(ctx, secret)
 }
 
+// GitHubAppDataFromSecretRef retrieves GitHub App authentication data from a Kubernetes secret reference.
+//
+// The function fetches the secret from the API server and then processes it using
+// GitHubAppDataFromSecret. It expects the same field structure for GitHub App configuration.
+func GitHubAppDataFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName) (GitHubAppData, error) {
+	secret, err := getSecret(ctx, c, secretRef)
+	if err != nil {
+		return nil, err
+	}
+	return GitHubAppDataFromSecret(ctx, secret)
+}
+
 // PullSecretsFromServiceAccountRef retrieves all image pull secrets referenced by a service account.
 //
 // The function resolves all secrets listed in the service account's imagePullSecrets field
