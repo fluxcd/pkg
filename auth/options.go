@@ -19,6 +19,7 @@ package auth
 import (
 	"net/http"
 	"net/url"
+	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -152,14 +153,17 @@ func (o *Options) Apply(opts ...Option) {
 	}
 }
 
-// GetHTTPClient returns a *http.Client with the configured proxy URL
-// or nil if no proxy URL is set.
+// GetHTTPClient returns a *http.Client with appropriate timeouts and proxy settings.
+// The client includes a 10-second timeout to prevent indefinite hangs during token acquisition.
 func (o *Options) GetHTTPClient() *http.Client {
-	if o.ProxyURL == nil {
-		return nil
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
+	if o.ProxyURL != nil {
+		transport.Proxy = http.ProxyURL(o.ProxyURL)
 	}
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = http.ProxyURL(o.ProxyURL)
-	return &http.Client{Transport: transport}
+	return &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}
 }
