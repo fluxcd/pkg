@@ -54,7 +54,9 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	var o auth.Options
 	o.Apply(opts...)
 
-	var confOpts []func(*config.LoadOptions) error
+	confOpts := []func(*config.LoadOptions) error{
+		config.WithHTTPClient(o.GetHTTPClient()),
+	}
 
 	stsRegion := o.STSRegion
 	if stsRegion == "" {
@@ -75,10 +77,6 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 			return nil, err
 		}
 		confOpts = append(confOpts, config.WithBaseEndpoint(e))
-	}
-
-	if hc := o.GetHTTPClient(); hc != nil {
-		confOpts = append(confOpts, config.WithHTTPClient(hc))
 	}
 
 	conf, err := p.impl().LoadDefaultConfig(ctx, confOpts...)
@@ -134,7 +132,8 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	roleSessionName := getRoleSessionName(serviceAccount, stsRegion)
 
 	stsOpts := sts.Options{
-		Region: stsRegion,
+		Region:     stsRegion,
+		HTTPClient: o.GetHTTPClient(),
 	}
 
 	if e := o.STSEndpoint; e != "" {
@@ -142,10 +141,6 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 			return nil, err
 		}
 		stsOpts.BaseEndpoint = &e
-	}
-
-	if hc := o.GetHTTPClient(); hc != nil {
-		stsOpts.HTTPClient = hc
 	}
 
 	req := &sts.AssumeRoleWithWebIdentityInput{
@@ -243,10 +238,7 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryIn
 	conf := aws.Config{
 		Region:      getECRRegionFromRegistryInput(registryInput),
 		Credentials: accessToken.(*Credentials).provider(),
-	}
-
-	if hc := o.GetHTTPClient(); hc != nil {
-		conf.HTTPClient = hc
+		HTTPClient:  o.GetHTTPClient(),
 	}
 
 	respAny, err := authTokenFunc(ctx, conf)
@@ -346,9 +338,7 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		eksOpts := eks.Options{
 			Region:      region,
 			Credentials: creds,
-		}
-		if hc != nil {
-			eksOpts.HTTPClient = hc
+			HTTPClient:  hc,
 		}
 		clusterResource, err := p.impl().DescribeCluster(ctx, describeInput, eksOpts)
 		if err != nil {
@@ -391,15 +381,13 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	stsOpts := sts.Options{
 		Region:      region,
 		Credentials: creds,
+		HTTPClient:  hc,
 	}
 	if e := o.STSEndpoint; e != "" {
 		if err := ValidateSTSEndpoint(e); err != nil {
 			return nil, err
 		}
 		stsOpts.BaseEndpoint = &e
-	}
-	if hc != nil {
-		stsOpts.HTTPClient = hc
 	}
 	presignedReq, err := p.impl().PresignGetCallerIdentity(ctx, presignOpts, stsOpts)
 	if err != nil {

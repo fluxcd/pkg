@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -54,10 +55,10 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	var o auth.Options
 	o.Apply(opts...)
 
-	var azOpts azidentity.DefaultAzureCredentialOptions
-
-	if hc := o.GetHTTPClient(); hc != nil {
-		azOpts.Transport = hc
+	azOpts := azidentity.DefaultAzureCredentialOptions{
+		ClientOptions: azcore.ClientOptions{
+			Transport: o.GetHTTPClient(),
+		},
 	}
 
 	credFunc := p.impl().NewDefaultAzureCredentialWithoutShellOut
@@ -102,10 +103,10 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	s := strings.Split(identity, "/")
 	tenantID, clientID := s[0], s[1]
 
-	azOpts := &azidentity.ClientAssertionCredentialOptions{}
-
-	if hc := o.GetHTTPClient(); hc != nil {
-		azOpts.Transport = hc
+	azOpts := &azidentity.ClientAssertionCredentialOptions{
+		ClientOptions: azcore.ClientOptions{
+			Transport: o.GetHTTPClient(),
+		},
 	}
 
 	cred, err := p.impl().NewClientAssertionCredential(tenantID, clientID, func(context.Context) (string, error) {
@@ -179,9 +180,10 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 
 	// Create the ACR authentication client.
 	endpoint := fmt.Sprintf("https://%s", registry)
-	var clientOpts azcontainerregistry.AuthenticationClientOptions
-	if hc := o.GetHTTPClient(); hc != nil {
-		clientOpts.Transport = hc
+	clientOpts := azcontainerregistry.AuthenticationClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Transport: o.GetHTTPClient(),
+		},
 	}
 	client, err := azcontainerregistry.NewAuthenticationClient(endpoint, &clientOpts)
 	if err != nil {
@@ -275,9 +277,10 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		}
 
 		// Create client for describing the cluster resource.
-		var clientOpts arm.ClientOptions
-		if hc := o.GetHTTPClient(); hc != nil {
-			clientOpts.Transport = hc
+		clientOpts := arm.ClientOptions{
+			ClientOptions: azcore.ClientOptions{
+				Transport: o.GetHTTPClient(),
+			},
 		}
 		client, err := p.impl().NewManagedClustersClient(
 			subscriptionID, armToken.credential(), &clientOpts)
