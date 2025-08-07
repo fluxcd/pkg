@@ -38,9 +38,10 @@ func NewTokenCredential(ctx context.Context, opts ...auth.Option) azcore.TokenCr
 
 // GetToken implements exported.TokenCredential.
 // The context is ignored, use the constructor to set the context.
-// This is because some callers of the library pass context.Background()
-// when calling this method (e.g. SOPS), so to ensure we have a real
-// context we pass it in the constructor.
+// This is because the GCP abstraction does not receive a context
+// in the method arguments, so we unfortunately need to standardize
+// the behavior of all providers around this so the usage of this
+// library can be consistent regardless of the provider.
 func (t *tokenCredential) GetToken(_ context.Context, tokenOpts policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	opts := t.opts
 	if tokenOpts.Scopes != nil {

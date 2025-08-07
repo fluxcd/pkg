@@ -55,9 +55,7 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	var o auth.Options
 	o.Apply(opts...)
 
-	if hc := o.GetHTTPClient(); hc != nil {
-		ctx = context.WithValue(ctx, oauth2.HTTPClient, hc)
-	}
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, o.GetHTTPClient())
 
 	src, err := p.impl().DefaultTokenSource(ctx, scopes...)
 	if err != nil {
@@ -145,9 +143,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		conf.TokenInfoURL = "https://sts.googleapis.com/v1/introspect"
 	}
 
-	if hc := o.GetHTTPClient(); hc != nil {
-		ctx = context.WithValue(ctx, oauth2.HTTPClient, hc)
-	}
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, o.GetHTTPClient())
 
 	src, err := p.impl().NewTokenSource(ctx, conf)
 	if err != nil {

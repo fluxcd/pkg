@@ -37,9 +37,10 @@ func NewCredentialsProvider(ctx context.Context, opts ...auth.Option) aws.Creden
 
 // Retrieve implements aws.CredentialsProvider.
 // The context is ignored, use the constructor to set the context.
-// This is because some callers of the library pass context.Background()
-// when calling this method (e.g. SOPS), so to ensure we have a real
-// context we pass it in the constructor.
+// This is because the GCP abstraction does not receive a context
+// in the method arguments, so we unfortunately need to standardize
+// the behavior of all providers around this so the usage of this
+// library can be consistent regardless of the provider.
 func (c *credentialsProvider) Retrieve(context.Context) (aws.Credentials, error) {
 	token, err := auth.GetAccessToken(c.ctx, Provider{}, c.opts...)
 	if err != nil {
