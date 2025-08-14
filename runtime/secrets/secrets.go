@@ -121,17 +121,7 @@ type authMethodsConfig struct {
 
 // tlsConfig holds TLS-specific configuration options.
 type tlsConfig struct {
-	targetURL         string
 	useSystemCertPool bool
-}
-
-// WithTargetURL configures TLS extraction with the specified target URL for ServerName configuration.
-func WithTargetURL(targetURL string) AuthMethodsOption {
-	return func(cfg *authMethodsConfig) {
-		cfg.tlsConfigOpts = append(cfg.tlsConfigOpts, func(c *tlsConfig) {
-			c.targetURL = targetURL
-		})
-	}
 }
 
 // WithTLSSystemCertPool enables the use of system certificate pool in addition to user-provided CA certificates.

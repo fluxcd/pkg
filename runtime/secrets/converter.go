@@ -57,8 +57,7 @@ func WithSystemCertPool() TLSConfigOption {
 // Multiple authentication methods can be present in a single secret and will be extracted
 // simultaneously, enabling use cases like Basic Auth + TLS or Bearer Token + TLS.
 //
-// Options can be provided to configure TLS extraction behavior. Use WithTargetURL() to specify
-// target URL for complete TLS configuration.
+// Options can be provided to configure TLS extraction behavior.
 func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...AuthMethodsOption) (*AuthMethods, error) {
 	config := &authMethodsConfig{}
 	for _, opt := range opts {
@@ -88,9 +87,7 @@ func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...A
 	}
 
 	if err := trySetAuth(ctx, secret, &methods.TLS, func(ctx context.Context, secret *corev1.Secret) (*tls.Config, error) {
-		// targetURL is empty here but will be set by TLSConfigOption if WithTargetURL was specified
-		const targetURL = ""
-		return TLSConfigFromSecret(ctx, secret, targetURL, config.tlsConfigOpts...)
+		return TLSConfigFromSecret(ctx, secret, config.tlsConfigOpts...)
 	}); err != nil {
 		return nil, err
 	}
@@ -106,15 +103,10 @@ func AuthMethodsFromSecret(ctx context.Context, secret *corev1.Secret, opts ...A
 //
 // Standard field names always take precedence over legacy ones.
 //
-// The targetURL parameter is used to set the ServerName for proper SNI support
-// in virtual hosting environments.
-//
 // Optional TLSConfigOption parameters can be used to configure CA certificate handling:
 //   - WithSystemCertPool(): Include system certificates in addition to user-provided CA
-func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, targetURL string, opts ...TLSConfigOption) (*tls.Config, error) {
-	config := &tlsConfig{
-		targetURL: targetURL,
-	}
+func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, opts ...TLSConfigOption) (*tls.Config, error) {
+	config := &tlsConfig{}
 	for _, opt := range opts {
 		opt(config)
 	}
@@ -315,17 +307,6 @@ func buildTLSConfig(certData *tlsCertificateData, config *tlsConfig) (*tls.Confi
 		// Note: InsecureSkipVerify is explicitly set to false in accordance with Flux security policy.
 		// TLS certificates must be validated using CA certificates or the system trust store.
 		InsecureSkipVerify: false,
-	}
-
-	// Set ServerName for proper SNI support if targetURL is provided
-	if config.targetURL != "" {
-		u, err := url.Parse(config.targetURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse target URL '%s': %w", config.targetURL, err)
-		}
-		if hostname := u.Hostname(); hostname != "" {
-			tlsConfig.ServerName = hostname
-		}
 	}
 
 	if certData.hasCertPair() {

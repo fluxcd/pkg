@@ -33,17 +33,14 @@ import (
 // The function fetches the secret from the API server and then processes it using
 // TLSConfigFromSecret. It supports the same field names and legacy field handling.
 //
-// The targetURL parameter is used to set the ServerName for proper SNI support
-// in virtual hosting environments.
-//
 // Optional TLSConfigOption parameters can be used to configure CA certificate handling:
 //   - WithSystemCertPool(): Include system certificates in addition to user-provided CA
-func TLSConfigFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName, targetURL string, opts ...TLSConfigOption) (*tls.Config, error) {
+func TLSConfigFromSecretRef(ctx context.Context, c client.Client, secretRef types.NamespacedName, opts ...TLSConfigOption) (*tls.Config, error) {
 	secret, err := getSecret(ctx, c, secretRef)
 	if err != nil {
 		return nil, err
 	}
-	return TLSConfigFromSecret(ctx, secret, targetURL, opts...)
+	return TLSConfigFromSecret(ctx, secret, opts...)
 }
 
 // ProxyURLFromSecretRef creates a proxy URL from a Kubernetes secret reference.

@@ -227,7 +227,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			secretData: map[string][]byte{
 				secrets.KeyCACert: validCACert,
 			},
-			opt:     []secrets.AuthMethodsOption{secrets.WithTargetURL("https://example.com"), secrets.WithTLSSystemCertPool()},
+			opt:     []secrets.AuthMethodsOption{secrets.WithTLSSystemCertPool()},
 			wantTLS: true,
 		},
 		{
@@ -236,7 +236,7 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 				secrets.KeyUsername: []byte("testuser"),
 				secrets.KeyPassword: []byte("testpass"),
 			},
-			opt:       []secrets.AuthMethodsOption{secrets.WithTargetURL("https://example.com"), secrets.WithTLSSystemCertPool()},
+			opt:       []secrets.AuthMethodsOption{secrets.WithTLSSystemCertPool()},
 			wantBasic: true,
 			wantTLS:   false,
 		},
@@ -443,13 +443,11 @@ func TestTLSConfigFromSecret(t *testing.T) {
 	caCert, tlsCert, tlsKey := generateTestCertificates(t)
 
 	tests := []struct {
-		name               string
-		secret             *corev1.Secret
-		targetURL          string
-		opts               []secrets.TLSConfigOption
-		expectedServerName string
-		errMsg             string
-		expectedFields     map[string]string // legacy key -> preferred key mapping
+		name           string
+		secret         *corev1.Secret
+		opts           []secrets.TLSConfigOption
+		errMsg         string
+		expectedFields map[string]string // legacy key -> preferred key mapping
 	}{
 		{
 			name: "valid TLS secret with standard fields",
@@ -577,28 +575,6 @@ func TestTLSConfigFromSecret(t *testing.T) {
 			errMsg: "secret 'default/tls-secret' must contain either 'ca.crt' or both 'tls.crt' and 'tls.key'",
 		},
 		{
-			name: "targetURL parameter",
-			secret: testSecret(
-				withName("tls-secret"),
-				withData(map[string][]byte{
-					secrets.KeyCACert: caCert,
-				}),
-			),
-			targetURL:          "https://example.com:8443",
-			expectedServerName: "example.com",
-		},
-		{
-			name: "invalid target URL",
-			secret: testSecret(
-				withName("tls-secret"),
-				withData(map[string][]byte{
-					secrets.KeyCACert: caCert,
-				}),
-			),
-			targetURL: "://invalid-url",
-			errMsg:    "failed to parse target URL '://invalid-url'",
-		},
-		{
 			name: "WithSystemCertPool option",
 			secret: testSecret(
 				withName("tls-secret"),
@@ -630,7 +606,7 @@ func TestTLSConfigFromSecret(t *testing.T) {
 				ctx = log.IntoContext(ctx, logr.Discard())
 			}
 
-			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, tt.secret, tt.targetURL, tt.opts...)
+			tlsConfig, err := secrets.TLSConfigFromSecret(ctx, tt.secret, tt.opts...)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
@@ -638,7 +614,8 @@ func TestTLSConfigFromSecret(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(tlsConfig).ToNot(BeNil())
 
-				g.Expect(tlsConfig.ServerName).To(Equal(tt.expectedServerName))
+				// ServerName should be empty to allow automatic hostname verification
+				g.Expect(tlsConfig.ServerName).To(BeEmpty())
 				// InsecureSkipVerify must always be false per Flux security policy.
 				// The insecure parameter was removed to prevent bypassing certificate validation.
 				g.Expect(tlsConfig.InsecureSkipVerify).To(BeFalse())
