@@ -38,13 +38,11 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 	caCert, tlsCert, tlsKey := generateTestCertificates(t)
 
 	tests := []struct {
-		name               string
-		secretRef          types.NamespacedName
-		secret             *corev1.Secret // Secret to add to fake client (nil = not added)
-		targetURL          string
-		opts               []secrets.TLSConfigOption
-		expectedServerName string
-		errMsg             string
+		name      string
+		secretRef types.NamespacedName
+		secret    *corev1.Secret // Secret to add to fake client (nil = not added)
+		opts      []secrets.TLSConfigOption
+		errMsg    string
 	}{
 		{
 			name:      "integration test - basic TLS secret functionality",
@@ -62,18 +60,6 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 			name:      "secret not found",
 			secretRef: types.NamespacedName{Name: "missing-secret", Namespace: testNS},
 			errMsg:    "secret 'default/missing-secret' not found",
-		},
-		{
-			name:      "TLS secret with parameters",
-			secretRef: types.NamespacedName{Name: "tls-secret", Namespace: testNS},
-			secret: testSecret(
-				withName("tls-secret"),
-				withData(map[string][]byte{
-					secrets.KeyCACert: caCert,
-				}),
-			),
-			targetURL:          "https://example.com",
-			expectedServerName: "example.com",
 		},
 		{
 			name:      "TLS secret with WithSystemCertPool option",
@@ -103,7 +89,7 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 			}
 			c := fakeClient(objects...)
 
-			tlsConfig, err := secrets.TLSConfigFromSecretRef(ctx, c, tt.secretRef, tt.targetURL, tt.opts...)
+			tlsConfig, err := secrets.TLSConfigFromSecretRef(ctx, c, tt.secretRef, tt.opts...)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))
@@ -111,7 +97,8 @@ func TestTLSConfigFromSecretRef(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(tlsConfig).ToNot(BeNil())
 
-				g.Expect(tlsConfig.ServerName).To(Equal(tt.expectedServerName))
+				// ServerName should be empty to allow automatic hostname verification
+				g.Expect(tlsConfig.ServerName).To(BeEmpty())
 				// InsecureSkipVerify must always be false per Flux security policy.
 				// The insecure parameter was removed to prevent bypassing certificate validation.
 				g.Expect(tlsConfig.InsecureSkipVerify).To(BeFalse())
