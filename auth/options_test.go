@@ -66,3 +66,74 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 		})
 	}
 }
+
+func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     []Option
+		expected bool
+	}{
+		{
+			name: "both name and namespace provided",
+			opts: []Option{
+				WithServiceAccountName("test-sa"),
+				WithServiceAccountNamespace("default"),
+			},
+			expected: true,
+		},
+		{
+			name: "only namespace provided - no env vars",
+			opts: []Option{
+				WithServiceAccountNamespace("default"),
+				func(o *Options) {
+					t.Setenv("DEFAULT_SERVICE_ACCOUNT", "")
+					t.Setenv("DEFAULT_KUBECONFIG_SERVICE_ACCOUNT", "")
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "only namespace provided - with DEFAULT_SERVICE_ACCOUNT",
+			opts: []Option{
+				WithServiceAccountNamespace("default"),
+				func(o *Options) {
+					t.Setenv("DEFAULT_SERVICE_ACCOUNT", "default-sa")
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "only namespace provided - with DEFAULT_KUBECONFIG_SERVICE_ACCOUNT",
+			opts: []Option{
+				WithServiceAccountNamespace("default"),
+				func(o *Options) {
+					t.Setenv("DEFAULT_KUBECONFIG_SERVICE_ACCOUNT", "default-kubeconfig-sa")
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "only name provided",
+			opts: []Option{
+				WithServiceAccountName("test-sa"),
+			},
+			expected: false,
+		},
+		{
+			name:     "neither provided",
+			opts:     []Option{},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var o Options
+			o.Apply(tt.opts...)
+			result := o.ShouldGetServiceAccountToken()
+			if result != tt.expected {
+				t.Errorf("ShouldGetServiceAccountToken() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}

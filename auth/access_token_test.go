@@ -53,6 +53,16 @@ func TestGetAccessToken(t *testing.T) {
 		Namespace: defaultServiceAccount.Namespace,
 	}
 
+	// Create a lockdown service account for testing lockdown functionality.
+	lockdownServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "lockdown-sa",
+			Namespace: "default",
+		},
+	}
+	err = kubeClient.Create(ctx, lockdownServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
 	for _, tt := range []struct {
 		name               string
 		provider           *mockProvider
@@ -94,6 +104,49 @@ func TestGetAccessToken(t *testing.T) {
 			expectedToken: &mockToken{token: "mock-default-token"},
 		},
 		{
+			name: "access token from service account using default - for lockdown support",
+			provider: &mockProvider{
+				returnName:           "mock-provider",
+				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				paramAudiences:       []string{"audience1", "audience2"},
+				paramServiceAccount:  *lockdownServiceAccount,
+				paramOIDCTokenClient: oidcClient,
+			},
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+				func(o *auth.Options) {
+					t.Setenv(auth.EnvDefaultServiceAccount, "lockdown-sa")
+				},
+			},
+			expectedToken: &mockToken{token: "mock-access-token"},
+		},
+		{
+			name: "error when default service account does not exist - for lockdown support",
+			provider: &mockProvider{
+				returnName:           "mock-provider",
+				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				paramAudiences:       []string{"audience1", "audience2"},
+				paramServiceAccount:  *lockdownServiceAccount,
+				paramOIDCTokenClient: oidcClient,
+			},
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				func(o *auth.Options) {
+					t.Setenv(auth.EnvDefaultServiceAccount, "nonexistent-sa")
+				},
+			},
+			expectedErr: "the specified default service account does not exist in the object namespace",
+		},
+		{
 			name: "access token from service account",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
@@ -118,6 +171,31 @@ func TestGetAccessToken(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 					o.Cache = tokenCache
+				},
+			},
+			expectedToken: &mockToken{token: "mock-access-token"},
+		},
+		{
+			name: "access token from service account with explicit name ignoring default",
+			provider: &mockProvider{
+				returnName:           "mock-provider",
+				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				paramAudiences:       []string{"audience1", "audience2"},
+				paramServiceAccount:  *defaultServiceAccount,
+				paramOIDCTokenClient: oidcClient,
+			},
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName(saRef.Name),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+				func(o *auth.Options) {
+					t.Setenv(auth.EnvDefaultServiceAccount, "lockdown-sa")
 				},
 			},
 			expectedToken: &mockToken{token: "mock-access-token"},
@@ -254,8 +332,7 @@ func TestGetAccessToken(t *testing.T) {
 			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)
 
 			if tt.expectedErr != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(Equal(tt.expectedErr))
+				g.Expect(err).To(MatchError(ContainSubstring(tt.expectedErr)))
 				g.Expect(token).To(BeNil())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())

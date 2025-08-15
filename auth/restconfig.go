@@ -131,7 +131,7 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	var serviceAccount *corev1.ServiceAccount
 	var providerIdentity string
 	var audiences []string
-	if o.ServiceAccountName != "" {
+	if o.ShouldGetServiceAccountToken() {
 		var err error
 		saRef := client.ObjectKey{
 			Name:      o.ServiceAccountName,

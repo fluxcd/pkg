@@ -48,6 +48,15 @@ type Options struct {
 	AllowShellOut           bool
 }
 
+// ShouldGetServiceAccountToken returns true if ServiceAccount token should be retrieved.
+func (o *Options) ShouldGetServiceAccountToken() bool {
+	// ServiceAccount namespace is required because ServiceAccounts are namespace-scoped resources.
+	// ServiceAccountName can be empty as it may be provided by DEFAULT_SERVICE_ACCOUNT or
+	// DEFAULT_KUBECONFIG_SERVICE_ACCOUNT environment variables.
+	return o.ServiceAccountNamespace != "" &&
+		(o.ServiceAccountName != "" || getDefaultServiceAccount() != "")
+}
+
 // WithClient sets the controller-runtime client for the provider.
 func WithClient(client client.Client) Option {
 	return func(o *Options) {
