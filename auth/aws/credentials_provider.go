@@ -21,18 +21,24 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
 )
 
 type credentialsProvider struct {
-	ctx  context.Context
-	opts []auth.Option
+	ctx        context.Context
+	kubeClient client.Client
+	opts       []auth.Option
 }
 
 // NewCredentialsProvider creates a new credentials provider for the given options.
-func NewCredentialsProvider(ctx context.Context, opts ...auth.Option) aws.CredentialsProvider {
-	return &credentialsProvider{ctx, opts}
+func NewCredentialsProvider(ctx context.Context, kubeClient client.Client, opts ...auth.Option) aws.CredentialsProvider {
+	return &credentialsProvider{
+		ctx:        ctx,
+		kubeClient: kubeClient,
+		opts:       opts,
+	}
 }
 
 // Retrieve implements aws.CredentialsProvider.
@@ -42,7 +48,7 @@ func NewCredentialsProvider(ctx context.Context, opts ...auth.Option) aws.Creden
 // the behavior of all providers around this so the usage of this
 // library can be consistent regardless of the provider.
 func (c *credentialsProvider) Retrieve(context.Context) (aws.Credentials, error) {
-	token, err := auth.GetAccessToken(c.ctx, Provider{}, c.opts...)
+	token, err := auth.GetAccessToken(c.ctx, c.kubeClient, Provider{}, c.opts...)
 	if err != nil {
 		return aws.Credentials{}, err
 	}

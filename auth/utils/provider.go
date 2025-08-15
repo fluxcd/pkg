@@ -19,6 +19,8 @@ package utils
 import (
 	"fmt"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/auth/gcp"
@@ -26,7 +28,7 @@ import (
 )
 
 // ProviderByName looks up the implemented providers by name and type.
-func ProviderByName[T any](name string) (T, error) {
+func ProviderByName[T any](name string, kubeClient client.Client) (T, error) {
 	var p any
 	var zero T
 
@@ -38,7 +40,7 @@ func ProviderByName[T any](name string) (T, error) {
 	case gcp.ProviderName:
 		p = gcp.Provider{}
 	case generic.ProviderName:
-		p = generic.Provider{}
+		p = generic.NewProvider(kubeClient)
 	default:
 		return zero, fmt.Errorf("provider '%s' not implemented", name)
 	}

@@ -32,7 +32,6 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client          client.Client
 	Cache           *cache.TokenCache
 	ServiceAccount  *client.ObjectKey
 	InvolvedObject  cache.InvolvedObject
@@ -47,20 +46,10 @@ type Options struct {
 	AllowShellOut   bool
 }
 
-// WithClient sets the controller-runtime client for the provider.
-func WithClient(client client.Client) Option {
-	return func(o *Options) {
-		o.Client = client
-	}
-}
-
-// WithServiceAccount sets the ServiceAccount reference for the token
-// and a controller-runtime client to fetch the ServiceAccount and
-// create an OIDC token for it in the Kubernetes API.
-func WithServiceAccount(saRef client.ObjectKey, c client.Client) Option {
+// WithServiceAccount sets the ServiceAccount reference for the token.
+func WithServiceAccount(saRef client.ObjectKey) Option {
 	return func(o *Options) {
 		o.ServiceAccount = &saRef
-		o.Client = c
 	}
 }
 

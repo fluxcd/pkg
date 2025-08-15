@@ -103,7 +103,7 @@ func TestGetAccessToken(t *testing.T) {
 				paramOIDCTokenClient: oidcClient,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -130,7 +130,7 @@ func TestGetAccessToken(t *testing.T) {
 				paramOIDCTokenClient: oidcClient,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
@@ -148,7 +148,7 @@ func TestGetAccessToken(t *testing.T) {
 				paramServiceAccount: *defaultServiceAccount,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -180,7 +180,7 @@ func TestGetAccessToken(t *testing.T) {
 				paramServiceAccount: *defaultServiceAccount,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -197,7 +197,7 @@ func TestGetAccessToken(t *testing.T) {
 				paramServiceAccount: *defaultServiceAccount,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -218,7 +218,7 @@ func TestGetAccessToken(t *testing.T) {
 				paramServiceAccount: *defaultServiceAccount,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -239,7 +239,7 @@ func TestGetAccessToken(t *testing.T) {
 				t.Setenv(auth.EnvVarEnableObjectLevelWorkloadIdentity, "true")
 			}
 
-			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)
+			token, err := auth.GetAccessToken(ctx, kubeClient, tt.provider, tt.opts...)
 
 			if tt.expectedErr != "" {
 				g.Expect(err).To(HaveOccurred())

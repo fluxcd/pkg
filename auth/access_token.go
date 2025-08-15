@@ -29,7 +29,7 @@ import (
 )
 
 // GetAccessToken returns an access token for accessing resources in the given cloud provider.
-func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Token, error) {
+func GetAccessToken(ctx context.Context, kubeClient client.Client, provider Provider, opts ...Option) (Token, error) {
 
 	var o Options
 	o.Apply(opts...)
@@ -51,7 +51,7 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 		// Fetch service account details.
 		var err error
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, *o.ServiceAccount, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, kubeClient, *o.ServiceAccount, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -69,7 +69,7 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 					Audiences: audiences,
 				},
 			}
-			if err := o.Client.SubResource("token").Create(ctx, serviceAccount, tokenReq); err != nil {
+			if err := kubeClient.SubResource("token").Create(ctx, serviceAccount, tokenReq); err != nil {
 				return nil, fmt.Errorf("failed to create kubernetes token for service account '%s/%s': %w",
 					serviceAccount.Namespace, serviceAccount.Name, err)
 			}

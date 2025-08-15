@@ -20,19 +20,20 @@ import (
 	"context"
 
 	"github.com/google/go-containerregistry/pkg/authn"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
 )
 
 // GetArtifactRegistryCredentials retrieves the registry credentials for the
 // specified artifact repository and provider.
-func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
+func GetArtifactRegistryCredentials(ctx context.Context, kubeClient client.Client, providerName string,
 	artifactRepository string, opts ...auth.Option) (authn.Authenticator, error) {
 
-	provider, err := ProviderByName[auth.ArtifactRegistryCredentialsProvider](providerName)
+	provider, err := ProviderByName[auth.ArtifactRegistryCredentialsProvider](providerName, kubeClient)
 	if err != nil {
 		return nil, err
 	}
 
-	return auth.GetArtifactRegistryCredentials(ctx, provider, artifactRepository, opts...)
+	return auth.GetArtifactRegistryCredentials(ctx, kubeClient, provider, artifactRepository, opts...)
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
 )
@@ -80,7 +81,7 @@ func GetRegistryFromArtifactRepository(artifactRepository string) (string, error
 
 // GetArtifactRegistryCredentials retrieves the registry credentials for the
 // specified artifact repository and provider.
-func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegistryCredentialsProvider,
+func GetArtifactRegistryCredentials(ctx context.Context, kubeClient client.Client, provider ArtifactRegistryCredentialsProvider,
 	artifactRepository string, opts ...Option) (*ArtifactRegistryCredentials, error) {
 
 	registryInput, err := provider.ParseArtifactRepository(artifactRepository)
@@ -95,7 +96,7 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 		return nil, err
 	}
 	accessTokenOpts = append(opts, accessTokenOpts...)
-	accessToken, err := GetAccessToken(ctx, provider, accessTokenOpts...)
+	accessToken, err := GetAccessToken(ctx, kubeClient, provider, accessTokenOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get access token for artifact registry: %w", err)
 	}
@@ -124,7 +125,7 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 	if o.ServiceAccount != nil {
 		var err error
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, *o.ServiceAccount, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, kubeClient, *o.ServiceAccount, opts...)
 		if err != nil {
 			return nil, err
 		}

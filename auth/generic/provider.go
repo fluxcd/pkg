@@ -35,21 +35,44 @@ import (
 // ProviderName is the name of the generic authentication provider.
 const ProviderName = "generic"
 
-// Provider implements the auth.Provider interface for generic authentication.
-type Provider struct{ Implementation }
+type provider struct {
+	client client.Client
+	Implementation
+}
+
+// Option is a functional option for configuring the generic authentication provider.
+type Option func(*provider)
+
+// WithImplementation sets the implementation for the generic authentication provider.
+func WithImplementation(impl Implementation) Option {
+	return func(p *provider) {
+		p.Implementation = impl
+	}
+}
+
+// NewProvider creates a new generic authentication provider.
+func NewProvider(kubeClient client.Client, opts ...Option) *provider {
+	p := &provider{
+		client: kubeClient,
+	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
+}
 
 // GetName implements auth.RESTConfigProvider.
-func (p Provider) GetName() string {
+func (*provider) GetName() string {
 	return ProviderName
 }
 
 // NewControllerToken implements auth.RESTConfigProvider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (p *provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	if o.Client == nil {
+	if p.client == nil {
 		return nil, errors.New("client is required to create a controller token")
 	}
 
@@ -89,7 +112,7 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 			Audiences: o.Audiences,
 		},
 	}
-	if err := o.Client.SubResource("token").Create(ctx, &serviceAccount, tokenReq); err != nil {
+	if err := p.client.SubResource("token").Create(ctx, &serviceAccount, tokenReq); err != nil {
 		return nil, fmt.Errorf("failed to create kubernetes token for controller service account '%s': %w",
 			client.ObjectKeyFromObject(&serviceAccount), err)
 	}
@@ -107,18 +130,18 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.RESTConfigProvider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
+func (*provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
 	// Use TokenRequest default audiences.
 	return nil, nil
 }
 
 // GetIdentity implements auth.RESTConfigProvider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+func (*provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
 	return fmt.Sprintf("system:serviceaccount:%s:%s", serviceAccount.Namespace, serviceAccount.Name), nil
 }
 
 // NewTokenForServiceAccount implements auth.RESTConfigProvider.
-func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
+func (*provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
 
 	exp, err := getExpirationFromToken(oidcToken)
@@ -133,7 +156,7 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 }
 
 // GetAccessTokenOptionsForCluster implements auth.RESTConfigProvider.
-func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
+func (*provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -148,7 +171,7 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 }
 
 // NewRESTConfig implements auth.RESTConfigProvider.
-func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (*provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
 	token := accessTokens[0].(*Token)
@@ -181,7 +204,7 @@ func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	}, nil
 }
 
-func (p Provider) impl() Implementation {
+func (p *provider) impl() Implementation {
 	if p.Implementation == nil {
 		return implementation{}
 	}

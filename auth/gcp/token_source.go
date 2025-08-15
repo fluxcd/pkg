@@ -21,23 +21,29 @@ import (
 	"fmt"
 
 	"golang.org/x/oauth2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	auth "github.com/fluxcd/pkg/auth"
 )
 
 type tokenSource struct {
-	ctx  context.Context
-	opts []auth.Option
+	ctx        context.Context
+	kubeClient client.Client
+	opts       []auth.Option
 }
 
 // NewTokenSource creates a new token source for the given context and options.
-func NewTokenSource(ctx context.Context, opts ...auth.Option) oauth2.TokenSource {
-	return &tokenSource{ctx, opts}
+func NewTokenSource(ctx context.Context, kubeClient client.Client, opts ...auth.Option) oauth2.TokenSource {
+	return &tokenSource{
+		ctx:        ctx,
+		kubeClient: kubeClient,
+		opts:       opts,
+	}
 }
 
 // Token implements oauth2.TokenSource.
 func (t *tokenSource) Token() (*oauth2.Token, error) {
-	token, err := auth.GetAccessToken(t.ctx, Provider{}, t.opts...)
+	token, err := auth.GetAccessToken(t.ctx, t.kubeClient, Provider{}, t.opts...)
 	if err != nil {
 		return nil, err
 	}

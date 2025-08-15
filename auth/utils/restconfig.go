@@ -33,7 +33,7 @@ import (
 // RESTConfigFetcher is a function that retrieves a *rest.Config for a given
 // meta.KubeConfigReference, a namespace, and a controller-runtime client.
 type RESTConfigFetcher func(ctx context.Context, ref meta.KubeConfigReference,
-	namespace string, ctrlClient client.Client) (*rest.Config, error)
+	namespace string, kubeClient client.Client) (*rest.Config, error)
 
 // GetRESTConfigFetcher is a convenience function for controllers that use the
 // runtime/client.(*Impersonator) to create controller-runtime clients. To keep
@@ -70,7 +70,7 @@ func GetRESTConfigFetcher(opts ...auth.Option) RESTConfigFetcher {
 // token will be created for every HTTP request sent to the remote cluster.
 func GetRESTConfig(ctx context.Context,
 	kubeConfigRef meta.KubeConfigReference,
-	namespace string, ctrlClient client.Client,
+	namespace string, kubeClient client.Client,
 	opts ...auth.Option) (*rest.Config, error) {
 
 	// Get ConfigMap.
@@ -79,12 +79,12 @@ func GetRESTConfig(ctx context.Context,
 		Namespace: namespace,
 	}
 	var cm corev1.ConfigMap
-	if err := ctrlClient.Get(ctx, cmKey, &cm); err != nil {
+	if err := kubeClient.Get(ctx, cmKey, &cm); err != nil {
 		return nil, fmt.Errorf("failed to get configmap %s: %w", cmKey.String(), err)
 	}
 
 	// Get provider by name.
-	provider, err := ProviderByName[auth.RESTConfigProvider](cm.Data[meta.KubeConfigKeyProvider])
+	provider, err := ProviderByName[auth.RESTConfigProvider](cm.Data[meta.KubeConfigKeyProvider], kubeClient)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +104,7 @@ func GetRESTConfig(ctx context.Context,
 			Name:      name,
 			Namespace: namespace,
 		}
-		opts = append(opts, auth.WithServiceAccount(saKey, ctrlClient))
-	} else {
-		opts = append(opts, auth.WithClient(ctrlClient))
+		opts = append(opts, auth.WithServiceAccount(saKey))
 	}
 	if a, ok := cm.Data[meta.KubeConfigKeyAudiences]; ok {
 		var audiences []string
@@ -120,7 +118,7 @@ func GetRESTConfig(ctx context.Context,
 		opts = append(opts, auth.WithAudiences(audiences...))
 	}
 
-	conf, err := auth.GetRESTConfig(ctx, provider, opts...)
+	conf, err := auth.GetRESTConfig(ctx, kubeClient, provider, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,9 +131,10 @@ func GetRESTConfig(ctx context.Context,
 	}
 	restConfig.Wrap(func(base http.RoundTripper) http.RoundTripper {
 		return &restConfigRoundTripper{
-			base:     base,
-			provider: provider,
-			opts:     opts,
+			base:       base,
+			kubeClient: kubeClient,
+			provider:   provider,
+			opts:       opts,
 		}
 	})
 
@@ -146,14 +145,15 @@ func GetRESTConfig(ctx context.Context,
 // RoundTripper and retrieves a bearer token for the remote cluster
 // using auth.GetRESTConfig before each HTTP request.
 type restConfigRoundTripper struct {
-	base     http.RoundTripper
-	provider auth.RESTConfigProvider
-	opts     []auth.Option
+	base       http.RoundTripper
+	kubeClient client.Client
+	provider   auth.RESTConfigProvider
+	opts       []auth.Option
 }
 
 // RoundTrip implements http.RoundTripper.
 func (r *restConfigRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	details, err := auth.GetRESTConfig(req.Context(), r.provider, r.opts...)
+	details, err := auth.GetRESTConfig(req.Context(), r.kubeClient, r.provider, r.opts...)
 	if err != nil {
 		return nil, err
 	}

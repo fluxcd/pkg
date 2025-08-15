@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
 )
@@ -34,11 +36,11 @@ type GitCredentials struct {
 
 // GetGitCredentials looks up by the implemented providers that support Git
 // and returns the credentials for the provider.
-func GetGitCredentials(ctx context.Context, providerName string, opts ...auth.Option) (*GitCredentials, error) {
+func GetGitCredentials(ctx context.Context, kubeClient client.Client, providerName string, opts ...auth.Option) (*GitCredentials, error) {
 	switch providerName {
 	case azure.ProviderName:
 		opts = append(opts, auth.WithScopes(azure.ScopeDevOps))
-		token, err := auth.GetAccessToken(ctx, azure.Provider{}, opts...)
+		token, err := auth.GetAccessToken(ctx, kubeClient, azure.Provider{}, opts...)
 		if err != nil {
 			return nil, err
 		}

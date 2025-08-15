@@ -271,7 +271,8 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 		},
 	}
 
-	creds, err := auth.GetArtifactRegistryCredentials(context.Background(), provider, "gcr.io",
+	testClient := newTestClient()
+	creds, err := auth.GetArtifactRegistryCredentials(context.Background(), testClient, provider, "gcr.io",
 		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}))
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(creds).NotTo(BeNil())
@@ -422,7 +423,8 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			}
 
 			provider := gcp.Provider{Implementation: impl}
-			restConfig, err := auth.GetRESTConfig(context.Background(), provider, opts...)
+			testClient := newTestClient()
+			restConfig, err := auth.GetRESTConfig(context.Background(), testClient, provider, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())

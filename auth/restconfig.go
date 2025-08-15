@@ -26,6 +26,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
 )
@@ -91,7 +92,7 @@ func ParseClusterAddress(address string) (string, error) {
 // GetRESTConfig retrieves the authentication and connection
 // details to a remote Kubernetes cluster for the given provider,
 // cluster resource name and options.
-func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Option) (*RESTConfig, error) {
+func GetRESTConfig(ctx context.Context, kubeClient client.Client, provider RESTConfigProvider, opts ...Option) (*RESTConfig, error) {
 
 	var o Options
 	o.Apply(opts...)
@@ -105,7 +106,7 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	accessTokens := make([]Token, 0, len(accessTokenOpts))
 	for i := range accessTokenOpts {
 		accessTokenOpts[i] = append(slices.Clone(opts), accessTokenOpts[i]...)
-		token, err := GetAccessToken(ctx, provider, accessTokenOpts[i]...)
+		token, err := GetAccessToken(ctx, kubeClient, provider, accessTokenOpts[i]...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get access token for cluster: %w", err)
 		}
@@ -133,7 +134,7 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	if o.ServiceAccount != nil {
 		var err error
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, *o.ServiceAccount, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, kubeClient, *o.ServiceAccount, opts...)
 		if err != nil {
 			return nil, err
 		}

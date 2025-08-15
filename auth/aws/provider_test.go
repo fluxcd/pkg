@@ -263,8 +263,9 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
+			testClient := newTestClient()
 			creds, err := auth.GetArtifactRegistryCredentials(
-				context.Background(), provider, tt.artifactRepository, opts...)
+				context.Background(), testClient, provider, tt.artifactRepository, opts...)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{
@@ -461,7 +462,8 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			restConfig, err := auth.GetRESTConfig(context.Background(), provider, opts...)
+			testClient := newTestClient()
+			restConfig, err := auth.GetRESTConfig(context.Background(), testClient, provider, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())

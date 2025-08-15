@@ -22,18 +22,24 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
 )
 
 type tokenCredential struct {
-	ctx  context.Context
-	opts []auth.Option
+	ctx        context.Context
+	kubeClient client.Client
+	opts       []auth.Option
 }
 
 // NewTokenCredential creates a new token credential for the given options.
-func NewTokenCredential(ctx context.Context, opts ...auth.Option) azcore.TokenCredential {
-	return &tokenCredential{ctx, opts}
+func NewTokenCredential(ctx context.Context, kubeClient client.Client, opts ...auth.Option) azcore.TokenCredential {
+	return &tokenCredential{
+		ctx:        ctx,
+		kubeClient: kubeClient,
+		opts:       opts,
+	}
 }
 
 // GetToken implements exported.TokenCredential.
@@ -47,7 +53,7 @@ func (t *tokenCredential) GetToken(_ context.Context, tokenOpts policy.TokenRequ
 	if tokenOpts.Scopes != nil {
 		opts = append(opts, auth.WithScopes(tokenOpts.Scopes...))
 	}
-	token, err := auth.GetAccessToken(t.ctx, Provider{}, opts...)
+	token, err := auth.GetAccessToken(t.ctx, t.kubeClient, Provider{}, opts...)
 	if err != nil {
 		return azcore.AccessToken{}, err
 	}

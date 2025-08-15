@@ -169,7 +169,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -192,7 +192,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -247,7 +247,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				paramServiceAccount: *defaultServiceAccount,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -268,7 +268,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				t.Setenv(auth.EnvVarEnableObjectLevelWorkloadIdentity, "true")
 			}
 
-			creds, err := auth.GetArtifactRegistryCredentials(ctx, tt.provider, tt.artifactRepository, tt.opts...)
+			creds, err := auth.GetArtifactRegistryCredentials(ctx, kubeClient, tt.provider, tt.artifactRepository, tt.opts...)
 
 			if tt.expectedErr != "" {
 				g.Expect(err).To(HaveOccurred())

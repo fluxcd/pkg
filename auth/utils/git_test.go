@@ -27,11 +27,13 @@ import (
 )
 
 func TestGetGitCredentials(t *testing.T) {
+	testClient := newTestClient()
+
 	t.Run("azure", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
-		p, err := authutils.GetGitCredentials(ctx, "azure")
+		p, err := authutils.GetGitCredentials(ctx, testClient, "azure")
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).NotTo(ContainSubstring("does not support Git credentials"))
 		g.Expect(p).To(BeNil())
@@ -39,7 +41,7 @@ func TestGetGitCredentials(t *testing.T) {
 
 	t.Run("unknown provider", func(t *testing.T) {
 		g := NewWithT(t)
-		p, err := authutils.GetGitCredentials(context.Background(), "unknown")
+		p, err := authutils.GetGitCredentials(context.Background(), testClient, "unknown")
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(Equal("provider 'unknown' does not support Git credentials"))
 		g.Expect(p).To(BeNil())

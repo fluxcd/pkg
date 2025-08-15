@@ -105,7 +105,7 @@ func main() {
 		authOpts = append(authOpts, auth.WithServiceAccount(client.ObjectKey{
 			Name:      *wiSAName,
 			Namespace: *wiSANamespace,
-		}, kubeClient))
+		}))
 	}
 
 	// Configure a token cache.
@@ -194,7 +194,7 @@ func checkOci(ctx context.Context) {
 	}
 	for _, provider := range providers {
 		if _, err = provider.ParseArtifactRepository(loginURL); err == nil {
-			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL, authOpts...)
+			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, kubeClient, provider.GetName(), loginURL, authOpts...)
 			break
 		}
 	}
@@ -239,7 +239,7 @@ func checkGit(ctx context.Context) {
 		panic(err)
 	}
 	if !*gitSSH {
-		creds, err := authutils.GetGitCredentials(ctx, *provider, authOpts...)
+		creds, err := authutils.GetGitCredentials(ctx, kubeClient, *provider, authOpts...)
 		if err != nil {
 			panic(err)
 		}
@@ -289,10 +289,10 @@ func checkRESTConfig(ctx context.Context) {
 			Name: "kubeconfig",
 		},
 	}
-	provider := runtimeClient.ProviderRESTConfigFetcher(authutils.GetRESTConfigFetcher(authOpts...))
+	provider := authutils.GetRESTConfigFetcher(authOpts...)
 	impersonatorOpts := []runtimeClient.ImpersonatorOption{
 		runtimeClient.WithPolling(engine.ClusterReaderFactoryFunc(clusterreader.NewDirectClusterReader)),
-		runtimeClient.WithKubeConfig(&kubeConfigRef, runtimeClient.KubeConfigOptions{}, namespace, provider),
+		runtimeClient.WithKubeConfig(&kubeConfigRef, runtimeClient.KubeConfigOptions{}, namespace, runtimeClient.ProviderRESTConfigFetcher(provider)),
 	}
 	impersonator := runtimeClient.NewImpersonator(kubeClient, impersonatorOpts...)
 	c, _, err := impersonator.GetClient(ctx)

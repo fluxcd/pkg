@@ -178,7 +178,7 @@ func TestGetRESTConfig(t *testing.T) {
 			},
 			cluster: "cluster/resource/name",
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -208,7 +208,7 @@ func TestGetRESTConfig(t *testing.T) {
 			},
 			cluster: "cluster/resource/name",
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -282,7 +282,7 @@ func TestGetRESTConfig(t *testing.T) {
 				expectSecondScopes:  true,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithServiceAccount(saRef),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -307,7 +307,7 @@ func TestGetRESTConfig(t *testing.T) {
 				tt.opts = append(tt.opts, auth.WithClusterResource(tt.cluster))
 			}
 
-			creds, err := auth.GetRESTConfig(ctx, tt.provider, tt.opts...)
+			creds, err := auth.GetRESTConfig(ctx, kubeClient, tt.provider, tt.opts...)
 
 			if tt.expectedErr != "" {
 				g.Expect(err).To(HaveOccurred())
