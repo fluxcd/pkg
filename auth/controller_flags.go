@@ -51,6 +51,10 @@ const (
 	EnvDefaultDecryptionServiceAccount = "DEFAULT_DECRYPTION_SERVICE_ACCOUNT"
 )
 
+// ErrDefaultServiceAccountNotFound is returned when a default service account
+// configured by the operator is not found in the user's namespace.
+var ErrDefaultServiceAccountNotFound = fmt.Errorf("default service account not found")
+
 // SetDefaultServiceAccount sets the default service account name for workload identity.
 func SetDefaultServiceAccount(sa string) {
 	os.Setenv(EnvDefaultServiceAccount, sa)
@@ -81,6 +85,13 @@ func GetDefaultDecryptionServiceAccount() string {
 	return os.Getenv(EnvDefaultDecryptionServiceAccount)
 }
 
-// ErrDefaultServiceAccountNotFound is returned when a default service account
-// configured by the operator is not found in the user's namespace.
-var ErrDefaultServiceAccountNotFound = fmt.Errorf("default service account not found")
+func getDefaultServiceAccount() string {
+	// Here we can detect a default service account by checking either the default
+	// service account or the default kubeconfig service account because these two
+	// are supposed to never be set simultaneously. The controller main functions
+	// must ensure this property.
+	if s := GetDefaultServiceAccount(); s != "" {
+		return s
+	}
+	return GetDefaultKubeconfigServiceAccount()
+}

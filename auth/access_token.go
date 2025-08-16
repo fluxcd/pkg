@@ -122,17 +122,14 @@ func getServiceAccountAndProviderInfo(ctx context.Context, provider Provider, cl
 	var o Options
 	o.Apply(opts...)
 
+	defaultSA := getDefaultServiceAccount()
 	var setDefaultSA bool
 
-	// Apply lockdown support: use default service account when ServiceAccount is not explicitly specified (Controller-Level Workload Identity)
+	// Apply multi-tenancy lockdown: use default service account when .serviceAccountName
+	// is not explicitly specified in the object. This results in Object-Level Workload Identity.
 	if key.Name == "" {
-		if defaultSA := GetDefaultServiceAccount(); defaultSA != "" {
-			key.Name = defaultSA
-			setDefaultSA = true
-		} else if defaultSA := GetDefaultKubeconfigServiceAccount(); defaultSA != "" {
-			key.Name = defaultSA
-			setDefaultSA = true
-		}
+		key.Name = defaultSA
+		setDefaultSA = true
 	}
 
 	// Get service account.
