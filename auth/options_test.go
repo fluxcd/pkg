@@ -72,9 +72,11 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 
 func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 	tests := []struct {
-		name     string
-		opts     []auth.Option
-		expected bool
+		name                string
+		opts                []auth.Option
+		defaultSA           string
+		defaultKubeConfigSA string
+		expected            bool
 	}{
 		{
 			name: "both name and namespace provided",
@@ -88,10 +90,6 @@ func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 			name: "only namespace provided - no global vars",
 			opts: []auth.Option{
 				auth.WithServiceAccountNamespace("default"),
-				func(o *auth.Options) {
-					auth.SetDefaultServiceAccount("")
-					auth.SetDefaultKubeConfigServiceAccount("")
-				},
 			},
 			expected: false,
 		},
@@ -99,23 +97,17 @@ func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 			name: "namespace and defaultServiceAccount",
 			opts: []auth.Option{
 				auth.WithServiceAccountNamespace("default"),
-				func(o *auth.Options) {
-					auth.SetDefaultServiceAccount("default-sa")
-					t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-				},
 			},
-			expected: true,
+			defaultSA: "default-sa",
+			expected:  true,
 		},
 		{
 			name: "namespace and defaultKubeConfigServiceAccount",
 			opts: []auth.Option{
 				auth.WithServiceAccountNamespace("default"),
-				func(o *auth.Options) {
-					auth.SetDefaultKubeConfigServiceAccount("default-kubeconfig-sa")
-					t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
-				},
 			},
-			expected: true,
+			defaultKubeConfigSA: "default-kubeconfig-sa",
+			expected:            true,
 		},
 		{
 			name: "only name provided",
@@ -133,8 +125,19 @@ func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.defaultSA != "" {
+				auth.SetDefaultServiceAccount(tt.defaultSA)
+				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
+			}
+
+			if tt.defaultKubeConfigSA != "" {
+				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
+				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
+			}
+
 			var o auth.Options
 			o.Apply(tt.opts...)
+
 			result := o.ShouldGetServiceAccountToken()
 			if result != tt.expected {
 				t.Errorf("ShouldGetServiceAccountToken() = %v, want %v", result, tt.expected)

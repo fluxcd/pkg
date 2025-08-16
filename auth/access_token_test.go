@@ -68,6 +68,7 @@ func TestGetAccessToken(t *testing.T) {
 		provider           *mockProvider
 		opts               []auth.Option
 		disableObjectLevel bool
+		defaultSA          string
 		expectedToken      auth.Token
 		expectedErr        string
 	}{
@@ -121,11 +122,8 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
-				func(o *auth.Options) {
-					auth.SetDefaultServiceAccount("lockdown-sa")
-					t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-				},
 			},
+			defaultSA:     "lockdown-sa",
 			expectedToken: &mockToken{token: "mock-access-token"},
 		},
 		{
@@ -141,11 +139,8 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithClient(kubeClient),
 				auth.WithServiceAccountNamespace("default"),
 				auth.WithAudiences("audience1", "audience2"),
-				func(o *auth.Options) {
-					auth.SetDefaultServiceAccount("nonexistent-sa")
-					t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-				},
 			},
+			defaultSA:   "non-existent-sa",
 			expectedErr: "the specified default service account does not exist in the object namespace",
 		},
 		{
@@ -196,11 +191,8 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
-				func(o *auth.Options) {
-					auth.SetDefaultServiceAccount("lockdown-sa")
-					t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-				},
 			},
+			defaultSA:     "non-existent-sa",
 			expectedToken: &mockToken{token: "mock-access-token"},
 		},
 		{
@@ -331,6 +323,11 @@ func TestGetAccessToken(t *testing.T) {
 			if !tt.disableObjectLevel {
 				auth.EnableObjectLevelWorkloadIdentity()
 				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
+			}
+
+			if tt.defaultSA != "" {
+				auth.SetDefaultServiceAccount(tt.defaultSA)
+				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
 			}
 
 			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)

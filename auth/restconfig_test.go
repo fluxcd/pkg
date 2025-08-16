@@ -121,13 +121,14 @@ func TestGetRESTConfig(t *testing.T) {
 	now := time.Now()
 
 	for _, tt := range []struct {
-		name               string
-		provider           *mockProvider
-		cluster            string
-		opts               []auth.Option
-		disableObjectLevel bool
-		expectedCreds      *auth.RESTConfig
-		expectedErr        string
+		name                string
+		provider            *mockProvider
+		cluster             string
+		opts                []auth.Option
+		disableObjectLevel  bool
+		defaultKubeConfigSA string
+		expectedCreds       *auth.RESTConfig
+		expectedErr         string
 	}{
 		{
 			name: "restconfig from controller access token",
@@ -319,10 +320,8 @@ func TestGetRESTConfig(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
-				func(o *auth.Options) {
-					auth.SetDefaultKubeConfigServiceAccount("lockdown-sa")
-					t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
-				}},
+			},
+			defaultKubeConfigSA: "lockdown-sa",
 			expectedCreds: &auth.RESTConfig{
 				Host:        "https://cluster/resource/name",
 				BearerToken: "mock-bearer-token",
@@ -361,6 +360,11 @@ func TestGetRESTConfig(t *testing.T) {
 			if !tt.disableObjectLevel {
 				auth.EnableObjectLevelWorkloadIdentity()
 				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
+			}
+
+			if tt.defaultKubeConfigSA != "" {
+				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
+				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
 			}
 
 			if tt.cluster != "" {
