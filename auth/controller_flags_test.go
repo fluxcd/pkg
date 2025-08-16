@@ -36,7 +36,7 @@ func TestSetDefaultServiceAccount(t *testing.T) {
 
 func TestSetDefaultKubeconfigServiceAccount(t *testing.T) {
 	g := NewWithT(t)
-	auth.SetDefaultKubeconfigServiceAccount("test-kubeconfig-sa")
+	auth.SetDefaultKubeConfigServiceAccount("test-kubeconfig-sa")
 	t.Cleanup(func() {
 		os.Unsetenv(auth.EnvDefaultKubeConfigServiceAccount)
 	})
@@ -72,13 +72,13 @@ func TestGetDefaultKubeconfigServiceAccount(t *testing.T) {
 		g := NewWithT(t)
 		t.Setenv(auth.EnvDefaultKubeConfigServiceAccount, "expected-kubeconfig-sa")
 
-		g.Expect(auth.GetDefaultKubeconfigServiceAccount()).To(Equal("expected-kubeconfig-sa"))
+		g.Expect(auth.GetDefaultKubeConfigServiceAccount()).To(Equal("expected-kubeconfig-sa"))
 	})
 
 	t.Run("returns empty when not set", func(t *testing.T) {
 		g := NewWithT(t)
 
-		g.Expect(auth.GetDefaultKubeconfigServiceAccount()).To(Equal(""))
+		g.Expect(auth.GetDefaultKubeConfigServiceAccount()).To(Equal(""))
 	})
 }
 

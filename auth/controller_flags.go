@@ -60,8 +60,8 @@ func SetDefaultServiceAccount(sa string) {
 	os.Setenv(EnvDefaultServiceAccount, sa)
 }
 
-// SetDefaultKubeconfigServiceAccount sets the default kubeconfig service account name.
-func SetDefaultKubeconfigServiceAccount(sa string) {
+// SetDefaultKubeConfigServiceAccount sets the default kubeconfig service account name.
+func SetDefaultKubeConfigServiceAccount(sa string) {
 	os.Setenv(EnvDefaultKubeConfigServiceAccount, sa)
 }
 
@@ -75,8 +75,8 @@ func GetDefaultServiceAccount() string {
 	return os.Getenv(EnvDefaultServiceAccount)
 }
 
-// GetDefaultKubeconfigServiceAccount returns the default kubeconfig service account name.
-func GetDefaultKubeconfigServiceAccount() string {
+// GetDefaultKubeConfigServiceAccount returns the default kubeconfig service account name.
+func GetDefaultKubeConfigServiceAccount() string {
 	return os.Getenv(EnvDefaultKubeConfigServiceAccount)
 }
 
@@ -93,5 +93,5 @@ func getDefaultServiceAccount() string {
 	if s := GetDefaultServiceAccount(); s != "" {
 		return s
 	}
-	return GetDefaultKubeconfigServiceAccount()
+	return GetDefaultKubeConfigServiceAccount()
 }
