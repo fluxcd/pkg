@@ -178,7 +178,9 @@ func TestGetRESTConfig(t *testing.T) {
 			},
 			cluster: "cluster/resource/name",
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName(saRef.Name),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -208,7 +210,9 @@ func TestGetRESTConfig(t *testing.T) {
 			},
 			cluster: "cluster/resource/name",
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName(saRef.Name),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -282,7 +286,9 @@ func TestGetRESTConfig(t *testing.T) {
 				expectSecondScopes:  true,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName(saRef.Name),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
