@@ -102,7 +102,8 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 	_, envClient, oidcClient := newTestEnv(t, ctx)
 
-	t.Setenv(auth.EnvEnableObjectLevelWorkloadIdentity, "true")
+	auth.EnableObjectLevelWorkloadIdentity()
+	t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
 
 	// Create service account.
 	serviceAccount := &corev1.ServiceAccount{
@@ -265,7 +266,8 @@ func TestProvider_NewRESTConfig_EndToEnd(t *testing.T) {
 
 	envConfig, envClient, _ := newTestEnv(t, ctx)
 
-	t.Setenv(auth.EnvEnableObjectLevelWorkloadIdentity, "true")
+	auth.EnableObjectLevelWorkloadIdentity()
+	t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
 
 	// Create service account.
 	const (

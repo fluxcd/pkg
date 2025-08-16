@@ -18,7 +18,6 @@ package auth
 
 import (
 	"fmt"
-	"os"
 )
 
 const (
@@ -37,18 +36,18 @@ const (
 	ControllerFlagDefaultDecryptionServiceAccount = "default-decryption-service-account"
 )
 
-const (
-	// EnvDefaultServiceAccount stores the default service account name
+var (
+	// defaultServiceAccount stores the default service account name
 	// for workload identity.
-	EnvDefaultServiceAccount = "DEFAULT_SERVICE_ACCOUNT"
+	defaultServiceAccount string
 
-	// EnvDefaultKubeConfigServiceAccount stores the default kubeconfig
+	// defaultKubeConfigServiceAccount stores the default kubeconfig
 	// service account name.
-	EnvDefaultKubeConfigServiceAccount = "DEFAULT_KUBECONFIG_SERVICE_ACCOUNT"
+	defaultKubeConfigServiceAccount string
 
-	// EnvDefaultDecryptionServiceAccount stores the default decryption
+	// defaultDecryptionServiceAccount stores the default decryption
 	// service account name.
-	EnvDefaultDecryptionServiceAccount = "DEFAULT_DECRYPTION_SERVICE_ACCOUNT"
+	defaultDecryptionServiceAccount string
 )
 
 // ErrDefaultServiceAccountNotFound is returned when a default service account
@@ -57,32 +56,32 @@ var ErrDefaultServiceAccountNotFound = fmt.Errorf("the specified default service
 
 // SetDefaultServiceAccount sets the default service account name for workload identity.
 func SetDefaultServiceAccount(sa string) {
-	os.Setenv(EnvDefaultServiceAccount, sa)
+	defaultServiceAccount = sa
 }
 
 // SetDefaultKubeConfigServiceAccount sets the default kubeconfig service account name.
 func SetDefaultKubeConfigServiceAccount(sa string) {
-	os.Setenv(EnvDefaultKubeConfigServiceAccount, sa)
+	defaultKubeConfigServiceAccount = sa
 }
 
 // SetDefaultDecryptionServiceAccount sets the default decryption service account name.
 func SetDefaultDecryptionServiceAccount(sa string) {
-	os.Setenv(EnvDefaultDecryptionServiceAccount, sa)
+	defaultDecryptionServiceAccount = sa
 }
 
 // GetDefaultServiceAccount returns the default service account name for workload identity.
 func GetDefaultServiceAccount() string {
-	return os.Getenv(EnvDefaultServiceAccount)
+	return defaultServiceAccount
 }
 
 // GetDefaultKubeConfigServiceAccount returns the default kubeconfig service account name.
 func GetDefaultKubeConfigServiceAccount() string {
-	return os.Getenv(EnvDefaultKubeConfigServiceAccount)
+	return defaultKubeConfigServiceAccount
 }
 
 // GetDefaultDecryptionServiceAccount returns the default decryption service account name.
 func GetDefaultDecryptionServiceAccount() string {
-	return os.Getenv(EnvDefaultDecryptionServiceAccount)
+	return defaultDecryptionServiceAccount
 }
 
 func getDefaultServiceAccount() string {

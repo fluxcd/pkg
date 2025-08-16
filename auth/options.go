@@ -51,8 +51,8 @@ type Options struct {
 // ShouldGetServiceAccountToken returns true if ServiceAccount token should be retrieved.
 func (o *Options) ShouldGetServiceAccountToken() bool {
 	// ServiceAccount namespace is required because ServiceAccounts are namespace-scoped resources.
-	// ServiceAccountName can be empty as it may be provided by DEFAULT_SERVICE_ACCOUNT or
-	// DEFAULT_KUBECONFIG_SERVICE_ACCOUNT environment variables.
+	// ServiceAccountName can be empty as it may be provided by defaultServiceAccount or by
+	// defaultKubeConfigServiceAccount.
 	return o.ServiceAccountNamespace != "" &&
 		(o.ServiceAccountName != "" || getDefaultServiceAccount() != "")
 }

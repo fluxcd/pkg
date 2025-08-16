@@ -320,7 +320,8 @@ func TestGetRESTConfig(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
-					t.Setenv(auth.EnvDefaultKubeConfigServiceAccount, "lockdown-sa")
+					auth.SetDefaultKubeConfigServiceAccount("lockdown-sa")
+					t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
 				}},
 			expectedCreds: &auth.RESTConfig{
 				Host:        "https://cluster/resource/name",
@@ -358,7 +359,8 @@ func TestGetRESTConfig(t *testing.T) {
 			tt.provider.t = t
 
 			if !tt.disableObjectLevel {
-				t.Setenv(auth.EnvEnableObjectLevelWorkloadIdentity, "true")
+				auth.EnableObjectLevelWorkloadIdentity()
+				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
 			}
 
 			if tt.cluster != "" {

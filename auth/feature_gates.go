@@ -18,7 +18,6 @@ package auth
 
 import (
 	"fmt"
-	"os"
 )
 
 // FeatureGateObjectLevelWorkloadIdentity is a feature gate that enables the use of
@@ -36,18 +35,24 @@ func SetFeatureGates(features map[string]bool) {
 	features[FeatureGateObjectLevelWorkloadIdentity] = false
 }
 
-// EnvEnableObjectLevelWorkloadIdentity is the environment variable that
-// enables the use of object-level workload identity for authentication.
-const EnvEnableObjectLevelWorkloadIdentity = "ENABLE_OBJECT_LEVEL_WORKLOAD_IDENTITY"
+// enableObjectLevelWorkloadIdentity enables the use of object-level workload
+// identity for authentication.
+var enableObjectLevelWorkloadIdentity bool
 
 // EnableObjectLevelWorkloadIdentity enables the use of object-level workload
 // identity for authentication.
 func EnableObjectLevelWorkloadIdentity() {
-	os.Setenv(EnvEnableObjectLevelWorkloadIdentity, "true")
+	enableObjectLevelWorkloadIdentity = true
+}
+
+// DisableObjectLevelWorkloadIdentity disables the use of object-level workload
+// identity for authentication.
+func DisableObjectLevelWorkloadIdentity() {
+	enableObjectLevelWorkloadIdentity = false
 }
 
 // IsObjectLevelWorkloadIdentityEnabled returns true if the object-level
 // workload identity feature gate is enabled.
 func IsObjectLevelWorkloadIdentityEnabled() bool {
-	return os.Getenv(EnvEnableObjectLevelWorkloadIdentity) == "true"
+	return enableObjectLevelWorkloadIdentity
 }
