@@ -300,7 +300,7 @@ func TestGetRESTConfig(t *testing.T) {
 			tt.provider.t = t
 
 			if !tt.disableObjectLevel {
-				t.Setenv(auth.EnvVarEnableObjectLevelWorkloadIdentity, "true")
+				t.Setenv(auth.EnvEnableObjectLevelWorkloadIdentity, "true")
 			}
 
 			if tt.cluster != "" {

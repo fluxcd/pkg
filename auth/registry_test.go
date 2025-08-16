@@ -265,7 +265,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			tt.provider.t = t
 
 			if !tt.disableObjectLevel {
-				t.Setenv(auth.EnvVarEnableObjectLevelWorkloadIdentity, "true")
+				t.Setenv(auth.EnvEnableObjectLevelWorkloadIdentity, "true")
 			}
 
 			creds, err := auth.GetArtifactRegistryCredentials(ctx, tt.provider, tt.artifactRepository, tt.opts...)
