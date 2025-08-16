@@ -23,6 +23,7 @@ import (
 
 	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
@@ -47,7 +48,7 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 	var serviceAccount *corev1.ServiceAccount
 	var providerIdentity string
 	var audiences []string
-	if o.ServiceAccountNamespace != "" && o.ServiceAccountName != "" {
+	if o.ShouldGetServiceAccountToken() {
 		// Fetch service account details.
 		var err error
 		saRef := client.ObjectKey{
@@ -121,11 +122,28 @@ func getServiceAccountAndProviderInfo(ctx context.Context, provider Provider, cl
 	var o Options
 	o.Apply(opts...)
 
+	var setDefaultSA bool
+
+	// Apply lockdown support: use default service account when ServiceAccount is not explicitly specified (Controller-Level Workload Identity)
+	if key.Name == "" {
+		if defaultSA := GetDefaultServiceAccount(); defaultSA != "" {
+			key.Name = defaultSA
+			setDefaultSA = true
+		} else if defaultSA := GetDefaultKubeconfigServiceAccount(); defaultSA != "" {
+			key.Name = defaultSA
+			setDefaultSA = true
+		}
+	}
+
 	// Get service account.
 	var serviceAccount corev1.ServiceAccount
 	if err := client.Get(ctx, key, &serviceAccount); err != nil {
-		return nil, nil, "", fmt.Errorf("failed to get service account '%s/%s': %w",
-			key.Namespace, key.Name, err)
+		if errors.IsNotFound(err) && setDefaultSA {
+			return nil, nil, "", fmt.Errorf("failed to get service account '%s': %w",
+				key, ErrDefaultServiceAccountNotFound)
+		}
+		return nil, nil, "", fmt.Errorf("failed to get service account '%s': %w",
+			key, err)
 	}
 
 	// Get provider audience.

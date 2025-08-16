@@ -66,3 +66,48 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 		})
 	}
 }
+
+func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     Options
+		expected bool
+	}{
+		{
+			name: "both name and namespace provided",
+			opts: Options{
+				ServiceAccountName:      "test-sa",
+				ServiceAccountNamespace: "default",
+			},
+			expected: true,
+		},
+		{
+			name: "only namespace provided",
+			opts: Options{
+				ServiceAccountNamespace: "default",
+			},
+			expected: true,
+		},
+		{
+			name: "only name provided",
+			opts: Options{
+				ServiceAccountName: "test-sa",
+			},
+			expected: false,
+		},
+		{
+			name:     "neither provided",
+			opts:     Options{},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.opts.ShouldGetServiceAccountToken()
+			if result != tt.expected {
+				t.Errorf("ShouldGetServiceAccountToken() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}

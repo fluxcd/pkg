@@ -108,6 +108,16 @@ func TestGetRESTConfig(t *testing.T) {
 		Namespace: defaultServiceAccount.Namespace,
 	}
 
+	// Create a lockdown service account for testing lockdown functionality.
+	lockdownServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "lockdown-sa",
+			Namespace: "default",
+		},
+	}
+	err = kubeClient.Create(ctx, lockdownServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
 	now := time.Now()
 
 	for _, tt := range []struct {
@@ -275,6 +285,48 @@ func TestGetRESTConfig(t *testing.T) {
 			},
 			cluster:     "cluster/resource/name",
 			expectedErr: "mock error",
+		},
+		{
+			name: "restconfig from default kubeconfig service account using lockdown support",
+			provider: &mockProvider{
+				returnName:        "mock-provider",
+				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnRESTConfig: &auth.RESTConfig{
+					Host:        "https://cluster/resource/name",
+					BearerToken: "mock-bearer-token",
+					CAData:      []byte("ca-data"),
+				},
+				paramAudiences:       []string{"audience1", "audience2"},
+				paramServiceAccount:  *lockdownServiceAccount,
+				paramOIDCTokenClient: oidcClient,
+				paramCluster:         "cluster/resource/name",
+				paramFirstScopes:     []string{"first-token"},
+				paramSecondScopes:    []string{"second-token"},
+				expectFirstScopes:    true,
+				expectSecondScopes:   true,
+				paramAccessTokens: []auth.Token{
+					&mockToken{token: "mock-access-token"},
+					&mockToken{token: "mock-access-token"},
+				},
+			},
+			cluster: "cluster/resource/name",
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+				func(o *auth.Options) {
+					t.Setenv(auth.EnvDefaultKubeConfigServiceAccount, "lockdown-sa")
+				}},
+			expectedCreds: &auth.RESTConfig{
+				Host:        "https://cluster/resource/name",
+				BearerToken: "mock-bearer-token",
+				CAData:      []byte("ca-data"),
+			},
 		},
 		{
 			name: "disable object level workload identity",

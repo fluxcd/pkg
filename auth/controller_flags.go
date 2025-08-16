@@ -16,7 +16,10 @@ limitations under the License.
 
 package auth
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 const (
 	// ControllerFlagDefaultServiceAccount defines the flag for the default service account name
@@ -77,3 +80,7 @@ func GetDefaultKubeconfigServiceAccount() string {
 func GetDefaultDecryptionServiceAccount() string {
 	return os.Getenv(EnvDefaultDecryptionServiceAccount)
 }
+
+// ErrDefaultServiceAccountNotFound is returned when a default service account
+// configured by the operator is not found in the user's namespace.
+var ErrDefaultServiceAccountNotFound = fmt.Errorf("default service account not found")
