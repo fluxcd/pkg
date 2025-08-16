@@ -127,7 +127,7 @@ func getServiceAccountAndProviderInfo(ctx context.Context, provider Provider, cl
 
 	// Apply multi-tenancy lockdown: use default service account when .serviceAccountName
 	// is not explicitly specified in the object. This results in Object-Level Workload Identity.
-	if key.Name == "" {
+	if key.Name == "" && defaultSA != "" {
 		key.Name = defaultSA
 		setDefaultSA = true
 	}

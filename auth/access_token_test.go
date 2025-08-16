@@ -144,7 +144,7 @@ func TestGetAccessToken(t *testing.T) {
 					t.Setenv(auth.EnvDefaultServiceAccount, "nonexistent-sa")
 				},
 			},
-			expectedErr: "failed to get service account 'default/nonexistent-sa': default service account not found",
+			expectedErr: "the specified default service account does not exist in the object namespace",
 		},
 		{
 			name: "access token from service account",
@@ -332,8 +332,7 @@ func TestGetAccessToken(t *testing.T) {
 			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)
 
 			if tt.expectedErr != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(Equal(tt.expectedErr))
+				g.Expect(err).To(MatchError(ContainSubstring(tt.expectedErr)))
 				g.Expect(token).To(BeNil())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())

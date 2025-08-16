@@ -53,7 +53,7 @@ const (
 
 // ErrDefaultServiceAccountNotFound is returned when a default service account
 // configured by the operator is not found in the user's namespace.
-var ErrDefaultServiceAccountNotFound = fmt.Errorf("default service account not found")
+var ErrDefaultServiceAccountNotFound = fmt.Errorf("the specified default service account does not exist in the object namespace. your cluster is subject to multi-tenant workload identity lockdown, reach out to your cluster administrator for help")
 
 // SetDefaultServiceAccount sets the default service account name for workload identity.
 func SetDefaultServiceAccount(sa string) {
