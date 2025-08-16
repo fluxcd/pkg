@@ -102,10 +102,9 @@ func main() {
 	// Configure object-level workload identity.
 	if *wiSAName != "" && *wiSANamespace != "" {
 		auth.EnableObjectLevelWorkloadIdentity()
-		authOpts = append(authOpts, auth.WithServiceAccount(client.ObjectKey{
-			Name:      *wiSAName,
-			Namespace: *wiSANamespace,
-		}, kubeClient))
+		authOpts = append(authOpts, auth.WithClient(kubeClient))
+		authOpts = append(authOpts, auth.WithServiceAccountName(*wiSAName))
+		authOpts = append(authOpts, auth.WithServiceAccountNamespace(*wiSANamespace))
 	}
 
 	// Configure a token cache.

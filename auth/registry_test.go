@@ -169,7 +169,9 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName(saRef.Name),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -192,7 +194,9 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName(saRef.Name),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -247,7 +251,9 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				paramServiceAccount: *defaultServiceAccount,
 			},
 			opts: []auth.Option{
-				auth.WithServiceAccount(saRef, kubeClient),
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName(saRef.Name),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),

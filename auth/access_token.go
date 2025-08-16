@@ -47,11 +47,15 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 	var serviceAccount *corev1.ServiceAccount
 	var providerIdentity string
 	var audiences []string
-	if o.ServiceAccount != nil {
+	if o.ServiceAccountNamespace != "" && o.ServiceAccountName != "" {
 		// Fetch service account details.
 		var err error
+		saRef := client.ObjectKey{
+			Name:      o.ServiceAccountName,
+			Namespace: o.ServiceAccountNamespace,
+		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, *o.ServiceAccount, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
 		if err != nil {
 			return nil, err
 		}

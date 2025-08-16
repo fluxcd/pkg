@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/auth"
@@ -117,7 +116,9 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 	// Create token.
 	token, err := auth.GetAccessToken(ctx, generic.Provider{},
-		auth.WithServiceAccount(client.ObjectKeyFromObject(serviceAccount), envClient),
+		auth.WithClient(envClient),
+		auth.WithServiceAccountName(serviceAccount.Name),
+		auth.WithServiceAccountNamespace(serviceAccount.Namespace),
 		auth.WithAudiences("audience1", "audience2"))
 	g.Expect(err).NotTo(HaveOccurred())
 	genericToken := token.(*generic.Token)
