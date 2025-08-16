@@ -68,6 +68,7 @@ func TestGetAccessToken(t *testing.T) {
 		provider           *mockProvider
 		opts               []auth.Option
 		disableObjectLevel bool
+		defaultSA          string
 		expectedToken      auth.Token
 		expectedErr        string
 	}{
@@ -121,11 +122,33 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
-				func(o *auth.Options) {
-					t.Setenv(auth.EnvDefaultServiceAccount, "lockdown-sa")
-				},
 			},
+			defaultSA:     "lockdown-sa",
 			expectedToken: &mockToken{token: "mock-access-token"},
+		},
+		{
+			name: "access token from service account using default - for lockdown support, object level disabled",
+			provider: &mockProvider{
+				returnName:           "mock-provider",
+				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				paramAudiences:       []string{"audience1", "audience2"},
+				paramServiceAccount:  *lockdownServiceAccount,
+				paramOIDCTokenClient: oidcClient,
+			},
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			defaultSA:          "lockdown-sa",
+			disableObjectLevel: true,
+			expectedToken:      &mockToken{token: "mock-access-token"},
+			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
 		},
 		{
 			name: "error when default service account does not exist - for lockdown support",
@@ -140,10 +163,8 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithClient(kubeClient),
 				auth.WithServiceAccountNamespace("default"),
 				auth.WithAudiences("audience1", "audience2"),
-				func(o *auth.Options) {
-					t.Setenv(auth.EnvDefaultServiceAccount, "nonexistent-sa")
-				},
 			},
+			defaultSA:   "non-existent-sa",
 			expectedErr: "the specified default service account does not exist in the object namespace",
 		},
 		{
@@ -194,10 +215,8 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
-				func(o *auth.Options) {
-					t.Setenv(auth.EnvDefaultServiceAccount, "lockdown-sa")
-				},
 			},
+			defaultSA:     "non-existent-sa",
 			expectedToken: &mockToken{token: "mock-access-token"},
 		},
 		{
@@ -326,7 +345,13 @@ func TestGetAccessToken(t *testing.T) {
 			tt.provider.t = t
 
 			if !tt.disableObjectLevel {
-				t.Setenv(auth.EnvEnableObjectLevelWorkloadIdentity, "true")
+				auth.EnableObjectLevelWorkloadIdentity()
+				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
+			}
+
+			if tt.defaultSA != "" {
+				auth.SetDefaultServiceAccount(tt.defaultSA)
+				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
 			}
 
 			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)

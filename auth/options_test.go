@@ -14,28 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package auth_test
 
 import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/fluxcd/pkg/auth"
 )
 
 func TestOptions_GetHTTPClient(t *testing.T) {
 	tests := []struct {
 		name        string
-		options     Options
+		options     auth.Options
 		expectProxy bool
 	}{
 		{
 			name:        "no proxy configured",
-			options:     Options{},
+			options:     auth.Options{},
 			expectProxy: false,
 		},
 		{
 			name: "proxy configured",
-			options: Options{
+			options: auth.Options{
 				ProxyURL: &url.URL{Scheme: "http", Host: "proxy.example.com:8080"},
 			},
 			expectProxy: true,
@@ -48,6 +50,7 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 
 			if client == nil {
 				t.Error("GetHTTPClient() returned nil, expected non-nil client")
+				return // fix linter error
 			}
 
 			expectedTimeout := 10 * time.Second
@@ -69,67 +72,86 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 
 func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 	tests := []struct {
-		name     string
-		opts     []Option
-		expected bool
+		name                string
+		opts                []auth.Option
+		defaultSA           string
+		defaultKubeConfigSA string
+		defaultDecryptionSA string
+		expected            bool
 	}{
 		{
 			name: "both name and namespace provided",
-			opts: []Option{
-				WithServiceAccountName("test-sa"),
-				WithServiceAccountNamespace("default"),
+			opts: []auth.Option{
+				auth.WithServiceAccountName("test-sa"),
+				auth.WithServiceAccountNamespace("default"),
 			},
 			expected: true,
 		},
 		{
-			name: "only namespace provided - no env vars",
-			opts: []Option{
-				WithServiceAccountNamespace("default"),
-				func(o *Options) {
-					t.Setenv("DEFAULT_SERVICE_ACCOUNT", "")
-					t.Setenv("DEFAULT_KUBECONFIG_SERVICE_ACCOUNT", "")
-				},
+			name: "only namespace provided - no global vars",
+			opts: []auth.Option{
+				auth.WithServiceAccountNamespace("default"),
 			},
 			expected: false,
 		},
 		{
-			name: "only namespace provided - with DEFAULT_SERVICE_ACCOUNT",
-			opts: []Option{
-				WithServiceAccountNamespace("default"),
-				func(o *Options) {
-					t.Setenv("DEFAULT_SERVICE_ACCOUNT", "default-sa")
-				},
+			name: "namespace and defaultServiceAccount",
+			opts: []auth.Option{
+				auth.WithServiceAccountNamespace("default"),
 			},
-			expected: true,
+			defaultSA: "default-sa",
+			expected:  true,
 		},
 		{
-			name: "only namespace provided - with DEFAULT_KUBECONFIG_SERVICE_ACCOUNT",
-			opts: []Option{
-				WithServiceAccountNamespace("default"),
-				func(o *Options) {
-					t.Setenv("DEFAULT_KUBECONFIG_SERVICE_ACCOUNT", "default-kubeconfig-sa")
-				},
+			name: "namespace and defaultKubeConfigServiceAccount",
+			opts: []auth.Option{
+				auth.WithServiceAccountNamespace("default"),
 			},
-			expected: true,
+			defaultKubeConfigSA: "default-kubeconfig-sa",
+			expected:            true,
+		},
+		{
+			name: "namespace and defaultDecryptionServiceAccount - expect false! decryption is handled in kustomize-controller",
+			opts: []auth.Option{
+				auth.WithServiceAccountNamespace("default"),
+			},
+			defaultDecryptionSA: "default-decryption-sa",
+			expected:            false,
 		},
 		{
 			name: "only name provided",
-			opts: []Option{
-				WithServiceAccountName("test-sa"),
+			opts: []auth.Option{
+				auth.WithServiceAccountName("test-sa"),
 			},
 			expected: false,
 		},
 		{
 			name:     "neither provided",
-			opts:     []Option{},
+			opts:     []auth.Option{},
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var o Options
+			if tt.defaultSA != "" {
+				auth.SetDefaultServiceAccount(tt.defaultSA)
+				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
+			}
+
+			if tt.defaultKubeConfigSA != "" {
+				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
+				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
+			}
+
+			if tt.defaultDecryptionSA != "" {
+				auth.SetDefaultDecryptionServiceAccount(tt.defaultDecryptionSA)
+				t.Cleanup(func() { auth.SetDefaultDecryptionServiceAccount("") })
+			}
+
+			var o auth.Options
 			o.Apply(tt.opts...)
+
 			result := o.ShouldGetServiceAccountToken()
 			if result != tt.expected {
 				t.Errorf("ShouldGetServiceAccountToken() = %v, want %v", result, tt.expected)

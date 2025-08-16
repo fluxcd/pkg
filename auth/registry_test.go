@@ -125,6 +125,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 		artifactRepository string
 		opts               []auth.Option
 		disableObjectLevel bool
+		defaultSA          string
 		expectedCreds      *auth.ArtifactRegistryCredentials
 		expectedErr        string
 	}{
@@ -182,6 +183,70 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			expectedCreds: &auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 			},
+		},
+		{
+			name: "registry token from access token from service account, works with lockdown",
+			provider: &mockProvider{
+				returnName:          "mock-provider",
+				returnRegistryInput: "some-registry.io/some/artifact",
+				returnAccessToken:   &mockToken{token: "mock-access-token"},
+				returnRegistryToken: &auth.ArtifactRegistryCredentials{
+					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
+				},
+				paramAudiences:          []string{"audience1", "audience2"},
+				paramServiceAccount:     *defaultServiceAccount,
+				paramOIDCTokenClient:    oidcClient,
+				paramArtifactRepository: "some-registry.io/some/artifact",
+				paramAccessToken:        &mockToken{token: "mock-access-token"},
+			},
+			artifactRepository: "some-registry.io/some/artifact",
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			defaultSA: saRef.Name,
+			expectedCreds: &auth.ArtifactRegistryCredentials{
+				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
+			},
+		},
+		{
+			name: "registry token from access token from service account, works with lockdown and feature gate",
+			provider: &mockProvider{
+				returnName:          "mock-provider",
+				returnRegistryInput: "some-registry.io/some/artifact",
+				returnAccessToken:   &mockToken{token: "mock-access-token"},
+				returnRegistryToken: &auth.ArtifactRegistryCredentials{
+					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
+				},
+				paramAudiences:          []string{"audience1", "audience2"},
+				paramServiceAccount:     *defaultServiceAccount,
+				paramOIDCTokenClient:    oidcClient,
+				paramArtifactRepository: "some-registry.io/some/artifact",
+				paramAccessToken:        &mockToken{token: "mock-access-token"},
+			},
+			artifactRepository: "some-registry.io/some/artifact",
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			defaultSA:          saRef.Name,
+			disableObjectLevel: true,
+			expectedCreds: &auth.ArtifactRegistryCredentials{
+				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
+			},
+			expectedErr: "ObjectLevelWorkloadIdentity feature gate is not enabled",
 		},
 		{
 			name: "all the options are taken into account in the cache key",
@@ -271,7 +336,13 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			tt.provider.t = t
 
 			if !tt.disableObjectLevel {
-				t.Setenv(auth.EnvEnableObjectLevelWorkloadIdentity, "true")
+				auth.EnableObjectLevelWorkloadIdentity()
+				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
+			}
+
+			if tt.defaultSA != "" {
+				auth.SetDefaultServiceAccount(tt.defaultSA)
+				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
 			}
 
 			creds, err := auth.GetArtifactRegistryCredentials(ctx, tt.provider, tt.artifactRepository, tt.opts...)

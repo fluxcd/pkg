@@ -17,7 +17,6 @@ limitations under the License.
 package auth_test
 
 import (
-	"os"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -27,35 +26,37 @@ import (
 
 func TestSetDefaultServiceAccount(t *testing.T) {
 	g := NewWithT(t)
+
 	auth.SetDefaultServiceAccount("test-sa")
-	t.Cleanup(func() {
-		os.Unsetenv(auth.EnvDefaultServiceAccount)
-	})
-	g.Expect(os.Getenv(auth.EnvDefaultServiceAccount)).To(Equal("test-sa"))
+	t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
+
+	g.Expect(auth.GetDefaultServiceAccount()).To(Equal("test-sa"))
 }
 
 func TestSetDefaultKubeConfigServiceAccount(t *testing.T) {
 	g := NewWithT(t)
+
 	auth.SetDefaultKubeConfigServiceAccount("test-kubeconfig-sa")
-	t.Cleanup(func() {
-		os.Unsetenv(auth.EnvDefaultKubeConfigServiceAccount)
-	})
-	g.Expect(os.Getenv(auth.EnvDefaultKubeConfigServiceAccount)).To(Equal("test-kubeconfig-sa"))
+	t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
+
+	g.Expect(auth.GetDefaultKubeConfigServiceAccount()).To(Equal("test-kubeconfig-sa"))
 }
 
 func TestSetDefaultDecryptionServiceAccount(t *testing.T) {
 	g := NewWithT(t)
+
 	auth.SetDefaultDecryptionServiceAccount("test-decryption-sa")
-	t.Cleanup(func() {
-		os.Unsetenv(auth.EnvDefaultDecryptionServiceAccount)
-	})
-	g.Expect(os.Getenv(auth.EnvDefaultDecryptionServiceAccount)).To(Equal("test-decryption-sa"))
+	t.Cleanup(func() { auth.SetDefaultDecryptionServiceAccount("") })
+
+	g.Expect(auth.GetDefaultDecryptionServiceAccount()).To(Equal("test-decryption-sa"))
 }
 
 func TestGetDefaultServiceAccount(t *testing.T) {
 	t.Run("returns set value", func(t *testing.T) {
 		g := NewWithT(t)
-		t.Setenv(auth.EnvDefaultServiceAccount, "expected-sa")
+
+		auth.SetDefaultServiceAccount("expected-sa")
+		t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
 
 		g.Expect(auth.GetDefaultServiceAccount()).To(Equal("expected-sa"))
 	})
@@ -70,7 +71,9 @@ func TestGetDefaultServiceAccount(t *testing.T) {
 func TestGetDefaultKubeConfigServiceAccount(t *testing.T) {
 	t.Run("returns set value", func(t *testing.T) {
 		g := NewWithT(t)
-		t.Setenv(auth.EnvDefaultKubeConfigServiceAccount, "expected-kubeconfig-sa")
+
+		auth.SetDefaultKubeConfigServiceAccount("expected-kubeconfig-sa")
+		t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
 
 		g.Expect(auth.GetDefaultKubeConfigServiceAccount()).To(Equal("expected-kubeconfig-sa"))
 	})
@@ -85,7 +88,9 @@ func TestGetDefaultKubeConfigServiceAccount(t *testing.T) {
 func TestGetDefaultDecryptionServiceAccount(t *testing.T) {
 	t.Run("returns set value", func(t *testing.T) {
 		g := NewWithT(t)
-		t.Setenv(auth.EnvDefaultDecryptionServiceAccount, "expected-decryption-sa")
+
+		auth.SetDefaultDecryptionServiceAccount("expected-decryption-sa")
+		t.Cleanup(func() { auth.SetDefaultDecryptionServiceAccount("") })
 
 		g.Expect(auth.GetDefaultDecryptionServiceAccount()).To(Equal("expected-decryption-sa"))
 	})
