@@ -26,6 +26,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
 )
@@ -130,10 +131,14 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	var serviceAccount *corev1.ServiceAccount
 	var providerIdentity string
 	var audiences []string
-	if o.ServiceAccount != nil {
+	if o.ShouldGetServiceAccountToken() {
 		var err error
+		saRef := client.ObjectKey{
+			Name:      o.ServiceAccountName,
+			Namespace: o.ServiceAccountNamespace,
+		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, *o.ServiceAccount, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
 		if err != nil {
 			return nil, err
 		}
