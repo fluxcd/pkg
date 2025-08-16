@@ -32,19 +32,29 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client          client.Client
-	Cache           *cache.TokenCache
-	ServiceAccount  *client.ObjectKey
-	InvolvedObject  cache.InvolvedObject
-	Audiences       []string
-	Scopes          []string
-	STSRegion       string
-	STSEndpoint     string
-	ProxyURL        *url.URL
-	CAData          string
-	ClusterResource string
-	ClusterAddress  string
-	AllowShellOut   bool
+	Client                  client.Client
+	Cache                   *cache.TokenCache
+	ServiceAccountName      string
+	ServiceAccountNamespace string
+	InvolvedObject          cache.InvolvedObject
+	Audiences               []string
+	Scopes                  []string
+	STSRegion               string
+	STSEndpoint             string
+	ProxyURL                *url.URL
+	CAData                  string
+	ClusterResource         string
+	ClusterAddress          string
+	AllowShellOut           bool
+}
+
+// ShouldGetServiceAccountToken returns true if ServiceAccount token should be retrieved.
+func (o *Options) ShouldGetServiceAccountToken() bool {
+	// ServiceAccount namespace is required because ServiceAccounts are namespace-scoped resources.
+	// ServiceAccountName can be empty as it may be provided by DEFAULT_SERVICE_ACCOUNT or
+	// DEFAULT_KUBECONFIG_SERVICE_ACCOUNT environment variables.
+	return o.ServiceAccountNamespace != "" &&
+		(o.ServiceAccountName != "" || getDefaultServiceAccount() != "")
 }
 
 // WithClient sets the controller-runtime client for the provider.
@@ -54,13 +64,17 @@ func WithClient(client client.Client) Option {
 	}
 }
 
-// WithServiceAccount sets the ServiceAccount reference for the token
-// and a controller-runtime client to fetch the ServiceAccount and
-// create an OIDC token for it in the Kubernetes API.
-func WithServiceAccount(saRef client.ObjectKey, c client.Client) Option {
+// WithServiceAccountName sets the ServiceAccount name for the token.
+func WithServiceAccountName(name string) Option {
 	return func(o *Options) {
-		o.ServiceAccount = &saRef
-		o.Client = c
+		o.ServiceAccountName = name
+	}
+}
+
+// WithServiceAccountNamespace sets the ServiceAccount namespace for the token.
+func WithServiceAccountNamespace(namespace string) Option {
+	return func(o *Options) {
+		o.ServiceAccountNamespace = namespace
 	}
 }
 

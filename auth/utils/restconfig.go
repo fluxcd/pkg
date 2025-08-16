@@ -99,14 +99,10 @@ func GetRESTConfig(ctx context.Context,
 	if ca, ok := cm.Data[meta.KubeConfigKeyCACert]; ok {
 		opts = append(opts, auth.WithCAData(ca))
 	}
+	opts = append(opts, auth.WithClient(ctrlClient))
+	opts = append(opts, auth.WithServiceAccountNamespace(namespace))
 	if name, ok := cm.Data[meta.KubeConfigKeyServiceAccountName]; ok {
-		saKey := client.ObjectKey{
-			Name:      name,
-			Namespace: namespace,
-		}
-		opts = append(opts, auth.WithServiceAccount(saKey, ctrlClient))
-	} else {
-		opts = append(opts, auth.WithClient(ctrlClient))
+		opts = append(opts, auth.WithServiceAccountName(name))
 	}
 	if a, ok := cm.Data[meta.KubeConfigKeyAudiences]; ok {
 		var audiences []string

@@ -23,6 +23,7 @@ import (
 
 	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
@@ -47,11 +48,15 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 	var serviceAccount *corev1.ServiceAccount
 	var providerIdentity string
 	var audiences []string
-	if o.ServiceAccount != nil {
+	if o.ShouldGetServiceAccountToken() {
 		// Fetch service account details.
 		var err error
+		saRef := client.ObjectKey{
+			Name:      o.ServiceAccountName,
+			Namespace: o.ServiceAccountNamespace,
+		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, *o.ServiceAccount, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -117,11 +122,25 @@ func getServiceAccountAndProviderInfo(ctx context.Context, provider Provider, cl
 	var o Options
 	o.Apply(opts...)
 
+	defaultSA := getDefaultServiceAccount()
+	var setDefaultSA bool
+
+	// Apply multi-tenancy lockdown: use default service account when .serviceAccountName
+	// is not explicitly specified in the object. This results in Object-Level Workload Identity.
+	if key.Name == "" && defaultSA != "" {
+		key.Name = defaultSA
+		setDefaultSA = true
+	}
+
 	// Get service account.
 	var serviceAccount corev1.ServiceAccount
 	if err := client.Get(ctx, key, &serviceAccount); err != nil {
-		return nil, nil, "", fmt.Errorf("failed to get service account '%s/%s': %w",
-			key.Namespace, key.Name, err)
+		if errors.IsNotFound(err) && setDefaultSA {
+			return nil, nil, "", fmt.Errorf("failed to get service account '%s': %w",
+				key, ErrDefaultServiceAccountNotFound)
+		}
+		return nil, nil, "", fmt.Errorf("failed to get service account '%s': %w",
+			key, err)
 	}
 
 	// Get provider audience.
