@@ -76,6 +76,7 @@ func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 		opts                []auth.Option
 		defaultSA           string
 		defaultKubeConfigSA string
+		defaultDecryptionSA string
 		expected            bool
 	}{
 		{
@@ -110,6 +111,14 @@ func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 			expected:            true,
 		},
 		{
+			name: "namespace and defaultDecryptionServiceAccount - expect false! decryption is handled in kustomize-controller",
+			opts: []auth.Option{
+				auth.WithServiceAccountNamespace("default"),
+			},
+			defaultDecryptionSA: "default-decryption-sa",
+			expected:            false,
+		},
+		{
 			name: "only name provided",
 			opts: []auth.Option{
 				auth.WithServiceAccountName("test-sa"),
@@ -133,6 +142,11 @@ func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 			if tt.defaultKubeConfigSA != "" {
 				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
 				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
+			}
+
+			if tt.defaultDecryptionSA != "" {
+				auth.SetDefaultDecryptionServiceAccount(tt.defaultDecryptionSA)
+				t.Cleanup(func() { auth.SetDefaultDecryptionServiceAccount("") })
 			}
 
 			var o auth.Options
