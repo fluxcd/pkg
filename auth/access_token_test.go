@@ -236,7 +236,7 @@ func TestGetAccessToken(t *testing.T) {
 			tt.provider.t = t
 
 			if !tt.disableObjectLevel {
-				t.Setenv(auth.EnvVarEnableObjectLevelWorkloadIdentity, "true")
+				t.Setenv(auth.EnvEnableObjectLevelWorkloadIdentity, "true")
 			}
 
 			token, err := auth.GetAccessToken(ctx, kubeClient, tt.provider, tt.opts...)
