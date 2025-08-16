@@ -127,6 +127,30 @@ func TestGetAccessToken(t *testing.T) {
 			expectedToken: &mockToken{token: "mock-access-token"},
 		},
 		{
+			name: "access token from service account using default - for lockdown support, object level disabled",
+			provider: &mockProvider{
+				returnName:           "mock-provider",
+				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				paramAudiences:       []string{"audience1", "audience2"},
+				paramServiceAccount:  *lockdownServiceAccount,
+				paramOIDCTokenClient: oidcClient,
+			},
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			defaultSA:          "lockdown-sa",
+			disableObjectLevel: true,
+			expectedToken:      &mockToken{token: "mock-access-token"},
+			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
+		},
+		{
 			name: "error when default service account does not exist - for lockdown support",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
