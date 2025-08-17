@@ -25,7 +25,7 @@ will make and ask for confirmation.
 
 ## New test Go modules
 
-Whenever adding new test Go modules like `git/internal/e2e` or `oci/tests/integration`,
+Whenever adding new test Go modules like `git/internal/e2e` or `tests/integration`,
 you must also add the module path to the `testModules` slice in `cmd/internal/test_modules.go`.
 This is necessary to ensure that these modules are not considered for tagging when running
 the `make release` command.

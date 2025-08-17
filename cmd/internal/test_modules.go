@@ -20,5 +20,5 @@ package internal
 // only and should not be tagged.
 var testModules = []string{
 	"git/internal/e2e",
-	"oci/tests/integration",
+	"tests/integration",
 }
