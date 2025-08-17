@@ -1,17 +1,17 @@
-module github.com/fluxcd/pkg/oci/tests/integration
+module github.com/fluxcd/pkg/tests/integration
 
 go 1.24.0
 
 replace (
-	github.com/fluxcd/pkg/apis/meta => ../../../apis/meta
-	github.com/fluxcd/pkg/auth => ../../../auth
-	github.com/fluxcd/pkg/cache => ../../../cache
-	github.com/fluxcd/pkg/git => ../../../git
-	github.com/fluxcd/pkg/git/gogit => ../../../git/gogit
-	github.com/fluxcd/pkg/gittestserver => ../../../gittestserver
-	github.com/fluxcd/pkg/runtime => ../../../runtime
-	github.com/fluxcd/pkg/ssh => ../../../ssh
-	github.com/fluxcd/pkg/version => ../../../version
+	github.com/fluxcd/pkg/apis/meta => ../../apis/meta
+	github.com/fluxcd/pkg/auth => ../../auth
+	github.com/fluxcd/pkg/cache => ../../cache
+	github.com/fluxcd/pkg/git => ../../git
+	github.com/fluxcd/pkg/git/gogit => ../../git/gogit
+	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
+	github.com/fluxcd/pkg/runtime => ../../runtime
+	github.com/fluxcd/pkg/ssh => ../../ssh
+	github.com/fluxcd/pkg/version => ../../version
 )
 
 require (
