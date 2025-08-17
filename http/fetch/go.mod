@@ -13,7 +13,7 @@ replace github.com/opencontainers/go-digest => github.com/opencontainers/go-dige
 
 require (
 	github.com/fluxcd/pkg/tar v0.13.0
-	github.com/fluxcd/pkg/testserver v0.11.0
+	github.com/fluxcd/pkg/testserver v0.12.0
 	github.com/go-logr/logr v1.4.2
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/onsi/gomega v1.37.0

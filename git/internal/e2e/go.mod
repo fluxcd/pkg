@@ -14,8 +14,8 @@ replace (
 require (
 	github.com/fluxcd/go-git-providers v0.22.0
 	github.com/fluxcd/pkg/git v0.35.0
-	github.com/fluxcd/pkg/git/gogit v0.38.0
-	github.com/fluxcd/pkg/gittestserver v0.18.0
+	github.com/fluxcd/pkg/git/gogit v0.39.0
+	github.com/fluxcd/pkg/gittestserver v0.19.0
 	github.com/fluxcd/pkg/ssh v0.20.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/go-logr/logr v1.4.2
