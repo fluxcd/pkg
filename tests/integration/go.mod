@@ -17,12 +17,12 @@ replace (
 require (
 	github.com/elazarl/goproxy v1.7.2
 	github.com/fluxcd/cli-utils v0.36.0-flux.15
-	github.com/fluxcd/pkg/apis/meta v1.18.0
-	github.com/fluxcd/pkg/auth v0.27.0
-	github.com/fluxcd/pkg/cache v0.10.0
-	github.com/fluxcd/pkg/git v0.35.0
-	github.com/fluxcd/pkg/git/gogit v0.39.0
-	github.com/fluxcd/pkg/runtime v0.80.0
+	github.com/fluxcd/pkg/apis/meta v1.19.0
+	github.com/fluxcd/pkg/auth v0.28.0
+	github.com/fluxcd/pkg/cache v0.11.0
+	github.com/fluxcd/pkg/git v0.36.0
+	github.com/fluxcd/pkg/git/gogit v0.40.0
+	github.com/fluxcd/pkg/runtime v0.81.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/google/go-containerregistry v0.20.6
@@ -54,21 +54,21 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.38.2 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.31.5 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.9 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.5 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.5 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.5 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.38.3 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.31.6 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.10 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.50.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.37.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.73.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.50.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.37.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.73.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.29.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.34.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.38.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.29.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.34.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.38.2 // indirect
 	github.com/aws/smithy-go v1.23.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -86,8 +86,8 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fluxcd/pkg/ssh v0.20.0 // indirect
-	github.com/fluxcd/pkg/version v0.9.0 // indirect
+	github.com/fluxcd/pkg/ssh v0.21.0 // indirect
+	github.com/fluxcd/pkg/version v0.10.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
