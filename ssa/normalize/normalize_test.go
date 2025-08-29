@@ -357,9 +357,7 @@ func TestNormalizeUnstructured(t *testing.T) {
 						"selector": nil,
 						"strategy": map[string]interface{}{},
 						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{
-								"creationTimestamp": nil,
-							},
+							"metadata": map[string]interface{}{},
 							"spec": map[string]interface{}{
 								"containers": []interface{}{
 									map[string]interface{}{
@@ -413,9 +411,7 @@ func TestNormalizeUnstructured(t *testing.T) {
 						"selector":    nil,
 						"serviceName": "",
 						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{
-								"creationTimestamp": nil,
-							},
+							"metadata": map[string]interface{}{},
 							"spec": map[string]interface{}{
 								"containers": []interface{}{
 									map[string]interface{}{
@@ -469,9 +465,7 @@ func TestNormalizeUnstructured(t *testing.T) {
 					"spec": map[string]interface{}{
 						"selector": nil,
 						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{
-								"creationTimestamp": nil,
-							},
+							"metadata": map[string]interface{}{},
 							"spec": map[string]interface{}{
 								"containers": []interface{}{
 									map[string]interface{}{
@@ -525,9 +519,7 @@ func TestNormalizeUnstructured(t *testing.T) {
 					"spec": map[string]interface{}{
 						"selector": nil,
 						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{
-								"creationTimestamp": nil,
-							},
+							"metadata": map[string]interface{}{},
 							"spec": map[string]interface{}{
 								"containers": []interface{}{
 									map[string]interface{}{
@@ -579,9 +571,7 @@ func TestNormalizeUnstructured(t *testing.T) {
 					},
 					"spec": map[string]interface{}{
 						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{
-								"creationTimestamp": nil,
-							},
+							"metadata": map[string]interface{}{},
 							"spec": map[string]interface{}{
 								"containers": []interface{}{
 									map[string]interface{}{
@@ -637,14 +627,10 @@ func TestNormalizeUnstructured(t *testing.T) {
 					},
 					"spec": map[string]interface{}{
 						"jobTemplate": map[string]interface{}{
-							"metadata": map[string]interface{}{
-								"creationTimestamp": nil,
-							},
+							"metadata": map[string]interface{}{},
 							"spec": map[string]interface{}{
 								"template": map[string]interface{}{
-									"metadata": map[string]interface{}{
-										"creationTimestamp": nil,
-									},
+									"metadata": map[string]interface{}{},
 									"spec": map[string]interface{}{
 										"containers": []interface{}{
 											map[string]interface{}{
@@ -843,9 +829,7 @@ func TestNormalizeDryRunUnstructured(t *testing.T) {
 				Object: map[string]interface{}{
 					"apiVersion": "autoscaling/v2beta2",
 					"kind":       "HorizontalPodAutoscaler",
-					"metadata": map[string]interface{}{
-						"creationTimestamp": nil,
-					},
+					"metadata":   map[string]interface{}{},
 					"spec": map[string]interface{}{
 						"maxReplicas": int64(0),
 						"metrics": []interface{}{
@@ -933,9 +917,7 @@ func TestNormalizeDryRunUnstructured(t *testing.T) {
 				Object: map[string]interface{}{
 					"apiVersion": "autoscaling/v2",
 					"kind":       "HorizontalPodAutoscaler",
-					"metadata": map[string]interface{}{
-						"creationTimestamp": nil,
-					},
+					"metadata":   map[string]interface{}{},
 					"spec": map[string]interface{}{
 						"maxReplicas": int64(0),
 						"metrics": []interface{}{

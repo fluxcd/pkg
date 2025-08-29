@@ -54,7 +54,7 @@ func TestScanHost(t *testing.T) {
 		{keyType: ECDSA_P521, sshKeyTypeName: "ecdsa-sha2-nistp521"},
 		{keyType: ED25519, sshKeyTypeName: "ssh-ed25519"},
 		{keyType: ED25519, sshKeyTypeName: "ssh-rsa",
-			wantErr: "no common algorithm for host key; client offered: [ssh-rsa], server offered: [ssh-ed25519]",
+			wantErr: "no common algorithm for host key; we offered: [ssh-rsa], peer offered: [ssh-ed25519]",
 		},
 	}
 

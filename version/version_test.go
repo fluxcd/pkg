@@ -30,11 +30,12 @@ func TestParseVersion(t *testing.T) {
 		err     bool
 	}{
 		{"v1.2.3", false},
+		{"v2025.07.03", false},
 		{"v1.0", true},
 		{"v1", true},
 		{"v1.2.beta", true},
 		{"v1.2-5", true},
-		{"v1.2-beta.5", true},
+		{"v1.2-beta5", true},
 		{"\nv1.2", true},
 		{"v1.2.0-x.Y.0+metadata", false},
 		{"v1.2.0-x.Y.0+metadata-width-hypen", false},
@@ -46,9 +47,9 @@ func TestParseVersion(t *testing.T) {
 		g := NewWithT(t)
 		_, err := ParseVersion(tc.version)
 		if tc.err {
-			g.Expect(err).To(HaveOccurred())
+			g.Expect(err).To(HaveOccurred(), "version: %s", tc.version)
 		} else {
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred(), "version: %s", tc.version)
 		}
 	}
 }
