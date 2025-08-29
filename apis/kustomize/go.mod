@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/apis/kustomize
 
-go 1.24.0
+go 1.25.0
 
 require k8s.io/apiextensions-apiserver v0.34.0
 
