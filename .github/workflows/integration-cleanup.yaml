@@ -25,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version: 1.24.x
+          go-version: 1.25.x
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Setup bin dir
         run: mkdir -p ~/.local/bin
@@ -72,7 +72,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version: 1.24.x
+          go-version: 1.25.x
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Authenticate to Azure
         uses: Azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v1.4.6
@@ -95,7 +95,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version: 1.24.x
+          go-version: 1.25.x
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1

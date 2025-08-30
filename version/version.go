@@ -23,13 +23,16 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-// ParseVersion behaves as semver.StrictNewVersion, with as sole exception
-// that it allows versions with a preceding "v" (i.e. v1.2.3).
+// ParseVersion parses a version string and returns a semver.Version object.
+// The validation is looser than the official semver spec, allowing for
+// a 'v' prefix and 0-prefixed numbers in the major, minor, and patch segments
+// (e.g., v2025.02.03-rc.1 is considered valid).
 func ParseVersion(v string) (*semver.Version, error) {
-	vLessV := strings.TrimPrefix(v, "v")
-	if _, err := semver.StrictNewVersion(vLessV); err != nil {
-		return nil, err
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) != 3 {
+		return nil, semver.ErrInvalidSemVer
 	}
+
 	return semver.NewVersion(v)
 }
 
