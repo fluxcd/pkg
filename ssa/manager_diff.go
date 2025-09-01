@@ -38,6 +38,12 @@ type DiffOptions struct {
 	// IfNotPresentSelector determines which in-cluster objects are skipped from dry-run apply
 	// based on the matching labels or annotations.
 	IfNotPresentSelector map[string]string `json:"ifNotPresentSelector"`
+
+	// Strict enables strict field validation, making the server reject
+	// requests that contain unknown or duplicate fields.
+	// This requires Kubernetes v1.27+.
+	// https://kubernetes.io/blog/2023/04/24/openapi-v3-field-validation-ga/#server-side-field-validation
+	Strict bool `json:"strict"`
 }
 
 // DefaultDiffOptions returns the default dry-run apply options.
@@ -65,7 +71,7 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 	}
 
 	dryRunObject := object.DeepCopy()
-	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
+	if err := m.dryRunApply(ctx, dryRunObject, opts.Strict); err != nil {
 		return nil, nil, nil, errors.NewDryRunErr(err, dryRunObject)
 	}
 

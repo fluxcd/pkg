@@ -41,6 +41,12 @@ type ApplyOptions struct {
 	// Force configures the engine to recreate objects that contain immutable field changes.
 	Force bool `json:"force"`
 
+	// Strict enables strict field validation during dry-run, making the server reject
+	// requests that contain unknown or duplicate fields.
+	// This requires Kubernetes v1.27+.
+	// https://kubernetes.io/blog/2023/04/24/openapi-v3-field-validation-ga/#server-side-field-validation
+	Strict bool `json:"strict"`
+
 	// ForceSelector determines which in-cluster objects are Force applied
 	// based on the matching labels or annotations.
 	ForceSelector map[string]string `json:"forceSelector"`
@@ -85,6 +91,7 @@ type ApplyCleanupOptions struct {
 func DefaultApplyOptions() ApplyOptions {
 	return ApplyOptions{
 		Force:             false,
+		Strict:            false,
 		ExclusionSelector: nil,
 		WaitInterval:      2 * time.Second,
 		WaitTimeout:       60 * time.Second,
@@ -104,7 +111,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	}
 
 	dryRunObject := object.DeepCopy()
-	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
+	if err := m.dryRunApply(ctx, dryRunObject, opts.Strict); err != nil {
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
 			if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 				return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
@@ -169,7 +176,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				}
 
 				dryRunObject := object.DeepCopy()
-				if err := m.dryRunApply(ctx, dryRunObject); err != nil {
+				if err := m.dryRunApply(ctx, dryRunObject, opts.Strict); err != nil {
 					// We cannot have an immutable error (and therefore shouldn't force-apply) if the resource doesn't
 					// exist on the cluster. Note that resource might not exist because we wrongly identified an error
 					// as immutable and deleted it when ApplyAll was called the last time (the check for ImmutableError
@@ -195,7 +202,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 								utils.FmtUnstructured(dryRunObject), err)
 						}
 
-						err = m.dryRunApply(ctx, dryRunObject)
+						err = m.dryRunApply(ctx, dryRunObject, opts.Strict)
 					}
 
 					if err != nil {
@@ -310,12 +317,16 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 	return changeSet, nil
 }
 
-func (m *ResourceManager) dryRunApply(ctx context.Context, object *unstructured.Unstructured) error {
+func (m *ResourceManager) dryRunApply(ctx context.Context, object *unstructured.Unstructured, strict bool) error {
 	opts := []client.PatchOption{
 		client.DryRunAll,
 		client.ForceOwnership,
 		client.FieldOwner(m.owner.Field),
 	}
+	if strict {
+		opts = append(opts, client.FieldValidation("Strict"))
+	}
+
 	return m.client.Patch(ctx, object, client.Apply, opts...)
 }
 
