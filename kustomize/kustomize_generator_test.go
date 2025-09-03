@@ -294,6 +294,114 @@ func Test_IsLocalRelativePath(t *testing.T) {
 	}
 }
 
+func Test_IgnoreMissingComponents(t *testing.T) {
+	tests := []struct {
+		name                    string
+		components              []string
+		ignoreMissingComponents bool
+		expectError             bool
+		expectedComponents      []string
+	}{
+		{
+			name:                    "missing components with ignore enabled",
+			components:              []string{"existing-component", "missing-component"},
+			ignoreMissingComponents: true,
+			expectError:             false,
+			expectedComponents:      []string{"existing-component"},
+		},
+		{
+			name:                    "all components missing with ignore enabled",
+			components:              []string{"missing-component-1", "missing-component-2"},
+			ignoreMissingComponents: true,
+			expectError:             false,
+			expectedComponents:      nil,
+		},
+		{
+			name:                    "all components exist",
+			components:              []string{"existing-component"},
+			ignoreMissingComponents: true,
+			expectError:             false,
+			expectedComponents:      []string{"existing-component"},
+		},
+		{
+			name:                    "missing components with ignore disabled - should fail during build",
+			components:              []string{"existing-component", "missing-component"},
+			ignoreMissingComponents: false,
+			expectError:             true,
+			expectedComponents:      []string{"existing-component", "missing-component"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			baseDir, err := testTempDir(t)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create an existing component directory in the base directory
+			existingComponentDir := filepath.Join(baseDir, "existing-component")
+			g.Expect(os.MkdirAll(existingComponentDir, 0755)).To(Succeed())
+			componentYaml := `apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources: []
+`
+			g.Expect(os.WriteFile(filepath.Join(existingComponentDir, "kustomization.yaml"), []byte(componentYaml), 0644)).To(Succeed())
+
+			// Create overlay directory where kustomization.yaml will be generated
+			overlayDir := filepath.Join(baseDir, "overlay")
+			g.Expect(os.MkdirAll(overlayDir, 0755)).To(Succeed())
+
+			// Update component paths to be relative from overlay directory
+			var overlayComponents []string
+			for _, comp := range tt.components {
+				overlayComponents = append(overlayComponents, "../"+comp)
+			}
+
+			// Update expected components to match the relative paths
+			var expectedOverlayComponents []any
+			if tt.expectedComponents != nil {
+				for _, comp := range tt.expectedComponents {
+					expectedOverlayComponents = append(expectedOverlayComponents, "../"+comp)
+				}
+			}
+
+			// Create Flux Kustomization object with relative paths
+			ks := unstructured.Unstructured{Object: map[string]any{}}
+			err = unstructured.SetNestedStringSlice(ks.Object, overlayComponents, "spec", "components")
+			g.Expect(err).ToNot(HaveOccurred())
+			err = unstructured.SetNestedField(ks.Object, tt.ignoreMissingComponents, "spec", "ignoreMissingComponents")
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Generate kustomization in the overlay directory
+			_, err = kustomize.NewGenerator(overlayDir, ks).WriteFile(overlayDir)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Read generated kustomization.yaml
+			kfileYAML, err := os.ReadFile(filepath.Join(overlayDir, "kustomization.yaml"))
+			g.Expect(err).ToNot(HaveOccurred())
+			var k any
+			g.Expect(yaml.Unmarshal(kfileYAML, &k)).To(Succeed())
+
+			// Check components field against the expected overlay components
+			components := k.(map[string]any)["components"]
+			if expectedOverlayComponents == nil {
+				g.Expect(components).To(BeNil())
+			} else {
+				g.Expect(components).To(Equal(expectedOverlayComponents))
+			}
+
+			// Build the kustomization
+			_, buildErr := kustomize.SecureBuild(baseDir, overlayDir, false)
+			if tt.expectError {
+				g.Expect(buildErr).To(HaveOccurred())
+				g.Expect(buildErr.Error()).To(ContainSubstring("missing-component"))
+			} else {
+				g.Expect(buildErr).ToNot(HaveOccurred())
+			}
+		})
+	}
+}
+
 func testTempDir(t *testing.T) (string, error) {
 	tmpDir := t.TempDir()
 

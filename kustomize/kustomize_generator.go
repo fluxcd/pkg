@@ -45,17 +45,18 @@ import (
 )
 
 const (
-	specField            = "spec"
-	targetNSField        = "targetNamespace"
-	resourcesField       = "resources"
-	patchesField         = "patches"
-	componentsField      = "components"
-	crdsField            = "crds"
-	patchesSMField       = "patchesStrategicMerge"
-	patchesJson6902Field = "patchesJson6902"
-	imagesField          = "images"
-	namePrefixField      = "namePrefix"
-	nameSuffixField      = "nameSuffix"
+	specField             = "spec"
+	targetNSField         = "targetNamespace"
+	resourcesField        = "resources"
+	patchesField          = "patches"
+	componentsField       = "components"
+	ignoreComponentsField = "ignoreMissingComponents"
+	crdsField             = "crds"
+	patchesSMField        = "patchesStrategicMerge"
+	patchesJson6902Field  = "patchesJson6902"
+	imagesField           = "images"
+	namePrefixField       = "namePrefix"
+	nameSuffixField       = "nameSuffix"
 )
 
 // Action is the action that was taken on the kustomization file
@@ -237,9 +238,13 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 		return action, fmt.Errorf("unable to get components: %w", fmt.Errorf("%v %v", err, errf))
 	}
 
+	ignoreMissing := g.getNestedBool(specField, ignoreComponentsField)
 	for _, component := range components {
 		if !IsLocalRelativePath(component) {
 			return "", fmt.Errorf("component path '%s' must be local and relative", component)
+		}
+		if _, err := os.Stat(filepath.Join(dirPath, component)); errors.Is(err, os.ErrNotExist) && ignoreMissing {
+			continue
 		}
 		kus.Components = append(kus.Components, component)
 	}
@@ -456,6 +461,11 @@ func (g *Generator) getNestedStringSlice(fields ...string) ([]string, bool, erro
 	}
 
 	return val, ok, nil
+}
+
+func (g *Generator) getNestedBool(fields ...string) bool {
+	val, _, _ := unstructured.NestedBool(g.kustomization.Object, fields...)
+	return val
 }
 
 func (g *Generator) getNestedSlice(fields ...string) ([]interface{}, bool, error) {
