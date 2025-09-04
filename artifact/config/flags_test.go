@@ -59,7 +59,7 @@ func Test_Options_BindFlags(t *testing.T) {
 		},
 		{
 			name:                             "storage address only",
-			commandLine:                      []string{"--storage-address=:8080"},
+			commandLine:                      []string{"--storage-addr=:8080"},
 			expectedStoragePath:              "/data",
 			expectedStorageAddress:           ":8080",
 			expectedStorageAdvAddress:        "",
@@ -69,7 +69,7 @@ func Test_Options_BindFlags(t *testing.T) {
 		},
 		{
 			name:                             "storage advertise address only",
-			commandLine:                      []string{"--storage-adv-address=artifacts.example.com:9090"},
+			commandLine:                      []string{"--storage-adv-addr=artifacts.example.com:9090"},
 			expectedStoragePath:              "/data",
 			expectedStorageAddress:           ":9090",
 			expectedStorageAdvAddress:        "artifacts.example.com:9090",
@@ -111,8 +111,8 @@ func Test_Options_BindFlags(t *testing.T) {
 			name: "all flags set",
 			commandLine: []string{
 				"--storage-path=/var/artifacts",
-				"--storage-address=:9000",
-				"--storage-adv-address=artifacts.cluster.local:9000",
+				"--storage-addr=:9000",
+				"--storage-adv-addr=artifacts.cluster.local:9000",
 				"--artifact-retention-ttl=1h",
 				"--artifact-retention-records=5",
 				"--artifact-digest-algo=sha512",
@@ -183,7 +183,7 @@ func Test_Options_BindFlags_WithEnvironmentVariables(t *testing.T) {
 			},
 			commandLine: []string{
 				"--storage-path=/flag/artifacts",
-				"--storage-address=:7070",
+				"--storage-addr=:7070",
 			},
 			expectedStoragePath:              "/flag/artifacts",
 			expectedStorageAddress:           ":7070",
@@ -227,7 +227,7 @@ func Test_Options_BindFlags_WithEnvironmentVariables(t *testing.T) {
 				"STORAGE_ADV_ADDR": "mixed.example.com:9090",
 			},
 			commandLine: []string{
-				"--storage-address=:6060",
+				"--storage-addr=:6060",
 				"--artifact-retention-ttl=30m",
 				"--artifact-retention-records=15",
 			},
