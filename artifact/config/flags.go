@@ -28,11 +28,11 @@ const (
 	envStoragePath     = "STORAGE_PATH"
 	defaultStoragePath = "/data"
 
-	flagStorageAddress    = "storage-address"
+	flagStorageAddress    = "storage-addr"
 	envStorageAddress     = "STORAGE_ADDRESS"
 	defaultStorageAddress = ":9090"
 
-	flagStorageAdvAddress = "storage-adv-address"
+	flagStorageAdvAddress = "storage-adv-addr"
 	envStorageAdvAddress  = "STORAGE_ADV_ADDR"
 
 	flagArtifactRetentionTTL    = "artifact-retention-ttl"
