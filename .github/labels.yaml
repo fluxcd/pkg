@@ -4,6 +4,9 @@
 - name: area/actions
   description: GitHub Actions related issues and pull requests
   color: '#00b140'
+- name: area/artifact
+  description: Artifact SDK related issues and pull requests
+  color: '#006b75'
 - name: area/git
   description: Git and SSH related issues and pull requests
   color: '#863faf'
