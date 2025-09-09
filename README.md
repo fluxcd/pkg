@@ -17,7 +17,6 @@
 - **[github.com/fluxcd/pkg/ssh](./ssh)** - SSH host key scanning and management
 
 ### Artifact Storage & Serving
-
 - **[github.com/fluxcd/pkg/artifact](./artifact)** - Artifact Management SDK
 - **[github.com/fluxcd/pkg/artifact/config](./artifact/config)** - Configuration management of artifact storage and serving
 - **[github.com/fluxcd/pkg/artifact/digest](./artifact/digest)** - Multi-algorithm digest computation (SHA1, SHA256, SHA512, BLAKE3)
