@@ -16,6 +16,14 @@
 - **[github.com/fluxcd/pkg/masktoken](./masktoken)** - Token redaction utilities for secure logging
 - **[github.com/fluxcd/pkg/ssh](./ssh)** - SSH host key scanning and management
 
+### Artifact Storage & Serving
+
+- **[github.com/fluxcd/pkg/artifact](./artifact)** - Artifact Management SDK
+- **[github.com/fluxcd/pkg/artifact/config](./artifact/config)** - Configuration management of artifact storage and serving
+- **[github.com/fluxcd/pkg/artifact/digest](./artifact/digest)** - Multi-algorithm digest computation (SHA1, SHA256, SHA512, BLAKE3)
+- **[github.com/fluxcd/pkg/artifact/server](./artifact/server)** - HTTP file server for serving artifacts in-cluster
+- **[github.com/fluxcd/pkg/artifact/storage](./artifact/storage)** - Storage management (artifact packaging, retention policies, integrity verification)
+
 ### Controller Runtime
 - **[github.com/fluxcd/pkg/runtime](./runtime)** - Controller Runtime SDK
     - **[runtime/acl](./runtime/acl)** - Cross-namespace access control utilities

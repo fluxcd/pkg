@@ -14,7 +14,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.4.1
 	github.com/fluxcd/pkg/apis/meta v1.21.0
 	github.com/fluxcd/pkg/lockedfile v0.7.0
-	github.com/fluxcd/pkg/oci v0.55.0
+	github.com/fluxcd/pkg/oci v0.56.0
 	github.com/fluxcd/pkg/sourceignore v0.14.0
 	github.com/fluxcd/pkg/tar v0.14.0
 	github.com/go-git/go-git/v5 v5.16.2
@@ -32,7 +32,7 @@ replace github.com/opencontainers/go-digest => github.com/opencontainers/go-dige
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
-	github.com/docker/cli v28.2.2+incompatible // indirect
+	github.com/docker/cli v28.4.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/fluxcd/pkg/version v0.10.0 // indirect
