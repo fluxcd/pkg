@@ -32,7 +32,7 @@ replace github.com/opencontainers/go-digest => github.com/opencontainers/go-dige
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
-	github.com/docker/cli v28.2.2+incompatible // indirect
+	github.com/docker/cli v28.4.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/fluxcd/pkg/version v0.10.0 // indirect

@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/spf13/cobra v1.9.1
-	sigs.k8s.io/controller-runtime v0.22.0
+	sigs.k8s.io/controller-runtime v0.22.1
 )
 
 require (
