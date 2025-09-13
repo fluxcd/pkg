@@ -359,3 +359,116 @@ func TestExpression_EvaluateString(t *testing.T) {
 		})
 	}
 }
+
+func TestExpression_EvaluateStringSlice(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		expr   string
+		opts   []cel.Option
+		data   map[string]any
+		result []string
+		err    string
+	}{
+		{
+			name: "non-existent field",
+			expr: "foo",
+			data: map[string]any{},
+			err:  "failed to evaluate the CEL expression 'foo': no such attribute(s): foo",
+		},
+		{
+			name:   "string slice field",
+			expr:   "foo",
+			data:   map[string]any{"foo": []string{"value1", "value2", "value3"}},
+			result: []string{"value1", "value2", "value3"},
+		},
+		{
+			name:   "empty string slice field",
+			expr:   "foo",
+			data:   map[string]any{"foo": []string{}},
+			result: []string{},
+		},
+		{
+			name: "non-slice field",
+			expr: "foo",
+			data: map[string]any{"foo": "not-a-slice"},
+			err:  "failed to evaluate CEL expression 'foo' as []string: unsupported native conversion from string to '[]string'",
+		},
+		{
+			name: "non-string slice field",
+			expr: "foo",
+			data: map[string]any{"foo": []int{1, 2, 3}},
+			err:  "failed to evaluate CEL expression 'foo' as []string: unsupported type conversion from 'int' to string",
+		},
+		{
+			name:   "nested any slice field",
+			expr:   "foo.bar",
+			data:   map[string]any{"foo": map[string]any{"bar": []any{"nested1", "nested2"}}},
+			result: []string{"nested1", "nested2"},
+		},
+		{
+			name:   "string slice literal",
+			expr:   "['literal1', 'literal2', 'literal3']",
+			data:   map[string]any{},
+			result: []string{"literal1", "literal2", "literal3"},
+		},
+		{
+			name:   "compiled expression returning string slice",
+			expr:   "foo.bar",
+			opts:   []cel.Option{cel.WithCompile(), cel.WithStructVariables("foo")},
+			data:   map[string]any{"foo": map[string]any{"bar": []string{"compiled1", "compiled2"}}},
+			result: []string{"compiled1", "compiled2"},
+		},
+		{
+			name: "compiled expression with string manipulation returning slice",
+			expr: "foo.items.map(item, item.upperAscii())",
+			opts: []cel.Option{cel.WithCompile(), cel.WithStructVariables("foo")},
+			data: map[string]any{
+				"foo": map[string]any{
+					"items": []string{"hello", "world", "test"},
+				},
+			},
+			result: []string{"HELLO", "WORLD", "TEST"},
+		},
+		{
+			name: "compiled expression with filter returning slice",
+			expr: "foo.items.filter(item, item.startsWith('t'))",
+			opts: []cel.Option{cel.WithCompile(), cel.WithStructVariables("foo")},
+			data: map[string]any{
+				"foo": map[string]any{
+					"items": []string{"hello", "test", "world", "testing"},
+				},
+			},
+			result: []string{"test", "testing"},
+		},
+		{
+			name: "compiled expression with split returning slice",
+			expr: "foo.value.split(',')",
+			opts: []cel.Option{cel.WithCompile(), cel.WithStructVariables("foo")},
+			data: map[string]any{
+				"foo": map[string]any{
+					"value": "item1,item2,item3",
+				},
+			},
+			result: []string{"item1", "item2", "item3"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			g := NewWithT(t)
+
+			e, err := cel.NewExpression(tt.expr, tt.opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			result, err := e.EvaluateStringSlice(context.Background(), tt.data)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(result).To(Equal(tt.result))
+			}
+		})
+	}
+}

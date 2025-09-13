@@ -19,6 +19,7 @@ package cel
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
@@ -124,6 +125,11 @@ func NewExpression(expr string, opts ...Option) (*Expression, error) {
 	}, nil
 }
 
+// String returns the original CEL expression string.
+func (e *Expression) String() string {
+	return e.expr
+}
+
 // EvaluateBoolean evaluates the expression with the given data and returns the result as a boolean.
 func (e *Expression) EvaluateBoolean(ctx context.Context, data map[string]any) (bool, error) {
 	val, _, err := e.prog.ContextEval(ctx, data)
@@ -148,4 +154,21 @@ func (e *Expression) EvaluateString(ctx context.Context, data map[string]any) (s
 		return "", fmt.Errorf("failed to evaluate CEL expression as string: '%s'", e.expr)
 	}
 	return string(result), nil
+}
+
+// EvaluateStringSlice evaluates the expression with the given data and returns the result as []string.
+func (e *Expression) EvaluateStringSlice(ctx context.Context, data map[string]any) ([]string, error) {
+	val, _, err := e.prog.ContextEval(ctx, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate the CEL expression '%s': %w", e.expr, err)
+	}
+	v, err := val.ConvertToNative(reflect.TypeOf([]string{}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate CEL expression '%s' as []string: %w", e.expr, err)
+	}
+	result, ok := v.([]string)
+	if !ok {
+		return nil, fmt.Errorf("failed to type-assert CEL expression result as []string: '%s'", e.expr)
+	}
+	return result, nil
 }
