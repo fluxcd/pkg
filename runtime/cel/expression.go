@@ -172,3 +172,12 @@ func (e *Expression) EvaluateStringSlice(ctx context.Context, data map[string]an
 	}
 	return result, nil
 }
+
+// Evaluate evaluates the expression with the given data and returns the result as any.
+func (e *Expression) Evaluate(ctx context.Context, data map[string]any) (any, error) {
+	result, _, err := e.prog.ContextEval(ctx, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate the CEL expression '%s': %w", e.expr, err)
+	}
+	return result.Value(), nil
+}
