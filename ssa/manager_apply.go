@@ -164,7 +164,7 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 				if m.shouldSkipApply(object, existingObject, opts) {
-					changes[i] = *m.changeSetEntry(existingObject, SkippedAction)
+					changes[i] = *m.changeSetEntry(object, SkippedAction)
 					return nil
 				}
 

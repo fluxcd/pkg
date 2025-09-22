@@ -605,6 +605,72 @@ func TestApply_NoOp(t *testing.T) {
 	})
 }
 
+func TestApply_SkipsExcluded(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("fix")
+	err := manager.client.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	objects, err := readManifest("testdata/test13.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	if err := normalize.UnstructuredList(objects); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := DefaultApplyOptions()
+	opts.ExclusionSelector = map[string]string{
+		"ssa.fluxcd.io/exclude": "true",
+	}
+	skippedSubject := fmt.Sprintf("Secret/%[1]s/data-%[1]s-excluded", id)
+
+	t.Run("Apply", func(t *testing.T) {
+		changeSetEntry, err := manager.Apply(ctx, objects[0], opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if changeSetEntry.Subject != skippedSubject {
+			t.Errorf("Expected %s, got %s", skippedSubject, changeSetEntry.Subject)
+		}
+	})
+
+	t.Run("ApplyAll", func(t *testing.T) {
+		changeSet, err := manager.ApplyAll(ctx, objects, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var found bool
+		for _, entry := range changeSet.Entries {
+			if entry.Action != SkippedAction {
+				continue
+			}
+			found = true
+			if entry.Subject != skippedSubject {
+				t.Errorf("Expected %s, got %s", skippedSubject, entry.Subject)
+			}
+			break
+		}
+		if !found {
+			t.Errorf("Expected to find skipped entry for %s", skippedSubject)
+		}
+	})
+}
+
 func TestApply_Exclusions(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
