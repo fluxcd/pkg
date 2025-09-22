@@ -38,6 +38,13 @@ type DiffOptions struct {
 	// IfNotPresentSelector determines which in-cluster objects are skipped from dry-run apply
 	// based on the matching labels or annotations.
 	IfNotPresentSelector map[string]string `json:"ifNotPresentSelector"`
+
+	// Force configures the engine to recreate objects that contain immutable field changes.
+	Force bool `json:"force"`
+
+	// ForceSelector determines which in-cluster objects are Force applied
+	// based on the matching labels or annotations.
+	ForceSelector map[string]string `json:"forceSelector"`
 }
 
 // DefaultDiffOptions returns the default dry-run apply options.
@@ -66,6 +73,13 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
+		if m.shouldForceApply(object, existingObject, ApplyOptions{
+			Force:         opts.Force,
+			ForceSelector: opts.ForceSelector,
+		}, err) {
+			return m.changeSetEntry(object, CreatedAction), nil, nil, nil
+		}
+
 		return nil, nil, nil, errors.NewDryRunErr(err, dryRunObject)
 	}
 
