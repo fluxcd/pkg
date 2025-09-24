@@ -264,6 +264,11 @@ func TestWaitForSet_ErrorOnReaderError(t *testing.T) {
 		},
 	})
 
+	// Restore the original poller otherwise all other tests will fail
+	defer func() {
+		manager.poller = poller
+	}()
+
 	set := []object.ObjMetadata{{
 		Name:      "test",
 		Namespace: "default",
@@ -276,6 +281,55 @@ func TestWaitForSet_ErrorOnReaderError(t *testing.T) {
 
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(Equal("timeout waiting for: [ConfigMap/default/test status: 'Unknown': error reading status]"))
+}
+
+func TestWaitWithContext_Cancellation(t *testing.T) {
+	g := NewWithT(t)
+
+	id := generateName("cancellation")
+	objects, err := readManifest("testdata/test2.yaml", id)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Apply objects to the cluster which will never reach Ready state
+	manager.SetOwnerLabels(objects, "app1", "cancellation")
+	changeSet, err := manager.ApplyAllStaged(context.Background(), objects, ApplyOptions{
+		WaitInterval: 500 * time.Millisecond,
+		WaitTimeout:  5 * time.Second,
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Create a context that we can cancel for the wait operation
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Configure wait options with a longer timeout to ensure we can cancel before it times out
+	waitOpts := WaitOptions{
+		Interval: 500 * time.Millisecond,
+		Timeout:  5 * time.Second,
+		FailFast: true,
+	}
+
+	// Channel to capture the error from WaitForSetWithContext
+	errChan := make(chan error, 1)
+
+	// Start WaitForSetWithContext in a goroutine
+	go func() {
+		errChan <- manager.WaitForSetWithContext(ctx, changeSet.ToObjMetadataSet(), waitOpts)
+	}()
+
+	// Wait for one second to ensure WaitForSetWithContext has started
+	time.Sleep(time.Second)
+
+	// Cancel the context to trigger early exit
+	cancel()
+
+	// Wait for the goroutine to finish and verify it returned due to context cancellation
+	select {
+	case waitErr := <-errChan:
+		g.Expect(waitErr).To(HaveOccurred(), "Expected an error due to context cancellation")
+		g.Expect(waitErr).To(Equal(context.Canceled))
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitForSetWithContext did not return within expected time after cancellation")
+	}
 }
 
 func TestWaitForSetTermination(t *testing.T) {
