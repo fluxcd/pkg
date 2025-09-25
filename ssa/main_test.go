@@ -40,6 +40,7 @@ var (
 	cfg        *rest.Config
 	manager    *ResourceManager
 	restMapper meta.RESTMapper
+	poller     *polling.StatusPoller
 )
 
 func TestMain(m *testing.M) {
@@ -67,8 +68,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	poller := polling.NewStatusPoller(kubeClient, restMapper, polling.Options{})
-
+	poller = polling.NewStatusPoller(kubeClient, restMapper, polling.Options{})
 	manager = &ResourceManager{
 		client: kubeClient,
 		poller: poller,

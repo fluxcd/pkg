@@ -72,11 +72,18 @@ func (m *ResourceManager) Wait(objects []*unstructured.Unstructured, opts WaitOp
 	return m.WaitForSet(objectsMeta, opts)
 }
 
-// WaitForSet checks if the given set of FmtObjMetadata has been fully reconciled.
+// WaitForSet checks if the given ObjMetadataSet has been fully reconciled.
 func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions) error {
-	statusCollector := collector.NewResourceStatusCollector(set)
+	return m.WaitForSetWithContext(context.Background(), set, opts)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+// WaitForSetWithContext checks if the given ObjMetadataSet has been fully reconciled.
+// The provided context can be used to cancel the operation.
+func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.ObjMetadataSet, opts WaitOptions) error {
+	statusCollector := collector.NewResourceStatusCollector(set)
+	canceledInternally := false
+
+	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 
 	pollingOpts := polling.PollOptions{
@@ -110,6 +117,7 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 			desired := status.CurrentStatus
 			aggStatus := aggregator.AggregateStatus(rss, desired)
 			if aggStatus == desired || (opts.FailFast && countFailed > 0) {
+				canceledInternally = true
 				cancel()
 				return
 			}
@@ -117,6 +125,11 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 	)
 
 	<-done
+
+	// If the context was cancelled externally, return early.
+	if !canceledInternally && errors.Is(ctx.Err(), context.Canceled) {
+		return ctx.Err()
+	}
 
 	if statusCollector.Error != nil {
 		return statusCollector.Error
@@ -127,15 +140,9 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 		switch {
 		case rs == nil || lastStatus[id] == nil:
 			errs = append(errs, fmt.Sprintf("can't determine status for %s", utils.FmtObjMetadata(id)))
-		case lastStatus[id].Status == status.FailedStatus:
-			var builder strings.Builder
-			builder.WriteString(fmt.Sprintf("%s status: '%s'",
-				utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
-			if rs.Error != nil {
-				builder.WriteString(fmt.Sprintf(": %s", rs.Error))
-			}
-			errs = append(errs, builder.String())
-		case errors.Is(ctx.Err(), context.DeadlineExceeded) && lastStatus[id].Status != status.CurrentStatus:
+		case lastStatus[id].Status == status.FailedStatus,
+			errors.Is(ctx.Err(), context.DeadlineExceeded) &&
+				lastStatus[id].Status != status.CurrentStatus:
 			var builder strings.Builder
 			builder.WriteString(fmt.Sprintf("%s status: '%s'",
 				utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
