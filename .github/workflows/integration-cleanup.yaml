@@ -8,9 +8,6 @@ on:
 permissions:
   id-token: write # Required for obtaining AWS OIDC federated credential.
 
-env:
-  GCRGC_VERSION: 0.4.8
-
 jobs:
   gcp:
     runs-on: ubuntu-latest
@@ -29,32 +26,12 @@ jobs:
           cache-dependency-path: ./tools/reaper/go.sum
       - name: Setup bin dir
         run: mkdir -p ~/.local/bin
-      - name: Populate local env
-        # This is needed to be able to use the global env as local env in cache
-        # key.
-        run: echo "GCRGC_VERSION=${GCRGC_VERSION}" >> $GITHUB_ENV
-      - name: Cache gcrgc
-        id: cache-gcrgc
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
-        with:
-          path: ~/.local/bin/gcrgc
-          key: gcrgc-${{ env.GCRGC_VERSION }}
-      - name: Install gcrgc
-        if: steps.cache-gcrgc.outputs.cache-hit != 'true'
-        run: |
-          cd $(mktemp -d)
-          wget https://github.com/graillus/gcrgc/releases/download/v${GCRGC_VERSION}/gcrgc_${GCRGC_VERSION}_linux_amd64.tar.gz -O - | tar xz
-          mv gcrgc ~/.local/bin/
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           credentials_json: '${{ secrets.CLEANUP_E2E_GOOGLE_CREDENTIALS }}'
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-      - name: Run gcrgc
-        # Cleanup all the GCR repositories in the project. They are not tracked
-        # by terraform used to provision test infra and are left behind.
-        run: gcrgc gcr.io/${{ vars.TF_VAR_gcp_project_id }} --retention-period 1h
       - name: Run reaper
         run: go run ./ -provider gcp -gcpproject ${{ vars.TF_VAR_gcp_project_id }} -retention-period 1h -tags 'ci=true' -delete
 
