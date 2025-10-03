@@ -340,7 +340,7 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 		return false, nil
 	}
 	existingObject := object.DeepCopy()
-	var patches []jsonPatch
+	var patches []JSONPatch
 
 	if len(opts.Annotations) > 0 {
 		patches = append(patches, PatchRemoveAnnotations(existingObject, opts.Annotations)...)
