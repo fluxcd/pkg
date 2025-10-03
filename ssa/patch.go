@@ -29,25 +29,25 @@ import (
 
 const managedFieldsPath = "/metadata/managedFields"
 
-// jsonPatch defines a patch as specified by RFC 6902
+// JSONPatch defines a patch as specified by RFC 6902
 // https://www.rfc-editor.org/rfc/rfc6902
-type jsonPatch struct {
+type JSONPatch struct {
 	Operation string                      `json:"op"`
 	Path      string                      `json:"path"`
 	Value     []metav1.ManagedFieldsEntry `json:"value,omitempty"`
 }
 
-// newPatchRemove returns a jsonPatch for removing the specified path.
-func newPatchRemove(path string) jsonPatch {
-	return jsonPatch{
+// NewPatchRemove returns a JSONPatch for removing the specified path.
+func NewPatchRemove(path string) JSONPatch {
+	return JSONPatch{
 		Operation: "remove",
 		Path:      path,
 	}
 }
 
-// newPatchRemove returns a jsonPatch for removing the specified path.
-func newPatchReplace(path string, value []metav1.ManagedFieldsEntry) jsonPatch {
-	return jsonPatch{
+// NewPatchReplace returns a JSONPatch for replacing the specified path with the given value.
+func NewPatchReplace(path string, value []metav1.ManagedFieldsEntry) JSONPatch {
+	return JSONPatch{
 		Operation: "replace",
 		Path:      path,
 		Value:     value,
@@ -79,11 +79,11 @@ func matchFieldManager(entry metav1.ManagedFieldsEntry, manager FieldManager) bo
 	return strings.HasPrefix(entry.Manager, manager.Name)
 }
 
-// PatchRemoveFieldsManagers returns a jsonPatch array for removing managers with matching name or prefix.
-func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FieldManager) []jsonPatch {
+// PatchRemoveFieldsManagers returns a JSONPatch array for removing managers with matching name or prefix.
+func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FieldManager) []JSONPatch {
 	objEntries := object.GetManagedFields()
 
-	var patches []jsonPatch
+	var patches []JSONPatch
 	entries := make([]metav1.ManagedFieldsEntry, 0, len(objEntries))
 	for _, entry := range objEntries {
 		exclude := false
@@ -106,12 +106,12 @@ func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fie
 		entries = append(entries, metav1.ManagedFieldsEntry{})
 	}
 
-	return append(patches, newPatchReplace(managedFieldsPath, entries))
+	return append(patches, NewPatchReplace(managedFieldsPath, entries))
 }
 
-// PatchReplaceFieldsManagers returns a jsonPatch array for replacing the managers with matching
+// PatchReplaceFieldsManagers returns a JSONPatch array for replacing the managers with matching
 // name and operation type with the specified manager name and an apply operation.
-func PatchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FieldManager, name string) ([]jsonPatch, error) {
+func PatchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FieldManager, name string) ([]JSONPatch, error) {
 	objEntries := object.GetManagedFields()
 
 	var prevManagedFields metav1.ManagedFieldsEntry
@@ -124,7 +124,7 @@ func PatchReplaceFieldsManagers(object *unstructured.Unstructured, managers []Fi
 		}
 	}
 
-	var patches []jsonPatch
+	var patches []JSONPatch
 	entries := make([]metav1.ManagedFieldsEntry, 0, len(objEntries))
 	edited := false
 
@@ -167,7 +167,36 @@ each_entry:
 	}
 
 	entries = append(entries, prevManagedFields)
-	return append(patches, newPatchReplace(managedFieldsPath, entries)), nil
+	return append(patches, NewPatchReplace(managedFieldsPath, entries)), nil
+}
+
+// PatchMigrateToVersion returns a JSONPatch array for replacing the existing apiVersion in the
+// managed fields with the specified apiVersion.
+func PatchMigrateToVersion(object *unstructured.Unstructured, apiVersion string) ([]JSONPatch, error) {
+	objEntries := object.GetManagedFields()
+
+	// Early return if no managed fields
+	if len(objEntries) == 0 {
+		return nil, nil
+	}
+
+	entries := make([]metav1.ManagedFieldsEntry, 0, len(objEntries))
+	changed := false
+
+	for _, entry := range objEntries {
+		if entry.APIVersion != apiVersion {
+			entry.APIVersion = apiVersion
+			changed = true
+		}
+		entries = append(entries, entry)
+	}
+
+	// No changes needed
+	if !changed {
+		return nil, nil
+	}
+
+	return []JSONPatch{NewPatchReplace(managedFieldsPath, entries)}, nil
 }
 
 func mergeManagedFieldsV1(prevField *metav1.FieldsV1, newField *metav1.FieldsV1) (*metav1.FieldsV1, error) {
@@ -202,27 +231,27 @@ func mergeManagedFieldsV1(prevField *metav1.FieldsV1, newField *metav1.FieldsV1)
 	return &mergedField, nil
 }
 
-// PatchRemoveAnnotations returns a jsonPatch array for removing annotations with matching keys.
-func PatchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []jsonPatch {
-	var patches []jsonPatch
+// PatchRemoveAnnotations returns a JSONPatch array for removing annotations with matching keys.
+func PatchRemoveAnnotations(object *unstructured.Unstructured, keys []string) []JSONPatch {
+	var patches []JSONPatch
 	annotations := object.GetAnnotations()
 	for _, key := range keys {
 		if _, ok := annotations[key]; ok {
 			path := fmt.Sprintf("/metadata/annotations/%s", strings.ReplaceAll(key, "/", "~1"))
-			patches = append(patches, newPatchRemove(path))
+			patches = append(patches, NewPatchRemove(path))
 		}
 	}
 	return patches
 }
 
-// PatchRemoveLabels returns a jsonPatch array for removing labels with matching keys.
-func PatchRemoveLabels(object *unstructured.Unstructured, keys []string) []jsonPatch {
-	var patches []jsonPatch
+// PatchRemoveLabels returns a JSONPatch array for removing labels with matching keys.
+func PatchRemoveLabels(object *unstructured.Unstructured, keys []string) []JSONPatch {
+	var patches []JSONPatch
 	labels := object.GetLabels()
 	for _, key := range keys {
 		if _, ok := labels[key]; ok {
 			path := fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(key, "/", "~1"))
-			patches = append(patches, newPatchRemove(path))
+			patches = append(patches, NewPatchRemove(path))
 		}
 	}
 	return patches
