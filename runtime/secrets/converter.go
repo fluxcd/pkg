@@ -133,6 +133,8 @@ func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, opts ...TLS
 // proxy URL. Optional "username" and "password" fields can be provided
 // for proxy authentication.
 func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, error) {
+	ref := client.ObjectKeyFromObject(secret)
+
 	addressData, exists := secret.Data[KeyAddress]
 	if !exists {
 		return nil, &KeyNotFoundError{Key: KeyAddress, Secret: secret}
@@ -140,14 +142,23 @@ func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, e
 
 	address := string(addressData)
 	if address == "" {
-		ref := client.ObjectKeyFromObject(secret)
 		return nil, fmt.Errorf("secret '%s': proxy address is empty", ref)
+	}
+
+	// Validate length before parsing to avoid parsing large invalid URLs.
+	// The 2048 character limit matches the validation used in notification-controller's
+	// spec.address field.
+	if len(address) > 2048 {
+		return nil, fmt.Errorf("secret '%s': proxy URL exceeds maximum length of 2048 characters", ref)
 	}
 
 	proxyURL, err := url.Parse(address)
 	if err != nil {
-		ref := client.ObjectKeyFromObject(secret)
 		return nil, fmt.Errorf("secret '%s': failed to parse proxy address '%s': %w", ref, address, err)
+	}
+
+	if proxyURL.Scheme != "http" && proxyURL.Scheme != "https" {
+		return nil, fmt.Errorf("secret '%s': proxy URL must use http or https scheme, got '%s'", ref, proxyURL.Scheme)
 	}
 
 	username, hasUsername := secret.Data[KeyUsername]
