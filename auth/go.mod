@@ -21,8 +21,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.6
 	github.com/coreos/go-oidc/v3 v3.16.0
-	github.com/fluxcd/pkg/apis/meta v1.21.0
-	github.com/fluxcd/pkg/cache v0.11.0
+	github.com/fluxcd/pkg/apis/meta v1.22.0
+	github.com/fluxcd/pkg/cache v0.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/go-containerregistry v0.20.6
 	github.com/onsi/gomega v1.38.2

@@ -11,9 +11,9 @@ replace (
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/distribution/distribution/v3 v3.0.0
-	github.com/fluxcd/pkg/sourceignore v0.14.0
-	github.com/fluxcd/pkg/tar v0.14.0
-	github.com/fluxcd/pkg/version v0.10.0
+	github.com/fluxcd/pkg/sourceignore v0.15.0
+	github.com/fluxcd/pkg/tar v0.15.0
+	github.com/fluxcd/pkg/version v0.11.0
 	github.com/google/go-containerregistry v0.20.6
 	github.com/onsi/gomega v1.38.2
 	github.com/sirupsen/logrus v1.9.3

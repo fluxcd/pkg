@@ -8,15 +8,16 @@ replace (
 	github.com/fluxcd/pkg/oci => ../oci
 	github.com/fluxcd/pkg/sourceignore => ../sourceignore
 	github.com/fluxcd/pkg/tar => ../tar
+	github.com/fluxcd/pkg/version => ../version
 )
 
 require (
 	github.com/cyphar/filepath-securejoin v0.4.1
-	github.com/fluxcd/pkg/apis/meta v1.21.0
+	github.com/fluxcd/pkg/apis/meta v1.22.0
 	github.com/fluxcd/pkg/lockedfile v0.7.0
-	github.com/fluxcd/pkg/oci v0.56.0
-	github.com/fluxcd/pkg/sourceignore v0.14.0
-	github.com/fluxcd/pkg/tar v0.14.0
+	github.com/fluxcd/pkg/oci v0.57.0
+	github.com/fluxcd/pkg/sourceignore v0.15.0
+	github.com/fluxcd/pkg/tar v0.15.0
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/onsi/gomega v1.38.2
 	github.com/opencontainers/go-digest v1.0.0
@@ -35,7 +36,7 @@ require (
 	github.com/docker/cli v28.4.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
-	github.com/fluxcd/pkg/version v0.10.0 // indirect
+	github.com/fluxcd/pkg/version v0.11.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
