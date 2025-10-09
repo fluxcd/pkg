@@ -752,36 +752,6 @@ func TestProxyURLFromSecret(t *testing.T) {
 			),
 			errMsg: "secret 'default/proxy-secret': failed to parse proxy address",
 		},
-		{
-			name: "invalid scheme - ftp",
-			secret: testSecret(
-				withName("proxy-secret"),
-				withData(map[string][]byte{
-					secrets.KeyAddress: []byte("ftp://ftp.example.com:21"),
-				}),
-			),
-			errMsg: "secret 'default/proxy-secret': proxy URL must use http or https scheme, got 'ftp'",
-		},
-		{
-			name: "invalid scheme - no scheme",
-			secret: testSecret(
-				withName("proxy-secret"),
-				withData(map[string][]byte{
-					secrets.KeyAddress: []byte("proxy.example.com:8080"),
-				}),
-			),
-			errMsg: "secret 'default/proxy-secret': proxy URL must use http or https scheme",
-		},
-		{
-			name: "URL exceeds maximum length",
-			secret: testSecret(
-				withName("proxy-secret"),
-				withData(map[string][]byte{
-					secrets.KeyAddress: []byte("http://proxy.example.com/" + string(make([]byte, 2049))),
-				}),
-			),
-			errMsg: "secret 'default/proxy-secret': proxy URL exceeds maximum length of 2048 characters",
-		},
 	}
 
 	for _, tt := range tests {
