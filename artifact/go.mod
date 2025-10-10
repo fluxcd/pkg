@@ -13,7 +13,7 @@ replace (
 
 require (
 	github.com/cyphar/filepath-securejoin v0.4.1
-	github.com/fluxcd/pkg/apis/meta v1.23.0
+	github.com/fluxcd/pkg/apis/meta v1.22.0
 	github.com/fluxcd/pkg/lockedfile v0.7.0
 	github.com/fluxcd/pkg/oci v0.57.0
 	github.com/fluxcd/pkg/sourceignore v0.15.0
