@@ -156,6 +156,10 @@ const (
 	// FeatureGateDisabledReason represents the fact that a feature is trying to
 	// be used, but the feature gate for that feature is disabled.
 	FeatureGateDisabledReason string = "FeatureGateDisabled"
+
+	// HealthCheckCanceledReason represents the fact that
+	// the health check was canceled.
+	HealthCheckCanceledReason string = "HealthCheckCanceled"
 )
 
 // ObjectWithConditions describes a Kubernetes resource object with status conditions.
