@@ -19,8 +19,8 @@ package chartutil
 import (
 	"testing"
 
+	"github.com/matheuscscp/helm/pkg/chartutil"
 	"github.com/opencontainers/go-digest"
-	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 func TestDigestValues(t *testing.T) {

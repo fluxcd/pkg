@@ -17,8 +17,8 @@ limitations under the License.
 package chartutil
 
 import (
+	"github.com/matheuscscp/helm/pkg/chartutil"
 	"github.com/opencontainers/go-digest"
-	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 // DigestValues calculates the digest of the values using the provided algorithm.

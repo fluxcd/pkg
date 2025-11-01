@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	"github.com/matheuscscp/helm/pkg/chartutil"
 	. "github.com/onsi/gomega"
-	"helm.sh/helm/v3/pkg/chartutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
