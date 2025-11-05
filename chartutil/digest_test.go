@@ -20,20 +20,20 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
-	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v4/pkg/chart/common"
 )
 
 func TestDigestValues(t *testing.T) {
 	tests := []struct {
 		name   string
 		algo   digest.Algorithm
-		values chartutil.Values
+		values common.Values
 		want   digest.Digest
 	}{
 		{
 			name:   "empty",
 			algo:   digest.SHA256,
-			values: chartutil.Values{},
+			values: common.Values{},
 			want:   "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 		},
 		{
@@ -45,7 +45,7 @@ func TestDigestValues(t *testing.T) {
 		{
 			name: "value map",
 			algo: digest.SHA256,
-			values: chartutil.Values{
+			values: common.Values{
 				"replicas": 3,
 				"image": map[string]interface{}{
 					"tag":        "latest",
@@ -67,7 +67,7 @@ func TestDigestValues(t *testing.T) {
 		{
 			name: "value map in different order",
 			algo: digest.SHA256,
-			values: chartutil.Values{
+			values: common.Values{
 				"image": map[string]interface{}{
 					"repository": "nginx",
 					"tag":        "latest",
@@ -91,7 +91,7 @@ func TestDigestValues(t *testing.T) {
 			// See: https://go.dev/play/p/KRyfK9ZobZx
 			name: "values map with numeric keys",
 			algo: digest.SHA256,
-			values: chartutil.Values{
+			values: common.Values{
 				"replicas": 3,
 				"test": map[string]interface{}{
 					"632bd80235a05f4192aefade": "value1",
@@ -105,7 +105,7 @@ func TestDigestValues(t *testing.T) {
 		{
 			name: "values map with numeric keys in different order",
 			algo: digest.SHA256,
-			values: chartutil.Values{
+			values: common.Values{
 				"test": map[string]interface{}{
 					"632bd82398e71231a98004b6": "value4",
 					"632bd817c559818a52307da2": "value3",
@@ -119,7 +119,7 @@ func TestDigestValues(t *testing.T) {
 		{
 			name: "using different algorithm",
 			algo: digest.SHA512,
-			values: chartutil.Values{
+			values: common.Values{
 				"foo": "bar",
 				"baz": map[string]interface{}{
 					"cool": "stuff",
@@ -141,13 +141,13 @@ func TestVerifyValues(t *testing.T) {
 	tests := []struct {
 		name   string
 		digest digest.Digest
-		values chartutil.Values
+		values common.Values
 		want   bool
 	}{
 		{
 			name:   "empty values",
 			digest: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-			values: chartutil.Values{},
+			values: common.Values{},
 			want:   true,
 		},
 		{
@@ -170,7 +170,7 @@ func TestVerifyValues(t *testing.T) {
 		{
 			name:   "matching values",
 			digest: "sha256:fcdc2b0de1581a3633ada4afee3f918f6eaa5b5ab38c3fef03d5b48d3f85d9f6",
-			values: chartutil.Values{
+			values: common.Values{
 				"image": map[string]interface{}{
 					"repository": "nginx",
 					"tag":        "latest",
@@ -192,7 +192,7 @@ func TestVerifyValues(t *testing.T) {
 		{
 			name:   "matching values in different order",
 			digest: "sha256:fcdc2b0de1581a3633ada4afee3f918f6eaa5b5ab38c3fef03d5b48d3f85d9f6",
-			values: chartutil.Values{
+			values: common.Values{
 				"replicas": 3,
 				"image": map[string]interface{}{
 					"tag":        "latest",
@@ -214,7 +214,7 @@ func TestVerifyValues(t *testing.T) {
 		{
 			name:   "matching values with numeric keys",
 			digest: "sha256:8a980fcbeadd6f05818f07e8aec14070c22250ca3d96af1fcd5f93b3e85b4d70",
-			values: chartutil.Values{
+			values: common.Values{
 				"replicas": 3,
 				"test": map[string]interface{}{
 					"632bd80235a05f4192aefade": "value1",
@@ -228,7 +228,7 @@ func TestVerifyValues(t *testing.T) {
 		{
 			name:   "mismatching values",
 			digest: "sha256:3f3641788a2d4abda3534eaa90c90b54916e4c6e3a5b2e1b24758b7bfa701ecd",
-			values: chartutil.Values{
+			values: common.Values{
 				"foo": "bar",
 			},
 			want: false,

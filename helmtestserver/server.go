@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/repo"
+	"helm.sh/helm/v4/pkg/action"
+	repo "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/fluxcd/pkg/testserver"

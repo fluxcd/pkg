@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"helm.sh/helm/v3/pkg/downloader"
+	"helm.sh/helm/v4/pkg/downloader"
 )
 
 func TestPackageSignedChartWithVersion(t *testing.T) {
@@ -56,7 +56,7 @@ func TestPackageSignedChartWithVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err = downloader.VerifyChart(packagedChartPath, publicKeyPath); err != nil {
+	if _, err = downloader.VerifyChart(packagedChartPath, packagedChartPath+".prov", publicKeyPath); err != nil {
 		t.Fatal(err)
 	}
 }
