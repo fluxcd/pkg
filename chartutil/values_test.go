@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
-	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v4/pkg/chart/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,7 +40,7 @@ func TestChartValuesFromReferences(t *testing.T) {
 		namespace  string
 		references []meta.ValuesReference
 		values     string
-		want       chartutil.Values
+		want       common.Values
 		wantErr    bool
 	}{
 		{
@@ -72,7 +72,7 @@ nested: value
 			values: `
 other: values
 `,
-			want: chartutil.Values{
+			want: common.Values{
 				"flat": map[string]interface{}{
 					"nested": "value",
 				},
@@ -93,7 +93,7 @@ other: values
 					TargetPath: "merge.at.specific.path",
 				},
 			},
-			want: chartutil.Values{
+			want: common.Values{
 				"merge": map[string]interface{}{
 					"at": map[string]interface{}{
 						"specific": map[string]interface{}{
@@ -137,7 +137,7 @@ nested:
   - item
   - option
 `,
-			want: chartutil.Values{
+			want: common.Values{
 				"flat": "value",
 				"nested": map[string]interface{}{
 					"configuration": []interface{}{"value", "item", "option"},
@@ -174,7 +174,7 @@ nested:
 			values: `
 other: values
 `,
-			want: chartutil.Values{
+			want: common.Values{
 				"flat": "value",
 				"nested": map[string]interface{}{
 					"configuration": []interface{}{"list", "foo", "option"},
@@ -201,7 +201,7 @@ other: values
 					Optional: true,
 				},
 			},
-			want:    chartutil.Values{},
+			want:    common.Values{},
 			wantErr: false,
 		},
 		{
@@ -223,7 +223,7 @@ other: values
 					Optional: true,
 				},
 			},
-			want:    chartutil.Values{},
+			want:    common.Values{},
 			wantErr: false,
 		},
 		{
@@ -288,7 +288,7 @@ invalid`,
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tt.resources...)
 			var values map[string]interface{}
 			if tt.values != "" {
-				m, err := chartutil.ReadValues([]byte(tt.values))
+				m, err := common.ReadValues([]byte(tt.values))
 				g.Expect(err).ToNot(HaveOccurred())
 				values = m
 			}
@@ -345,7 +345,7 @@ func TestReplacePathValue(t *testing.T) {
 			name:  "target path with boolean value",
 			value: []byte("true"),
 			path:  "merge.at.specific.path",
-			want: chartutil.Values{
+			want: common.Values{
 				"merge": map[string]interface{}{
 					"at": map[string]interface{}{
 						"specific": map[string]interface{}{
@@ -359,7 +359,7 @@ func TestReplacePathValue(t *testing.T) {
 			name:  "target path with set-string behavior",
 			value: []byte(`"true"`),
 			path:  "merge.at.specific.path",
-			want: chartutil.Values{
+			want: common.Values{
 				"merge": map[string]interface{}{
 					"at": map[string]interface{}{
 						"specific": map[string]interface{}{
@@ -373,7 +373,7 @@ func TestReplacePathValue(t *testing.T) {
 			name:  "target path with array item",
 			value: []byte("value"),
 			path:  "merge.at[2]",
-			want: chartutil.Values{
+			want: common.Values{
 				"merge": map[string]interface{}{
 					"at": []interface{}{nil, nil, "value"},
 				},

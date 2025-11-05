@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"helm.sh/helm/v3/pkg/chartutil"
-	"helm.sh/helm/v3/pkg/strvals"
+	"helm.sh/helm/v4/pkg/chart/common"
+	"helm.sh/helm/v4/pkg/strvals"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -151,9 +151,9 @@ const (
 // unless a reference has a targetPath specified, in which case it will overwrite all.
 // It returns the merged values, or an ErrValuesReference error.
 func ChartValuesFromReferences(ctx context.Context, log logr.Logger, client kubeclient.Client, namespace string,
-	values map[string]interface{}, refs ...meta.ValuesReference) (chartutil.Values, error) {
+	values map[string]interface{}, refs ...meta.ValuesReference) (common.Values, error) {
 
-	result := chartutil.Values{}
+	result := common.Values{}
 	resources := make(map[string]kubeclient.Object)
 
 	for _, ref := range refs {
@@ -242,7 +242,7 @@ func ChartValuesFromReferences(ctx context.Context, log logr.Logger, client kube
 			continue
 		}
 
-		values, err := chartutil.ReadValues(valuesData)
+		values, err := common.ReadValues(valuesData)
 		if err != nil {
 			return nil, NewErrValuesReference(namespacedName, ref, ErrValuesDataRead, err)
 		}
@@ -254,7 +254,7 @@ func ChartValuesFromReferences(ctx context.Context, log logr.Logger, client kube
 // ReplacePathValue replaces the value at the dot notation path with the given
 // value using Helm's string value parser using strvals.ParseInto. Single or
 // double-quoted values are merged using strvals.ParseIntoString.
-func ReplacePathValue(values chartutil.Values, path string, value string) error {
+func ReplacePathValue(values common.Values, path string, value string) error {
 	const (
 		singleQuote = "'"
 		doubleQuote = `"`
