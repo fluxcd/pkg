@@ -12,18 +12,18 @@ replace (
 )
 
 require (
-	github.com/cyphar/filepath-securejoin v0.4.1
-	github.com/fluxcd/pkg/apis/meta v1.22.0
+	github.com/cyphar/filepath-securejoin v0.6.0
+	github.com/fluxcd/pkg/apis/meta v1.23.0
 	github.com/fluxcd/pkg/lockedfile v0.7.0
-	github.com/fluxcd/pkg/oci v0.57.0
+	github.com/fluxcd/pkg/oci v0.58.0
 	github.com/fluxcd/pkg/sourceignore v0.15.0
-	github.com/fluxcd/pkg/tar v0.15.0
+	github.com/fluxcd/pkg/tar v0.16.0
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/onsi/gomega v1.38.2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/go-digest/blake3 v0.0.0-20250813155314-89707e38ad1a
 	github.com/spf13/pflag v1.0.10
-	k8s.io/apimachinery v0.34.1
+	k8s.io/apimachinery v0.34.2
 )
 
 // Replace digest lib to master to gather access to BLAKE3.

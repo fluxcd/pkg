@@ -12,7 +12,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/distribution/distribution/v3 v3.0.0
 	github.com/fluxcd/pkg/sourceignore v0.15.0
-	github.com/fluxcd/pkg/tar v0.15.0
+	github.com/fluxcd/pkg/tar v0.16.0
 	github.com/fluxcd/pkg/version v0.11.0
 	github.com/google/go-containerregistry v0.20.6
 	github.com/onsi/gomega v1.38.2
@@ -26,7 +26,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
-	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
+	github.com/cyphar/filepath-securejoin v0.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect

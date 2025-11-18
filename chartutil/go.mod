@@ -9,15 +9,15 @@ replace github.com/fluxcd/pkg/apis/meta => ../apis/meta
 replace github.com/opencontainers/go-digest => github.com/opencontainers/go-digest v1.0.1-0.20231025023718-d50d2fec9c98
 
 require (
-	github.com/fluxcd/pkg/apis/meta v1.22.0
+	github.com/fluxcd/pkg/apis/meta v1.23.0
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/gomega v1.38.2
 	github.com/opencontainers/go-digest v1.0.0
-	go.yaml.in/yaml/v2 v2.4.2
-	helm.sh/helm/v3 v3.19.1
-	k8s.io/api v0.34.1
-	k8s.io/apimachinery v0.34.1
-	sigs.k8s.io/controller-runtime v0.22.2
+	go.yaml.in/yaml/v2 v2.4.3
+	helm.sh/helm/v3 v3.19.2
+	k8s.io/api v0.34.2
+	k8s.io/apimachinery v0.34.2
+	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/yaml v1.6.0
 )
 
