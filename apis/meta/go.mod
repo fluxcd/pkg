@@ -2,7 +2,7 @@ module github.com/fluxcd/pkg/apis/meta
 
 go 1.25.0
 
-require k8s.io/apimachinery v0.34.1
+require k8s.io/apimachinery v0.34.2
 
 require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect

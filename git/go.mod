@@ -10,11 +10,11 @@ replace (
 require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.17.0
-	github.com/cyphar/filepath-securejoin v0.4.1
+	github.com/cyphar/filepath-securejoin v0.6.0
 	github.com/fluxcd/pkg/cache v0.12.0
 	github.com/fluxcd/pkg/ssh v0.22.0
 	github.com/onsi/gomega v1.38.2
-	golang.org/x/net v0.45.0
+	golang.org/x/net v0.47.0
 )
 
 require (
@@ -37,8 +37,8 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.42.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 )

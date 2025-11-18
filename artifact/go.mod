@@ -12,7 +12,7 @@ replace (
 )
 
 require (
-	github.com/cyphar/filepath-securejoin v0.4.1
+	github.com/cyphar/filepath-securejoin v0.6.0
 	github.com/fluxcd/pkg/apis/meta v1.22.0
 	github.com/fluxcd/pkg/lockedfile v0.7.0
 	github.com/fluxcd/pkg/oci v0.57.0
@@ -23,7 +23,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/go-digest/blake3 v0.0.0-20250813155314-89707e38ad1a
 	github.com/spf13/pflag v1.0.10
-	k8s.io/apimachinery v0.34.1
+	k8s.io/apimachinery v0.34.2
 )
 
 // Replace digest lib to master to gather access to BLAKE3.

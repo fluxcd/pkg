@@ -34,7 +34,7 @@ import (
 	"github.com/fluxcd/pkg/git"
 	pkggithub "github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/git/gogit"
-	gogithub "github.com/google/go-github/v66/github"
+	gogithub "github.com/google/go-github/v75/github"
 )
 
 const (
