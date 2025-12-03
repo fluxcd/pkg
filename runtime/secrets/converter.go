@@ -23,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
+	"strings"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -132,6 +134,9 @@ func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, opts ...TLS
 // The function expects the secret to contain an "address" field with the
 // proxy URL. Optional "username" and "password" fields can be provided
 // for proxy authentication.
+//
+// Supported proxy schemes are: http, https, and socks5.
+// The proxy URL must not exceed 2048 characters.
 func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, error) {
 	addressData, exists := secret.Data[KeyAddress]
 	if !exists {
@@ -144,10 +149,10 @@ func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, e
 		return nil, fmt.Errorf("secret '%s': proxy address is empty", ref)
 	}
 
-	proxyURL, err := url.Parse(address)
+	proxyURL, err := parseProxyURL(address)
 	if err != nil {
 		ref := client.ObjectKeyFromObject(secret)
-		return nil, fmt.Errorf("secret '%s': failed to parse proxy address '%s': %w", ref, address, err)
+		return nil, fmt.Errorf("secret '%s': %w", ref, err)
 	}
 
 	username, hasUsername := secret.Data[KeyUsername]
@@ -160,6 +165,39 @@ func ProxyURLFromSecret(ctx context.Context, secret *corev1.Secret) (*url.URL, e
 	}
 
 	return proxyURL, nil
+}
+
+func parseProxyURL(address string) (*url.URL, error) {
+	if err := validateProxyURLString(address); err != nil {
+		return nil, err
+	}
+
+	u, err := url.Parse(address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse proxy address '%s': %w", address, err)
+	}
+
+	if err := validateProxyURLStruct(u); err != nil {
+		return nil, err
+	}
+
+	return u, nil
+}
+
+func validateProxyURLString(address string) error {
+	if len(address) > MaxProxyURLLength {
+		return fmt.Errorf("proxy URL exceeds maximum length of %d characters", MaxProxyURLLength)
+	}
+	return nil
+}
+
+func validateProxyURLStruct(u *url.URL) error {
+	if !slices.Contains(supportedProxySchemes, u.Scheme) {
+		supportedSchemes := strings.Join(supportedProxySchemes, ", ")
+		return fmt.Errorf("proxy URL must use one of the supported schemes (%s), got '%s'",
+			supportedSchemes, u.Scheme)
+	}
+	return nil
 }
 
 // BasicAuthFromSecret retrieves basic authentication credentials from a Kubernetes secret.

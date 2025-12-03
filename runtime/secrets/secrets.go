@@ -69,7 +69,14 @@ const (
 	KeySSHPublicKey = "identity.pub"
 	// KeySSHKnownHosts is the key for SSH known hosts data in secrets.
 	KeySSHKnownHosts = "known_hosts"
+
+	// MaxProxyURLLength is the maximum allowed length for proxy URLs.
+	MaxProxyURLLength = 2048
 )
+
+// supportedProxySchemes defines the officially supported proxy URL schemes.
+// See https://fluxcd.io/flux/installation/configuration/proxy-setting for more information.
+var supportedProxySchemes = []string{"http", "https", "socks5"}
 
 // AuthMethods holds all available authentication methods detected from a secret.
 type AuthMethods struct {
