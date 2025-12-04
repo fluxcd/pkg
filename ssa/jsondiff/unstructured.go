@@ -246,6 +246,11 @@ func copyAnnotationsAndLabels(obj *unstructured.Unstructured) *unstructured.Unst
 		Object: make(map[string]interface{}),
 	}
 
+	name, ok, _ := unstructured.NestedFieldCopy(obj.Object, "metadata", "name")
+	if ok {
+		_ = unstructured.SetNestedField(c.Object, name, "metadata", "name")
+	}
+
 	annotations, ok, _ := unstructured.NestedFieldCopy(obj.Object, "metadata", "annotations")
 	if ok {
 		_ = unstructured.SetNestedField(c.Object, annotations, "metadata", "annotations")

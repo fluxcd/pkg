@@ -508,6 +508,25 @@ func TestUnstructured(t *testing.T) {
 			},
 		},
 		{
+			name: "ConfigMap with added label and annotation",
+			path: "testdata/empty-configmap.yaml",
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
+				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
+			},
+			want: func(desired, cluster client.Object) *Diff {
+				return &Diff{
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
+					Patch: jsondiff.Patch{
+						{Type: jsondiff.OperationAdd, Path: "/metadata/annotations", Value: map[string]string{"annotated": "yes"}},
+						{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]string{"labeled": "yes"}},
+					},
+				}
+			},
+		},
+		{
 			name: "Deployment with missing label and annotation",
 			path: "testdata/deployment.yaml",
 			mutateCluster: func(obj *unstructured.Unstructured) {
