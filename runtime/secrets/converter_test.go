@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -751,6 +752,79 @@ func TestProxyURLFromSecret(t *testing.T) {
 				}),
 			),
 			errMsg: "secret 'default/proxy-secret': failed to parse proxy address",
+		},
+		{
+			name: "socks5 proxy",
+			secret: testSecret(
+				withName("proxy-secret"),
+				withData(map[string][]byte{
+					secrets.KeyAddress: []byte("socks5://socks-proxy.example.com:1080"),
+				}),
+			),
+			wantURL: "socks5://socks-proxy.example.com:1080",
+		},
+		{
+			name: "socks5 proxy with authentication",
+			secret: testSecret(
+				withName("proxy-secret"),
+				withData(map[string][]byte{
+					secrets.KeyAddress:  []byte("socks5://socks-proxy.example.com:1080"),
+					secrets.KeyUsername: []byte("sockuser"),
+					secrets.KeyPassword: []byte("sockpass"),
+				}),
+			),
+			wantURL: "socks5://sockuser:sockpass@socks-proxy.example.com:1080",
+		},
+		{
+			name: "unsupported scheme - ftp",
+			secret: testSecret(
+				withName("proxy-secret"),
+				withData(map[string][]byte{
+					secrets.KeyAddress: []byte("ftp://ftp.example.com:21"),
+				}),
+			),
+			errMsg: "proxy URL must use one of the supported schemes (http, https, socks5), got 'ftp'",
+		},
+		{
+			name: "unsupported scheme - socks4",
+			secret: testSecret(
+				withName("proxy-secret"),
+				withData(map[string][]byte{
+					secrets.KeyAddress: []byte("socks4://proxy.example.com:1080"),
+				}),
+			),
+			errMsg: "proxy URL must use one of the supported schemes (http, https, socks5), got 'socks4'",
+		},
+		{
+			name: "URL exceeds maximum length",
+			secret: testSecret(
+				withName("proxy-secret"),
+				withData(map[string][]byte{
+					secrets.KeyAddress: []byte("http://" + strings.Repeat("a", 2050)),
+				}),
+			),
+			errMsg: "proxy URL exceeds maximum length of 2048 characters",
+		},
+		{
+			name: "URL at maximum length boundary",
+			secret: testSecret(
+				withName("proxy-secret"),
+				withData(map[string][]byte{
+					// Create a URL exactly 2048 characters (http:// = 7 chars, so 2041 'a's)
+					secrets.KeyAddress: []byte("http://" + strings.Repeat("a", 2041)),
+				}),
+			),
+			wantURL: "http://" + strings.Repeat("a", 2041),
+		},
+		{
+			name: "missing scheme",
+			secret: testSecret(
+				withName("proxy-secret"),
+				withData(map[string][]byte{
+					secrets.KeyAddress: []byte("//proxy.example.com:8080"),
+				}),
+			),
+			errMsg: "proxy URL must use one of the supported schemes (http, https, socks5), got ''",
 		},
 	}
 
