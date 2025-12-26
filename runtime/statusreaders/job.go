@@ -61,13 +61,23 @@ func (j *customJobStatusReader) ReadStatusForObject(ctx context.Context, reader 
 func jobConditions(u *unstructured.Unstructured) (*status.Result, error) {
 	obj := u.UnstructuredContent()
 
+	// Check if the Job is suspended and mark as Current if so.
+	if suspended, found, err := unstructured.NestedBool(obj, "spec", "suspend"); err == nil && found && suspended {
+		message := "Job is suspended"
+		return &status.Result{
+			Status:     status.CurrentStatus,
+			Message:    message,
+			Conditions: []status.Condition{},
+		}, nil
+	}
+
 	parallelism := status.GetIntField(obj, ".spec.parallelism", 1)
 	completions := status.GetIntField(obj, ".spec.completions", parallelism)
+	active := status.GetIntField(obj, ".status.active", 0)
 	succeeded := status.GetIntField(obj, ".status.succeeded", 0)
 	failed := status.GetIntField(obj, ".status.failed", 0)
+	startTime := status.GetStringField(obj, ".status.startTime", "")
 
-	// Conditions
-	// https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/job/utils.go#L24
 	objc, err := status.GetObjectWithConditions(obj)
 	if err != nil {
 		return nil, err
@@ -102,7 +112,23 @@ func jobConditions(u *unstructured.Unstructured) (*status.Result, error) {
 		}
 	}
 
-	message := "Job in progress"
+	if startTime == "" {
+		message := fmt.Sprintf("Job not started. active: 0/%d", parallelism)
+		return &status.Result{
+			Status:  status.InProgressStatus,
+			Message: message,
+			Conditions: []status.Condition{
+				{
+					Type:    status.ConditionReconciling,
+					Status:  corev1.ConditionTrue,
+					Reason:  "JobNotStarted",
+					Message: message,
+				},
+			},
+		}, nil
+	}
+
+	message := fmt.Sprintf("Job in progress. success:%d, active: %d, failed: %d", succeeded, active, failed)
 	return &status.Result{
 		Status:  status.InProgressStatus,
 		Message: message,
@@ -115,4 +141,18 @@ func jobConditions(u *unstructured.Unstructured) (*status.Result, error) {
 			},
 		},
 	}, nil
+}
+
+// ComputeJobStatus computes the status of a Kubernetes Job resource.
+// It returns a status.Result indicating whether the Job is InProgress, Failed, or Current.
+// if the status cannot be determined, it returns Unknown with an error message.
+func ComputeJobStatus(u *unstructured.Unstructured) status.Result {
+	res, err := jobConditions(u)
+	if err != nil {
+		return status.Result{
+			Status:  status.UnknownStatus,
+			Message: fmt.Sprintf("Failed to compute job status: %s", err.Error()),
+		}
+	}
+	return *res
 }
