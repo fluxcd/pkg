@@ -296,6 +296,26 @@ func TestProvider_ParseArtifactRepository(t *testing.T) {
 		expectValid        bool
 	}{
 		{
+			artifactRepository: "012345678901.dkr.ecr.eusc-de-east-1.amazonaws.eu/foo:v1",
+			expectedRegion:     "eusc-de-east-1",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "012345678901.dkr.ecr.eusc-de-east-1.amazonaws.eu/foo",
+			expectedRegion:     "eusc-de-east-1",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "012345678901.dkr.ecr.eusc-de-east-1.amazonaws.eu",
+			expectedRegion:     "eusc-de-east-1",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "012345678901.dkr.ecr.eusc-de-east-1.amazonaws.eu/v2/part/part",
+			expectedRegion:     "eusc-de-east-1",
+			expectValid:        true,
+		},
+		{
 			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1",
 			expectedRegion:     "us-east-1",
 			expectValid:        true,
