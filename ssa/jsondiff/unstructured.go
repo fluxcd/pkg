@@ -246,6 +246,14 @@ func copyAnnotationsAndLabels(obj *unstructured.Unstructured) *unstructured.Unst
 		Object: make(map[string]interface{}),
 	}
 
+	// When annotations and labels were missing on the cluster object but present on the desired object, drift
+	//	detection produced an "add /metadata" patch. JSON Patch interprets this as replacing the entire metadata block,
+	//	dropping fields like metadata.name. By copying name, we preserve at least one field in metadata to avoid this.
+	name, ok, _ := unstructured.NestedFieldCopy(obj.Object, "metadata", "name")
+	if ok {
+		_ = unstructured.SetNestedField(c.Object, name, "metadata", "name")
+	}
+
 	annotations, ok, _ := unstructured.NestedFieldCopy(obj.Object, "metadata", "annotations")
 	if ok {
 		_ = unstructured.SetNestedField(c.Object, annotations, "metadata", "annotations")

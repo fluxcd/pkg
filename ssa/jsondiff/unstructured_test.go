@@ -94,10 +94,8 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[1],
 						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationAdd, Path: "/metadata", Value: map[string]interface{}{
-								"annotations": map[string]interface{}{
-									"annotated": "yes",
-								},
+							{Type: jsondiff.OperationAdd, Path: "/metadata/annotations", Value: map[string]interface{}{
+								"annotated": "yes",
 							}},
 						},
 					},
@@ -250,10 +248,8 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[1],
 						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationAdd, Path: "/metadata", Value: map[string]interface{}{
-								"labels": map[string]interface{}{
-									"labeled": "change",
-								},
+							{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]interface{}{
+								"labeled": "change",
 							}},
 						},
 					},
@@ -294,10 +290,8 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[1],
 						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationAdd, Path: "/metadata", Value: map[string]interface{}{
-								"labels": map[string]interface{}{
-									"labeled": "change",
-								},
+							{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]interface{}{
+								"labeled": "change",
 							}},
 						},
 					},
@@ -503,6 +497,44 @@ func TestUnstructured(t *testing.T) {
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationAdd, Path: "/metadata/annotations/annotated", Value: "yes"},
 						{Type: jsondiff.OperationAdd, Path: "/metadata/labels/labeled", Value: "yes"},
+					},
+				}
+			},
+		},
+		{
+			name: "ConfigMap with added label and annotation",
+			path: "testdata/empty-configmap.yaml",
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
+				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
+			},
+			want: func(desired, cluster client.Object) *Diff {
+				return &Diff{
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
+					Patch: jsondiff.Patch{
+						{Type: jsondiff.OperationAdd, Path: "/metadata/annotations", Value: map[string]interface{}{"annotated": "yes"}},
+						{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]interface{}{"labeled": "yes"}},
+					},
+				}
+			},
+		},
+		{
+			name: "Annotated ConfigMap with added label and annotation",
+			path: "testdata/annotated-configmap.yaml",
+			mutateDesired: func(obj *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "annotations", "annotated")
+				_ = unstructured.SetNestedField(obj.Object, "yes", "metadata", "labels", "labeled")
+			},
+			want: func(desired, cluster client.Object) *Diff {
+				return &Diff{
+					Type:          DiffTypeUpdate,
+					DesiredObject: desired,
+					ClusterObject: cluster,
+					Patch: jsondiff.Patch{
+						{Type: jsondiff.OperationAdd, Path: "/metadata/annotations/annotated", Value: "yes"},
+						{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]interface{}{"labeled": "yes"}},
 					},
 				}
 			},
