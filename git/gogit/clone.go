@@ -135,6 +135,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		return nil, fmt.Errorf("unable to resolve commit object for HEAD '%s': %w", head.Hash(), err)
 	}
 	g.repository = repo
+	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
 	return buildCommitWithRef(cc, nil, ref)
 }
 
@@ -234,6 +235,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 	}
 
 	g.repository = repo
+	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
 	return buildCommitWithRef(cc, tagObj, ref)
 }
 
@@ -302,6 +304,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 	}
 
 	g.repository = repo
+	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
 	return buildCommitWithRef(cc, nil, cloneOpts.ReferenceName)
 }
 
@@ -435,6 +438,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 	}
 
 	g.repository = repo
+	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
 	return buildCommitWithRef(cc, tagObj, tagRef.Name())
 }
 
