@@ -10,9 +10,7 @@ permissions: read-all
 
 jobs:
   test:
-    runs-on:
-      group: "Default Larger Runners"
-      labels: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
