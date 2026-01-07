@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v4/pkg/chart/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -147,9 +147,9 @@ other: values
 		}
 
 		c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(resources...)
-		var values chartutil.Values
+		var values common.Values
 		if hrValues != "" {
-			values, _ = chartutil.ReadValues([]byte(hrValues))
+			values, _ = common.ReadValues([]byte(hrValues))
 		}
 
 		_, _ = ChartValuesFromReferences(context.TODO(), logr.Discard(), c.Build(), objectNamespace, values, references...)

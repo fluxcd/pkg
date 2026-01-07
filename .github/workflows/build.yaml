@@ -10,7 +10,9 @@ permissions: read-all
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: "Default Larger Runners"
+      labels: ubuntu-latest-4-cores
     steps:
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
