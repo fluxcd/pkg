@@ -394,11 +394,14 @@ func TestForcePush(t *testing.T) {
 
 func TestSwitchBranch(t *testing.T) {
 	tests := []struct {
-		name         string
-		setupFunc    func(g *WithT, path string) string
-		changeRepo   func(g *WithT, c *Client) string
-		branch       string
-		singleBranch bool
+		name                      string
+		setupFunc                 func(g *WithT, path string) string
+		changeRepo                func(g *WithT, c *Client) string
+		branch                    string
+		singleBranch              bool
+		sparseCheckoutDirectories []string
+		expectedFiles             []string
+		expectedNoFiles           []string
 	}{
 		{
 			name: "switch to a branch ahead of the current branch",
@@ -537,6 +540,37 @@ func TestSwitchBranch(t *testing.T) {
 			setupFunc: nil,
 			branch:    "new",
 		},
+		{
+			name: "switch branch preserves sparse checkout directories",
+			setupFunc: func(g *WithT, repoURL string) string {
+				tmp := t.TempDir()
+				repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+					URL:           repoURL,
+					ReferenceName: plumbing.NewBranchReferenceName(git.DefaultBranch),
+					RemoteName:    git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+
+				err = createBranch(repo, "sparse-branch")
+				g.Expect(err).ToNot(HaveOccurred())
+
+				// Create files in different directories
+				_, err = commitFile(repo, "dir1/file1", "content in dir1", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				cc, err := commitFile(repo, "dir2/file2", "content in dir2", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+
+				err = repo.Push(&extgogit.PushOptions{
+					RemoteName: git.DefaultRemote,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+				return cc.String()
+			},
+			branch:                    "sparse-branch",
+			sparseCheckoutDirectories: []string{"dir1"},
+			expectedFiles:             []string{"dir1/file1"},
+			expectedNoFiles:           []string{"dir2/file2"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -571,6 +605,7 @@ func TestSwitchBranch(t *testing.T) {
 			ggc, err := NewClient(tmp, nil)
 			g.Expect(err).ToNot(HaveOccurred())
 			ggc.repository = repo
+			ggc.sparseCheckoutDirectories = tt.sparseCheckoutDirectories
 
 			if tt.changeRepo != nil {
 				expectedHash = tt.changeRepo(g, ggc)
@@ -583,6 +618,18 @@ func TestSwitchBranch(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(ref.Name().Short()).To(Equal(tt.branch))
 			g.Expect(ref.Hash().String()).To(Equal(expectedHash))
+
+			// Verify sparse checkout: included files should exist
+			for _, file := range tt.expectedFiles {
+				_, err := os.Stat(filepath.Join(tmp, file))
+				g.Expect(err).ToNot(HaveOccurred(), "file %s should exist with sparse checkout", file)
+			}
+
+			// Verify sparse checkout: excluded files should not exist
+			for _, noFile := range tt.expectedNoFiles {
+				_, err := os.Stat(filepath.Join(tmp, noFile))
+				g.Expect(os.IsNotExist(err)).To(BeTrue(), "file %s should not exist with sparse checkout", noFile)
+			}
 		})
 	}
 }

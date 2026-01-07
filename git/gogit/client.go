@@ -69,15 +69,16 @@ const ClientName = "go-git"
 // Client implements repository.Client.
 type Client struct {
 	*repository.DiscardCloser
-	path                 string
-	repository           *extgogit.Repository
-	authOpts             *git.AuthOptions
-	storer               storage.Storer
-	worktreeFS           billy.Filesystem
-	credentialsOverHTTP  bool
-	useDefaultKnownHosts bool
-	singleBranch         bool
-	proxy                transport.ProxyOptions
+	path                      string
+	repository                *extgogit.Repository
+	authOpts                  *git.AuthOptions
+	storer                    storage.Storer
+	worktreeFS                billy.Filesystem
+	credentialsOverHTTP       bool
+	useDefaultKnownHosts      bool
+	singleBranch              bool
+	proxy                     transport.ProxyOptions
+	sparseCheckoutDirectories []string
 }
 
 var _ repository.Client = &Client{}
@@ -503,8 +504,9 @@ func (g *Client) SwitchBranch(ctx context.Context, branchName string) error {
 	}
 
 	err = wt.Checkout(&extgogit.CheckoutOptions{
-		Branch: refName,
-		Create: create,
+		Branch:                    refName,
+		Create:                    create,
+		SparseCheckoutDirectories: g.sparseCheckoutDirectories,
 	})
 	if err != nil {
 		return fmt.Errorf("could not checkout to branch '%s': %w", branchName, err)
