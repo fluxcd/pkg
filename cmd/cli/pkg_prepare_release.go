@@ -22,7 +22,6 @@ import (
 	"os/exec"
 
 	"github.com/spf13/cobra"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/fluxcd/pkg/cmd/internal"
 )
@@ -46,7 +45,7 @@ func init() {
 }
 
 func runPrepareRelease(cmd *cobra.Command, args []string) error {
-	ctx := ctrl.SetupSignalHandler()
+	ctx := setupSignalHandler()
 
 	res, err := internal.ComputeModuleBumps(ctx)
 	if err != nil {
