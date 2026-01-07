@@ -55,6 +55,25 @@ generate-%: controller-gen
 test:
 	$(MAKE) $(addprefix test-, $(MODULES))
 
+# Run tests for a chunk of modules (usage: make test-chunk CHUNK=1/4)
+# CHUNK format: N/M where N is the chunk number (1-indexed) and M is total chunks
+CHUNK ?= 1/1
+test-chunk:
+	@CHUNK_NUM=$$(echo $(CHUNK) | cut -d'/' -f1); \
+	TOTAL_CHUNKS=$$(echo $(CHUNK) | cut -d'/' -f2); \
+	MODULES_LIST="$(MODULES)"; \
+	TOTAL_MODULES=$$(echo $$MODULES_LIST | tr ' ' '\n' | wc -l); \
+	CHUNK_SIZE=$$(( (TOTAL_MODULES + TOTAL_CHUNKS - 1) / TOTAL_CHUNKS )); \
+	START_IDX=$$(( (CHUNK_NUM - 1) * CHUNK_SIZE + 1 )); \
+	END_IDX=$$(( CHUNK_NUM * CHUNK_SIZE )); \
+	if [ $$END_IDX -gt $$TOTAL_MODULES ]; then END_IDX=$$TOTAL_MODULES; fi; \
+	CHUNK_MODULES=$$(echo $$MODULES_LIST | tr ' ' '\n' | sed -n "$${START_IDX},$${END_IDX}p" | tr '\n' ' '); \
+	echo "Running tests for chunk $(CHUNK): modules $$START_IDX-$$END_IDX of $$TOTAL_MODULES"; \
+	echo "Modules: $$CHUNK_MODULES"; \
+	for mod in $$CHUNK_MODULES; do \
+		$(MAKE) test-$$mod || exit 1; \
+	done
+
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
 test-%: tidy-% generate-% fmt-% vet-% install-envtest
