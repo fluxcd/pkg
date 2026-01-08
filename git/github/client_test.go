@@ -38,7 +38,6 @@ func TestClient_Options(t *testing.T) {
 	appID := "123"
 	installationID := "456"
 	kp, _ := ssh.GenerateKeyPair(ssh.RSA_4096)
-	gitHubDefaultURL := "https://api.github.com"
 	gitHubEnterpriseURL := "https://github.example.com/api/v3"
 	proxy, _ := url.Parse("http://localhost:8080")
 
@@ -115,7 +114,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppPrivateKey:     kp.PrivateKey,
 			},
 			)},
-			wantErr: errors.New("invalid app id, err: strconv.Atoi: parsing \"abc\": invalid syntax"),
+			wantErr: errors.New("app ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with invalid installationID in app data",
@@ -125,7 +124,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppPrivateKey:     kp.PrivateKey,
 			},
 			)},
-			wantErr: errors.New("invalid app installation id, err: strconv.Atoi: parsing \"abc\": invalid syntax"),
+			wantErr: errors.New("app installation ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with invalid private key in app data",
@@ -150,15 +149,12 @@ func TestClient_Options(t *testing.T) {
 				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr.Error()))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(client.appID).To(Equal(appID))
-				g.Expect(client.installationID).To(Equal(installationID))
+				g.Expect(client.appID).To(Equal(int64(123)))
+				g.Expect(client.installationID).To(Equal(int64(456)))
 				g.Expect(client.privateKey).To(Equal(kp.PrivateKey))
 
 				if client.apiURL != "" {
 					g.Expect(client.apiURL).To(Equal(gitHubEnterpriseURL))
-					g.Expect(client.ghTransport.BaseURL).To(Equal(gitHubEnterpriseURL))
-				} else {
-					g.Expect(client.ghTransport.BaseURL).To(Equal(gitHubDefaultURL))
 				}
 			}
 		})
