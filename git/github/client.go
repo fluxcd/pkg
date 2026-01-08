@@ -18,6 +18,7 @@ package github
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/tls"
 	"fmt"
@@ -27,7 +28,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bradleyfalzon/ghinstallation/v2"
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/go-github/v81/github"
 	"golang.org/x/net/http/httpproxy"
 
 	"github.com/fluxcd/pkg/cache"
@@ -44,12 +46,13 @@ const (
 
 // Client is an authentication provider for GitHub Apps.
 type Client struct {
-	appID          string
-	installationID string
+	appID          int64
+	installationID int64
 	privateKey     []byte
+	rsaKey         *rsa.PrivateKey
 	apiURL         string
 	proxyURL       *url.URL
-	ghTransport    *ghinstallation.Transport
+	httpClient     *http.Client
 	cache          *cache.TokenCache
 	kind           string
 	name           string
@@ -84,34 +87,26 @@ func New(opts ...OptFunc) (*Client, error) {
 		transport.Proxy = proxyFunc
 	}
 
-	if len(p.appID) == 0 {
+	if p.appID == 0 {
 		return nil, fmt.Errorf("app ID must be provided to use github app authentication")
 	}
-	appID, err := strconv.Atoi(p.appID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid app id, err: %w", err)
-	}
 
-	if len(p.installationID) == 0 {
+	if p.installationID == 0 {
 		return nil, fmt.Errorf("app installation ID must be provided to use github app authentication")
-	}
-	installationID, err := strconv.Atoi(p.installationID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid app installation id, err: %w", err)
 	}
 
 	if len(p.privateKey) == 0 {
 		return nil, fmt.Errorf("private key must be provided to use github app authentication")
 	}
 
-	p.ghTransport, err = ghinstallation.New(transport, int64(appID), int64(installationID), p.privateKey)
+	// Parse and store the private key
+	rsaKey, err := jwt.ParseRSAPrivateKeyFromPEM(p.privateKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not parse private key: %w", err)
 	}
+	p.rsaKey = rsaKey
 
-	if p.apiURL != "" {
-		p.ghTransport.BaseURL = p.apiURL
-	}
+	p.httpClient = &http.Client{Transport: transport}
 
 	return p, nil
 }
@@ -123,23 +118,20 @@ func WithTLSConfig(tlsConfig *tls.Config) OptFunc {
 	}
 }
 
-// WithAppData configures the client using data from a map
+// WithAppData configures the client using data from a map.
+// Note: appID and installationID parsing errors are deferred to New().
 func WithAppData(appData map[string][]byte) OptFunc {
 	return func(p *Client) {
-		val, ok := appData[KeyAppID]
-		if ok {
-			p.appID = string(val)
+		if val, ok := appData[KeyAppID]; ok {
+			p.appID, _ = strconv.ParseInt(string(val), 10, 64)
 		}
-		val, ok = appData[KeyAppInstallationID]
-		if ok {
-			p.installationID = string(val)
+		if val, ok := appData[KeyAppInstallationID]; ok {
+			p.installationID, _ = strconv.ParseInt(string(val), 10, 64)
 		}
-		val, ok = appData[KeyAppPrivateKey]
-		if ok {
+		if val, ok := appData[KeyAppPrivateKey]; ok {
 			p.privateKey = val
 		}
-		val, ok = appData[KeyAppBaseURL]
-		if ok {
+		if val, ok := appData[KeyAppBaseURL]; ok {
 			p.apiURL = string(val)
 		}
 	}
@@ -180,20 +172,7 @@ func (at *AppToken) GetDuration() time.Duration {
 // Ref: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
 func (p *Client) GetToken(ctx context.Context) (*AppToken, error) {
 	newToken := func(ctx context.Context) (cache.Token, error) {
-		token, err := p.ghTransport.Token(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		expiresAt, _, err := p.ghTransport.Expiry()
-		if err != nil {
-			return nil, err
-		}
-
-		return &AppToken{
-			Token:     token,
-			ExpiresAt: expiresAt,
-		}, nil
+		return p.createInstallationToken(ctx)
 	}
 
 	if p.cache == nil {
@@ -216,6 +195,57 @@ func (p *Client) GetToken(ctx context.Context) (*AppToken, error) {
 	return token.(*AppToken), nil
 }
 
+// createJWT creates a JWT for GitHub App authentication.
+func (p *Client) createJWT() (string, error) {
+	// Truncate to seconds - GitHub rejects fractional timestamps
+	now := time.Now().Truncate(time.Second)
+	iat := now.Add(-30 * time.Second) // Clock drift allowance
+	exp := iat.Add(2 * time.Minute)   // Short-lived JWT (only used to get installation token)
+	claims := jwt.RegisteredClaims{
+		IssuedAt:  jwt.NewNumericDate(iat),
+		ExpiresAt: jwt.NewNumericDate(exp),
+		Issuer:    strconv.FormatInt(p.appID, 10),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	return token.SignedString(p.rsaKey)
+}
+
+// createInstallationToken creates an installation access token using the GitHub API.
+func (p *Client) createInstallationToken(ctx context.Context) (*AppToken, error) {
+	jwtToken, err := p.createJWT()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a GitHub client authenticated with the JWT
+	ghClient := github.NewClient(p.httpClient).WithAuthToken(jwtToken)
+
+	// Set custom base URL for GitHub Enterprise
+	if p.apiURL != "" {
+		apiURL := p.apiURL
+		if !strings.HasSuffix(apiURL, "/") {
+			apiURL += "/"
+		}
+		baseURL, err := url.Parse(apiURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid API URL: %w", err)
+		}
+		ghClient.BaseURL = baseURL
+	}
+
+	// Create the installation token
+	token, _, err := ghClient.Apps.CreateInstallationToken(ctx, p.installationID, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AppToken{
+		Token:     token.GetToken(),
+		ExpiresAt: token.GetExpiresAt().Time,
+	}, nil
+}
+
 // GetCredentials returns the GitHub App installation username and password
 // for authenticating Git operations.
 func GetCredentials(ctx context.Context, opts ...OptFunc) (string, string, error) {
@@ -232,8 +262,8 @@ func GetCredentials(ctx context.Context, opts ...OptFunc) (string, string, error
 
 func (p *Client) buildCacheKey() string {
 	keyParts := []string{
-		fmt.Sprintf("%s=%s", KeyAppID, p.appID),
-		fmt.Sprintf("%s=%s", KeyAppInstallationID, p.installationID),
+		fmt.Sprintf("%s=%d", KeyAppID, p.appID),
+		fmt.Sprintf("%s=%d", KeyAppInstallationID, p.installationID),
 		fmt.Sprintf("%s=%s", KeyAppBaseURL, p.apiURL),
 		fmt.Sprintf("%s=%s", KeyAppPrivateKey, string(p.privateKey)),
 	}
