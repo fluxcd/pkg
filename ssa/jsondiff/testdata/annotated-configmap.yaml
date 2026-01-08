@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "configmap-data"
+  annotations:
+    prev: some-previous-value
