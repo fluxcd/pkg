@@ -7,7 +7,6 @@ replace (
 	github.com/fluxcd/pkg/auth => ../../auth
 	github.com/fluxcd/pkg/cache => ../../cache
 	github.com/fluxcd/pkg/git => ../../git
-	github.com/fluxcd/pkg/git/gogit => ../../git/gogit
 	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
 	github.com/fluxcd/pkg/runtime => ../../runtime
 	github.com/fluxcd/pkg/ssh => ../../ssh
@@ -20,8 +19,7 @@ require (
 	github.com/fluxcd/pkg/apis/meta v1.24.0
 	github.com/fluxcd/pkg/auth v0.34.0
 	github.com/fluxcd/pkg/cache v0.12.0
-	github.com/fluxcd/pkg/git v0.38.0
-	github.com/fluxcd/pkg/git/gogit v0.43.0
+	github.com/fluxcd/pkg/git v0.39.0
 	github.com/fluxcd/pkg/runtime v0.93.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.16.4
@@ -76,7 +74,7 @@ require (
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
-	github.com/cyphar/filepath-securejoin v0.6.0 // indirect
+	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/cli v28.3.3+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect

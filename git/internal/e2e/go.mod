@@ -5,7 +5,6 @@ go 1.25.0
 replace (
 	github.com/fluxcd/pkg/cache => ../../../cache
 	github.com/fluxcd/pkg/git => ../../../git
-	github.com/fluxcd/pkg/git/gogit => ../../gogit
 	github.com/fluxcd/pkg/gittestserver => ../../../gittestserver
 	github.com/fluxcd/pkg/ssh => ../../../ssh
 	github.com/fluxcd/pkg/version => ../../../version
@@ -13,9 +12,8 @@ replace (
 
 require (
 	github.com/fluxcd/go-git-providers v0.25.0
-	github.com/fluxcd/pkg/git v0.38.0
-	github.com/fluxcd/pkg/git/gogit v0.43.0
-	github.com/fluxcd/pkg/gittestserver v0.22.0
+	github.com/fluxcd/pkg/git v0.39.0
+	github.com/fluxcd/pkg/gittestserver v0.23.0
 	github.com/fluxcd/pkg/ssh v0.23.0
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/go-logr/logr v1.4.3
@@ -32,7 +30,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
-	github.com/cyphar/filepath-securejoin v0.6.0 // indirect
+	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fluxcd/gitkit v0.6.0 // indirect
 	github.com/fluxcd/pkg/cache v0.12.0 // indirect
