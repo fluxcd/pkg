@@ -37,7 +37,7 @@ import (
 func TestPollerWithCustomHealthChecks(t *testing.T) {
 	g := NewWithT(t)
 
-	result, err := cel.PollerWithCustomHealthChecks(context.Background(), []kustomize.CustomHealthCheck{
+	result, err := cel.PollerWithCustomHealthChecks([]kustomize.CustomHealthCheck{
 		{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
@@ -78,7 +78,7 @@ func TestPollerWithCustomHealthChecks(t *testing.T) {
 func TestPollerWithCustomHealthChecksError(t *testing.T) {
 	g := NewWithT(t)
 
-	result, err := cel.PollerWithCustomHealthChecks(context.Background(), []kustomize.CustomHealthCheck{{
+	result, err := cel.PollerWithCustomHealthChecks([]kustomize.CustomHealthCheck{{
 		APIVersion: "v1",
 		Kind:       "ConfigMap",
 		HealthCheckExpressions: kustomize.HealthCheckExpressions{
@@ -139,7 +139,7 @@ func TestStatusPoller_CustomResourceLifeCycle(t *testing.T) {
 
 	mapper := testEnv.GetRESTMapper()
 
-	ctors, err := cel.PollerWithCustomHealthChecks(context.Background(), healthchecks)
+	ctors, err := cel.PollerWithCustomHealthChecks(healthchecks)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	opts := polling.Options{}

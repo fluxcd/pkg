@@ -76,7 +76,7 @@ func TestStatusReader_Supports(t *testing.T) {
 			})
 			g.Expect(err).NotTo(HaveOccurred())
 
-			sr := cel.NewStatusReader(context.Background(), nil, tt.supportedGK, se)
+			sr := cel.NewStatusReader(nil, tt.supportedGK, se)
 
 			result := sr.Supports(tt.gk)
 			g.Expect(result).To(Equal(tt.result))
@@ -151,7 +151,7 @@ func TestStatusReader_ReadStatus(t *testing.T) {
 			se, err := cel.NewStatusEvaluator(&tt.exprs)
 			g.Expect(err).NotTo(HaveOccurred())
 
-			sr := cel.NewStatusReader(context.Background(), mapper, gk, se)
+			sr := cel.NewStatusReader(mapper, gk, se)
 
 			result, err := sr.ReadStatus(ctx, clusterReader, object.ObjMetadata{
 				Name:      objName,
@@ -208,7 +208,7 @@ func TestStatusReader_ReadStatusForObject(t *testing.T) {
 			se, err := cel.NewStatusEvaluator(&tt.exprs)
 			g.Expect(err).NotTo(HaveOccurred())
 
-			sr := cel.NewStatusReader(context.Background(), nil, gk, se)
+			sr := cel.NewStatusReader(nil, gk, se)
 
 			result, err := sr.ReadStatusForObject(context.Background(), nil, &unstructured.Unstructured{
 				Object: map[string]any{

@@ -17,7 +17,6 @@ limitations under the License.
 package cel
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/engine"
@@ -32,8 +31,7 @@ import (
 // there are multiple healthchecks defined for the same GroupKind,
 // only the first one is used. The context is used to control the
 // execution of the underlying status readers.
-func PollerWithCustomHealthChecks(ctx context.Context,
-	healthchecks []kustomize.CustomHealthCheck) ([]func(meta.RESTMapper) engine.StatusReader, error) {
+func PollerWithCustomHealthChecks(healthchecks []kustomize.CustomHealthCheck) ([]func(meta.RESTMapper) engine.StatusReader, error) {
 
 	if len(healthchecks) == 0 {
 		return nil, nil
@@ -51,7 +49,7 @@ func PollerWithCustomHealthChecks(ctx context.Context,
 			}
 
 			ctors = append(ctors, func(mapper meta.RESTMapper) engine.StatusReader {
-				return NewStatusReader(ctx, mapper, gk, se)
+				return NewStatusReader(mapper, gk, se)
 			})
 			types[gk] = struct{}{}
 		}

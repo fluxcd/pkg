@@ -32,24 +32,17 @@ import (
 // StatusReader implements the engine.StatusReader interface for a specific GroupKind and
 // set of healthcheck expressions.
 type StatusReader struct {
-	genericStatusReader engine.StatusReader
-	gk                  schema.GroupKind
+	gk     schema.GroupKind
+	se     *StatusEvaluator
+	mapper meta.RESTMapper
 }
 
 // NewStatusReader returns a new StatusReader for the given GroupKind and healthcheck expressions.
-// The context is used to control the execution of the underlying operations performed by the
-// the reader.
-func NewStatusReader(ctx context.Context, mapper meta.RESTMapper, gk schema.GroupKind,
-	se *StatusEvaluator) engine.StatusReader {
-
-	statusFunc := func(u *unstructured.Unstructured) (*status.Result, error) {
-		return se.Evaluate(ctx, u)
-	}
-
-	genericStatusReader := kstatusreaders.NewGenericStatusReader(mapper, statusFunc)
+func NewStatusReader(mapper meta.RESTMapper, gk schema.GroupKind, se *StatusEvaluator) engine.StatusReader {
 	return &StatusReader{
-		genericStatusReader: genericStatusReader,
-		gk:                  gk,
+		gk:     gk,
+		se:     se,
+		mapper: mapper,
 	}
 }
 
@@ -61,11 +54,19 @@ func (g *StatusReader) Supports(gk schema.GroupKind) bool {
 // ReadStatus reads the status of the resource with the given metadata.
 func (g *StatusReader) ReadStatus(ctx context.Context, reader engine.ClusterReader,
 	resource object.ObjMetadata) (*event.ResourceStatus, error) {
-	return g.genericStatusReader.ReadStatus(ctx, reader, resource)
+	return g.genericStatusReader(ctx).ReadStatus(ctx, reader, resource)
 }
 
 // ReadStatusForObject reads the status of the given resource.
 func (g *StatusReader) ReadStatusForObject(ctx context.Context, reader engine.ClusterReader,
 	resource *unstructured.Unstructured) (*event.ResourceStatus, error) {
-	return g.genericStatusReader.ReadStatusForObject(ctx, reader, resource)
+	return g.genericStatusReader(ctx).ReadStatusForObject(ctx, reader, resource)
+}
+
+// genericStatusReader returns the underlying generic status reader.
+func (g *StatusReader) genericStatusReader(ctx context.Context) engine.StatusReader {
+	statusFunc := func(u *unstructured.Unstructured) (*status.Result, error) {
+		return g.se.Evaluate(ctx, u)
+	}
+	return kstatusreaders.NewGenericStatusReader(g.mapper, statusFunc)
 }
