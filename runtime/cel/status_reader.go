@@ -18,6 +18,7 @@ package cel
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/engine"
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/event"
@@ -27,46 +28,85 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/fluxcd/pkg/apis/kustomize"
 )
 
 // StatusReader implements the engine.StatusReader interface for a specific GroupKind and
 // set of healthcheck expressions.
 type StatusReader struct {
-	gk     schema.GroupKind
-	se     *StatusEvaluator
-	mapper meta.RESTMapper
+	mapper     meta.RESTMapper
+	evaluators map[schema.GroupKind]*StatusEvaluator
 }
 
 // NewStatusReader returns a new StatusReader for the given GroupKind and healthcheck expressions.
-func NewStatusReader(mapper meta.RESTMapper, gk schema.GroupKind, se *StatusEvaluator) engine.StatusReader {
-	return &StatusReader{
-		gk:     gk,
-		se:     se,
-		mapper: mapper,
+func NewStatusReader(healthchecks []kustomize.CustomHealthCheck) (func(meta.RESTMapper) engine.StatusReader, error) {
+	// Build evaluators map.
+	evaluators := make(map[schema.GroupKind]*StatusEvaluator, len(healthchecks))
+	for i, hc := range healthchecks {
+		gk := schema.FromAPIVersionAndKind(hc.APIVersion, hc.Kind).GroupKind()
+		if _, ok := evaluators[gk]; ok {
+			return nil, fmt.Errorf(
+				"duplicate custom health check for GroupKind %s at healthchecks[%d]", gk.String(), i)
+		}
+		se, err := NewStatusEvaluator(&hc.HealthCheckExpressions)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to create custom status evaluator for healthchecks[%d]: %w", i, err)
+		}
+		evaluators[gk] = se
 	}
+
+	return func(mapper meta.RESTMapper) engine.StatusReader {
+		return &StatusReader{
+			mapper:     mapper,
+			evaluators: evaluators,
+		}
+	}, nil
 }
 
 // Supports returns true if the StatusReader supports the given GroupKind.
 func (g *StatusReader) Supports(gk schema.GroupKind) bool {
-	return gk == g.gk
+	_, ok := g.evaluators[gk]
+	return ok
 }
 
 // ReadStatus reads the status of the resource with the given metadata.
 func (g *StatusReader) ReadStatus(ctx context.Context, reader engine.ClusterReader,
 	resource object.ObjMetadata) (*event.ResourceStatus, error) {
-	return g.genericStatusReader(ctx).ReadStatus(ctx, reader, resource)
+
+	if !g.Supports(resource.GroupKind) {
+		return nil, fmt.Errorf("the GroupKind %s is not supported", resource.GroupKind.String())
+	}
+
+	return g.genericStatusReader(ctx, resource.GroupKind).ReadStatus(ctx, reader, resource)
 }
 
 // ReadStatusForObject reads the status of the given resource.
 func (g *StatusReader) ReadStatusForObject(ctx context.Context, reader engine.ClusterReader,
 	resource *unstructured.Unstructured) (*event.ResourceStatus, error) {
-	return g.genericStatusReader(ctx).ReadStatusForObject(ctx, reader, resource)
+
+	// Compute GroupKind.
+	apiVersion, ok, _ := unstructured.NestedFieldCopy(resource.Object, "apiVersion")
+	if !ok {
+		return nil, fmt.Errorf("resource is missing apiVersion field")
+	}
+	kind, ok, _ := unstructured.NestedFieldCopy(resource.Object, "kind")
+	if !ok {
+		return nil, fmt.Errorf("resource is missing kind field")
+	}
+	gk := schema.FromAPIVersionAndKind(apiVersion.(string), kind.(string)).GroupKind()
+	if !g.Supports(gk) {
+		return nil, fmt.Errorf("the GroupKind %s is not supported", gk.String())
+	}
+
+	return g.genericStatusReader(ctx, gk).ReadStatusForObject(ctx, reader, resource)
 }
 
 // genericStatusReader returns the underlying generic status reader.
-func (g *StatusReader) genericStatusReader(ctx context.Context) engine.StatusReader {
+func (g *StatusReader) genericStatusReader(ctx context.Context, gk schema.GroupKind) engine.StatusReader {
 	statusFunc := func(u *unstructured.Unstructured) (*status.Result, error) {
-		return g.se.Evaluate(ctx, u)
+		return g.evaluators[gk].Evaluate(ctx, u)
 	}
 	return kstatusreaders.NewGenericStatusReader(g.mapper, statusFunc)
 }
