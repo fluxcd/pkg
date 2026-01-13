@@ -243,24 +243,10 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 			return nil, fmt.Errorf("failed to describe GKE cluster '%s': %w", cluster, err)
 		}
 
-		// Compare specified address and address from the cluster resource.
-		endpoint := clusterResource.Endpoint
-		if host != "" {
-			canonicalAddress, err := auth.ParseClusterAddress(host)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse specified cluster address '%s': %w", host, err)
-			}
-			canonicalEndpoint, err := auth.ParseClusterAddress(endpoint)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse GKE endpoint '%s': %w", endpoint, err)
-			}
-			if canonicalAddress != canonicalEndpoint {
-				return nil, fmt.Errorf("GKE endpoint '%s' does not match specified address: '%s'", endpoint, host)
-			}
-		}
-
 		// Update host and CA with cluster details.
-		host = endpoint
+		if host == "" {
+			host = clusterResource.Endpoint
+		}
 		if len(caData) == 0 {
 			caData, err = base64.StdEncoding.DecodeString(clusterResource.MasterAuth.ClusterCaCertificate)
 			if err != nil {

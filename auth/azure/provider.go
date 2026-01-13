@@ -365,12 +365,14 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 			if canonicalHost == "" {
 				return nil, fmt.Errorf("no kubeconfig found for AKS cluster %s", cluster)
 			}
-			return nil, fmt.Errorf("AKS cluster %s does not match specified address '%s'. cluster addresses: [%s]",
+			return nil, fmt.Errorf("no kubeconfig found for AKS cluster %s matching the specified address '%s'. cluster addresses: [%s]",
 				cluster, o.ClusterAddress, strings.Join(addresses, ", "))
 		}
 
 		// Update host and CA with cluster details.
-		host = restConfig.Host
+		if host == "" {
+			host = restConfig.Host
+		}
 		if len(caData) == 0 {
 			caData = restConfig.CAData
 		}

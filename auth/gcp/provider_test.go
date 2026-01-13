@@ -371,14 +371,13 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			endpoint:       "https://203.0.113.10",
 		},
 		{
-			name:           "cluster address mismatch",
+			name:           "valid GKE cluster with address override",
 			cluster:        "projects/test-project/locations/us-central1/clusters/test-cluster",
 			clusterAddress: "https://198.51.100.10:443",
 			masterAuth: &container.MasterAuth{
 				ClusterCaCertificate: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t",
 			},
 			endpoint: "https://203.0.113.10",
-			err:      "GKE endpoint 'https://203.0.113.10' does not match specified address: 'https://198.51.100.10:443'",
 		},
 		{
 			name:    "invalid cluster ID",
@@ -427,7 +426,11 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(restConfig).NotTo(BeNil())
-				g.Expect(restConfig.Host).To(Equal(tt.endpoint))
+				expectedHost := tt.endpoint
+				if tt.clusterAddress != "" {
+					expectedHost = tt.clusterAddress
+				}
+				g.Expect(restConfig.Host).To(Equal(expectedHost))
 				g.Expect(restConfig.BearerToken).To(Equal("access-token"))
 				g.Expect(restConfig.CAData).To(Equal([]byte("-----BEGIN CERTIFICATE-----")))
 				g.Expect(restConfig.ExpiresAt).To(Equal(tokenExpiry))
