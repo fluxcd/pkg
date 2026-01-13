@@ -421,10 +421,9 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			err:            `invalid EKS cluster ARN: ''. must match ^arn:aws[\w-]*:eks:([^:]{1,100}):[0-9]{1,30}:cluster/(.{1,200})$`,
 		},
 		{
-			name:           "cluster address mismatch",
+			name:           "valid EKS cluster with address override",
 			cluster:        "arn:aws:eks:us-east-1:123456789012:cluster/test-cluster",
 			clusterAddress: "https://different-endpoint.eks.amazonaws.com:443",
-			err:            "EKS endpoint 'https://EXAMPLE1234567890123456789012345678.gr7.us-east-1.eks.amazonaws.com' does not match specified address: 'https://different-endpoint.eks.amazonaws.com:443'",
 		},
 		{
 			name:        "valid EKS cluster with custom STS endpoint",
@@ -486,7 +485,11 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(restConfig).NotTo(BeNil())
-				g.Expect(restConfig.Host).To(Equal("https://EXAMPLE1234567890123456789012345678.gr7.us-east-1.eks.amazonaws.com"))
+				expectedHost := "https://EXAMPLE1234567890123456789012345678.gr7.us-east-1.eks.amazonaws.com"
+				if tt.clusterAddress != "" {
+					expectedHost = tt.clusterAddress
+				}
+				g.Expect(restConfig.Host).To(Equal(expectedHost))
 				g.Expect(restConfig.BearerToken).To(Equal("k8s-aws-v1.aHR0cHM6Ly9zdHMudXMtZWFzdC0xLmFtYXpvbmF3cy5jb20vP0FjdGlvbj1HZXRDYWxsZXJJZGVudGl0eSZWZXJzaW9uPTIwMTEtMDYtMTUmWC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTY"))
 				g.Expect(restConfig.CAData).To(Equal([]byte("-----BEGIN CERTIFICATE-----")))
 				g.Expect(restConfig.ExpiresAt).To(BeTemporally(">", time.Now().Add(14*time.Minute)))

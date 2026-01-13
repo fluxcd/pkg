@@ -477,6 +477,24 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			},
 		},
 		{
+			name:           "valid AKS cluster with address override",
+			cluster:        "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
+			clusterAddress: "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io", // without :443, should still match and be preserved
+			aadProfile: &armcontainerservice.ManagedClusterAADProfile{
+				Managed: &[]bool{true}[0],
+			},
+			kubeconfigs: []*armcontainerservice.CredentialResult{
+				{
+					Name:  &[]string{"clusterUser"}[0],
+					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
+				},
+				{
+					Name:  &[]string{"clusterUser-secondary"}[0],
+					Value: createKubeconfig("test-cluster-secondary", "https://test-cluster-secondary-87654321.hcp.westus.azmk8s.io:443"),
+				},
+			},
+		},
+		{
 			name:    "valid AKS cluster with CA",
 			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
 			caData:  "-----BEGIN CERTIFICATE-----",
@@ -525,7 +543,7 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
 				},
 			},
-			err: "AKS cluster /subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster does not match specified address 'https://different-cluster.hcp.eastus.azmk8s.io:443'. cluster addresses: ['https://test-cluster-12345678.hcp.eastus.azmk8s.io:443']",
+			err: "no kubeconfig found for AKS cluster /subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster matching the specified address 'https://different-cluster.hcp.eastus.azmk8s.io:443'. cluster addresses: ['https://test-cluster-12345678.hcp.eastus.azmk8s.io:443']",
 		},
 		{
 			name:    "cluster without AAD integration",
