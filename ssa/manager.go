@@ -87,9 +87,9 @@ func (m *ResourceManager) GetOwnerLabels(name, namespace string) map[string]stri
 
 func (m *ResourceManager) changeSetEntry(o *unstructured.Unstructured, action Action) *ChangeSetEntry {
 	return &ChangeSetEntry{
-		ObjMetadata:  object.UnstructuredToObjMetadata(o),
-		GroupVersion: o.GroupVersionKind().Version,
-		Subject:      utils.FmtUnstructured(o),
-		Action:       action,
+		ObjMetadata: object.UnstructuredToObjMetadata(o),
+		Version:     o.GroupVersionKind().Version,
+		Subject:     utils.FmtUnstructured(o),
+		Action:      action,
 	}
 }

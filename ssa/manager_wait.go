@@ -183,7 +183,7 @@ func (m *ResourceManager) WaitForSetTermination(cs *ChangeSet, opts WaitOptions)
 		gvk := schema.GroupVersionKind{
 			Group:   entry.ObjMetadata.GroupKind.Group,
 			Kind:    entry.ObjMetadata.GroupKind.Kind,
-			Version: entry.GroupVersion,
+			Version: entry.Version,
 		}
 
 		obj := &unstructured.Unstructured{}

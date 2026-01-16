@@ -371,10 +371,10 @@ func TestWaitForSetTermination(t *testing.T) {
 
 		cs := NewChangeSet()
 		cs.Add(ChangeSetEntry{
-			ObjMetadata:  object.UnstructuredToObjMetadata(namespace),
-			GroupVersion: namespace.GroupVersionKind().Version,
-			Subject:      utils.FmtUnstructured(namespace),
-			Action:       DeletedAction,
+			ObjMetadata: object.UnstructuredToObjMetadata(namespace),
+			Version:     namespace.GroupVersionKind().Version,
+			Subject:     utils.FmtUnstructured(namespace),
+			Action:      DeletedAction,
 		})
 
 		err = manager.WaitForSetTermination(cs, waitOpts)

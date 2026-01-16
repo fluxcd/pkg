@@ -20,6 +20,7 @@ package ssa
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"sort"
 	"time"
@@ -140,7 +141,10 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 }
 
 // ApplyAll performs a server-side dry-run of the given objects, and based on the diff result,
-// it applies the objects that are new or modified.
+// it applies the objects that are new or modified. If an error occurs during the apply of any
+// object, the function returns the entries of the objects that were effectively created up to
+// that point, along with the error. If no error occurs, the function returns the complete
+// change set.
 func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.Unstructured, opts ApplyOptions) (*ChangeSet, error) {
 	sort.Sort(SortableUnstructureds(objects))
 
@@ -228,23 +232,34 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		}
 	}
 
-	for _, object := range toApply {
-		if object != nil {
-			appliedObject := object.DeepCopy()
-			if err := m.apply(ctx, appliedObject); err != nil {
-				return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
-			}
+	createdSet := NewChangeSet()
+	for i, object := range toApply {
+		if object == nil {
+			continue
+		}
+
+		appliedObject := object.DeepCopy()
+		if err := m.apply(ctx, appliedObject); err != nil {
+			return createdSet, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
+		}
+		if changes[i].Action == CreatedAction {
+			createdSet.Add(changes[i])
 		}
 	}
 
 	changeSet := NewChangeSet()
 	changeSet.Append(changes)
-
 	return changeSet, nil
 }
 
 // ApplyAllStaged extracts the cluster and class definitions, applies them with ApplyAll,
-// waits for them to become ready, then it applies all the other objects.
+// waits for them to become ready, then it applies all the other objects. It also takes
+// special care of namespaced RBAC objects (Roles and RoleBindings) by applying them
+// in order (Roles first, then RoleBindings) and before any namespaced resources. If
+// any error occurs during the apply of the namespaced RBAC objects or the namespaced
+// resources, any newly created Roles and RoleBindings are deleted to maintain cluster
+// consistency and free of dangling RBAC objects.
+//
 // This function should be used when the given objects have a mix of custom resource definition
 // and custom resources, or a mix of namespace definitions with namespaced objects.
 // If an error occurs during the apply of the cluster or class definitions, the change set is
@@ -259,7 +274,15 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 		// Contains only Class definitions.
 		classStage []*unstructured.Unstructured
 
-		// Contains all objects except for cluster definitions and class definitions.
+		// Contains only Roles. If any of the following stages error out,
+		// newly created Roles applied in this stage will be deleted.
+		roleStage []*unstructured.Unstructured
+
+		// Contains only RoleBindings. If any of the following stages error out,
+		// newly created RoleBindings applied in this stage will be deleted.
+		roleBindingStage []*unstructured.Unstructured
+
+		// Contains everything else.
 		resStage []*unstructured.Unstructured
 	)
 
@@ -269,6 +292,10 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 			defStage = append(defStage, o)
 		case utils.IsClassDefinition(o):
 			classStage = append(classStage, o)
+		case utils.IsRole(o):
+			roleStage = append(roleStage, o)
+		case utils.IsRoleBinding(o):
+			roleBindingStage = append(roleBindingStage, o)
 		default:
 			resStage = append(resStage, o)
 		}
@@ -300,12 +327,62 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 		}
 	}
 
-	// Finally, apply all the other resources.
-	cs, err := m.ApplyAll(ctx, resStage, opts)
-	if err != nil {
-		return changeSet, err
+	joinErrors := func(err error, errs []error) error {
+		errs = append([]error{err}, errs...)
+		if len(errs) > 1 {
+			return stderrors.Join(errs...)
+		}
+		return err
 	}
-	changeSet.Append(cs.Entries)
+
+	// Apply Roles next. Roles are stateless, so we don't need to wait for them to become ready.
+	roleChangeSet, err := m.ApplyAll(ctx, roleStage, opts)
+	if err != nil {
+		var errs []error
+
+		if roleChangeSet != nil { // Rollback any created Roles.
+			errs = append(errs, m.rollback(ctx, roleChangeSet)...)
+		}
+
+		return changeSet, joinErrors(err, errs)
+	}
+	createdRoles := changeSet.AppendExceptCreated(roleChangeSet)
+
+	// Apply RoleBindings next. RoleBindings are stateless, so we don't need to wait for them to become ready.
+	roleBindingChangeSet, err := m.ApplyAll(ctx, roleBindingStage, opts)
+	if err != nil {
+		var errs []error
+
+		if roleBindingChangeSet != nil { // Rollback any created RoleBindings.
+			errs = append(errs, m.rollback(ctx, roleBindingChangeSet)...)
+		}
+
+		// Also rollback any created Roles from the previous stage.
+		errs = append(errs, m.rollback(ctx, createdRoles)...)
+
+		return changeSet, joinErrors(err, errs)
+	}
+	createdRoleBindings := changeSet.AppendExceptCreated(roleBindingChangeSet)
+
+	// Finally, apply all the other resources.
+	resChangeSet, err := m.ApplyAll(ctx, resStage, opts)
+	if err != nil {
+		var errs []error
+
+		// Rollback any created RoleBindings from the previous stage.
+		errs = append(errs, m.rollback(ctx, createdRoleBindings)...)
+
+		// Also rollback any created Roles from the previous stage.
+		errs = append(errs, m.rollback(ctx, createdRoles)...)
+
+		return changeSet, joinErrors(err, errs)
+	}
+
+	// Append RBAC changes that were waiting for the final stage to
+	// complete successfully and then append the rest of the changes.
+	changeSet.Append(createdRoles.Entries)
+	changeSet.Append(createdRoleBindings.Entries)
+	changeSet.Append(resChangeSet.Entries)
 
 	return changeSet, nil
 }
@@ -325,6 +402,32 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 		client.FieldOwner(m.owner.Field),
 	}
 	return m.client.Patch(ctx, object, client.Apply, opts...)
+}
+
+// rollback deletes all objects in the change set.
+// It returns a slice of errors encountered during the
+// rollback process.
+func (m *ResourceManager) rollback(ctx context.Context, toRollback *ChangeSet) []error {
+	var errs []error
+	for _, entry := range toRollback.Entries {
+		// Compute apiVersion.
+		apiVersion := entry.Version
+		if g := entry.ObjMetadata.GroupKind.Group; g != "" {
+			apiVersion = g + "/" + entry.Version
+		}
+
+		// Delete.
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion(apiVersion)
+		obj.SetKind(entry.ObjMetadata.GroupKind.Kind)
+		obj.SetNamespace(entry.ObjMetadata.Namespace)
+		obj.SetName(entry.ObjMetadata.Name)
+		if err := m.client.Delete(ctx, obj); err != nil && !errors.IsNotFound(err) {
+			errs = append(errs, fmt.Errorf("failed to rollback created object %s: %w",
+				utils.FmtObjMetadata(entry.ObjMetadata), err))
+		}
+	}
+	return errs
 }
 
 // cleanupMetadata performs an HTTP PATCH request to remove entries from metadata annotations, labels and managedFields.

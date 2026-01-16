@@ -1473,3 +1473,682 @@ func TestResourceManager_ApplyAllStaged_CRDWebhookCABundle(t *testing.T) {
 		}
 	})
 }
+
+func TestApplyAllStaged_RolesStage(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("roles-stage")
+	objects, err := readManifest("testdata/test14.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// This test requires a non-cluster-admin client to verify that
+	// Role and RoleBinding can be applied in the same call to ApplyAllStaged.
+	// When a non-admin user does a dry-run for a RoleBinding, Kubernetes checks
+	// if the referenced Role exists and if the user has the permissions that the
+	// Role grants. Cluster-admins bypass this check, so we need a non-admin client.
+	rolesStageNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id + "-setup",
+		},
+	}
+	if err := manager.client.Create(ctx, rolesStageNS); err != nil {
+		t.Fatal(err)
+	}
+	rolesStageSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      id,
+			Namespace: rolesStageNS.Name,
+		},
+	}
+	if err := manager.client.Create(ctx, rolesStageSA); err != nil {
+		t.Fatal(err)
+	}
+	rolesStageCR := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		Rules: []rbacv1.PolicyRule{
+			// For creating namespaces
+			{
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// For creating roles and rolebindings
+			{
+				APIGroups: []string{"rbac.authorization.k8s.io"},
+				Resources: []string{"roles", "rolebindings"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// The ServiceAccount must have all the permissions it is indirectly granting
+			// through the Role manifest from testdata/test14.yaml (get/list/watch configmaps)
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+		},
+	}
+	if err := manager.client.Create(ctx, rolesStageCR); err != nil {
+		t.Fatal(err)
+	}
+	rolesStageCRB := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "ClusterRole",
+			Name:     rolesStageCR.Name,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      rolesStageSA.Name,
+			Namespace: rolesStageSA.Namespace,
+		}},
+	}
+	if err := manager.client.Create(ctx, rolesStageCRB); err != nil {
+		t.Fatal(err)
+	}
+
+	// Copy test suite manager and modify the client to one that isn't cluster-admin.
+	rolesStageManager := *manager
+	impersonationCfg := rest.CopyConfig(cfg)
+	impersonationCfg.Impersonate = rest.ImpersonationConfig{
+		UserName: fmt.Sprintf("system:serviceaccount:%s:%s", rolesStageSA.Namespace, rolesStageSA.Name),
+	}
+	impersonationClient, err := client.New(impersonationCfg, client.Options{
+		Mapper: restMapper,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rolesStageManager.client = impersonationClient
+
+	rolesStageManager.SetOwnerLabels(objects, "app1", "default")
+
+	t.Run("applies roles in correct order before other resources", func(t *testing.T) {
+		changeSet, err := rolesStageManager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// The expected order is: Namespace (cluster definition), Role, RoleBinding
+		expected := []string{
+			fmt.Sprintf("Namespace/%s", id),
+			fmt.Sprintf("Role/%s/%s", id, id),
+			fmt.Sprintf("RoleBinding/%s/%s", id, id),
+		}
+
+		var output []string
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(entry.Action, CreatedAction); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+			output = append(output, entry.Subject)
+		}
+
+		if diff := cmp.Diff(expected, output); diff != "" {
+			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+		}
+	})
+}
+
+func TestApplyAllStaged_RolesRollback(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("roles-rollback")
+
+	// This test requires a non-cluster-admin client to verify that
+	// Role and RoleBinding can be applied in the same call to ApplyAllStaged.
+	// When a non-admin user does a dry-run for a RoleBinding, Kubernetes checks
+	// if the referenced Role exists and if the user has the permissions that the
+	// Role grants. Cluster-admins bypass this check, so we need a non-admin client.
+	rolesRollbackNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id + "-setup",
+		},
+	}
+	if err := manager.client.Create(ctx, rolesRollbackNS); err != nil {
+		t.Fatal(err)
+	}
+	rolesRollbackSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      id,
+			Namespace: rolesRollbackNS.Name,
+		},
+	}
+	if err := manager.client.Create(ctx, rolesRollbackSA); err != nil {
+		t.Fatal(err)
+	}
+	rolesRollbackCR := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		Rules: []rbacv1.PolicyRule{
+			// For creating namespaces
+			{
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// For creating roles and rolebindings
+			{
+				APIGroups: []string{"rbac.authorization.k8s.io"},
+				Resources: []string{"roles", "rolebindings"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// The ServiceAccount must have all the permissions it is indirectly granting
+			// through the Role manifests (get/list/watch configmaps + get secrets)
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"secrets"},
+				Verbs:     []string{"get"},
+			},
+		},
+	}
+	if err := manager.client.Create(ctx, rolesRollbackCR); err != nil {
+		t.Fatal(err)
+	}
+	rolesRollbackCRB := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "ClusterRole",
+			Name:     rolesRollbackCR.Name,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      rolesRollbackSA.Name,
+			Namespace: rolesRollbackSA.Namespace,
+		}},
+	}
+	if err := manager.client.Create(ctx, rolesRollbackCRB); err != nil {
+		t.Fatal(err)
+	}
+
+	// Copy test suite manager and modify the client to one that isn't cluster-admin.
+	rolesRollbackManager := *manager
+	impersonationCfg := rest.CopyConfig(cfg)
+	impersonationCfg.Impersonate = rest.ImpersonationConfig{
+		UserName: fmt.Sprintf("system:serviceaccount:%s:%s", rolesRollbackSA.Namespace, rolesRollbackSA.Name),
+	}
+	impersonationClient, err := client.New(impersonationCfg, client.Options{
+		Mapper: restMapper,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rolesRollbackManager.client = impersonationClient
+
+	// Create namespace for the test resources
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+	}
+	if err := manager.client.Create(ctx, ns); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a role
+	role := &unstructured.Unstructured{}
+	role.SetAPIVersion("rbac.authorization.k8s.io/v1")
+	role.SetKind("Role")
+	role.SetName(id)
+	role.SetNamespace(id)
+	if err := unstructured.SetNestedSlice(role.Object, []any{
+		map[string]any{
+			"apiGroups": []any{""},
+			"resources": []any{"configmaps"},
+			"verbs":     []any{"get", "list", "watch"},
+		},
+	}, "rules"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a RoleBinding with invalid roleRef (will fail on second apply when we change it)
+	roleBinding := &unstructured.Unstructured{}
+	roleBinding.SetAPIVersion("rbac.authorization.k8s.io/v1")
+	roleBinding.SetKind("RoleBinding")
+	roleBinding.SetName(id)
+	roleBinding.SetNamespace(id)
+	if err := unstructured.SetNestedField(roleBinding.Object, map[string]any{
+		"apiGroup": "rbac.authorization.k8s.io",
+		"kind":     "Role",
+		"name":     id,
+	}, "roleRef"); err != nil {
+		t.Fatal(err)
+	}
+	if err := unstructured.SetNestedSlice(roleBinding.Object, []any{
+		map[string]any{
+			"kind":      "ServiceAccount",
+			"name":      "default",
+			"namespace": id,
+		},
+	}, "subjects"); err != nil {
+		t.Fatal(err)
+	}
+
+	rolesRollbackManager.SetOwnerLabels([]*unstructured.Unstructured{role, roleBinding}, "app1", "default")
+
+	t.Run("applies role and rolebinding successfully", func(t *testing.T) {
+		objects := []*unstructured.Unstructured{role, roleBinding}
+		changeSet, err := rolesRollbackManager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify both were created
+		for _, entry := range changeSet.Entries {
+			if entry.Action != CreatedAction {
+				t.Errorf("Expected %s, got %s for %s", CreatedAction, entry.Action, entry.Subject)
+			}
+		}
+	})
+
+	t.Run("rolls back newly created role on rolebinding stage error", func(t *testing.T) {
+		// Create a new role that will be created in this apply
+		newRole := &unstructured.Unstructured{}
+		newRole.SetAPIVersion("rbac.authorization.k8s.io/v1")
+		newRole.SetKind("Role")
+		newRole.SetName(id + "-new")
+		newRole.SetNamespace(id)
+		if err := unstructured.SetNestedSlice(newRole.Object, []any{
+			map[string]any{
+				"apiGroups": []any{""},
+				"resources": []any{"secrets"},
+				"verbs":     []any{"get"},
+			},
+		}, "rules"); err != nil {
+			t.Fatal(err)
+		}
+		rolesRollbackManager.SetOwnerLabels([]*unstructured.Unstructured{newRole}, "app1", "default")
+
+		// Create a RoleBinding that will fail because roleRef is immutable
+		// We'll change the roleRef.name to trigger an immutable field error
+		failingRoleBinding := roleBinding.DeepCopy()
+		if err := unstructured.SetNestedField(failingRoleBinding.Object, map[string]any{
+			"apiGroup": "rbac.authorization.k8s.io",
+			"kind":     "Role",
+			"name":     "nonexistent-role", // Change roleRef to trigger immutable error
+		}, "roleRef"); err != nil {
+			t.Fatal(err)
+		}
+
+		objects := []*unstructured.Unstructured{role, newRole, failingRoleBinding}
+		changeSet, err := rolesRollbackManager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+
+		// Expect an error - either "cannot change roleRef" (immutable error for admin users)
+		// or "not found" (for non-admin users who can't reference non-existent roles)
+		if err == nil {
+			t.Fatal("Expected error, got none")
+		}
+
+		// Verify the error is about either immutable field or non-existent role
+		if !strings.Contains(err.Error(), "cannot change roleRef") && !strings.Contains(err.Error(), "not found") {
+			t.Errorf("Expected immutable or not found error, got: %v", err)
+		}
+
+		// Verify the change set contains the original role (unchanged)
+		// and does NOT contain the new role (it should have been rolled back)
+		var foundOriginalRole, foundNewRole bool
+		for _, entry := range changeSet.Entries {
+			if entry.Subject == fmt.Sprintf("Role/%s/%s", id, id) {
+				foundOriginalRole = true
+				if entry.Action != UnchangedAction {
+					t.Errorf("Expected original role to be %s, got %s", UnchangedAction, entry.Action)
+				}
+			}
+			if entry.Subject == fmt.Sprintf("Role/%s/%s-new", id, id) {
+				foundNewRole = true
+			}
+		}
+
+		if !foundOriginalRole {
+			t.Error("Expected to find original role in change set")
+		}
+
+		// The new role should NOT be in the change set because it was rolled back
+		if foundNewRole {
+			t.Error("New role should have been rolled back and not be in the change set")
+		}
+
+		// Verify the new role was actually deleted from the cluster
+		checkRole := &unstructured.Unstructured{}
+		checkRole.SetAPIVersion("rbac.authorization.k8s.io/v1")
+		checkRole.SetKind("Role")
+		checkRole.SetName(id + "-new")
+		checkRole.SetNamespace(id)
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(checkRole), checkRole)
+		if err == nil {
+			t.Error("New role should have been deleted during rollback, but it still exists")
+		}
+	})
+}
+
+func TestApplyAllStaged_RoleBindingsRollback(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("rb-rollback")
+
+	// This test requires a non-cluster-admin client to verify that
+	// Role and RoleBinding can be applied in the same call to ApplyAllStaged.
+	// When a non-admin user does a dry-run for a RoleBinding, Kubernetes checks
+	// if the referenced Role exists and if the user has the permissions that the
+	// Role grants. Cluster-admins bypass this check, so we need a non-admin client.
+	rbRollbackNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id + "-setup",
+		},
+	}
+	if err := manager.client.Create(ctx, rbRollbackNS); err != nil {
+		t.Fatal(err)
+	}
+	rbRollbackSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      id,
+			Namespace: rbRollbackNS.Name,
+		},
+	}
+	if err := manager.client.Create(ctx, rbRollbackSA); err != nil {
+		t.Fatal(err)
+	}
+	rbRollbackCR := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		Rules: []rbacv1.PolicyRule{
+			// For creating namespaces
+			{
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// For creating roles and rolebindings
+			{
+				APIGroups: []string{"rbac.authorization.k8s.io"},
+				Resources: []string{"roles", "rolebindings"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// For creating configmaps and services
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps", "services"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// The ServiceAccount must have all the permissions it is indirectly granting
+			// through the Role manifests (get/list/watch secrets)
+			{
+				APIGroups: []string{""},
+				Resources: []string{"secrets"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+		},
+	}
+	if err := manager.client.Create(ctx, rbRollbackCR); err != nil {
+		t.Fatal(err)
+	}
+	rbRollbackCRB := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "ClusterRole",
+			Name:     rbRollbackCR.Name,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      rbRollbackSA.Name,
+			Namespace: rbRollbackSA.Namespace,
+		}},
+	}
+	if err := manager.client.Create(ctx, rbRollbackCRB); err != nil {
+		t.Fatal(err)
+	}
+
+	// Copy test suite manager and modify the client to one that isn't cluster-admin.
+	rbRollbackManager := *manager
+	impersonationCfg := rest.CopyConfig(cfg)
+	impersonationCfg.Impersonate = rest.ImpersonationConfig{
+		UserName: fmt.Sprintf("system:serviceaccount:%s:%s", rbRollbackSA.Namespace, rbRollbackSA.Name),
+	}
+	impersonationClient, err := client.New(impersonationCfg, client.Options{
+		Mapper: restMapper,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rbRollbackManager.client = impersonationClient
+
+	// Create namespace for the test resources
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+	}
+	if err := manager.client.Create(ctx, ns); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a role
+	role := &unstructured.Unstructured{}
+	role.SetAPIVersion("rbac.authorization.k8s.io/v1")
+	role.SetKind("Role")
+	role.SetName(id)
+	role.SetNamespace(id)
+	if err := unstructured.SetNestedSlice(role.Object, []any{
+		map[string]any{
+			"apiGroups": []any{""},
+			"resources": []any{"secrets"},
+			"verbs":     []any{"get", "list", "watch"},
+		},
+	}, "rules"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a RoleBinding
+	roleBinding := &unstructured.Unstructured{}
+	roleBinding.SetAPIVersion("rbac.authorization.k8s.io/v1")
+	roleBinding.SetKind("RoleBinding")
+	roleBinding.SetName(id)
+	roleBinding.SetNamespace(id)
+	if err := unstructured.SetNestedField(roleBinding.Object, map[string]any{
+		"apiGroup": "rbac.authorization.k8s.io",
+		"kind":     "Role",
+		"name":     id,
+	}, "roleRef"); err != nil {
+		t.Fatal(err)
+	}
+	if err := unstructured.SetNestedSlice(roleBinding.Object, []any{
+		map[string]any{
+			"kind":      "ServiceAccount",
+			"name":      "default",
+			"namespace": id,
+		},
+	}, "subjects"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a ConfigMap that already exists and will be modified with an invalid update
+	existingCM := &unstructured.Unstructured{}
+	existingCM.SetAPIVersion("v1")
+	existingCM.SetKind("ConfigMap")
+	existingCM.SetName(id)
+	existingCM.SetNamespace(id)
+	if err := unstructured.SetNestedStringMap(existingCM.Object, map[string]string{"key": "value"}, "data"); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.client.Create(ctx, existingCM); err != nil {
+		t.Fatal(err)
+	}
+
+	rbRollbackManager.SetOwnerLabels([]*unstructured.Unstructured{role, roleBinding, existingCM}, "app1", "default")
+
+	t.Run("applies role and rolebinding successfully", func(t *testing.T) {
+		objects := []*unstructured.Unstructured{role, roleBinding}
+		changeSet, err := rbRollbackManager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify both were created
+		for _, entry := range changeSet.Entries {
+			if entry.Action != CreatedAction {
+				t.Errorf("Expected %s, got %s for %s", CreatedAction, entry.Action, entry.Subject)
+			}
+		}
+	})
+
+	t.Run("rolls back newly created role and rolebinding on res stage error", func(t *testing.T) {
+		// Create a new role that will be created in this apply
+		newRole := &unstructured.Unstructured{}
+		newRole.SetAPIVersion("rbac.authorization.k8s.io/v1")
+		newRole.SetKind("Role")
+		newRole.SetName(id + "-new")
+		newRole.SetNamespace(id)
+		if err := unstructured.SetNestedSlice(newRole.Object, []any{
+			map[string]any{
+				"apiGroups": []any{""},
+				"resources": []any{"secrets"},
+				"verbs":     []any{"get"},
+			},
+		}, "rules"); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a new RoleBinding that will be created in this apply
+		newRoleBinding := &unstructured.Unstructured{}
+		newRoleBinding.SetAPIVersion("rbac.authorization.k8s.io/v1")
+		newRoleBinding.SetKind("RoleBinding")
+		newRoleBinding.SetName(id + "-new")
+		newRoleBinding.SetNamespace(id)
+		if err := unstructured.SetNestedField(newRoleBinding.Object, map[string]any{
+			"apiGroup": "rbac.authorization.k8s.io",
+			"kind":     "Role",
+			"name":     id + "-new",
+		}, "roleRef"); err != nil {
+			t.Fatal(err)
+		}
+		if err := unstructured.SetNestedSlice(newRoleBinding.Object, []any{
+			map[string]any{
+				"kind":      "ServiceAccount",
+				"name":      "default",
+				"namespace": id,
+			},
+		}, "subjects"); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a Service with invalid spec to trigger a validation error
+		failingSvc := &unstructured.Unstructured{}
+		failingSvc.SetAPIVersion("v1")
+		failingSvc.SetKind("Service")
+		failingSvc.SetName(id)
+		failingSvc.SetNamespace(id)
+		// Use an invalid service type to trigger a validation error
+		if err := unstructured.SetNestedField(failingSvc.Object, "InvalidType", "spec", "type"); err != nil {
+			t.Fatal(err)
+		}
+		if err := unstructured.SetNestedSlice(failingSvc.Object, []any{
+			map[string]any{
+				"port":     int64(80),
+				"protocol": "TCP",
+			},
+		}, "spec", "ports"); err != nil {
+			t.Fatal(err)
+		}
+
+		rbRollbackManager.SetOwnerLabels([]*unstructured.Unstructured{newRole, newRoleBinding, failingSvc}, "app1", "default")
+
+		objects := []*unstructured.Unstructured{role, newRole, roleBinding, newRoleBinding, failingSvc}
+		changeSet, err := rbRollbackManager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+
+		// Expect an error due to invalid service type
+		if err == nil {
+			t.Fatal("Expected error, got none")
+		}
+
+		// Verify the error is about the invalid service
+		if !strings.Contains(err.Error(), "Service") {
+			t.Errorf("Expected error about Service, got: %v", err)
+		}
+
+		// Verify the change set contains the original role and rolebinding (unchanged)
+		// and does NOT contain the new role or rolebinding (they should have been rolled back)
+		var foundOriginalRole, foundNewRole, foundOriginalRB, foundNewRB bool
+		for _, entry := range changeSet.Entries {
+			if entry.Subject == fmt.Sprintf("Role/%s/%s", id, id) {
+				foundOriginalRole = true
+				if entry.Action != UnchangedAction {
+					t.Errorf("Expected original role to be %s, got %s", UnchangedAction, entry.Action)
+				}
+			}
+			if entry.Subject == fmt.Sprintf("Role/%s/%s-new", id, id) {
+				foundNewRole = true
+			}
+			if entry.Subject == fmt.Sprintf("RoleBinding/%s/%s", id, id) {
+				foundOriginalRB = true
+				if entry.Action != UnchangedAction {
+					t.Errorf("Expected original rolebinding to be %s, got %s", UnchangedAction, entry.Action)
+				}
+			}
+			if entry.Subject == fmt.Sprintf("RoleBinding/%s/%s-new", id, id) {
+				foundNewRB = true
+			}
+		}
+
+		if !foundOriginalRole {
+			t.Error("Expected to find original role in change set")
+		}
+		if !foundOriginalRB {
+			t.Error("Expected to find original rolebinding in change set")
+		}
+
+		// The new role and rolebinding should NOT be in the change set because they were rolled back
+		if foundNewRole {
+			t.Error("New role should have been rolled back and not be in the change set")
+		}
+		if foundNewRB {
+			t.Error("New rolebinding should have been rolled back and not be in the change set")
+		}
+
+		// Verify the new role was actually deleted from the cluster
+		checkRole := &unstructured.Unstructured{}
+		checkRole.SetAPIVersion("rbac.authorization.k8s.io/v1")
+		checkRole.SetKind("Role")
+		checkRole.SetName(id + "-new")
+		checkRole.SetNamespace(id)
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(checkRole), checkRole)
+		if err == nil {
+			t.Error("New role should have been deleted during rollback, but it still exists")
+		}
+
+		// Verify the new rolebinding was actually deleted from the cluster
+		checkRB := &unstructured.Unstructured{}
+		checkRB.SetAPIVersion("rbac.authorization.k8s.io/v1")
+		checkRB.SetKind("RoleBinding")
+		checkRB.SetName(id + "-new")
+		checkRB.SetNamespace(id)
+		err = manager.client.Get(ctx, client.ObjectKeyFromObject(checkRB), checkRB)
+		if err == nil {
+			t.Error("New rolebinding should have been deleted during rollback, but it still exists")
+		}
+	})
+}

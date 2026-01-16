@@ -60,6 +60,18 @@ func IsClusterRole(object *unstructured.Unstructured) bool {
 		strings.HasPrefix(object.GetAPIVersion(), "rbac.authorization.k8s.io/")
 }
 
+// IsRole checks if the given object is a Kubernetes Role definition.
+func IsRole(object *unstructured.Unstructured) bool {
+	return strings.ToLower(object.GetKind()) == "role" &&
+		strings.HasPrefix(object.GetAPIVersion(), "rbac.authorization.k8s.io/")
+}
+
+// IsRoleBinding checks if the given object is a Kubernetes RoleBinding definition.
+func IsRoleBinding(object *unstructured.Unstructured) bool {
+	return strings.ToLower(object.GetKind()) == "rolebinding" &&
+		strings.HasPrefix(object.GetAPIVersion(), "rbac.authorization.k8s.io/")
+}
+
 // IsKubernetesObject checks if the given object has the minimum required fields to be a Kubernetes object.
 func IsKubernetesObject(object *unstructured.Unstructured) bool {
 	if object.GetName() == "" || object.GetKind() == "" || object.GetAPIVersion() == "" {

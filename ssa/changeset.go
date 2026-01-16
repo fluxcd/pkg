@@ -68,6 +68,20 @@ func (c *ChangeSet) Append(e []ChangeSetEntry) {
 	c.Entries = append(c.Entries, e...)
 }
 
+// AppendExceptCreated adds the given ChangeSet entries to the end of the slice,
+// except those with the CreatedAction, which are returned separately.
+func (c *ChangeSet) AppendExceptCreated(cs *ChangeSet) *ChangeSet {
+	createdSet := NewChangeSet()
+	for _, entry := range cs.Entries {
+		if entry.Action == CreatedAction {
+			createdSet.Add(entry)
+		} else {
+			c.Add(entry)
+		}
+	}
+	return createdSet
+}
+
 // String formats and returns the string representation of the ChangeSet
 // by concatenating the string output of each entry.
 func (c *ChangeSet) String() string {
@@ -113,8 +127,8 @@ type ChangeSetEntry struct {
 	// ObjMetadata holds the unique identifier of this entry.
 	ObjMetadata object.ObjMetadata
 
-	// GroupVersion holds the API group version of this entry.
-	GroupVersion string
+	// Version holds the API version of this entry (the version only, no API group).
+	Version string
 
 	// Subject represents the Object ID in the format 'kind/namespace/name'.
 	Subject string
