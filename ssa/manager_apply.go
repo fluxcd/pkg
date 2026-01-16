@@ -154,8 +154,6 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		g, ctx := errgroup.WithContext(ctx)
 		g.SetLimit(m.concurrency)
 		for i, object := range objects {
-			i, object := i, object
-
 			g.Go(func() error {
 				utils.RemoveCABundleFromCRD(object)
 
