@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generic_test
+package serviceaccounttoken_test
 
 import (
 	"context"
@@ -30,14 +30,14 @@ import (
 
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/auth"
-	"github.com/fluxcd/pkg/auth/generic"
+	"github.com/fluxcd/pkg/auth/serviceaccounttoken"
 	"github.com/fluxcd/pkg/auth/utils"
 )
 
 func TestProvider_NewControllerToken(t *testing.T) {
 	t.Run("no client", func(t *testing.T) {
 		g := NewWithT(t)
-		token, err := generic.Provider{}.NewControllerToken(context.Background())
+		token, err := serviceaccounttoken.Provider{}.NewControllerToken(context.Background())
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(Equal("client is required to create a controller token"))
 		g.Expect(token).To(BeNil())
@@ -66,11 +66,11 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			t: t,
 			b: []byte("eyJhbGciOiJSUzI1NiIsImtpZCI6IkU2cUVmaVJ0QUY2OWhoNThZWU1QUmhPc1F1b1N5XzJuT1ZfRWF3TVRETlkifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiXSwiZXhwIjoxNzUyMjkwMDE1LCJpYXQiOjE3NTIyODY0MTUsImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiMzEwMTgxZGItZDc3MC00MGE5LTg5MDEtN2M1NTQzOTBjZDhjIiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJkZWZhdWx0Iiwic2VydmljZWFjY291bnQiOnsibmFtZSI6ImNvbnRyb2xsZXIiLCJ1aWQiOiJjMTUzNWEyNi01NDY5LTRmYzAtOGRiMi1kZWFhMGRlNDRmZjUifX0sIm5iZiI6MTc1MjI4NjQxNSwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OmRlZmF1bHQ6Y29udHJvbGxlciJ9.k-jt09bIwrGUNbSATEwaHHaaoym7NjcdStXcM0RYXZbL_PXCwP-TZPgBb2FzCq6V79E_q-NtZrY3RyvyAynUezXr6IPVkGne201uvOAjaibLvDxLzvbA5jWlZ0bHuLCfOxlC7GYSWjsglyH_ufulb6vxoMhY0rmiQzBbDHfB3EWM79-udcqLrxBsGgxjDnW4BXMIgSpuvipNA1GaMkpQb5AaY7Ns4zd0FftOimQmmvnwz8oDrGrCf2kmw91r0sAovva5B2BoJKlZwYGwO93zwTwK1qOMPLN2QHCUNBEY4K-QQlgz0oMUYR-YRpPJr7akjTQ6hm9zrTD90Tm0Jbqw7g\n"),
 		}
-		token, err := auth.GetAccessToken(ctx, generic.Provider{m},
+		token, err := auth.GetAccessToken(ctx, serviceaccounttoken.Provider{m},
 			auth.WithClient(envClient),
 			auth.WithAudiences("audience1", "audience2"))
 		g.Expect(err).NotTo(HaveOccurred())
-		genericToken := token.(*generic.Token)
+		genericToken := token.(*serviceaccounttoken.Token)
 		g.Expect(genericToken).NotTo(BeNil())
 
 		// Validate token.
@@ -116,13 +116,13 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	// Create token.
-	token, err := auth.GetAccessToken(ctx, generic.Provider{},
+	token, err := auth.GetAccessToken(ctx, serviceaccounttoken.Provider{},
 		auth.WithClient(envClient),
 		auth.WithServiceAccountName(serviceAccount.Name),
 		auth.WithServiceAccountNamespace(serviceAccount.Namespace),
 		auth.WithAudiences("audience1", "audience2"))
 	g.Expect(err).NotTo(HaveOccurred())
-	genericToken := token.(*generic.Token)
+	genericToken := token.(*serviceaccounttoken.Token)
 	g.Expect(genericToken).NotTo(BeNil())
 
 	// Validate token.
@@ -147,7 +147,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
-	id, err := generic.Provider{}.GetIdentity(corev1.ServiceAccount{
+	id, err := serviceaccounttoken.Provider{}.GetIdentity(corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "tenant",
 			Namespace: "default",
@@ -217,7 +217,7 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 				opts = append(opts, auth.WithClusterAddress(tt.clusterAddress))
 			}
 
-			conf, err := auth.GetRESTConfig(ctx, generic.Provider{m}, opts...)
+			conf, err := auth.GetRESTConfig(ctx, serviceaccounttoken.Provider{m}, opts...)
 
 			if tt.err != "" {
 				g.Expect(err).To(HaveOccurred())
@@ -290,7 +290,7 @@ func TestProvider_NewRESTConfig_EndToEnd(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string]string{
-			meta.KubeConfigKeyProvider:           generic.ProviderName,
+			meta.KubeConfigKeyProvider:           serviceaccounttoken.ProviderName,
 			meta.KubeConfigKeyAddress:            envConfig.Host,
 			meta.KubeConfigKeyCACert:             string(envConfig.CAData),
 			meta.KubeConfigKeyServiceAccountName: saName,
@@ -327,7 +327,7 @@ func TestProvider_NewRESTConfig_EndToEnd(t *testing.T) {
 func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	t.Run("without audiences", func(t *testing.T) {
 		g := NewWithT(t)
-		opts, err := generic.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := serviceaccounttoken.Provider{}.GetAccessTokenOptionsForCluster(
 			auth.WithClusterAddress("https://example.com"))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(opts).To(HaveLen(1))
@@ -339,7 +339,7 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 
 	t.Run("with audiences", func(t *testing.T) {
 		g := NewWithT(t)
-		opts, err := generic.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := serviceaccounttoken.Provider{}.GetAccessTokenOptionsForCluster(
 			auth.WithClusterAddress("https://example.com"),
 			auth.WithAudiences("audience1", "audience2"))
 		g.Expect(err).NotTo(HaveOccurred())

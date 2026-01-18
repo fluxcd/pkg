@@ -22,7 +22,7 @@ import (
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/auth/gcp"
-	"github.com/fluxcd/pkg/auth/generic"
+	"github.com/fluxcd/pkg/auth/serviceaccounttoken"
 )
 
 // ProviderByName looks up the implemented providers by name and type.
@@ -37,8 +37,8 @@ func ProviderByName[T any](name string) (T, error) {
 		p = azure.Provider{}
 	case gcp.ProviderName:
 		p = gcp.Provider{}
-	case generic.ProviderName:
-		p = generic.Provider{}
+	case serviceaccounttoken.ProviderName:
+		p = serviceaccounttoken.Provider{}
 	default:
 		return zero, fmt.Errorf("provider '%s' not implemented", name)
 	}

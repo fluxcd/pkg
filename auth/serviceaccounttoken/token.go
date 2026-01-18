@@ -14,17 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generic
+package serviceaccounttoken
 
-import "os"
+import (
+	"time"
+)
 
-// Implementation provides the required methods of the generic libraries.
-type Implementation interface {
-	ReadFile(name string) ([]byte, error)
+// Token is the generic token.
+type Token struct {
+	Token     string
+	ExpiresAt time.Time
 }
 
-type implementation struct{}
-
-func (implementation) ReadFile(name string) ([]byte, error) {
-	return os.ReadFile(name)
+// GetDuration implements auth.Token.
+func (t *Token) GetDuration() time.Duration {
+	return time.Until(t.ExpiresAt)
 }
