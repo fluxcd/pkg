@@ -211,7 +211,7 @@ func (p Provider) NewTokenForIdentity(ctx context.Context, token auth.Token,
 	return &Token{*tok}, nil
 }
 
-// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
+// GetAccessTokenOptionsForArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
 func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Option, error) {
 	// GCP does not require any special options to retrieve access tokens.
 	return nil, nil
@@ -221,8 +221,8 @@ const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev))$`
 
 var registryRegex = regexp.MustCompile(registryPattern)
 
-// ParseArtifactRepository implements auth.Provider.
-func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
+// ParseArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (p Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
 	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
 	if err != nil {
 		return "", err
@@ -235,31 +235,31 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 
 	// The artifact repository is irrelevant for issuing GCP registry credentials,
 	// just return the provider name for inclusion in the cache key.
-	return ProviderName, nil
+	return p.GetName(), nil
 }
 
-// NewArtifactRegistryCredentials implements auth.Provider.
+// NewArtifactRegistryCredentials implements auth.ArtifactRegistryCredentialsProvider.
 func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
 	accessToken auth.Token, _ ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	t := accessToken.(*Token)
 
 	return &auth.ArtifactRegistryCredentials{
-		Authenticator: authn.FromConfig(authn.AuthConfig{
+		Authenticator: &authn.Basic{
 			Username: "oauth2accesstoken",
 			Password: t.AccessToken,
-		}),
+		},
 		ExpiresAt: t.Expiry,
 	}, nil
 }
 
-// GetAccessTokenOptionsForCluster implements auth.Provider.
+// GetAccessTokenOptionsForCluster implements auth.RESTConfigProvider.
 func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 	// A single token is needed. No options.
 	return [][]auth.Option{{}}, nil
 }
 
-// NewRESTConfig implements auth.Provider.
+// NewRESTConfig implements auth.RESTConfigProvider.
 func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 

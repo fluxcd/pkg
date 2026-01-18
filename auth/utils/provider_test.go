@@ -51,6 +51,10 @@ func TestProviderByName(t *testing.T) {
 				name:     serviceaccounttoken.ProviderName,
 				provider: serviceaccounttoken.Provider{},
 			},
+			{
+				name:     serviceaccounttoken.CredentialName,
+				provider: serviceaccounttoken.Provider{},
+			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				g := NewWithT(t)
@@ -78,6 +82,14 @@ func TestProviderByName(t *testing.T) {
 				name:     gcp.ProviderName,
 				provider: gcp.Provider{},
 			},
+			{
+				name:     serviceaccounttoken.ProviderName,
+				provider: serviceaccounttoken.Provider{},
+			},
+			{
+				name:     serviceaccounttoken.CredentialName,
+				provider: serviceaccounttoken.Provider{},
+			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				g := NewWithT(t)
@@ -86,14 +98,6 @@ func TestProviderByName(t *testing.T) {
 				g.Expect(p).To(Equal(tt.provider))
 			})
 		}
-
-		t.Run("generic provider", func(t *testing.T) {
-			g := NewWithT(t)
-			p, err := authutils.ProviderByName[auth.ArtifactRegistryCredentialsProvider](serviceaccounttoken.ProviderName)
-			g.Expect(err).To(HaveOccurred())
-			g.Expect(err.Error()).To(ContainSubstring("does not implement the expected interface"))
-			g.Expect(p).To(BeNil())
-		})
 	})
 
 	t.Run("restconfig providers", func(t *testing.T) {
@@ -115,6 +119,10 @@ func TestProviderByName(t *testing.T) {
 			},
 			{
 				name:     serviceaccounttoken.ProviderName,
+				provider: serviceaccounttoken.Provider{},
+			},
+			{
+				name:     serviceaccounttoken.CredentialName,
 				provider: serviceaccounttoken.Provider{},
 			},
 		} {
@@ -148,6 +156,10 @@ func TestProviderByName(t *testing.T) {
 			},
 			{
 				name:     serviceaccounttoken.ProviderName,
+				provider: serviceaccounttoken.Provider{},
+			},
+			{
+				name:     serviceaccounttoken.CredentialName,
 				provider: serviceaccounttoken.Provider{},
 			},
 		} {

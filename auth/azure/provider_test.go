@@ -225,10 +225,10 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 			creds, err := auth.GetArtifactRegistryCredentials(context.Background(), provider, artifactRepository, opts...)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
-				Authenticator: authn.FromConfig(authn.AuthConfig{
+				Authenticator: &authn.Basic{
 					Username: "00000000-0000-0000-0000-000000000000",
 					Password: refreshToken,
-				}),
+				},
 				ExpiresAt: time.Unix(exp, 0),
 			}))
 		})

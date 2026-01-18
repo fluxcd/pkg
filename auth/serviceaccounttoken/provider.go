@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/go-containerregistry/pkg/authn"
 	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,15 +33,21 @@ import (
 	"github.com/fluxcd/pkg/auth"
 )
 
-// ProviderName is the name of the generic authentication provider.
+// ProviderName is the name of the provider implemented by this package.
+// Only the Kustomization and HelmRelease APIs refer to this package as
+// a provider for historical reasons. New APIs should refer to it as the
+// ServiceAccountToken credential provider (see CredentialName).
 const ProviderName = "generic"
+
+// CredentialName is the name of the credential type implemented by this package.
+const CredentialName = "ServiceAccountToken"
 
 // Provider implements the auth.Provider interface for generic authentication.
 type Provider struct{ Implementation }
 
 // GetName implements auth.RESTConfigProvider.
 func (p Provider) GetName() string {
-	return ProviderName
+	return CredentialName
 }
 
 // NewControllerToken implements auth.RESTConfigProvider.
@@ -129,6 +136,31 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 	return &Token{
 		Token:     oidcToken,
 		ExpiresAt: *exp,
+	}, nil
+}
+
+// GetAccessTokenOptionsForArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Option, error) {
+	// No special options are needed to get an access token for artifact registry.
+	return nil, nil
+}
+
+// ParseArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (p Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
+	// The artifact repository is irrelevant for issuing the ServiceAccount token,
+	// just return the provider name for inclusion in the cache key.
+	return p.GetName(), nil
+}
+
+// NewArtifactRegistryCredentials implements auth.ArtifactRegistryCredentialsProvider.
+func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
+	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+
+	token := accessToken.(*Token)
+
+	return &auth.ArtifactRegistryCredentials{
+		Authenticator: &authn.Bearer{Token: token.Token},
+		ExpiresAt:     token.ExpiresAt,
 	}, nil
 }
 
