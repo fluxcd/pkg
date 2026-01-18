@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -36,29 +37,31 @@ import (
 )
 
 const (
-	KeyAppID             = "githubAppID"
-	KeyAppInstallationID = "githubAppInstallationID"
-	KeyAppPrivateKey     = "githubAppPrivateKey"
-	KeyAppBaseURL        = "githubAppBaseURL"
+	KeyAppID                = "githubAppID"
+	KeyAppInstallationOwner = "githubAppInstallationOwner"
+	KeyAppInstallationID    = "githubAppInstallationID"
+	KeyAppPrivateKey        = "githubAppPrivateKey"
+	KeyAppBaseURL           = "githubAppBaseURL"
 
 	AccessTokenUsername = "x-access-token"
 )
 
 // Client is an authentication provider for GitHub Apps.
 type Client struct {
-	appID          int64
-	installationID int64
-	privateKey     []byte
-	rsaKey         *rsa.PrivateKey
-	apiURL         string
-	proxyURL       *url.URL
-	httpClient     *http.Client
-	cache          *cache.TokenCache
-	kind           string
-	name           string
-	namespace      string
-	operation      string
-	tlsConfig      *tls.Config
+	appID             int64
+	installationOwner string
+	installationID    int64
+	privateKey        []byte
+	rsaKey            *rsa.PrivateKey
+	apiURL            string
+	proxyURL          *url.URL
+	httpClient        *http.Client
+	cache             *cache.TokenCache
+	kind              string
+	name              string
+	namespace         string
+	operation         string
+	tlsConfig         *tls.Config
 }
 
 // OptFunc enables specifying options for the provider.
@@ -91,8 +94,11 @@ func New(opts ...OptFunc) (*Client, error) {
 		return nil, fmt.Errorf("app ID must be provided to use github app authentication")
 	}
 
-	if p.installationID == 0 {
-		return nil, fmt.Errorf("app installation ID must be provided to use github app authentication")
+	if p.installationOwner == "" && p.installationID == 0 {
+		return nil, fmt.Errorf("app installation owner or ID must be provided to use github app authentication")
+	}
+	if p.installationOwner != "" && p.installationID != 0 {
+		return nil, fmt.Errorf("only one of app installation owner or ID must be provided to use github app authentication")
 	}
 
 	if len(p.privateKey) == 0 {
@@ -124,6 +130,9 @@ func WithAppData(appData map[string][]byte) OptFunc {
 	return func(p *Client) {
 		if val, ok := appData[KeyAppID]; ok {
 			p.appID, _ = strconv.ParseInt(string(val), 10, 64)
+		}
+		if val, ok := appData[KeyAppInstallationOwner]; ok {
+			p.installationOwner = string(val)
 		}
 		if val, ok := appData[KeyAppInstallationID]; ok {
 			p.installationID, _ = strconv.ParseInt(string(val), 10, 64)
@@ -235,7 +244,11 @@ func (p *Client) createInstallationToken(ctx context.Context) (*AppToken, error)
 	}
 
 	// Create the installation token
-	token, _, err := ghClient.Apps.CreateInstallationToken(ctx, p.installationID, nil)
+	installationID, err := p.getInstallationID(ctx, ghClient)
+	if err != nil {
+		return nil, err
+	}
+	token, _, err := ghClient.Apps.CreateInstallationToken(ctx, installationID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -244,6 +257,33 @@ func (p *Client) createInstallationToken(ctx context.Context) (*AppToken, error)
 		Token:     token.GetToken(),
 		ExpiresAt: token.GetExpiresAt().Time,
 	}, nil
+}
+
+// getInstallationID gets the installation ID for creating installation tokens.
+// If an ID is already set on the client, it is returned directly. Otherwise,
+// the installation ID is looked up using the installation owner.
+func (p *Client) getInstallationID(ctx context.Context, ghClient *github.Client) (int64, error) {
+	if p.installationID != 0 {
+		return p.installationID, nil
+	}
+
+	var errs []error
+
+	// Attempt owner as organization.
+	orgInstallation, _, err := ghClient.Apps.FindOrganizationInstallation(ctx, p.installationOwner)
+	if err == nil {
+		return orgInstallation.GetID(), nil
+	}
+	errs = append(errs, fmt.Errorf("failed to find organization installation: %w", err))
+
+	// Attempt owner as user.
+	userInstallation, _, err := ghClient.Apps.FindUserInstallation(ctx, p.installationOwner)
+	if err == nil {
+		return userInstallation.GetID(), nil
+	}
+	errs = append(errs, fmt.Errorf("failed to find user installation: %w", err))
+
+	return 0, errors.Join(errs...)
 }
 
 // GetCredentials returns the GitHub App installation username and password
@@ -263,6 +303,7 @@ func GetCredentials(ctx context.Context, opts ...OptFunc) (string, string, error
 func (p *Client) buildCacheKey() string {
 	keyParts := []string{
 		fmt.Sprintf("%s=%d", KeyAppID, p.appID),
+		fmt.Sprintf("%s=%s", KeyAppInstallationOwner, p.installationOwner),
 		fmt.Sprintf("%s=%d", KeyAppInstallationID, p.installationID),
 		fmt.Sprintf("%s=%s", KeyAppBaseURL, p.apiURL),
 		fmt.Sprintf("%s=%s", KeyAppPrivateKey, string(p.privateKey)),

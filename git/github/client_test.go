@@ -42,9 +42,11 @@ func TestClient_Options(t *testing.T) {
 	proxy, _ := url.Parse("http://localhost:8080")
 
 	tests := []struct {
-		name    string
-		opts    []OptFunc
-		wantErr error
+		name                  string
+		opts                  []OptFunc
+		wantErr               error
+		wantInstallationID    int64
+		wantInstallationOwner string
 	}{
 		{
 			name: "Create new client with proxy",
@@ -56,6 +58,7 @@ func TestClient_Options(t *testing.T) {
 				}),
 				WithProxyURL(proxy),
 			},
+			wantInstallationID: 456,
 		},
 		{
 			name: "Create new client",
@@ -64,6 +67,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppInstallationID: []byte(installationID),
 				KeyAppPrivateKey:     kp.PrivateKey,
 			})},
+			wantInstallationID: 456,
 		},
 		{
 			name: "Create new client with custom api url",
@@ -73,6 +77,26 @@ func TestClient_Options(t *testing.T) {
 				KeyAppBaseURL:        []byte(gitHubEnterpriseURL),
 				KeyAppPrivateKey:     kp.PrivateKey,
 			})},
+			wantInstallationID: 456,
+		},
+		{
+			name: "Create new client with installation owner",
+			opts: []OptFunc{WithAppData(map[string][]byte{
+				KeyAppID:                []byte(appID),
+				KeyAppInstallationOwner: []byte("my-org"),
+				KeyAppPrivateKey:        kp.PrivateKey,
+			})},
+			wantInstallationOwner: "my-org",
+		},
+		{
+			name: "Create new client with both installation owner and ID",
+			opts: []OptFunc{WithAppData(map[string][]byte{
+				KeyAppID:                []byte(appID),
+				KeyAppInstallationOwner: []byte("my-org"),
+				KeyAppInstallationID:    []byte(installationID),
+				KeyAppPrivateKey:        kp.PrivateKey,
+			})},
+			wantErr: errors.New("only one of app installation owner or ID must be provided to use github app authentication"),
 		},
 		{
 			name:    "Create new client with empty data",
@@ -95,7 +119,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppPrivateKey: kp.PrivateKey,
 			},
 			)},
-			wantErr: errors.New("app installation ID must be provided to use github app authentication"),
+			wantErr: errors.New("app installation owner or ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with app data with missing private Key",
@@ -124,7 +148,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppPrivateKey:     kp.PrivateKey,
 			},
 			)},
-			wantErr: errors.New("app installation ID must be provided to use github app authentication"),
+			wantErr: errors.New("app installation owner or ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with invalid private key in app data",
@@ -150,7 +174,8 @@ func TestClient_Options(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(client.appID).To(Equal(int64(123)))
-				g.Expect(client.installationID).To(Equal(int64(456)))
+				g.Expect(client.installationID).To(Equal(tt.wantInstallationID))
+				g.Expect(client.installationOwner).To(Equal(tt.wantInstallationOwner))
 				g.Expect(client.privateKey).To(Equal(kp.PrivateKey))
 
 				if client.apiURL != "" {
@@ -306,4 +331,102 @@ func TestClient_TLS_RootCA(t *testing.T) {
 		g.Expect(user).To(Equal(AccessTokenUsername))
 		g.Expect(pass).To(Equal("enterprise-token"))
 	})
+}
+
+func TestClient_GetCredentials_InstallationOwner(t *testing.T) {
+	expiresAt := time.Now().UTC().Add(time.Hour)
+
+	tests := []struct {
+		name              string
+		installationOwner string
+		orgStatus         int
+		userStatus        int
+		wantErr           bool
+		wantErrContains   string
+	}{
+		{
+			name:              "Lookup org installation",
+			installationOwner: "my-org",
+			orgStatus:         http.StatusOK,
+			userStatus:        http.StatusNotFound,
+		},
+		{
+			name:              "Fallback to user installation",
+			installationOwner: "my-user",
+			orgStatus:         http.StatusNotFound,
+			userStatus:        http.StatusOK,
+		},
+		{
+			name:              "Both lookups fail",
+			installationOwner: "unknown",
+			orgStatus:         http.StatusNotFound,
+			userStatus:        http.StatusNotFound,
+			wantErr:           true,
+			wantErrContains:   "failed to find organization installation",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				var response []byte
+				var err error
+
+				switch r.URL.Path {
+				case "/orgs/" + tt.installationOwner + "/installation":
+					w.WriteHeader(tt.orgStatus)
+					if tt.orgStatus == http.StatusOK {
+						response, err = json.Marshal(map[string]interface{}{"id": 789})
+						g.Expect(err).ToNot(HaveOccurred())
+					}
+				case "/users/" + tt.installationOwner + "/installation":
+					w.WriteHeader(tt.userStatus)
+					if tt.userStatus == http.StatusOK {
+						response, err = json.Marshal(map[string]interface{}{"id": 789})
+						g.Expect(err).ToNot(HaveOccurred())
+					}
+				case "/app/installations/789/access_tokens":
+					w.WriteHeader(http.StatusOK)
+					response, err = json.Marshal(&AppToken{
+						Token:     "access-token",
+						ExpiresAt: expiresAt,
+					})
+					g.Expect(err).ToNot(HaveOccurred())
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+
+				w.Write(response)
+			}
+			srv := httptest.NewServer(http.HandlerFunc(handler))
+			t.Cleanup(func() {
+				srv.Close()
+			})
+
+			kp, err := ssh.GenerateKeyPair(ssh.RSA_4096)
+			g.Expect(err).ToNot(HaveOccurred())
+			opts := []OptFunc{
+				WithAppData(map[string][]byte{
+					KeyAppID:                []byte("123"),
+					KeyAppInstallationOwner: []byte(tt.installationOwner),
+					KeyAppBaseURL:           []byte(srv.URL),
+					KeyAppPrivateKey:        kp.PrivateKey,
+				}),
+			}
+
+			username, password, err := GetCredentials(context.Background(), opts...)
+			if tt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				if tt.wantErrContains != "" {
+					g.Expect(err.Error()).To(ContainSubstring(tt.wantErrContains))
+				}
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(username).To(Equal("x-access-token"))
+				g.Expect(password).To(Equal("access-token"))
+			}
+		})
+	}
 }
