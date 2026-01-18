@@ -145,6 +145,11 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	g.Expect(time.Until(genericToken.ExpiresAt)).To(BeNumerically("~", time.Hour, 10*time.Second))
 }
 
+func TestProvider_GetName(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(serviceaccounttoken.Provider{}.GetName()).To(Equal(serviceaccounttoken.CredentialName))
+}
+
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
 	id, err := serviceaccounttoken.Provider{}.GetIdentity(corev1.ServiceAccount{
@@ -349,4 +354,48 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 		o.Apply(opts[0]...)
 		g.Expect(o.Audiences).To(ConsistOf("audience1", "audience2"))
 	})
+}
+
+func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
+	g := NewWithT(t)
+	opts, err := serviceaccounttoken.Provider{}.GetAccessTokenOptionsForArtifactRepository("any-registry.io")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(opts).To(BeNil())
+}
+
+func TestProvider_ParseArtifactRepository(t *testing.T) {
+	p := serviceaccounttoken.Provider{}
+	for _, repo := range []string{
+		"any-registry.io",
+		"ghcr.io/owner/repo",
+		"docker.io/library/nginx",
+	} {
+		t.Run(repo, func(t *testing.T) {
+			g := NewWithT(t)
+			parsed, err := p.ParseArtifactRepository(repo)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(parsed).To(Equal(serviceaccounttoken.CredentialName))
+		})
+	}
+}
+
+func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
+	g := NewWithT(t)
+
+	expiresAt := time.Now().Add(time.Hour)
+	token := &serviceaccounttoken.Token{
+		Token:     "test-token",
+		ExpiresAt: expiresAt,
+	}
+
+	creds, err := serviceaccounttoken.Provider{}.NewArtifactRegistryCredentials(
+		context.Background(), "any-registry.io", token)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(creds).NotTo(BeNil())
+	g.Expect(creds.ExpiresAt).To(Equal(expiresAt))
+
+	// Verify the authenticator returns the correct authorization header.
+	authConfig, err := creds.Authenticator.Authorization()
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(authConfig.RegistryToken).To(Equal("test-token"))
 }

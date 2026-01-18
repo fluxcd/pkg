@@ -39,19 +39,14 @@ func (c *Client) LoginWithCredentials(credentials string) error {
 // GetAuthFromCredentials returns an authn.Authenticator for the static credentials, accepts a single token
 // or a user:password format.
 func GetAuthFromCredentials(credentials string) (authn.Authenticator, error) {
-	var authConfig authn.AuthConfig
-
 	if credentials == "" {
 		return nil, errors.New("credentials cannot be empty")
 	}
 
-	parts := strings.SplitN(credentials, ":", 2)
-
-	if len(parts) == 1 {
-		authConfig = authn.AuthConfig{RegistryToken: parts[0]}
-	} else {
-		authConfig = authn.AuthConfig{Username: parts[0], Password: parts[1]}
+	switch parts := strings.SplitN(credentials, ":", 2); {
+	case len(parts) == 1:
+		return &authn.Bearer{Token: parts[0]}, nil
+	default:
+		return &authn.Basic{Username: parts[0], Password: parts[1]}, nil
 	}
-
-	return authn.FromConfig(authConfig), nil
 }

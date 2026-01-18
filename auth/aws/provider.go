@@ -164,7 +164,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	return creds, nil
 }
 
-// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
+// GetAccessTokenOptionsForArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
 func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]auth.Option, error) {
 	// AWS requires a region for getting access credentials. To avoid requiring
 	// two regions to be passed in the Flux APIs we leverage the region present
@@ -191,7 +191,7 @@ const publicECR = "public.ecr.aws"
 
 var registryRegex = regexp.MustCompile(registryPattern)
 
-// ParseArtifactRepository implements auth.Provider.
+// ParseArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
 // ParseArtifactRepository returns the ECR region, unless the registry
 // is public.ecr.aws, in which case it returns public.ecr.aws.
 func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
@@ -223,7 +223,7 @@ func getECRRegionFromRegistryInput(registryInput string) string {
 	return registryInput
 }
 
-// NewArtifactRegistryCredentials implements auth.Provider.
+// NewArtifactRegistryCredentials implements auth.ArtifactRegistryCredentialsProvider.
 func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
 	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
@@ -284,15 +284,15 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryIn
 		return nil, fmt.Errorf("invalid authorization token format")
 	}
 	return &auth.ArtifactRegistryCredentials{
-		Authenticator: authn.FromConfig(authn.AuthConfig{
+		Authenticator: &authn.Basic{
 			Username: s[0],
 			Password: s[1],
-		}),
+		},
 		ExpiresAt: expiresAt,
 	}, nil
 }
 
-// GetAccessTokenOptionsForCluster implements auth.Provider.
+// GetAccessTokenOptionsForCluster implements auth.RESTConfigProvider.
 func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 	var o auth.Options
 	o.Apply(opts...)
@@ -304,7 +304,7 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 	return [][]auth.Option{{auth.WithSTSRegion(region)}}, nil
 }
 
-// NewRESTConfig implements auth.Provider.
+// NewRESTConfig implements auth.RESTConfigProvider.
 //
 // Reference:
 // https://docs.aws.amazon.com/eks/latest/best-practices/identity-and-access-management.html#_controlling_access_to_eks_clusters

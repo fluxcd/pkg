@@ -37,7 +37,7 @@ func ProviderByName[T any](name string) (T, error) {
 		p = azure.Provider{}
 	case gcp.ProviderName:
 		p = gcp.Provider{}
-	case serviceaccounttoken.ProviderName:
+	case serviceaccounttoken.ProviderName, serviceaccounttoken.CredentialName:
 		p = serviceaccounttoken.Provider{}
 	default:
 		return zero, fmt.Errorf("provider '%s' not implemented", name)

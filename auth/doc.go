@@ -14,5 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// auth is a package for handling secret-less authentication with cloud providers.
+// auth is a package for handling short-lived credentials.
+// Flux APIs using this package will never pass in contents
+// of a Secret specified directly in the API object under
+// reconciliation. Instead, options to generate short-lived
+// credentials on-the-fly shall be provided. The package
+// supports caching of generated credentials to avoid
+// rate-limiting by external services that are part of
+// the credential generation process.
 package auth

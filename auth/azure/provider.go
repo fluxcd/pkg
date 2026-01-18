@@ -125,7 +125,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	return &Token{token}, nil
 }
 
-// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
+// GetAccessTokenOptionsForArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
 func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]auth.Option, error) {
 	// Azure requires scopes for getting access tokens. Here we compute
 	// the scope for ACR, which is based on the registry host.
@@ -160,7 +160,7 @@ const registryPattern = `^.+\.(azurecr\.io|azurecr\.cn|azurecr\.de|azurecr\.us)$
 
 var registryRegex = regexp.MustCompile(registryPattern)
 
-// ParseArtifactRepository implements auth.Provider.
+// ParseArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
 // ParseArtifactRepository returns the ACR registry host.
 func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
 	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
@@ -191,7 +191,7 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 		registry, registryPattern)
 }
 
-// NewArtifactRegistryCredentials implements auth.Provider.
+// NewArtifactRegistryCredentials implements auth.ArtifactRegistryCredentialsProvider.
 func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry string,
 	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
@@ -234,16 +234,16 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 
 	// Return the credentials.
 	return &auth.ArtifactRegistryCredentials{
-		Authenticator: authn.FromConfig(authn.AuthConfig{
+		Authenticator: &authn.Basic{
 			// https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
 			Username: "00000000-0000-0000-0000-000000000000",
 			Password: token,
-		}),
+		},
 		ExpiresAt: expiry.Time,
 	}, nil
 }
 
-// GetAccessTokenOptionsForCluster implements auth.Provider.
+// GetAccessTokenOptionsForCluster implements auth.RESTConfigProvider.
 func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 	var o auth.Options
 	o.Apply(opts...)
@@ -278,7 +278,7 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 	return atOpts, nil
 }
 
-// NewRESTConfig implements auth.Provider.
+// NewRESTConfig implements auth.RESTConfigProvider.
 func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
