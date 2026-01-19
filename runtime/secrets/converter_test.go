@@ -171,11 +171,20 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			wantTLS:       true,
 		},
 		{
-			name: "GitHub App only",
+			name: "GitHub App with installation ID",
 			secretData: map[string][]byte{
 				secrets.KeyGitHubAppID:             []byte("123456"),
 				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
 				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+			wantGitHubApp: true,
+		},
+		{
+			name: "GitHub App with installation owner",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:                []byte("123456"),
+				secrets.KeyGitHubAppInstallationOwner: []byte("my-org"),
+				secrets.KeyGitHubAppPrivateKey:        []byte("test-private-key"),
 			},
 			wantGitHubApp: true,
 		},
@@ -300,8 +309,11 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			if tt.wantGitHubApp {
 				g.Expect(result.GitHubAppData).ToNot(BeNil())
 				g.Expect(result.GitHubAppData).To(HaveKey(secrets.KeyGitHubAppID))
-				g.Expect(result.GitHubAppData).To(HaveKey(secrets.KeyGitHubAppInstallationID))
 				g.Expect(result.GitHubAppData).To(HaveKey(secrets.KeyGitHubAppPrivateKey))
+				// Exactly one of installation owner or installation ID should be present
+				hasInstallationOwner := result.GitHubAppData[secrets.KeyGitHubAppInstallationOwner] != nil
+				hasInstallationID := result.GitHubAppData[secrets.KeyGitHubAppInstallationID] != nil
+				g.Expect(hasInstallationOwner || hasInstallationID).To(BeTrue(), "either installation owner or installation ID should be present")
 			}
 
 			if tt.wantTLS {
@@ -322,7 +334,7 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 		errMsg     string
 	}{
 		{
-			name: "valid GitHub App data with all fields",
+			name: "valid GitHub App data with installation ID and base URL",
 			secretData: map[string][]byte{
 				secrets.KeyGitHubAppID:             []byte("123456"),
 				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
@@ -337,7 +349,7 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 			},
 		},
 		{
-			name: "valid GitHub App data with required fields only",
+			name: "valid GitHub App data with installation ID only",
 			secretData: map[string][]byte{
 				secrets.KeyGitHubAppID:             []byte("123456"),
 				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
@@ -347,6 +359,34 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 				secrets.KeyGitHubAppID:             []byte("123456"),
 				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
 				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+		},
+		{
+			name: "valid GitHub App data with installation owner",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:                []byte("123456"),
+				secrets.KeyGitHubAppInstallationOwner: []byte("my-org"),
+				secrets.KeyGitHubAppPrivateKey:        []byte("test-private-key"),
+			},
+			wantData: map[string][]byte{
+				secrets.KeyGitHubAppID:                []byte("123456"),
+				secrets.KeyGitHubAppInstallationOwner: []byte("my-org"),
+				secrets.KeyGitHubAppPrivateKey:        []byte("test-private-key"),
+			},
+		},
+		{
+			name: "valid GitHub App data with installation owner and base URL",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:                []byte("123456"),
+				secrets.KeyGitHubAppInstallationOwner: []byte("my-org"),
+				secrets.KeyGitHubAppPrivateKey:        []byte("test-private-key"),
+				secrets.KeyGitHubAppBaseURL:           []byte("https://github.example.com"),
+			},
+			wantData: map[string][]byte{
+				secrets.KeyGitHubAppID:                []byte("123456"),
+				secrets.KeyGitHubAppInstallationOwner: []byte("my-org"),
+				secrets.KeyGitHubAppPrivateKey:        []byte("test-private-key"),
+				secrets.KeyGitHubAppBaseURL:           []byte("https://github.example.com"),
 			},
 		},
 		{
@@ -356,14 +396,6 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
 			},
 			errMsg: `secret 'default/github-app-secret': key 'githubAppID' not found`,
-		},
-		{
-			name: "missing installation ID",
-			secretData: map[string][]byte{
-				secrets.KeyGitHubAppID:         []byte("123456"),
-				secrets.KeyGitHubAppPrivateKey: []byte("test-private-key"),
-			},
-			errMsg: `secret 'default/github-app-secret': key 'githubAppInstallationID' not found`,
 		},
 		{
 			name: "missing private key",
@@ -379,11 +411,22 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 			errMsg:     `secret 'default/github-app-secret': key 'githubAppID' not found`,
 		},
 		{
-			name: "partial GitHub App data - only app ID",
+			name: "neither installation owner nor installation ID provided",
 			secretData: map[string][]byte{
-				secrets.KeyGitHubAppID: []byte("123456"),
+				secrets.KeyGitHubAppID:         []byte("123456"),
+				secrets.KeyGitHubAppPrivateKey: []byte("test-private-key"),
 			},
-			errMsg: `secret 'default/github-app-secret': key 'githubAppInstallationID' not found`,
+			errMsg: `secret 'default/github-app-secret' must contain exactly one of 'githubAppInstallationOwner' or 'githubAppInstallationID'`,
+		},
+		{
+			name: "both installation owner and installation ID provided",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:                []byte("123456"),
+				secrets.KeyGitHubAppInstallationOwner: []byte("my-org"),
+				secrets.KeyGitHubAppInstallationID:    []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:        []byte("test-private-key"),
+			},
+			errMsg: `secret 'default/github-app-secret' must contain exactly one of 'githubAppInstallationOwner' or 'githubAppInstallationID'`,
 		},
 		{
 			name: "partial GitHub App data - app ID and installation ID only",
@@ -414,24 +457,31 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(result).ToNot(BeNil())
-				g.Expect(result).To(Equal(tt.wantData))
 
-				// Verify required fields are present
+				// Verify required fields are present and have correct values
 				g.Expect(result).To(HaveKey(secrets.KeyGitHubAppID))
-				g.Expect(result).To(HaveKey(secrets.KeyGitHubAppInstallationID))
 				g.Expect(result).To(HaveKey(secrets.KeyGitHubAppPrivateKey))
-
-				// Verify content
 				g.Expect(string(result[secrets.KeyGitHubAppID])).To(Equal("123456"))
-				g.Expect(string(result[secrets.KeyGitHubAppInstallationID])).To(Equal("7890123"))
 				g.Expect(string(result[secrets.KeyGitHubAppPrivateKey])).To(Equal("test-private-key"))
 
-				// BaseURL should only be present if it was in the input
+				// Verify exactly one of installation owner or installation ID has a non-nil value
+				hasInstallationOwner := result[secrets.KeyGitHubAppInstallationOwner] != nil
+				hasInstallationID := result[secrets.KeyGitHubAppInstallationID] != nil
+				g.Expect(hasInstallationOwner != hasInstallationID).To(BeTrue(), "exactly one of installation owner or installation ID should be present")
+
+				// Verify the correct installation field has the expected value
+				if tt.wantData[secrets.KeyGitHubAppInstallationOwner] != nil {
+					g.Expect(string(result[secrets.KeyGitHubAppInstallationOwner])).To(Equal(string(tt.wantData[secrets.KeyGitHubAppInstallationOwner])))
+				}
+				if tt.wantData[secrets.KeyGitHubAppInstallationID] != nil {
+					g.Expect(string(result[secrets.KeyGitHubAppInstallationID])).To(Equal(string(tt.wantData[secrets.KeyGitHubAppInstallationID])))
+				}
+
+				// BaseURL should only have a non-nil value if it was in the input
 				if tt.wantData[secrets.KeyGitHubAppBaseURL] != nil {
-					g.Expect(result).To(HaveKey(secrets.KeyGitHubAppBaseURL))
 					g.Expect(string(result[secrets.KeyGitHubAppBaseURL])).To(Equal("https://github.example.com"))
 				} else {
-					g.Expect(result).ToNot(HaveKey(secrets.KeyGitHubAppBaseURL))
+					g.Expect(result[secrets.KeyGitHubAppBaseURL]).To(BeNil())
 				}
 			}
 		})

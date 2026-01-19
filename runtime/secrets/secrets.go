@@ -56,6 +56,8 @@ const (
 
 	// KeyGitHubAppID is the key for GitHub App ID data in secrets.
 	KeyGitHubAppID = "githubAppID"
+	// KeyGitHubAppInstallationOwner is the key for GitHub App installation owner data in secrets.
+	KeyGitHubAppInstallationOwner = "githubAppInstallationOwner"
 	// KeyGitHubAppInstallationID is the key for GitHub App installation ID data in secrets.
 	KeyGitHubAppInstallationID = "githubAppInstallationID"
 	// KeyGitHubAppPrivateKey is the key for GitHub App private key data in secrets.
