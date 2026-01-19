@@ -298,17 +298,18 @@ func SSHAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*SSHAuth, er
 
 // GitHubAppDataFromSecret retrieves GitHub App authentication data from a Kubernetes secret.
 //
-// The function expects the secret to contain "githubAppID", "githubAppInstallationID", and
-// "githubAppPrivateKey" fields. All three fields are required and the function will return
-// an error if any is missing. Optional "githubAppBaseURL" field can be present for GitHub
-// Enterprise Server instances.
+// The function expects the secret to contain "githubAppID" and "githubAppPrivateKey",
+// and exactly one of "githubAppInstallationOwner" or "githubAppInstallationID" fields.
+// All three fields are required and the function will return an error if any is missing.
+// Optional "githubAppBaseURL" field can be present for GitHub Enterprise Server instances.
 func GitHubAppDataFromSecret(ctx context.Context, secret *corev1.Secret) (GitHubAppData, error) {
 	_, hasAppID := secret.Data[KeyGitHubAppID]
+	_, hasInstallationOwner := secret.Data[KeyGitHubAppInstallationOwner]
 	_, hasInstallationID := secret.Data[KeyGitHubAppInstallationID]
 	_, hasPrivateKey := secret.Data[KeyGitHubAppPrivateKey]
 
 	// Complete absence - return KeyNotFoundError (will be ignored by trySetAuth)
-	if !hasAppID && !hasInstallationID && !hasPrivateKey {
+	if !hasAppID && !hasInstallationOwner && !hasInstallationID && !hasPrivateKey {
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppID, Secret: secret}
 	}
 
@@ -316,17 +317,25 @@ func GitHubAppDataFromSecret(ctx context.Context, secret *corev1.Secret) (GitHub
 	if !hasAppID {
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppID, Secret: secret}
 	}
-	if !hasInstallationID {
-		return nil, &KeyNotFoundError{Key: KeyGitHubAppInstallationID, Secret: secret}
-	}
 	if !hasPrivateKey {
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppPrivateKey, Secret: secret}
 	}
+	if hasInstallationOwner == hasInstallationID {
+		// Either both are present or both are missing - both cases are errors
+		return nil, fmt.Errorf("secret '%s' must contain exactly one of '%s' or '%s'",
+			client.ObjectKeyFromObject(secret), KeyGitHubAppInstallationOwner, KeyGitHubAppInstallationID)
+	}
 
 	data := GitHubAppData{
-		KeyGitHubAppID:             secret.Data[KeyGitHubAppID],
-		KeyGitHubAppInstallationID: secret.Data[KeyGitHubAppInstallationID],
-		KeyGitHubAppPrivateKey:     secret.Data[KeyGitHubAppPrivateKey],
+		KeyGitHubAppID:         secret.Data[KeyGitHubAppID],
+		KeyGitHubAppPrivateKey: secret.Data[KeyGitHubAppPrivateKey],
+	}
+
+	if owner, exists := secret.Data[KeyGitHubAppInstallationOwner]; exists {
+		data[KeyGitHubAppInstallationOwner] = owner
+	}
+	if installationID, exists := secret.Data[KeyGitHubAppInstallationID]; exists {
+		data[KeyGitHubAppInstallationID] = installationID
 	}
 
 	if baseURLData, exists := secret.Data[KeyGitHubAppBaseURL]; exists {

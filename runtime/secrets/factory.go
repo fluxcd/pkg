@@ -214,16 +214,40 @@ func MakeRegistrySecret(name, namespace, server, username, password string) (*co
 	}), nil
 }
 
+// GitHubAppOption configures a GitHub App secret.
+type GitHubAppOption func(map[string]string)
+
+// WithGitHubAppInstallationOwner sets the installation owner for the GitHub App secret.
+func WithGitHubAppInstallationOwner(owner string) GitHubAppOption {
+	return func(data map[string]string) {
+		data[KeyGitHubAppInstallationOwner] = owner
+	}
+}
+
+// WithGitHubAppInstallationID sets the installation ID for the GitHub App secret.
+func WithGitHubAppInstallationID(installationID string) GitHubAppOption {
+	return func(data map[string]string) {
+		data[KeyGitHubAppInstallationID] = installationID
+	}
+}
+
+// WithGitHubAppBaseURL sets the base URL for the GitHub App secret.
+func WithGitHubAppBaseURL(baseURL string) GitHubAppOption {
+	return func(data map[string]string) {
+		data[KeyGitHubAppBaseURL] = baseURL
+	}
+}
+
 // MakeGitHubAppSecret creates a Kubernetes secret for GitHub App authentication.
 //
-// The function requires appID, installationID, and privateKey to be non-empty.
+// The function requires appID and privateKey to be non-empty.
+// Exactly one of installationOwner or installationID must be provided.
 // Optional baseURL can be provided for GitHub Enterprise Server instances.
 // The resulting secret will be of type Opaque.
-func MakeGitHubAppSecret(name, namespace, appID, installationID, privateKey, baseURL string) (*corev1.Secret, error) {
+func MakeGitHubAppSecret(name, namespace, appID, privateKey string,
+	opts ...GitHubAppOption) (*corev1.Secret, error) {
+
 	if err := validateRequired(appID, KeyGitHubAppID); err != nil {
-		return nil, err
-	}
-	if err := validateRequired(installationID, KeyGitHubAppInstallationID); err != nil {
 		return nil, err
 	}
 	if err := validateRequired(privateKey, KeyGitHubAppPrivateKey); err != nil {
@@ -231,13 +255,19 @@ func MakeGitHubAppSecret(name, namespace, appID, installationID, privateKey, bas
 	}
 
 	data := map[string]string{
-		KeyGitHubAppID:             appID,
-		KeyGitHubAppInstallationID: installationID,
-		KeyGitHubAppPrivateKey:     privateKey,
+		KeyGitHubAppID:         appID,
+		KeyGitHubAppPrivateKey: privateKey,
 	}
 
-	if baseURL != "" {
-		data[KeyGitHubAppBaseURL] = baseURL
+	for _, opt := range opts {
+		opt(data)
+	}
+
+	_, hasInstallationOwner := data[KeyGitHubAppInstallationOwner]
+	_, hasInstallationID := data[KeyGitHubAppInstallationID]
+	if hasInstallationOwner == hasInstallationID {
+		return nil, fmt.Errorf("exactly one of %s or %s must be provided",
+			KeyGitHubAppInstallationOwner, KeyGitHubAppInstallationID)
 	}
 
 	return makeSecret(name, namespace, corev1.SecretTypeOpaque, data), nil
