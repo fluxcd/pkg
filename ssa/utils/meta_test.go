@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestSetCommonMetadata(t *testing.T) {
@@ -96,6 +97,76 @@ stringData:
 					g.Expect(object.GetAnnotations()).To(HaveKeyWithValue(k, v))
 				}
 			}
+		})
+	}
+}
+
+func TestParseGroupKindSet(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected map[schema.GroupKind]struct{}
+	}{
+		{
+			name:     "empty string returns empty set",
+			input:    "",
+			expected: map[schema.GroupKind]struct{}{},
+		},
+		{
+			name:  "single kind without group (core API)",
+			input: "Secret",
+			expected: map[schema.GroupKind]struct{}{
+				{Group: "", Kind: "Secret"}: {},
+			},
+		},
+		{
+			name:  "single kind with group",
+			input: "apps/Deployment",
+			expected: map[schema.GroupKind]struct{}{
+				{Group: "apps", Kind: "Deployment"}: {},
+			},
+		},
+		{
+			name:  "multiple kinds with groups",
+			input: "apps/Deployment,batch/Job",
+			expected: map[schema.GroupKind]struct{}{
+				{Group: "apps", Kind: "Deployment"}: {},
+				{Group: "batch", Kind: "Job"}:       {},
+			},
+		},
+		{
+			name:  "mixed kinds with and without groups",
+			input: "Secret,apps/Deployment,ConfigMap",
+			expected: map[schema.GroupKind]struct{}{
+				{Group: "", Kind: "Secret"}:         {},
+				{Group: "apps", Kind: "Deployment"}: {},
+				{Group: "", Kind: "ConfigMap"}:      {},
+			},
+		},
+		{
+			name:  "handles whitespace around items",
+			input: " Secret , apps/Deployment ",
+			expected: map[schema.GroupKind]struct{}{
+				{Group: "", Kind: "Secret"}:         {},
+				{Group: "apps", Kind: "Deployment"}: {},
+			},
+		},
+		{
+			name:  "handles kind with multi-part group",
+			input: "gateway.networking.k8s.io/Gateway",
+			expected: map[schema.GroupKind]struct{}{
+				{Group: "gateway.networking.k8s.io", Kind: "Gateway"}: {},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			result, err := ParseGroupKindSet(tc.input)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(result).To(Equal(tc.expected))
 		})
 	}
 }
