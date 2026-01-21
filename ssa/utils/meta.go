@@ -17,9 +17,11 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // SetCommonMetadata adds the specified labels and annotations to all objects.
@@ -66,4 +68,25 @@ func AnyInMetadata(object *unstructured.Unstructured, metadata map[string]string
 		}
 	}
 	return false
+}
+
+// ParseGroupKindSet converts a string of the form "group1/kind1,group2/kind2"
+// into a set of GroupKind.
+func ParseGroupKindSet(s string) (map[schema.GroupKind]struct{}, error) {
+	set := make(map[schema.GroupKind]struct{})
+	if s == "" {
+		return set, nil
+	}
+	for item := range strings.SplitSeq(s, ",") {
+		parts := strings.SplitN(strings.TrimSpace(item), "/", 2)
+		switch len(parts) {
+		case 1:
+			set[schema.GroupKind{Group: "", Kind: parts[0]}] = struct{}{}
+		case 2:
+			set[schema.GroupKind{Group: parts[0], Kind: parts[1]}] = struct{}{}
+		default:
+			return nil, fmt.Errorf("invalid group/kind format: %s", item)
+		}
+	}
+	return set, nil
 }

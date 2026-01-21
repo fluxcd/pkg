@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,6 +64,10 @@ type ApplyOptions struct {
 
 	// Cleanup defines which in-cluster metadata entries are to be removed before applying objects.
 	Cleanup ApplyCleanupOptions `json:"cleanup"`
+
+	// CustomStageKinds defines a set of Kubernetes resource types that should be applied
+	// in a separate stage after CRDs and before namespaced objects.
+	CustomStageKinds map[schema.GroupKind]struct{} `json:"customStageKinds,omitempty"`
 }
 
 // ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
@@ -154,7 +159,6 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		g, ctx := errgroup.WithContext(ctx)
 		g.SetLimit(m.concurrency)
 		for i, object := range objects {
-			i, object := i, object
 
 			g.Go(func() error {
 				utils.RemoveCABundleFromCRD(object)
@@ -259,6 +263,9 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 		// Contains only Class definitions.
 		classStage []*unstructured.Unstructured
 
+		// Contains the custom kinds.
+		customStage []*unstructured.Unstructured
+
 		// Contains all objects except for cluster definitions and class definitions.
 		resStage []*unstructured.Unstructured
 	)
@@ -269,6 +276,8 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 			defStage = append(defStage, o)
 		case utils.IsClassDefinition(o):
 			classStage = append(classStage, o)
+		case utils.IsCustomStage(o, opts.CustomStageKinds):
+			customStage = append(customStage, o)
 		default:
 			resStage = append(resStage, o)
 		}
@@ -298,6 +307,15 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 		if err := m.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{opts.WaitInterval, opts.WaitTimeout, false}); err != nil {
 			return changeSet, err
 		}
+	}
+
+	// Apply custom staged objects next.
+	if len(customStage) > 0 {
+		cs, err := m.ApplyAll(ctx, customStage, opts)
+		if err != nil {
+			return changeSet, err
+		}
+		changeSet.Append(cs.Entries)
 	}
 
 	// Finally, apply all the other resources.

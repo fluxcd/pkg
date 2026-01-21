@@ -20,6 +20,7 @@ package ssa
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -29,11 +30,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
 	"github.com/fluxcd/pkg/ssa/normalize"
 	"github.com/fluxcd/pkg/ssa/utils"
 )
@@ -1470,6 +1474,189 @@ func TestResourceManager_ApplyAllStaged_CRDWebhookCABundle(t *testing.T) {
 		}
 		if !found || clusterCABundle != exampleCert {
 			t.Errorf("Expected valid CA bundle to be preserved, got: %s", clusterCABundle)
+		}
+	})
+}
+
+func TestApplyAllStaged_AppliesRoleAndRoleBinding(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("custom-stage")
+
+	// Create a non-cluster-admin client to ensure dry-run checks are not bypassed.
+	customStageNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+	}
+	if err := manager.client.Create(ctx, customStageNS); err != nil {
+		t.Fatal(err)
+	}
+	customStageSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      id,
+			Namespace: id,
+		},
+	}
+	if err := manager.client.Create(ctx, customStageSA); err != nil {
+		t.Fatal(err)
+	}
+	customStageCR := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"rbac.authorization.k8s.io"},
+				Resources: []string{"roles", "rolebindings"},
+				Verbs:     []string{"create", "update", "delete", "get", "list", "watch", "patch"},
+			},
+			// Grant the same permissions that the test Role will grant,
+			// so RBAC escalation prevention allows creating the Role and
+			// RoleBinding.
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"get", "list"},
+			},
+		},
+	}
+	if err := manager.client.Create(ctx, customStageCR); err != nil {
+		t.Fatal(err)
+	}
+	customStageCRB := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "ClusterRole",
+			Name:     customStageCR.Name,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      customStageSA.Name,
+			Namespace: customStageSA.Namespace,
+		}},
+	}
+	if err := manager.client.Create(ctx, customStageCRB); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a manager with the non-cluster-admin client
+	customStageManager := *manager
+	customStageCfg := rest.CopyConfig(cfg)
+	customStageCfg.Impersonate = rest.ImpersonationConfig{
+		UserName: fmt.Sprintf("system:serviceaccount:%s:%s", customStageSA.Namespace, customStageSA.Name),
+	}
+	customStageClient, err := client.New(customStageCfg, client.Options{
+		Mapper: restMapper,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	customStageManager.client = customStageClient
+
+	// Create a Role and RoleBinding that references the Role.
+	role := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "rbac.authorization.k8s.io/v1",
+			"kind":       "Role",
+			"metadata": map[string]any{
+				"name":      "role",
+				"namespace": id,
+			},
+			"rules": []any{
+				map[string]any{
+					"apiGroups": []any{""},
+					"resources": []any{"configmaps"},
+					"verbs":     []any{"get", "list"},
+				},
+			},
+		},
+	}
+
+	roleBinding := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "rbac.authorization.k8s.io/v1",
+			"kind":       "RoleBinding",
+			"metadata": map[string]any{
+				"name":      "role-binding",
+				"namespace": id,
+			},
+			"roleRef": map[string]any{
+				"apiGroup": "rbac.authorization.k8s.io",
+				"kind":     "Role",
+				"name":     "role",
+			},
+			"subjects": []any{
+				map[string]any{
+					"kind":      "ServiceAccount",
+					"name":      "default",
+					"namespace": id,
+				},
+			},
+		},
+	}
+
+	objects := []*unstructured.Unstructured{roleBinding, role}
+
+	t.Run("does not apply Role and RoleBinding together without custom stage", func(t *testing.T) {
+		opts := DefaultApplyOptions()
+
+		_, err := customStageManager.ApplyAllStaged(ctx, objects, opts)
+		if err == nil {
+			t.Fatal("Expected error when applying RoleBinding before Role, got none")
+		}
+
+		// Assert the error is a DryRunErr
+		var dryRunErr *ssaerrors.DryRunErr
+		if !errors.As(err, &dryRunErr) {
+			t.Fatalf("Expected error to be *errors.DryRunErr, got %T", err)
+		}
+
+		// Assert the underlying error is NotFound
+		if !apierrors.IsNotFound(dryRunErr.Unwrap()) {
+			t.Errorf("Expected underlying error to be NotFound, got: %v", dryRunErr.Unwrap())
+		}
+
+		// Assert the NotFound is for the Role that the RoleBinding references
+		var statusErr *apierrors.StatusError
+		if !errors.As(dryRunErr.Unwrap(), &statusErr) {
+			t.Fatalf("Expected underlying error to be *apierrors.StatusError, got %T", dryRunErr.Unwrap())
+		}
+		if statusErr.ErrStatus.Details == nil || statusErr.ErrStatus.Details.Name != "role" {
+			t.Errorf("Expected NotFound to be for the Role named 'role', got: %+v", statusErr.ErrStatus.Details)
+		}
+
+		// Assert the involved object is the RoleBinding
+		if dryRunErr.InvolvedObject().GetKind() != "RoleBinding" {
+			t.Errorf("Expected involved object to be RoleBinding, got %s", dryRunErr.InvolvedObject().GetKind())
+		}
+	})
+
+	t.Run("applies Role and RoleBinding together with Role in custom stage", func(t *testing.T) {
+		opts := DefaultApplyOptions()
+		opts.CustomStageKinds = map[schema.GroupKind]struct{}{
+			{Group: "rbac.authorization.k8s.io", Kind: "Role"}: {},
+		}
+
+		changeSet, err := customStageManager.ApplyAllStaged(ctx, objects, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify both objects were created
+		if len(changeSet.Entries) != 2 {
+			t.Errorf("Expected 2 entries, got %d", len(changeSet.Entries))
+		}
+
+		for _, entry := range changeSet.Entries {
+			if diff := cmp.Diff(entry.Action, CreatedAction); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
 		}
 	})
 }

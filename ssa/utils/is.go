@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // IsClusterDefinition checks if the given object is a Kubernetes
@@ -52,6 +53,12 @@ func IsNamespace(object *unstructured.Unstructured) bool {
 // StorageClass, VolumeSnapshotClass, IngressClass, GatewayClass, ClusterClass, etc.
 func IsClassDefinition(object *unstructured.Unstructured) bool {
 	return strings.HasSuffix(object.GetKind(), "Class")
+}
+
+// IsCustomStage checks if the given object matches any of the provided custom stage kinds.
+func IsCustomStage(object *unstructured.Unstructured, customStageKinds map[schema.GroupKind]struct{}) bool {
+	_, exists := customStageKinds[object.GroupVersionKind().GroupKind()]
+	return exists
 }
 
 // IsClusterRole checks if the given object is a Kubernetes ClusterRole definition.
