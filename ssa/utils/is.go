@@ -85,3 +85,21 @@ func IsKustomization(object *unstructured.Unstructured) bool {
 func IsSecret(object *unstructured.Unstructured) bool {
 	return strings.ToLower(object.GetKind()) == "secret" && object.GetAPIVersion() == "v1"
 }
+
+// IsSuspended returns true if the given Flux object has '.spec.suspend' set to true.
+func IsSuspended(object *unstructured.Unstructured) bool {
+	if object == nil {
+		return false
+	}
+
+	if !strings.Contains(object.GetAPIVersion(), "fluxcd") {
+		return false
+	}
+
+	suspended, found, err := unstructured.NestedBool(object.Object, "spec", "suspend")
+	if err != nil || !found {
+		return false
+	}
+
+	return suspended
+}
