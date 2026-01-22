@@ -420,7 +420,7 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 				},
 			},
 			authorityHost: "https://login.chinacloudapi.cn/",
-			secondScope:   "https://management.core.chinacloudapi.cn/.default",
+			secondScope:   "https://management.core.chinacloudapi.cn//.default",
 		},
 		{
 			name:    "valid AKS cluster - us gov",
@@ -439,7 +439,7 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 				},
 			},
 			authorityHost: "https://login.microsoftonline.us/",
-			secondScope:   "https://management.core.usgovcloudapi.net/.default",
+			secondScope:   "https://management.core.usgovcloudapi.net//.default",
 		},
 		{
 			name:    "valid AKS cluster - lowercase",
