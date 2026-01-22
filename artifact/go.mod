@@ -13,11 +13,11 @@ replace (
 
 require (
 	github.com/cyphar/filepath-securejoin v0.6.1
-	github.com/fluxcd/pkg/apis/meta v1.24.0
+	github.com/fluxcd/pkg/apis/meta v1.25.0
 	github.com/fluxcd/pkg/lockedfile v0.7.0
-	github.com/fluxcd/pkg/oci v0.58.0
-	github.com/fluxcd/pkg/sourceignore v0.15.0
-	github.com/fluxcd/pkg/tar v0.16.0
+	github.com/fluxcd/pkg/oci v0.59.0
+	github.com/fluxcd/pkg/sourceignore v0.16.0
+	github.com/fluxcd/pkg/tar v0.17.0
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/onsi/gomega v1.39.0
 	github.com/opencontainers/go-digest v1.0.0
@@ -36,7 +36,7 @@ require (
 	github.com/docker/cli v29.1.5+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
-	github.com/fluxcd/pkg/version v0.11.0 // indirect
+	github.com/fluxcd/pkg/version v0.12.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.7.0 // indirect
