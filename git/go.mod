@@ -14,7 +14,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/cyphar/filepath-securejoin v0.6.1
-	github.com/elazarl/goproxy v1.7.2
+	github.com/elazarl/goproxy v1.8.0
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/fluxcd/pkg/cache v0.12.0
 	github.com/fluxcd/pkg/gittestserver v0.23.0
@@ -24,9 +24,9 @@ require (
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-github/v81 v81.0.0
-	github.com/onsi/gomega v1.38.3
-	golang.org/x/crypto v0.46.0
-	golang.org/x/net v0.48.0
+	github.com/onsi/gomega v1.39.0
+	golang.org/x/crypto v0.47.0
+	golang.org/x/net v0.49.0
 )
 
 require (
@@ -56,8 +56,8 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
