@@ -52,9 +52,11 @@ end-user operator experience.
 
 | Package          | Description                                                       | Reference                                                                                                                                                           |
 |------------------|-------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `acl`            | Access Control List configurations like cross-namespace references | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/acl?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/acl)                       |
 | `client`         | Kubernetes runtime client configurations like QPS and burst       | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/client?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/client)                 |
+| `controller`     | Common controller runtime configurations like rate limiting and shared watchers | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller) |
 | `features`       | Feature gates configurations                                      | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/features?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/features)             |
-| `jiter`          | Runtime jiter configuration applied to reconciliation interval    | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/jiter?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/jiter)                   |
+| `jitter`         | Runtime jitter configuration applied to reconciliation interval   | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/jitter?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/jitter)                 |
 | `leaderelection` | Kubernetes leader election configurations like the lease duration | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/leaderelection?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/leaderelection) |
 | `logger`         | Runtime logger configurations like the encoding and log level     | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/logger?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/logger)                 |
 
@@ -99,7 +101,7 @@ a Kubernetes resource while taking into account a set of configuration options, 
 conflicts and retry before bailing.
 
 It can be configured to understand "owned" Condition types using [`patch.WithOwnedConditions`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch#WithOwnedConditions),
-and offers other options like [`patch.WithObservedGeneration`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch#WithStatusObservedGeneration).
+and offers other options like [`patch.WithStatusObservedGeneration`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch#WithStatusObservedGeneration).
 
 For all available functions and examples, see the [package reference](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/patch).
 
@@ -132,6 +134,16 @@ record metrics.
 | `controller.Metrics`      | Provides the capabilities to record a set of common Prometheus metrics for a Kubernetes resource object | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#Metrics)      |
 | `controller.WatchOptions` | Provides the capabilities to configure sharding of the reconciler resources                             | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/controller?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/controller#WatchOptions) |
 
+### Reconciliation helpers
+
+The [`reconcile`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/reconcile) package offers helpers to finalize
+reconciliation results and effectively manage status conditions and patch options.
+
+| Helper                    | Description                                                                                             | Reference                                                                                                                 |
+|---------------------------|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
+| `reconcile.ResultFinalizer` | Computes the result of a reconciliation, ensuring kstatus compliance and handling retries             | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/reconcile?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/reconcile#ResultFinalizer) |
+| `reconcile.ProgressiveStatus` | Helps report the progressive status of an object based on drift information                          | [![GoDoc](https://pkg.go.dev/badge/github.com/fluxcd/pkg/runtime/reconcile?utm_source=godoc)](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/reconcile#ProgressiveStatus) |
+
 ### Predicates
 
 The [`predicates`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/predicates) package offers a set of [GitOps
@@ -147,6 +159,26 @@ changes.
 The [`errors`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/errors) package contains a set of error types for
 generic reconciler errors. This provides consistent error messages for end-users and allows for e.g. error type
 checking.
+
+### Object Interaction
+
+The [`object`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/object) package provides helpers for interacting with
+GitOps Toolkit objects using unstructured types, allowing reading and writing of attributes without full type conversion.
+
+### Probes
+
+The [`probes`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/probes) package contains a helper to configure sensible
+default health and ready probes on a controller-runtime manager.
+
+### Secret Helpers
+
+The [`secrets`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/secrets) package provides utilities for handling
+Kubernetes secrets, consolidating common patterns for TLS, proxy, authentication and more.
+
+### CEL evaluation
+
+The [`cel`](https://pkg.go.dev/github.com/fluxcd/pkg/runtime/cel) package provides utilities for evaluating Common
+Expression Language (CEL) expressions.
 
 ### Dependency ordering
 
