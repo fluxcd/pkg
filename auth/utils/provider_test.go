@@ -25,7 +25,7 @@ import (
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/auth/gcp"
-	"github.com/fluxcd/pkg/auth/generic"
+	"github.com/fluxcd/pkg/auth/serviceaccounttoken"
 	authutils "github.com/fluxcd/pkg/auth/utils"
 )
 
@@ -48,8 +48,12 @@ func TestProviderByName(t *testing.T) {
 				provider: gcp.Provider{},
 			},
 			{
-				name:     generic.ProviderName,
-				provider: generic.Provider{},
+				name:     serviceaccounttoken.ProviderName,
+				provider: serviceaccounttoken.Provider{},
+			},
+			{
+				name:     serviceaccounttoken.CredentialName,
+				provider: serviceaccounttoken.Provider{},
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
@@ -78,6 +82,14 @@ func TestProviderByName(t *testing.T) {
 				name:     gcp.ProviderName,
 				provider: gcp.Provider{},
 			},
+			{
+				name:     serviceaccounttoken.ProviderName,
+				provider: serviceaccounttoken.Provider{},
+			},
+			{
+				name:     serviceaccounttoken.CredentialName,
+				provider: serviceaccounttoken.Provider{},
+			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				g := NewWithT(t)
@@ -86,14 +98,6 @@ func TestProviderByName(t *testing.T) {
 				g.Expect(p).To(Equal(tt.provider))
 			})
 		}
-
-		t.Run("generic provider", func(t *testing.T) {
-			g := NewWithT(t)
-			p, err := authutils.ProviderByName[auth.ArtifactRegistryCredentialsProvider](generic.ProviderName)
-			g.Expect(err).To(HaveOccurred())
-			g.Expect(err.Error()).To(ContainSubstring("does not implement the expected interface"))
-			g.Expect(p).To(BeNil())
-		})
 	})
 
 	t.Run("restconfig providers", func(t *testing.T) {
@@ -114,8 +118,12 @@ func TestProviderByName(t *testing.T) {
 				provider: gcp.Provider{},
 			},
 			{
-				name:     generic.ProviderName,
-				provider: generic.Provider{},
+				name:     serviceaccounttoken.ProviderName,
+				provider: serviceaccounttoken.Provider{},
+			},
+			{
+				name:     serviceaccounttoken.CredentialName,
+				provider: serviceaccounttoken.Provider{},
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
@@ -147,8 +155,12 @@ func TestProviderByName(t *testing.T) {
 				provider: gcp.Provider{},
 			},
 			{
-				name:     generic.ProviderName,
-				provider: generic.Provider{},
+				name:     serviceaccounttoken.ProviderName,
+				provider: serviceaccounttoken.Provider{},
+			},
+			{
+				name:     serviceaccounttoken.CredentialName,
+				provider: serviceaccounttoken.Provider{},
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
