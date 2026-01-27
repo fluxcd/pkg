@@ -14,6 +14,8 @@ require (
 // Fix CVE-2022-28948
 replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
 
+replace helm.sh/helm/v4 => github.com/matheuscscp/helm/v4 v4.0.0-20260127110952-d7010ed3cf54
+
 require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect

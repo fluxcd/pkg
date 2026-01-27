@@ -24,6 +24,8 @@ require (
 // Fix CVE-2022-28948
 replace gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.1
 
+replace helm.sh/helm/v4 => github.com/matheuscscp/helm/v4 v4.0.0-20260127110952-d7010ed3cf54
+
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
