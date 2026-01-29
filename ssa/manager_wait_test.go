@@ -344,6 +344,73 @@ func TestWaitForSet_terminalState(t *testing.T) {
 	})
 }
 
+func TestWaitForSet_RateLimiterError(t *testing.T) {
+	g := NewWithT(t)
+
+	id := generateName("ratelimit")
+
+	// Create real resources on the cluster: 4 ConfigMaps + 1 PVC.
+	objects, err := readManifest("testdata/test14.yaml", id)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	manager.SetOwnerLabels(objects, "infra", "default")
+	cs, err := manager.ApplyAllStaged(context.Background(), objects, DefaultApplyOptions())
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Use a custom status reader that returns the rate limiter error
+	// after initial polls. This exercises the real cli-utils error handling
+	// code path (errResourceToResourceStatus / errIdentifierToResourceStatus)
+	// that PR https://github.com/fluxcd/cli-utils/pull/18 fixes.
+	//
+	// On old cli-utils (before PR #18): the rate limiter error is NOT recognized
+	// as cancellation, so it becomes a ResourceStatus with Unknown status for ALL
+	// resources that encounter it. The timeout error message would list every
+	// single resource with "Unknown: rate: Wait(n=1) would exceed context deadline".
+	//
+	// On new cli-utils (with PR #18): the rate limiter error IS recognized as
+	// cancellation via isRateLimiterContextDeadlineExceeded(), so polling stops
+	// cleanly and the error is propagated directly without dumping all resources.
+	var callCount int
+	manager.poller = polling.NewStatusPoller(manager.client, restMapper, polling.Options{
+		CustomStatusReaders: []engine.StatusReader{
+			kstatusreaders.NewGenericStatusReader(restMapper,
+				func(u *unstructured.Unstructured) (*status.Result, error) {
+					callCount++
+					// After a few poll cycles, return the rate limiter error
+					// for every resource. This is the exact error string that
+					// old kstatus failed to handle properly.
+					if callCount > 10 {
+						return nil, fmt.Errorf("rate: Wait(n=1) would exceed context deadline")
+					}
+					// Use the built-in status computation for initial polls.
+					return status.Compute(u)
+				},
+			),
+		},
+	})
+	defer func() {
+		manager.poller = poller
+	}()
+
+	err = manager.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{
+		Interval: 100 * time.Millisecond,
+		Timeout:  2 * time.Second,
+		FailFast: false,
+	})
+
+	g.Expect(err).To(HaveOccurred())
+	errMsg := err.Error()
+	t.Logf("error message: %s", errMsg)
+
+	// With the new cli-utils (PR #18 fix), the rate limiter error should NOT
+	// produce a huge error message with all resources listed as Unknown.
+	for i := 1; i <= 4; i++ {
+		cmName := fmt.Sprintf("%s-cm%d", id, i)
+		g.Expect(errMsg).NotTo(ContainSubstring(cmName),
+			"error should not contain ConfigMap %s — rate limiter errors should not pollute the error message with all resources", cmName)
+	}
+}
+
 func TestWaitForSet_ErrorOnReaderError(t *testing.T) {
 	g := NewWithT(t)
 

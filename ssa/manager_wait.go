@@ -101,12 +101,7 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 				if rs == nil {
 					continue
 				}
-				// skip DeadlineExceeded errors because kstatus emits that error
-				// for every resource it's monitoring even when only one of them
-				// actually fails.
-				if !errors.Is(rs.Error, context.DeadlineExceeded) {
-					lastStatus[rs.Identifier] = rs
-				}
+				lastStatus[rs.Identifier] = rs
 
 				rss = append(rss, rs)
 				counts[rs.Status]++
