@@ -236,6 +236,181 @@ func TestWaitForSet_failFast(t *testing.T) {
 	})
 }
 
+func TestWaitForSet_terminalState(t *testing.T) {
+	timeout := 5 * time.Second
+	interval := 2 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	id := generateName("terminal")
+	objects, err := readManifest("testdata/test10.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.SetOwnerLabels(objects, "infra", "default")
+	_, pvc := getFirstObject(objects, "PersistentVolumeClaim", id)
+	_, deploy := getFirstObject(objects, "Deployment", id)
+
+	deployObjMeta, _ := object.RuntimeToObjMeta(deploy)
+
+	cs, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var clusterDeploy = &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      id,
+			Namespace: id,
+		},
+	}
+	err = manager.client.Get(ctx, client.ObjectKeyFromObject(deploy), clusterDeploy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Set Progressing Condition to false and reason to ProgressDeadlineExceeded.
+	// This tells kstatus that the deployment has stalled.
+	cond := appsv1.DeploymentCondition{
+		Type:               appsv1.DeploymentProgressing,
+		Status:             corev1.ConditionFalse,
+		LastTransitionTime: metav1.Time{},
+		Reason:             "ProgressDeadlineExceeded",
+		Message:            "timeout progressing",
+	}
+	clusterDeploy.Status = appsv1.DeploymentStatus{
+		ObservedGeneration:  clusterDeploy.Generation,
+		Replicas:            *clusterDeploy.Spec.Replicas,
+		UpdatedReplicas:     *clusterDeploy.Spec.Replicas,
+		UnavailableReplicas: *clusterDeploy.Spec.Replicas,
+		Conditions:          []appsv1.DeploymentCondition{cond},
+	}
+	err = manager.client.Status().Update(ctx, clusterDeploy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Set PVC phase to Bound.
+	// This tells kstatus that the PVC is Current (terminal).
+	clusterPvc := &unstructured.Unstructured{}
+	clusterPvc.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "",
+		Kind:    "PersistentVolumeClaim",
+		Version: "v1",
+	})
+	if err := manager.client.Get(ctx, client.ObjectKeyFromObject(pvc), clusterPvc); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := unstructured.SetNestedField(clusterPvc.Object, "Bound", "status", "phase"); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := &client.SubResourcePatchOptions{
+		PatchOptions: client.PatchOptions{
+			FieldManager: manager.owner.Field,
+		},
+	}
+
+	clusterPvc.SetManagedFields(nil)
+	if err := manager.client.Status().Patch(ctx, clusterPvc, client.Apply, opts); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("fail early when all resources are in terminal states", func(t *testing.T) {
+		// With FailFast disabled but all resources in terminal states (Failed + Current),
+		// WaitForSet should exit early instead of waiting for the full timeout.
+		err = manager.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{
+			Interval: interval,
+			Timeout:  timeout,
+			FailFast: false,
+		})
+
+		deployFailedMsg := fmt.Sprintf("%s status: '%s'", utils.FmtObjMetadata(deployObjMeta), status.FailedStatus)
+
+		if err == nil || !strings.Contains(err.Error(), "failed early") {
+			t.Fatal("expected to fail early due to terminal state", err)
+		}
+
+		if !strings.Contains(err.Error(), deployFailedMsg) {
+			t.Fatal("expected error to contain status of failed deployment", err.Error())
+		}
+
+		// InProgress resources should NOT appear since PVC is Bound (Current).
+		if strings.Contains(err.Error(), "InProgress") {
+			t.Fatal("expected error to not contain InProgress resources", err.Error())
+		}
+	})
+}
+
+func TestWaitForSet_RateLimiterError(t *testing.T) {
+	g := NewWithT(t)
+
+	id := generateName("ratelimit")
+
+	// Create real resources on the cluster: 4 ConfigMaps + 1 PVC.
+	objects, err := readManifest("testdata/test14.yaml", id)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	manager.SetOwnerLabels(objects, "infra", "default")
+	cs, err := manager.ApplyAllStaged(context.Background(), objects, DefaultApplyOptions())
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Use a custom status reader that returns the rate limiter error
+	// after initial polls. This exercises the real cli-utils error handling
+	// code path (errResourceToResourceStatus / errIdentifierToResourceStatus)
+	// that PR https://github.com/fluxcd/cli-utils/pull/18 fixes.
+	//
+	// On old cli-utils (before PR #18): the rate limiter error is NOT recognized
+	// as cancellation, so it becomes a ResourceStatus with Unknown status for ALL
+	// resources that encounter it. The timeout error message would list every
+	// single resource with "Unknown: rate: Wait(n=1) would exceed context deadline".
+	//
+	// On new cli-utils (with PR #18): the rate limiter error IS recognized as
+	// cancellation via isRateLimiterContextDeadlineExceeded(), so polling stops
+	// cleanly and the error is propagated directly without dumping all resources.
+	var callCount int
+	manager.poller = polling.NewStatusPoller(manager.client, restMapper, polling.Options{
+		CustomStatusReaders: []engine.StatusReader{
+			kstatusreaders.NewGenericStatusReader(restMapper,
+				func(u *unstructured.Unstructured) (*status.Result, error) {
+					callCount++
+					// After a few poll cycles, return the rate limiter error
+					// for every resource. This is the exact error string that
+					// old kstatus failed to handle properly.
+					if callCount > 10 {
+						return nil, fmt.Errorf("rate: Wait(n=1) would exceed context deadline")
+					}
+					// Use the built-in status computation for initial polls.
+					return status.Compute(u)
+				},
+			),
+		},
+	})
+	defer func() {
+		manager.poller = poller
+	}()
+
+	err = manager.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{
+		Interval: 100 * time.Millisecond,
+		Timeout:  2 * time.Second,
+		FailFast: false,
+	})
+
+	g.Expect(err).To(HaveOccurred())
+	errMsg := err.Error()
+	t.Logf("error message: %s", errMsg)
+
+	// With the new cli-utils (PR #18 fix), the rate limiter error should NOT
+	// produce a huge error message with all resources listed as Unknown.
+	for i := 1; i <= 4; i++ {
+		cmName := fmt.Sprintf("%s-cm%d", id, i)
+		g.Expect(errMsg).NotTo(ContainSubstring(cmName),
+			"error should not contain ConfigMap %s — rate limiter errors should not pollute the error message with all resources", cmName)
+	}
+}
+
 func TestWaitForSet_ErrorOnReaderError(t *testing.T) {
 	g := NewWithT(t)
 

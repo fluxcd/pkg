@@ -96,27 +96,37 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 	done := statusCollector.ListenWithObserver(eventsChan, collector.ObserverFunc(
 		func(statusCollector *collector.ResourceStatusCollector, e event.Event) {
 			var rss []*event.ResourceStatus
-			var countFailed int
+			counts := make(map[status.Status]int)
 			for _, rs := range statusCollector.ResourceStatuses {
 				if rs == nil {
 					continue
 				}
-				// skip DeadlineExceeded errors because kstatus emits that error
-				// for every resource it's monitoring even when only one of them
-				// actually fails.
-				if !errors.Is(rs.Error, context.DeadlineExceeded) {
-					lastStatus[rs.Identifier] = rs
-				}
+				lastStatus[rs.Identifier] = rs
 
-				if rs.Status == status.FailedStatus {
-					countFailed++
-				}
 				rss = append(rss, rs)
+				counts[rs.Status]++
+			}
+
+			// If only Failed or Current statuses are present,
+			// we can consider this a terminal state. Detecting
+			// this allows us to fail faster and not get stuck
+			// on the timeout waiting for everything to reach
+			// Current, because something that reached Failed
+			// will never reach Current. If opts.FailFast is
+			// also set, the context will be cancelled if any
+			// Failed status is detected, which is even faster.
+			terminal := true
+			for s := range counts {
+				if s != status.FailedStatus && s != status.CurrentStatus {
+					terminal = false
+					break
+				}
 			}
 
 			desired := status.CurrentStatus
+			failed := counts[status.FailedStatus]
 			aggStatus := aggregator.AggregateStatus(rss, desired)
-			if aggStatus == desired || (opts.FailFast && countFailed > 0) {
+			if aggStatus == desired || (opts.FailFast && failed > 0) || terminal {
 				canceledInternally = true
 				cancel()
 				return
