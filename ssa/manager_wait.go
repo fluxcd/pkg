@@ -97,6 +97,7 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 		func(statusCollector *collector.ResourceStatusCollector, e event.Event) {
 			var rss []*event.ResourceStatus
 			var countFailed int
+			countPerStatus := make(map[status.Status]int)
 			for _, rs := range statusCollector.ResourceStatuses {
 				if rs == nil {
 					continue
@@ -112,11 +113,22 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 					countFailed++
 				}
 				rss = append(rss, rs)
+				countPerStatus[rs.Status]++
+			}
+
+			// If only Failed or Current statuses are present,
+			// we can consider this a terminal state.
+			terminal := true
+			for s := range countPerStatus {
+				if s != status.FailedStatus && s != status.CurrentStatus {
+					terminal = false
+					break
+				}
 			}
 
 			desired := status.CurrentStatus
 			aggStatus := aggregator.AggregateStatus(rss, desired)
-			if aggStatus == desired || (opts.FailFast && countFailed > 0) {
+			if aggStatus == desired || (opts.FailFast && countFailed > 0) || terminal {
 				canceledInternally = true
 				cancel()
 				return
