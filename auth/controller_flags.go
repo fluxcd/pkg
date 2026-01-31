@@ -34,6 +34,11 @@ const (
 	// service account name to be used when .spec.decryption.serviceAccountName is
 	// not specified in the object.
 	ControllerFlagDefaultDecryptionServiceAccount = "default-decryption-service-account"
+
+	// ControllerFlagOCISkipRegistryValidation defines the flag for skipping OCI registry
+	// domain validation for cloud provider authentication. This allows using custom
+	// registry proxies/gateways with workload identity authentication.
+	ControllerFlagOCISkipRegistryValidation = "oci-skip-registry-validation"
 )
 
 var (
@@ -48,6 +53,10 @@ var (
 	// defaultDecryptionServiceAccount stores the default decryption
 	// service account name.
 	defaultDecryptionServiceAccount string
+
+	// ociSkipRegistryValidation stores whether to skip OCI registry
+	// domain validation for cloud provider authentication.
+	ociSkipRegistryValidation bool
 )
 
 // ErrDefaultServiceAccountNotFound is returned when a default service account
@@ -82,6 +91,16 @@ func GetDefaultKubeConfigServiceAccount() string {
 // GetDefaultDecryptionServiceAccount returns the default decryption service account name.
 func GetDefaultDecryptionServiceAccount() string {
 	return defaultDecryptionServiceAccount
+}
+
+// SetOCISkipRegistryValidation sets whether to skip OCI registry domain validation.
+func SetOCISkipRegistryValidation(skip bool) {
+	ociSkipRegistryValidation = skip
+}
+
+// GetOCISkipRegistryValidation returns whether to skip OCI registry domain validation.
+func GetOCISkipRegistryValidation() bool {
+	return ociSkipRegistryValidation
 }
 
 func getDefaultServiceAccount() string {
