@@ -20,15 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
-	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
 )
@@ -64,43 +60,16 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	// from the environment. In this case, this means opening the well-known
 	// Kubernetes service account token file and parsing it to figure out
 	// the controller's identity.
-	const tokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	b, err := p.impl().ReadFile(tokenFile)
+	saRef, err := auth.FindPodServiceAccount(p.impl().ReadFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read service account token file %s: %w", tokenFile, err)
+		return nil, err
 	}
-
-	// Get controller service account from token subject.
-	tok, _, err := jwt.NewParser().ParseUnverified(string(b), jwt.MapClaims{})
+	token, err := auth.CreateServiceAccountToken(ctx, o.Client, *saRef, o.Audiences...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse service account token: %w", err)
+		return nil, fmt.Errorf(
+			"failed to create kubernetes token for controller service account '%s': %w",
+			saRef.String(), err)
 	}
-	sub, err := tok.Claims.GetSubject()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subject from service account token: %w", err)
-	}
-	parts := strings.Split(sub, ":")
-	if len(parts) != 4 {
-		return nil, fmt.Errorf("invalid subject format in service account token: %s", sub)
-	}
-	serviceAccount := corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      parts[3],
-			Namespace: parts[2],
-		},
-	}
-
-	// Create token.
-	tokenReq := &authnv1.TokenRequest{
-		Spec: authnv1.TokenRequestSpec{
-			Audiences: o.Audiences,
-		},
-	}
-	if err := o.Client.SubResource("token").Create(ctx, &serviceAccount, tokenReq); err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes token for controller service account '%s': %w",
-			client.ObjectKeyFromObject(&serviceAccount), err)
-	}
-	token := tokenReq.Status.Token
 
 	exp, err := getExpirationFromToken(token)
 	if err != nil {
