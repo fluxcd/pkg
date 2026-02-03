@@ -72,7 +72,7 @@ func TestWaitForSet(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := manager.WaitForSet(changeSet.ToObjMetadataSet(), WaitOptions{time.Second, 3 * time.Second, false}); err == nil {
+		if err := manager.WaitForSet(changeSet.ToObjMetadataSet(), WaitOptions{Interval: time.Second, Timeout: 3 * time.Second}); err == nil {
 			t.Error("wanted wait error due to observedGeneration < generation")
 		}
 

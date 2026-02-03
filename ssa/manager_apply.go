@@ -291,7 +291,7 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 		}
 		changeSet.Append(cs.Entries)
 
-		if err := m.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{opts.WaitInterval, opts.WaitTimeout, false}); err != nil {
+		if err := m.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{Interval: opts.WaitInterval, Timeout: opts.WaitTimeout}); err != nil {
 			return changeSet, err
 		}
 	}
@@ -304,7 +304,7 @@ func (m *ResourceManager) ApplyAllStaged(ctx context.Context, objects []*unstruc
 		}
 		changeSet.Append(cs.Entries)
 
-		if err := m.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{opts.WaitInterval, opts.WaitTimeout, false}); err != nil {
+		if err := m.WaitForSet(cs.ToObjMetadataSet(), WaitOptions{Interval: opts.WaitInterval, Timeout: opts.WaitTimeout}); err != nil {
 			return changeSet, err
 		}
 	}
