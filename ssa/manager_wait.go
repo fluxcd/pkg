@@ -51,6 +51,11 @@ type WaitOptions struct {
 
 	// FailFast makes the Wait function return an error as soon as a resource reaches the failed state.
 	FailFast bool
+
+	// JobsWithTTL is a set of Job identifiers that have spec.ttlSecondsAfterFinished set.
+	// NotFound status for these Jobs is treated as successful completion since they
+	// are deleted by the TTL controller after finishing.
+	JobsWithTTL object.ObjMetadataSet
 }
 
 // DefaultWaitOptions returns the default wait options where the poll interval is set to
@@ -103,8 +108,14 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 				}
 				lastStatus[rs.Identifier] = rs
 
+				// Treat NotFound Jobs with TTL as Current for aggregation purposes
+				effectiveStatus := rs.Status
+				if rs.Status == status.NotFoundStatus && opts.JobsWithTTL.Contains(rs.Identifier) {
+					effectiveStatus = status.CurrentStatus
+				}
+
 				rss = append(rss, rs)
-				counts[rs.Status]++
+				counts[effectiveStatus]++
 			}
 
 			// If only Failed or Current statuses are present,
@@ -149,7 +160,14 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 	for id, rs := range statusCollector.ResourceStatuses {
 		switch {
 		case rs == nil || lastStatus[id] == nil:
+			// Skip Jobs with TTL that are deleted after completion
+			if opts.JobsWithTTL.Contains(id) {
+				continue
+			}
 			errs = append(errs, fmt.Sprintf("can't determine status for %s", utils.FmtObjMetadata(id)))
+		case lastStatus[id].Status == status.NotFoundStatus && opts.JobsWithTTL.Contains(id):
+			// Job with TTL was deleted after completion, treat as successful completion
+			continue
 		case lastStatus[id].Status == status.FailedStatus,
 			errors.Is(ctx.Err(), context.DeadlineExceeded) &&
 				lastStatus[id].Status != status.CurrentStatus:

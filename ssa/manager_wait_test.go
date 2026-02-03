@@ -72,7 +72,7 @@ func TestWaitForSet(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := manager.WaitForSet(changeSet.ToObjMetadataSet(), WaitOptions{time.Second, 3 * time.Second, false}); err == nil {
+		if err := manager.WaitForSet(changeSet.ToObjMetadataSet(), WaitOptions{Interval: time.Second, Timeout: 3 * time.Second}); err == nil {
 			t.Error("wanted wait error due to observedGeneration < generation")
 		}
 
@@ -505,6 +505,89 @@ func TestWaitWithContext_Cancellation(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("WaitForSetWithContext did not return within expected time after cancellation")
 	}
+}
+
+func TestWaitForSet_JobWithTTL(t *testing.T) {
+	g := NewWithT(t)
+
+	id := generateName("job-ttl")
+
+	// Create a Job with ttlSecondsAfterFinished set
+	job := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "batch/v1",
+			"kind":       "Job",
+			"metadata": map[string]any{
+				"name":      id,
+				"namespace": "default",
+			},
+			"spec": map[string]any{
+				"ttlSecondsAfterFinished": int64(0),
+				"template": map[string]any{
+					"spec": map[string]any{
+						"restartPolicy": "Never",
+						"containers": []any{
+							map[string]any{
+								"name":    "test",
+								"image":   "busybox",
+								"command": []any{"echo", "hello"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Apply the Job
+	_, err := manager.ApplyAll(context.Background(), []*unstructured.Unstructured{job}, DefaultApplyOptions())
+	g.Expect(err).NotTo(HaveOccurred())
+
+	jobObjMeta := object.UnstructuredToObjMetadata(job)
+
+	// Use a custom status reader that returns NotFoundStatus for the Job
+	// to simulate the TTL controller deleting it after completion
+	manager.poller = polling.NewStatusPoller(manager.client, restMapper, polling.Options{
+		CustomStatusReaders: []engine.StatusReader{
+			kstatusreaders.NewGenericStatusReader(restMapper,
+				func(u *unstructured.Unstructured) (*status.Result, error) {
+					if u.GetKind() == "Job" && u.GetName() == id {
+						return &status.Result{
+							Status:  status.NotFoundStatus,
+							Message: "Resource not found",
+						}, nil
+					}
+					return status.Compute(u)
+				},
+			),
+		},
+	})
+	defer func() {
+		manager.poller = poller
+	}()
+
+	t.Run("NotFound Job with TTL is treated as success", func(t *testing.T) {
+		start := time.Now()
+		err = manager.WaitForSet([]object.ObjMetadata{jobObjMeta}, WaitOptions{
+			Interval:    100 * time.Millisecond,
+			Timeout:     5 * time.Second,
+			JobsWithTTL: object.ObjMetadataSet{jobObjMeta},
+		})
+		elapsed := time.Since(start)
+
+		g.Expect(err).NotTo(HaveOccurred(), "NotFound status for Job with TTL should be treated as success")
+		g.Expect(elapsed).To(BeNumerically("<", 2*time.Second), "should return early, not wait for full timeout")
+	})
+
+	t.Run("NotFound Job without TTL option is treated as error", func(t *testing.T) {
+		err = manager.WaitForSet([]object.ObjMetadata{jobObjMeta}, WaitOptions{
+			Interval: 100 * time.Millisecond,
+			Timeout:  2 * time.Second,
+			// JobsWithTTL not set
+		})
+		g.Expect(err).To(HaveOccurred(), "NotFound status for Job without TTL option should be an error")
+		g.Expect(err.Error()).To(ContainSubstring("NotFound"))
+	})
 }
 
 func TestWaitForSetTermination(t *testing.T) {
