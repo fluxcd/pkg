@@ -567,12 +567,16 @@ func TestWaitForSet_JobWithTTL(t *testing.T) {
 	}()
 
 	t.Run("NotFound Job with TTL is treated as success", func(t *testing.T) {
+		start := time.Now()
 		err = manager.WaitForSet([]object.ObjMetadata{jobObjMeta}, WaitOptions{
 			Interval:    100 * time.Millisecond,
-			Timeout:     2 * time.Second,
+			Timeout:     5 * time.Second,
 			JobsWithTTL: object.ObjMetadataSet{jobObjMeta},
 		})
+		elapsed := time.Since(start)
+
 		g.Expect(err).NotTo(HaveOccurred(), "NotFound status for Job with TTL should be treated as success")
+		g.Expect(elapsed).To(BeNumerically("<", 2*time.Second), "should return early, not wait for full timeout")
 	})
 
 	t.Run("NotFound Job without TTL option is treated as error", func(t *testing.T) {

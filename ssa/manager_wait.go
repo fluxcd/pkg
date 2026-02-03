@@ -108,8 +108,14 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 				}
 				lastStatus[rs.Identifier] = rs
 
+				// Treat NotFound Jobs with TTL as Current for aggregation purposes
+				effectiveStatus := rs.Status
+				if rs.Status == status.NotFoundStatus && opts.JobsWithTTL.Contains(rs.Identifier) {
+					effectiveStatus = status.CurrentStatus
+				}
+
 				rss = append(rss, rs)
-				counts[rs.Status]++
+				counts[effectiveStatus]++
 			}
 
 			// If only Failed or Current statuses are present,
