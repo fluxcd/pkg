@@ -12,7 +12,7 @@ replace (
 
 require (
 	github.com/fluxcd/go-git-providers v0.25.0
-	github.com/fluxcd/pkg/git v0.41.0
+	github.com/fluxcd/pkg/git v0.42.0
 	github.com/fluxcd/pkg/gittestserver v0.24.0
 	github.com/fluxcd/pkg/ssh v0.24.0
 	github.com/go-git/go-git/v5 v5.16.4

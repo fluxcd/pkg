@@ -62,6 +62,7 @@ type Client struct {
 	namespace         string
 	operation         string
 	tlsConfig         *tls.Config
+	reflectSlug       bool
 }
 
 // OptFunc enables specifying options for the provider.
@@ -165,9 +166,17 @@ func WithCache(cache *cache.TokenCache, kind, name, namespace, operation string)
 	}
 }
 
+// WithAppSlugReflection enables reflecting the app slug in the AppToken.
+func WithAppSlugReflection() OptFunc {
+	return func(p *Client) {
+		p.reflectSlug = true
+	}
+}
+
 // AppToken contains a GitHub App installation token and its expiry.
 type AppToken struct {
 	Token     string    `json:"token"`
+	Slug      string    `json:"slug,omitempty"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
@@ -243,6 +252,16 @@ func (p *Client) createInstallationToken(ctx context.Context) (*AppToken, error)
 		ghClient.BaseURL = baseURL
 	}
 
+	// Reflect the app slug in the token if enabled.
+	var slug string
+	if p.reflectSlug {
+		app, _, err := ghClient.Apps.Get(ctx, "")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get app information: %w", err)
+		}
+		slug = app.GetSlug()
+	}
+
 	// Create the installation token
 	installationID, err := p.getInstallationID(ctx, ghClient)
 	if err != nil {
@@ -255,6 +274,7 @@ func (p *Client) createInstallationToken(ctx context.Context) (*AppToken, error)
 
 	return &AppToken{
 		Token:     token.GetToken(),
+		Slug:      slug,
 		ExpiresAt: token.GetExpiresAt().Time,
 	}, nil
 }
@@ -307,6 +327,7 @@ func (p *Client) buildCacheKey() string {
 		fmt.Sprintf("%s=%d", KeyAppInstallationID, p.installationID),
 		fmt.Sprintf("%s=%s", KeyAppBaseURL, p.apiURL),
 		fmt.Sprintf("%s=%s", KeyAppPrivateKey, string(p.privateKey)),
+		fmt.Sprintf("reflectSlug=%v", p.reflectSlug),
 	}
 	rawKey := strings.Join(keyParts, ",")
 	hash := sha256.Sum256([]byte(rawKey))

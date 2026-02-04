@@ -39,4 +39,6 @@ const (
 	// MetaCommitStatusUpdateValue is the value of MetaCommitStatusKey
 	// used to signal a Git commit status update.
 	MetaCommitStatusUpdateValue string = "update"
+	// MetaChangeRequestKey is the key used to hold the identifier of a change request.
+	MetaChangeRequestKey string = "change_request"
 )
