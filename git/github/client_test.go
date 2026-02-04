@@ -333,6 +333,148 @@ func TestClient_TLS_RootCA(t *testing.T) {
 	})
 }
 
+func TestClient_WithAppSlugReflection(t *testing.T) {
+	g := NewWithT(t)
+
+	kp, err := ssh.GenerateKeyPair(ssh.RSA_4096)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	t.Run("reflectSlug is false by default", func(t *testing.T) {
+		g := NewWithT(t)
+		client, err := New(
+			WithAppData(map[string][]byte{
+				KeyAppID:             []byte("123"),
+				KeyAppInstallationID: []byte("456"),
+				KeyAppPrivateKey:     kp.PrivateKey,
+			}),
+		)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(client.reflectSlug).To(BeFalse())
+	})
+
+	t.Run("reflectSlug is true when WithAppSlugReflection is used", func(t *testing.T) {
+		g := NewWithT(t)
+		client, err := New(
+			WithAppData(map[string][]byte{
+				KeyAppID:             []byte("123"),
+				KeyAppInstallationID: []byte("456"),
+				KeyAppPrivateKey:     kp.PrivateKey,
+			}),
+			WithAppSlugReflection(),
+		)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(client.reflectSlug).To(BeTrue())
+	})
+}
+
+func TestClient_GetToken_WithSlugReflection(t *testing.T) {
+	expiresAt := time.Now().UTC().Add(time.Hour)
+
+	tests := []struct {
+		name        string
+		reflectSlug bool
+		appSlug     string
+		wantSlug    string
+	}{
+		{
+			name:        "Slug is not reflected when disabled",
+			reflectSlug: false,
+			appSlug:     "my-app",
+			wantSlug:    "",
+		},
+		{
+			name:        "Slug is reflected when enabled",
+			reflectSlug: true,
+			appSlug:     "my-app",
+			wantSlug:    "my-app",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				var response []byte
+				var err error
+
+				switch r.URL.Path {
+				case "/app":
+					response, err = json.Marshal(map[string]interface{}{
+						"slug": tt.appSlug,
+					})
+					g.Expect(err).ToNot(HaveOccurred())
+				case "/app/installations/456/access_tokens":
+					response, err = json.Marshal(&AppToken{
+						Token:     "access-token",
+						ExpiresAt: expiresAt,
+					})
+					g.Expect(err).ToNot(HaveOccurred())
+				default:
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+
+				w.Write(response)
+			}
+			srv := httptest.NewServer(http.HandlerFunc(handler))
+			t.Cleanup(func() {
+				srv.Close()
+			})
+
+			kp, err := ssh.GenerateKeyPair(ssh.RSA_4096)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			opts := []OptFunc{
+				WithAppData(map[string][]byte{
+					KeyAppID:             []byte("123"),
+					KeyAppInstallationID: []byte("456"),
+					KeyAppBaseURL:        []byte(srv.URL),
+					KeyAppPrivateKey:     kp.PrivateKey,
+				}),
+			}
+			if tt.reflectSlug {
+				opts = append(opts, WithAppSlugReflection())
+			}
+
+			client, err := New(opts...)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			token, err := client.GetToken(context.Background())
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(token.Token).To(Equal("access-token"))
+			g.Expect(token.Slug).To(Equal(tt.wantSlug))
+		})
+	}
+}
+
+func TestClient_CacheKey_WithSlugReflection(t *testing.T) {
+	g := NewWithT(t)
+
+	kp, err := ssh.GenerateKeyPair(ssh.RSA_4096)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	baseOpts := []OptFunc{
+		WithAppData(map[string][]byte{
+			KeyAppID:             []byte("123"),
+			KeyAppInstallationID: []byte("456"),
+			KeyAppPrivateKey:     kp.PrivateKey,
+		}),
+	}
+
+	clientWithoutSlugReflection, err := New(baseOpts...)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	clientWithSlugReflection, err := New(append(baseOpts, WithAppSlugReflection())...)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Cache keys should be different when reflectSlug differs
+	keyWithout := clientWithoutSlugReflection.buildCacheKey()
+	keyWith := clientWithSlugReflection.buildCacheKey()
+	g.Expect(keyWithout).ToNot(Equal(keyWith))
+}
+
 func TestClient_GetCredentials_InstallationOwner(t *testing.T) {
 	expiresAt := time.Now().UTC().Add(time.Hour)
 
