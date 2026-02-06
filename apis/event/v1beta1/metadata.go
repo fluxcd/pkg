@@ -34,6 +34,8 @@ const (
 	// base64-encoded set of configurations. This is useful for example for
 	// rate limiting the events.
 	MetaTokenKey string = "token"
+	// MetaCommitKey is the key used to hold the Git commit hash.
+	MetaCommitKey string = "commit"
 	// MetaCommitStatusKey is the key used to signal a Git commit status event.
 	MetaCommitStatusKey string = "commit_status"
 	// MetaCommitStatusUpdateValue is the value of MetaCommitStatusKey
