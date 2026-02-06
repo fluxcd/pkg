@@ -92,9 +92,12 @@ func (in *Event) HasMetadata(key string, val string) bool {
 	return false
 }
 
-// GetRevision looks up for the MetaOriginRevisionKey and MetaRevisionKey
-// keys in the Metadata and returns the first it finds.
+// GetRevision looks up for the keys in Metadata that may contain
+// the revision of the object that this event is about.
 func (in *Event) GetRevision() (string, bool) {
+	if r, ok := in.Metadata[MetaCommitKey]; ok {
+		return r, true
+	}
 	if r, ok := in.Metadata[MetaOriginRevisionKey]; ok {
 		return r, true
 	}
