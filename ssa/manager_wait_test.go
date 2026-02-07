@@ -52,6 +52,10 @@ func TestWaitForSet(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err := SetNativeKindsDefaults(objects); err != nil {
+		t.Fatal(err)
+	}
+
 	manager.SetOwnerLabels(objects, "infra", "default")
 
 	_, crd := getFirstObject(objects, "CustomResourceDefinition", "clustertests.testing.fluxcd.io")
