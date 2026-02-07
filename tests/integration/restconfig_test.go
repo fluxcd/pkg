@@ -57,6 +57,41 @@ func TestRESTConfig(t *testing.T) {
 			skip: !testWIDirectAccess || !testWIFederation,
 			opts: []jobOption{withObjectLevelWI(objectLevelWIModeDirectAccessFederation)},
 		},
+		{
+			name: "impersonation: controller IRSA -> AssumeRole (AWS)",
+			skip: !testImpersonation || *targetProvider != "aws",
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeAssumeRoleIRSA)},
+		},
+		{
+			name: "impersonation: controller Pod Identity -> AssumeRole (AWS)",
+			skip: !testImpersonation || *targetProvider != "aws",
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeAssumeRolePodIdentity)},
+		},
+		{
+			name: "impersonation: object-level IRSA -> AssumeRole (AWS)",
+			skip: !testImpersonation || *targetProvider != "aws",
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeAssumeRoleObjectLevel)},
+		},
+		{
+			name: "impersonation: controller WIF -> Impersonate (GCP)",
+			skip: !testImpersonation || *targetProvider != "gcp",
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeGCPImpersonateCtrl)},
+		},
+		{
+			name: "impersonation: controller WIF+SA -> Impersonate (GCP)",
+			skip: !testImpersonation || *targetProvider != "gcp",
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeGCPImpersonateCtrlSA)},
+		},
+		{
+			name: "impersonation: object-level WIF+SA -> Impersonate (GCP)",
+			skip: !testImpersonation || *targetProvider != "gcp",
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeGCPImpersonateObj)},
+		},
+		{
+			name: "impersonation: object-level WIF direct access -> Impersonate (GCP)",
+			skip: !testImpersonation || *targetProvider != "gcp",
+			opts: []jobOption{withObjectLevelWI(objectLevelWIModeGCPImpersonateObjDA)},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.skip {

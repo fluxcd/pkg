@@ -38,3 +38,7 @@ output "wi_k8s_sa_principal_direct_access" {
 output "wi_k8s_sa_principal_direct_access_federation" {
   value = var.enable_wi ? local.wi_k8s_sa_principal_direct_access_federation : ""
 }
+
+output "impersonation_target_email" {
+  value = var.enable_wi ? google_service_account.impersonation_target[0].email : ""
+}
