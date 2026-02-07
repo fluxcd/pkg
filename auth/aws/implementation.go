@@ -32,6 +32,7 @@ import (
 type Implementation interface {
 	LoadDefaultConfig(ctx context.Context, optFns ...func(*config.LoadOptions) error) (aws.Config, error)
 	AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, options sts.Options) (*sts.AssumeRoleWithWebIdentityOutput, error)
+	AssumeRole(ctx context.Context, params *sts.AssumeRoleInput, options sts.Options) (*sts.AssumeRoleOutput, error)
 	GetAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error)
 	GetPublicAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error)
 	DescribeCluster(ctx context.Context, params *eks.DescribeClusterInput, options eks.Options) (*eks.DescribeClusterOutput, error)
@@ -46,6 +47,10 @@ func (implementation) LoadDefaultConfig(ctx context.Context, optFns ...func(*con
 
 func (implementation) AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, options sts.Options) (*sts.AssumeRoleWithWebIdentityOutput, error) {
 	return sts.New(options).AssumeRoleWithWebIdentity(ctx, params)
+}
+
+func (implementation) AssumeRole(ctx context.Context, params *sts.AssumeRoleInput, options sts.Options) (*sts.AssumeRoleOutput, error) {
+	return sts.New(options).AssumeRole(ctx, params)
 }
 
 func (implementation) GetAuthorizationToken(ctx context.Context, cfg aws.Config) (any, error) {

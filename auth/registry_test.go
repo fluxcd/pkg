@@ -125,7 +125,6 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 		artifactRepository string
 		opts               []auth.Option
 		disableObjectLevel bool
-		defaultSA          string
 		expectedCreds      *auth.ArtifactRegistryCredentials
 		expectedErr        string
 	}{
@@ -209,8 +208,8 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
+				auth.WithDefaultServiceAccount(saRef.Name),
 			},
-			defaultSA: saRef.Name,
 			expectedCreds: &auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 			},
@@ -240,8 +239,8 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
+				auth.WithDefaultServiceAccount(saRef.Name),
 			},
-			defaultSA:          saRef.Name,
 			disableObjectLevel: true,
 			expectedCreds: &auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
@@ -272,7 +271,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(2)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const accessTokenKey = "db625bd5a96dc48fcc100659c6db98857d1e0ceec930bbded0fdece14af4307c"
+					const accessTokenKey = "6fbdfd364d87e47e6aad554232b927805c949ac461c43eb1c84d7dbcd58c38fb"
 					var token auth.Token = &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -281,7 +280,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedToken).To(Equal(token))
 
-					const artifactRegistryCredentialsKey = "61fe71ebbf306060d67acbdc2389d5fd816bee40e7685afe2fdc18b7d3bde1d6"
+					const artifactRegistryCredentialsKey = "3b08cea6e7afd6072c6e52b6b3e19e5896668d2a5301ff68cc403dc611554eef"
 					token = &auth.ArtifactRegistryCredentials{
 						Authenticator: authn.FromConfig(authn.AuthConfig{Username: "cached-registry-token"}),
 						ExpiresAt:     now.Add(time.Hour),
@@ -338,11 +337,6 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			if !tt.disableObjectLevel {
 				auth.EnableObjectLevelWorkloadIdentity()
 				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-			}
-
-			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
 			}
 
 			creds, err := auth.GetArtifactRegistryCredentials(ctx, tt.provider, tt.artifactRepository, tt.opts...)

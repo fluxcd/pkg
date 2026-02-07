@@ -22,6 +22,21 @@ variable "wi_k8s_sa_name" {
   description = "Name of kubernetes service account that can assume the IAM role (For workload identity)"
 }
 
+variable "wi_k8s_sa_name_controller_irsa" {
+  type        = string
+  description = "Name of controller SA with IRSA for impersonation testing"
+}
+
+variable "wi_k8s_sa_name_controller_pod_identity" {
+  type        = string
+  description = "Name of controller SA with Pod Identity for impersonation testing"
+}
+
+variable "wi_k8s_sa_name_assume_role" {
+  type        = string
+  description = "Name of SA with IRSA that will also AssumeRole into the target (object-level impersonation)"
+}
+
 variable "enable_wi" {
   type        = bool
   default     = false

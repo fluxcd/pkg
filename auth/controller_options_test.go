@@ -95,20 +95,14 @@ func TestInconsistentObjectLevelConfiguration(t *testing.T) {
 
 			if tt.featureGateEnabled {
 				auth.EnableObjectLevelWorkloadIdentity()
+				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
 			}
 
-			auth.SetDefaultServiceAccount(tt.defaultServiceAccount)
-			auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigServiceAccount)
-			auth.SetDefaultDecryptionServiceAccount(tt.defaultDecryptionServiceAccount)
-
-			t.Cleanup(func() {
-				auth.SetDefaultServiceAccount("")
-				auth.SetDefaultKubeConfigServiceAccount("")
-				auth.SetDefaultDecryptionServiceAccount("")
-				auth.DisableObjectLevelWorkloadIdentity()
-			})
-
-			result := auth.InconsistentObjectLevelConfiguration()
+			result := auth.InconsistentObjectLevelConfiguration(
+				tt.defaultServiceAccount,
+				tt.defaultKubeConfigServiceAccount,
+				tt.defaultDecryptionServiceAccount,
+			)
 			g.Expect(result).To(Equal(tt.expectInconsistent))
 		})
 	}

@@ -23,12 +23,15 @@ import (
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/google/externalaccount"
 	"google.golang.org/api/container/v1"
+	"google.golang.org/api/impersonate"
+	"google.golang.org/api/option"
 )
 
 // Implementation provides the required methods of the GCP libraries.
 type Implementation interface {
 	DefaultTokenSource(ctx context.Context, scope ...string) (oauth2.TokenSource, error)
 	NewTokenSource(ctx context.Context, conf externalaccount.Config) (oauth2.TokenSource, error)
+	CredentialsTokenSource(ctx context.Context, conf impersonate.CredentialsConfig, opts ...option.ClientOption) (oauth2.TokenSource, error)
 	GetCluster(ctx context.Context, cluster string, client *container.Service) (*container.Cluster, error)
 }
 
@@ -40,6 +43,10 @@ func (implementation) DefaultTokenSource(ctx context.Context, scope ...string) (
 
 func (implementation) NewTokenSource(ctx context.Context, conf externalaccount.Config) (oauth2.TokenSource, error) {
 	return externalaccount.NewTokenSource(ctx, conf)
+}
+
+func (implementation) CredentialsTokenSource(ctx context.Context, conf impersonate.CredentialsConfig, opts ...option.ClientOption) (oauth2.TokenSource, error) {
+	return impersonate.CredentialsTokenSource(ctx, conf, opts...)
 }
 
 func (implementation) GetCluster(ctx context.Context, cluster string, client *container.Service) (*container.Cluster, error) {
