@@ -20,12 +20,35 @@ import (
 	"context"
 	"fmt"
 
+	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
+
+// CreateServiceAccountToken creates a ServiceAccount token for the
+// given ServiceAccount reference and audiences.
+func CreateServiceAccountToken(ctx context.Context, c client.Client,
+	saRef client.ObjectKey, audiences ...string) (string, error) {
+	obj := corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      saRef.Name,
+			Namespace: saRef.Namespace,
+		},
+	}
+	tokenReq := &authnv1.TokenRequest{
+		Spec: authnv1.TokenRequestSpec{
+			Audiences: audiences,
+		},
+	}
+	if err := c.SubResource("token").Create(ctx, &obj, tokenReq); err != nil {
+		return "", err
+	}
+	return tokenReq.Status.Token, nil
+}
 
 // serviceAccountInfo contains the parsed information of the ServiceAccount
 // to be used for fetching the access token and generating the cache key when

@@ -14,33 +14,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generic
+package serviceaccounttoken
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	authnv1 "k8s.io/api/authentication/v1"
+	"github.com/google/go-containerregistry/pkg/authn"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
 )
 
-// ProviderName is the name of the generic authentication provider.
+// ProviderName is the name of the provider implemented by this package.
+// Only the Kustomization and HelmRelease APIs refer to this package as
+// a provider for historical reasons. New APIs should refer to it as the
+// ServiceAccountToken credential provider (see CredentialName).
 const ProviderName = "generic"
+
+// CredentialName is the name of the credential type implemented by this package.
+const CredentialName = "ServiceAccountToken"
 
 // Provider implements the auth.Provider interface for generic authentication.
 type Provider struct{ Implementation }
 
 // GetName implements auth.RESTConfigProvider.
 func (p Provider) GetName() string {
-	return ProviderName
+	return CredentialName
 }
 
 // NewControllerToken implements auth.RESTConfigProvider.
@@ -57,43 +60,16 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	// from the environment. In this case, this means opening the well-known
 	// Kubernetes service account token file and parsing it to figure out
 	// the controller's identity.
-	const tokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	b, err := p.impl().ReadFile(tokenFile)
+	saRef, err := auth.FindPodServiceAccount(p.impl().ReadFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read service account token file %s: %w", tokenFile, err)
+		return nil, err
 	}
-
-	// Get controller service account from token subject.
-	tok, _, err := jwt.NewParser().ParseUnverified(string(b), jwt.MapClaims{})
+	token, err := auth.CreateServiceAccountToken(ctx, o.Client, *saRef, o.Audiences...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse service account token: %w", err)
+		return nil, fmt.Errorf(
+			"failed to create kubernetes token for controller service account '%s': %w",
+			saRef.String(), err)
 	}
-	sub, err := tok.Claims.GetSubject()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subject from service account token: %w", err)
-	}
-	parts := strings.Split(sub, ":")
-	if len(parts) != 4 {
-		return nil, fmt.Errorf("invalid subject format in service account token: %s", sub)
-	}
-	serviceAccount := corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      parts[3],
-			Namespace: parts[2],
-		},
-	}
-
-	// Create token.
-	tokenReq := &authnv1.TokenRequest{
-		Spec: authnv1.TokenRequestSpec{
-			Audiences: o.Audiences,
-		},
-	}
-	if err := o.Client.SubResource("token").Create(ctx, &serviceAccount, tokenReq); err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes token for controller service account '%s': %w",
-			client.ObjectKeyFromObject(&serviceAccount), err)
-	}
-	token := tokenReq.Status.Token
 
 	exp, err := getExpirationFromToken(token)
 	if err != nil {
@@ -129,6 +105,31 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 	return &Token{
 		Token:     oidcToken,
 		ExpiresAt: *exp,
+	}, nil
+}
+
+// GetAccessTokenOptionsForArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Option, error) {
+	// No special options are needed to get an access token for artifact registry.
+	return nil, nil
+}
+
+// ParseArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (p Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
+	// The artifact repository is irrelevant for issuing the ServiceAccount token,
+	// just return the provider name for inclusion in the cache key.
+	return p.GetName(), nil
+}
+
+// NewArtifactRegistryCredentials implements auth.ArtifactRegistryCredentialsProvider.
+func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
+	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+
+	token := accessToken.(*Token)
+
+	return &auth.ArtifactRegistryCredentials{
+		Authenticator: &authn.Bearer{Token: token.Token},
+		ExpiresAt:     token.ExpiresAt,
 	}, nil
 }
 

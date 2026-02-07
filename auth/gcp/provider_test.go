@@ -275,14 +275,12 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 	creds, err := auth.GetArtifactRegistryCredentials(context.Background(), provider, "gcr.io",
 		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}))
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(creds).NotTo(BeNil())
-	g.Expect(creds.ExpiresAt).To(Equal(exp))
-	g.Expect(creds.Authenticator).NotTo(BeNil())
-	authConf, err := creds.Authenticator.Authorization()
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(authConf).To(Equal(&authn.AuthConfig{
-		Username: "oauth2accesstoken",
-		Password: "access-token",
+	g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
+		Authenticator: &authn.Basic{
+			Username: "oauth2accesstoken",
+			Password: "access-token",
+		},
+		ExpiresAt: exp,
 	}))
 }
 

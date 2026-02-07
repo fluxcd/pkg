@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	authnv1 "k8s.io/api/authentication/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
 )
@@ -60,16 +60,12 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 		if saInfo.useServiceAccount {
 			newAccessToken = func() (Token, error) {
 				// Issue Kubernetes OIDC token for the service account.
-				tokenReq := &authnv1.TokenRequest{
-					Spec: authnv1.TokenRequestSpec{
-						Audiences: saInfo.audiences,
-					},
-				}
-				if err := o.Client.SubResource("token").Create(ctx, saInfo.obj, tokenReq); err != nil {
+				saKey := client.ObjectKeyFromObject(saInfo.obj)
+				oidcToken, err := CreateServiceAccountToken(ctx, o.Client, saKey, saInfo.audiences...)
+				if err != nil {
 					return nil, fmt.Errorf("failed to create kubernetes token for service account '%s/%s': %w",
 						saInfo.obj.Namespace, saInfo.obj.Name, err)
 				}
-				oidcToken := tokenReq.Status.Token
 
 				// Exchange the Kubernetes OIDC token for a provider access token.
 				token, err := provider.NewTokenForServiceAccount(ctx, oidcToken, *saInfo.obj, opts...)
