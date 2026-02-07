@@ -19,16 +19,16 @@ package gcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"net/http"
 	"regexp"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google/externalaccount"
 	"google.golang.org/api/container/v1"
+	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
-	htransport "google.golang.org/api/transport/http"
 	corev1 "k8s.io/api/core/v1"
 
 	auth "github.com/fluxcd/pkg/auth"
@@ -157,6 +157,60 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	return &Token{*token}, nil
 }
 
+// GetImpersonationAnnotationKey implements auth.ProviderWithImpersonation.
+func (Provider) GetImpersonationAnnotationKey() string {
+	return "impersonate"
+}
+
+type impersonation struct {
+	GCPServiceAccount string `json:"gcpServiceAccount"`
+}
+
+func (i impersonation) String() string {
+	return i.GCPServiceAccount
+}
+
+// GetIdentityForImpersonation implements auth.ProviderWithImpersonation.
+func (Provider) GetIdentityForImpersonation(identity json.RawMessage) (fmt.Stringer, error) {
+	var id impersonation
+	if err := json.Unmarshal(identity, &id); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal impersonation identity: %w", err)
+	}
+	if !serviceAccountEmailRegex.MatchString(id.GCPServiceAccount) {
+		return nil, fmt.Errorf("invalid GCP service account in impersonation identity: '%s'. must match %s",
+			id.GCPServiceAccount, serviceAccountEmailPattern)
+	}
+	return &id, nil
+}
+
+// NewTokenForIdentity implements auth.ProviderWithImpersonation.
+func (p Provider) NewTokenForIdentity(ctx context.Context, token auth.Token,
+	identity fmt.Stringer, opts ...auth.Option) (auth.Token, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	hc, err := newHTTPClient(ctx, token, &o)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client for impersonation: %w", err)
+	}
+
+	src, err := p.impl().CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+		TargetPrincipal: identity.(*impersonation).GCPServiceAccount,
+		Scopes:          scopes,
+	}, option.WithHTTPClient(hc))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create impersonated token source: %w", err)
+	}
+
+	tok, err := src.Token()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve impersonated token: %w", err)
+	}
+
+	return &Token{*tok}, nil
+}
+
 // GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
 func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Option, error) {
 	// GCP does not require any special options to retrieve access tokens.
@@ -224,15 +278,11 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		}
 
 		// Create client for describing the cluster resource.
-		baseTransport := http.DefaultTransport.(*http.Transport).Clone()
-		if p := o.ProxyURL; p != nil {
-			baseTransport.Proxy = http.ProxyURL(p)
-		}
-		transport, err := htransport.NewTransport(ctx, baseTransport, option.WithTokenSource(token.source()))
+		hc, err := newHTTPClient(ctx, token, &o)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create google http transport for describing GKE cluster: %w", err)
+			return nil, fmt.Errorf("failed to create HTTP client for describing GKE cluster: %w", err)
 		}
-		client, err := container.NewService(ctx, option.WithHTTPClient(&http.Client{Transport: transport}))
+		client, err := container.NewService(ctx, option.WithHTTPClient(hc))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create client for describing GKE cluster: %w", err)
 		}

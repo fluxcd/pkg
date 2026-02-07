@@ -24,8 +24,6 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
 )
@@ -119,23 +117,15 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 	}
 
 	// Build cache key.
-	var serviceAccount *corev1.ServiceAccount
-	var providerIdentity string
-	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	var saInfo *serviceAccountInfo
+	if o.ShouldGetServiceAccount() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
-		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+		saInfo, err = getServiceAccountInfo(ctx, provider, o.Client, opts...)
 		if err != nil {
 			return nil, err
 		}
 	}
-	accessTokenCacheKey := buildAccessTokenCacheKey(provider, audiences,
-		providerIdentity, serviceAccount, accessTokenOpts...)
+	accessTokenCacheKey := buildAccessTokenCacheKey(provider, saInfo, accessTokenOpts...)
 	cacheKey := buildCacheKey(
 		fmt.Sprintf("accessTokenCacheKey=%s", accessTokenCacheKey),
 		fmt.Sprintf("artifactRepositoryCacheKey=%s", registryInput))
