@@ -152,15 +152,44 @@ func TestProvider_GetName(t *testing.T) {
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
-	g := NewWithT(t)
-	id, err := serviceaccounttoken.Provider{}.GetIdentity(corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tenant",
-			Namespace: "default",
-		},
+	t.Run("with service account", func(t *testing.T) {
+		g := NewWithT(t)
+		id, err := serviceaccounttoken.Provider{}.GetIdentity(
+			auth.WithServiceAccount(corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tenant",
+					Namespace: "default",
+				},
+			}))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(id).To(Equal(&serviceaccounttoken.Identity{Name: "tenant", Namespace: "default"}))
 	})
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(id).To(Equal(&serviceaccounttoken.Identity{Name: "tenant", Namespace: "default"}))
+
+	t.Run("no service account", func(t *testing.T) {
+		g := NewWithT(t)
+		id, err := serviceaccounttoken.Provider{}.GetIdentity()
+		g.Expect(err).To(MatchError(auth.ErrNoIdentityForOIDCImpersonation))
+		g.Expect(id).To(BeNil())
+	})
+}
+
+func TestProvider_GetAudiences(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		g := NewWithT(t)
+		oidcAud, exchangeAud, err := serviceaccounttoken.Provider{}.GetAudiences(context.Background())
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(oidcAud).To(Equal(""))
+		g.Expect(exchangeAud).To(Equal(""))
+	})
+
+	t.Run("explicit audiences", func(t *testing.T) {
+		g := NewWithT(t)
+		oidcAud, exchangeAud, err := serviceaccounttoken.Provider{}.GetAudiences(context.Background(),
+			auth.WithAudiences("custom-audience"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(oidcAud).To(Equal("custom-audience"))
+		g.Expect(exchangeAud).To(Equal(""))
+	})
 }
 
 func TestIdentity_UnmarshalJSON(t *testing.T) {

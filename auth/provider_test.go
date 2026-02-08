@@ -138,17 +138,25 @@ func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Opti
 	return m.returnControllerToken, nil
 }
 
-func (m *mockProvider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, string, error) {
+func (m *mockProvider) GetAudiences(_ context.Context, opts ...auth.Option) (string, string, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	var o auth.Options
+	o.Apply(opts...)
+	if o.ServiceAccount != nil {
+		g.Expect(*o.ServiceAccount).To(Equal(m.paramServiceAccount))
+	}
 	return "mock-audience", "", nil
 }
 
-func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
+func (m *mockProvider) GetIdentity(opts ...auth.Option) (auth.Identity, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	var o auth.Options
+	o.Apply(opts...)
+	if o.ServiceAccount != nil {
+		g.Expect(*o.ServiceAccount).To(Equal(m.paramServiceAccount))
+	}
 	if m.returnIdentityErr != "" {
 		return nil, errors.New(m.returnIdentityErr)
 	}

@@ -19,8 +19,6 @@ package auth
 import (
 	"context"
 	"fmt"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 // Identity represents a cloud provider identity that can be impersonated.
@@ -48,11 +46,10 @@ type ProviderWithOIDCImpersonation interface {
 	// audience should be added to the OIDC token itself as the "aud"
 	// claim, and the second is the exchangeAudience input for the
 	// NewTokenForOIDCToken method.
-	GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, string, error)
+	GetAudiences(ctx context.Context, opts ...Option) (string, string, error)
 
-	// GetIdentity takes a ServiceAccount and returns the identity which the
-	// ServiceAccount wants to impersonate, by looking at annotations.
-	GetIdentity(serviceAccount corev1.ServiceAccount) (Identity, error)
+	// GetIdentity returns the provider identity to impersonate.
+	GetIdentity(opts ...Option) (Identity, error)
 
 	// NewTokenForOIDCToken takes an OIDC token and target identity and
 	// returns a native provider token that can be used to authenticate

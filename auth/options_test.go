@@ -21,6 +21,9 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/fluxcd/pkg/auth"
 )
 
@@ -97,6 +100,24 @@ func TestOptions_WithIdentityForImpersonation(t *testing.T) {
 	}
 	if o.IdentityForImpersonation.String() != "impersonation-identity" {
 		t.Errorf("IdentityForImpersonation = %v, want %v", o.IdentityForImpersonation, "impersonation-identity")
+	}
+}
+
+func TestOptions_WithServiceAccount(t *testing.T) {
+	var o auth.Options
+	sa := corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-sa",
+			Namespace: "default",
+		},
+	}
+	o.Apply(auth.WithServiceAccount(sa))
+
+	if o.ServiceAccount == nil {
+		t.Fatal("ServiceAccount should not be nil")
+	}
+	if o.ServiceAccount.Name != "test-sa" {
+		t.Errorf("ServiceAccount.Name = %v, want %v", o.ServiceAccount.Name, "test-sa")
 	}
 }
 

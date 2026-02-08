@@ -44,14 +44,14 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 	var identityForImpersonation Identity
 
 	// Update access token fetcher for an OIDC provider if specified.
-	if o.UseOIDC {
-		// Ensure the provider supports impersonation with OIDC tokens.
-		p, ok := provider.(ProviderWithOIDCImpersonation)
-		if !ok {
-			return nil, fmt.Errorf("provider '%s' does not support impersonation with OIDC tokens", provider.GetName())
-		}
+	// if o.UseOIDC {
+	// 	// Ensure the provider supports impersonation with OIDC tokens.
+	// 	p, ok := provider.(ProviderWithOIDCImpersonation)
+	// 	if !ok {
+	// 		return nil, fmt.Errorf("provider '%s' does not support impersonation with OIDC tokens", provider.GetName())
+	// 	}
 
-	}
+	// }
 
 	// Update access token fetcher for a service account if specified.
 	var saInfo *serviceAccountInfo

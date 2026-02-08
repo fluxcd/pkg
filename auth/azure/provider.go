@@ -31,7 +31,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -86,28 +85,51 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.ProviderWithOIDCImpersonation.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) (string, string, error) {
+func (Provider) GetAudiences(_ context.Context, opts ...auth.Option) (string, string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	if len(o.Audiences) > 0 {
+		return o.Audiences[0], "", nil
+	}
 	return "api://AzureADTokenExchange", "", nil
 }
 
 // GetIdentity implements auth.ProviderWithOIDCImpersonation.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
-	const keyTenantID = "azure.workload.identity/tenant-id"
-	tenantID, ok := serviceAccount.Annotations[keyTenantID]
-	if !ok {
-		return nil, fmt.Errorf("annotation %s is not set", keyTenantID)
+func (Provider) GetIdentity(opts ...auth.Option) (auth.Identity, error) {
+	var o auth.Options
+	o.Apply(opts...)
+
+	if id := o.IdentityForOIDCImpersonation; id != nil {
+		azureID, ok := id.(*Identity)
+		if !ok {
+			return nil, auth.ErrInvalidIdentityType(&Identity{}, id)
+		}
+		if err := azureID.Validate(); err != nil {
+			return nil, err
+		}
+		return id, nil
 	}
 
-	const keyClientID = "azure.workload.identity/client-id"
-	clientID, ok := serviceAccount.Annotations[keyClientID]
-	if !ok {
-		return nil, fmt.Errorf("annotation %s is not set", keyClientID)
+	if o.ServiceAccount != nil {
+		const keyTenantID = "azure.workload.identity/tenant-id"
+		tenantID, ok := o.ServiceAccount.Annotations[keyTenantID]
+		if !ok {
+			return nil, fmt.Errorf("annotation %s is not set", keyTenantID)
+		}
+
+		const keyClientID = "azure.workload.identity/client-id"
+		clientID, ok := o.ServiceAccount.Annotations[keyClientID]
+		if !ok {
+			return nil, fmt.Errorf("annotation %s is not set", keyClientID)
+		}
+
+		return &Identity{
+			TenantID: tenantID,
+			ClientID: clientID,
+		}, nil
 	}
 
-	return &Identity{
-		TenantID: tenantID,
-		ClientID: clientID,
-	}, nil
+	return nil, auth.ErrNoIdentityForOIDCImpersonation
 }
 
 // NewTokenForOIDCToken implements auth.ProviderWithOIDCImpersonation.

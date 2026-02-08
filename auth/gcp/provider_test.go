@@ -156,6 +156,19 @@ func TestProvider_NewTokenForOIDCToken(t *testing.T) {
 	}
 }
 
+// TestProvider_GetAudience_NoAudience must run before TestProvider_GetAudience
+// because gkeMetadata is a package-level singleton that caches results. Once loaded,
+// it cannot be reset from the external test package.
+func TestProvider_GetAudience_NoAudience(t *testing.T) {
+	g := NewWithT(t)
+	// Start a failing mock so we don't hang trying to reach the real metadata service.
+	startFailingGKEMetadataServer(t)
+	// No audiences, no SA, no GKE metadata → ErrNoAudienceForOIDCImpersonation
+	_, _, err := gcp.Provider{}.GetAudiences(context.Background())
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(errors.Is(err, auth.ErrNoAudienceForOIDCImpersonation)).To(BeTrue())
+}
+
 func TestProvider_GetAudience(t *testing.T) {
 	startGKEMetadataServer(t)
 
@@ -188,12 +201,31 @@ func TestProvider_GetAudience(t *testing.T) {
 				},
 			}
 
-			oidcAud, exchangeAud, err := gcp.Provider{}.GetAudiences(context.Background(), serviceAccount)
+			oidcAud, exchangeAud, err := gcp.Provider{}.GetAudiences(context.Background(), auth.WithServiceAccount(serviceAccount))
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(oidcAud).To(Equal(tt.expectedOIDC))
 			g.Expect(exchangeAud).To(Equal(tt.expectedExchange))
 		})
 	}
+}
+
+func TestProvider_GetAudience_ExplicitAudiences(t *testing.T) {
+	t.Run("valid workload identity provider", func(t *testing.T) {
+		g := NewWithT(t)
+		oidcAud, exchangeAud, err := gcp.Provider{}.GetAudiences(context.Background(),
+			auth.WithAudiences("projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(oidcAud).To(Equal("//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider"))
+		g.Expect(exchangeAud).To(Equal(oidcAud))
+	})
+
+	t.Run("invalid workload identity provider", func(t *testing.T) {
+		g := NewWithT(t)
+		_, _, err := gcp.Provider{}.GetAudiences(context.Background(),
+			auth.WithAudiences("invalid-provider"))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("invalid GCP workload identity provider"))
+	})
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
@@ -231,7 +263,7 @@ func TestProvider_GetIdentity(t *testing.T) {
 				},
 			}
 
-			identity, err := gcp.Provider{}.GetIdentity(serviceAccount)
+			identity, err := gcp.Provider{}.GetIdentity(auth.WithServiceAccount(serviceAccount))
 			if tt.err != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.err))
@@ -242,6 +274,58 @@ func TestProvider_GetIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProvider_GetIdentity_WithExplicitIdentity(t *testing.T) {
+	t.Run("valid explicit identity with email", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := gcp.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&gcp.Identity{GCPServiceAccount: "sa@project.iam.gserviceaccount.com"}))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(identity).To(Equal(&gcp.Identity{GCPServiceAccount: "sa@project.iam.gserviceaccount.com"}))
+	})
+
+	t.Run("valid explicit identity without email (direct access)", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := gcp.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&gcp.Identity{}))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(identity).To(Equal(&gcp.Identity{}))
+	})
+
+	t.Run("invalid explicit identity", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := gcp.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&gcp.Identity{GCPServiceAccount: "invalid"}))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("invalid GCP service account email"))
+		g.Expect(identity).To(BeNil())
+	})
+
+	t.Run("wrong identity type", func(t *testing.T) {
+		g := NewWithT(t)
+		type wrongIdentity struct{ auth.Identity }
+		identity, err := gcp.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&wrongIdentity{}))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("invalid identity type"))
+		g.Expect(identity).To(BeNil())
+	})
+
+	t.Run("no SA and no identity", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := gcp.Provider{}.GetIdentity()
+		g.Expect(err).To(MatchError(auth.ErrNoIdentityForOIDCImpersonation))
+		g.Expect(identity).To(BeNil())
+	})
+}
+
+func TestIdentity_Validate(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect((&gcp.Identity{GCPServiceAccount: "sa@project.iam.gserviceaccount.com"}).Validate()).To(Succeed())
+	g.Expect((&gcp.Identity{GCPServiceAccount: "invalid"}).Validate()).To(HaveOccurred())
+	g.Expect((&gcp.Identity{GCPServiceAccount: ""}).Validate()).To(HaveOccurred())
 }
 
 func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
@@ -571,41 +655,6 @@ func TestProvider_NewTokenForNativeToken(t *testing.T) {
 					AccessToken: "impersonated-token",
 					Expiry:      tokenExpiry,
 				}}))
-			}
-		})
-	}
-}
-
-func TestGetWorkloadIdentityProviderAudience(t *testing.T) {
-	for _, tt := range []struct {
-		name     string
-		wip      string
-		expected string
-		err      string
-	}{
-		{
-			name:     "valid provider",
-			wip:      "projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
-			expected: "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
-		},
-		{
-			name: "invalid provider",
-			wip:  "invalid-provider",
-			err:  "invalid GCP workload identity provider",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
-
-			audience, err := gcp.GetWorkloadIdentityProviderAudience(tt.wip)
-
-			if tt.err != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(tt.err))
-				g.Expect(audience).To(BeEmpty())
-			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(audience).To(Equal(tt.expected))
 			}
 		})
 	}

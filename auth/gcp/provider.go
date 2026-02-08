@@ -19,6 +19,7 @@ package gcp
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -28,7 +29,6 @@ import (
 	"google.golang.org/api/container/v1"
 	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
-	corev1 "k8s.io/api/core/v1"
 
 	auth "github.com/fluxcd/pkg/auth"
 )
@@ -76,45 +76,88 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.ProviderWithOIDCImpersonation.
-func (Provider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, string, error) {
+func (Provider) GetAudiences(ctx context.Context, opts ...auth.Option) (string, string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+
+	if len(o.Audiences) > 0 {
+		wip := o.Audiences[0]
+		aud, err := getWorkloadIdentityProviderAudience(wip)
+		if err != nil {
+			return "", "", err
+		}
+		return aud, aud, nil
+	}
 
 	// Check if a workload identity provider is specified in the service account.
 	// If so, the current cluster is not GKE and both audiences are the same.
-	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
-	if err != nil {
-		return "", "", err
-	}
-	if audience != "" {
-		return audience, audience, nil
+	if o.ServiceAccount != nil {
+		const key = ProviderName + "." + auth.APIGroup + "/workload-identity-provider"
+		if wip := o.ServiceAccount.Annotations[key]; wip != "" {
+			aud, err := getWorkloadIdentityProviderAudience(wip)
+			if err != nil {
+				return "", "", fmt.Errorf("invalid %s annotation: %w", key, err)
+			}
+			return aud, aud, nil
+		}
 	}
 
 	// Assume we are in GKE. In this case, the OIDC audience is the workload
 	// identity pool, while the exchange audience is a special one for GKE.
+	var errs []error
 	oidcAudience, err := gkeMetadata.workloadIdentityPool(ctx)
 	if err != nil {
-		return "", "", err
+		errs = append(errs, err)
 	}
 	exchangeAudience, err := gkeMetadata.getAudience(ctx)
 	if err != nil {
-		return "", "", err
+		errs = append(errs, err)
 	}
-	return oidcAudience, exchangeAudience, nil
+	if len(errs) == 0 {
+		return oidcAudience, exchangeAudience, nil
+	}
+
+	return "", "", fmt.Errorf("%w: %w", auth.ErrNoAudienceForOIDCImpersonation, errors.Join(errs...))
 }
 
 // GetIdentity implements auth.ProviderWithOIDCImpersonation.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
-	const keyEmail = "iam.gke.io/gcp-service-account"
-	email := serviceAccount.Annotations[keyEmail]
+func (Provider) GetIdentity(opts ...auth.Option) (auth.Identity, error) {
+	var o auth.Options
+	o.Apply(opts...)
 
-	// In GCP, a GCP Service Account is optional for getting a native token.
-	if email == "" {
-		return &Identity{}, nil
+	if id := o.IdentityForOIDCImpersonation; id != nil {
+		gcpID, ok := id.(*Identity)
+		if !ok {
+			return nil, auth.ErrInvalidIdentityType(&Identity{}, id)
+		}
+
+		// In GCP, a GCP Service Account is optional for getting a native token.
+		if gcpID.GCPServiceAccount == "" {
+			return id, nil
+		}
+
+		if err := gcpID.Validate(); err != nil {
+			return nil, err
+		}
+		return id, nil
 	}
 
-	if err := parseServiceAccountEmail(email); err != nil {
-		return nil, fmt.Errorf("invalid %s annotation: %w", keyEmail, err)
+	if o.ServiceAccount != nil {
+		const key = "iam.gke.io/gcp-service-account"
+		email := o.ServiceAccount.Annotations[key]
+
+		// In GCP, a GCP Service Account is optional for getting a native token.
+		if email == "" {
+			return &Identity{}, nil
+		}
+
+		if err := parseServiceAccountEmail(email); err != nil {
+			return nil, fmt.Errorf("invalid %s annotation: %w", key, err)
+		}
+		return &Identity{GCPServiceAccount: email}, nil
 	}
-	return &Identity{GCPServiceAccount: email}, nil
+
+	return nil, auth.ErrNoIdentityForOIDCImpersonation
 }
 
 // NewTokenForOIDCToken implements auth.ProviderWithOIDCImpersonation.

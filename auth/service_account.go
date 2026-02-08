@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -137,6 +138,9 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 	var exchangeAudience string
 	var identityForOIDCImpersonation Identity
 
+	// Append the fetched ServiceAccount to opts so that provider methods can access it.
+	opts = append(slices.Clone(opts), WithServiceAccount(obj))
+
 	p := provider.(ProviderWithOIDCImpersonation)
 	switch useServiceAccount {
 
@@ -149,7 +153,7 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 		} else {
 			var oidcAudience string
 			var err error
-			oidcAudience, exchangeAudience, err = p.GetAudiences(ctx, obj)
+			oidcAudience, exchangeAudience, err = p.GetAudiences(ctx, opts...)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get provider audiences: %w", err)
 			}
@@ -158,7 +162,7 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 
 		// Get provider identity.
 		var err error
-		identityForOIDCImpersonation, err = p.GetIdentity(obj)
+		identityForOIDCImpersonation, err = p.GetIdentity(opts...)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"failed to get provider identity from service account '%s' annotations: %w", key, err)
@@ -170,7 +174,7 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 		// No need to check audiences, they may be needed for usage without a ServiceAccount.
 
 		// Check provider identity.
-		if id, err := p.GetIdentity(obj); err == nil && id.String() != "" {
+		if id, err := p.GetIdentity(opts...); err == nil && id.String() != "" {
 			return nil, fmt.Errorf("invalid configuration on service account '%s': "+
 				"identity annotation is present but the ServiceAccount is not used according "+
 				"to the impersonation configuration", key)

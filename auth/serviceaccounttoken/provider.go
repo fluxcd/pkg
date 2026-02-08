@@ -24,7 +24,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
-	corev1 "k8s.io/api/core/v1"
 
 	"github.com/fluxcd/pkg/auth"
 )
@@ -89,16 +88,26 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.RESTConfigProvider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) (string, string, error) {
+func (Provider) GetAudiences(_ context.Context, opts ...auth.Option) (string, string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	if len(o.Audiences) > 0 {
+		return o.Audiences[0], "", nil
+	}
 	// Use TokenRequest API default audiences.
 	return "", "", nil
 }
 
 // GetIdentity implements auth.RESTConfigProvider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
+func (Provider) GetIdentity(opts ...auth.Option) (auth.Identity, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	if o.ServiceAccount == nil {
+		return nil, auth.ErrNoIdentityForOIDCImpersonation
+	}
 	return &Identity{
-		Name:      serviceAccount.Name,
-		Namespace: serviceAccount.Namespace,
+		Name:      o.ServiceAccount.Name,
+		Namespace: o.ServiceAccount.Namespace,
 	}, nil
 }
 

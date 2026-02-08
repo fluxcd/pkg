@@ -30,6 +30,11 @@ func (i *Identity) String() string {
 	return i.RoleARN
 }
 
+// Validate validates the identity fields.
+func (i *Identity) Validate() error {
+	return parseRoleARN(i.RoleARN)
+}
+
 // UnmarshalJSON implements json.Unmarshaler to validate the identity format when unmarshaling.
 func (i *Identity) UnmarshalJSON(data []byte) error {
 	type alias Identity
@@ -37,9 +42,6 @@ func (i *Identity) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &id); err != nil {
 		return err
 	}
-	if err := parseRoleARN(id.RoleARN); err != nil {
-		return err
-	}
 	*i = Identity(id)
-	return nil
+	return i.Validate()
 }

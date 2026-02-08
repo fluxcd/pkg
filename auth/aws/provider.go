@@ -33,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-containerregistry/pkg/authn"
-	corev1 "k8s.io/api/core/v1"
 
 	"github.com/fluxcd/pkg/auth"
 )
@@ -102,18 +101,41 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.ProviderWithOIDCImpersonation.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) (string, string, error) {
+func (Provider) GetAudiences(_ context.Context, opts ...auth.Option) (string, string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	if len(o.Audiences) > 0 {
+		return o.Audiences[0], "", nil
+	}
 	return "sts.amazonaws.com", "", nil
 }
 
 // GetIdentity implements auth.ProviderWithOIDCImpersonation.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
-	const key = "eks.amazonaws.com/role-arn"
-	roleARN := serviceAccount.Annotations[key]
-	if err := parseRoleARN(roleARN); err != nil {
-		return nil, fmt.Errorf("invalid %s annotation: %w", key, err)
+func (Provider) GetIdentity(opts ...auth.Option) (auth.Identity, error) {
+	var o auth.Options
+	o.Apply(opts...)
+
+	if id := o.IdentityForOIDCImpersonation; id != nil {
+		awsID, ok := id.(*Identity)
+		if !ok {
+			return nil, auth.ErrInvalidIdentityType(&Identity{}, id)
+		}
+		if err := awsID.Validate(); err != nil {
+			return nil, err
+		}
+		return id, nil
 	}
-	return &Identity{RoleARN: roleARN}, nil
+
+	if o.ServiceAccount != nil {
+		const key = "eks.amazonaws.com/role-arn"
+		id := &Identity{RoleARN: o.ServiceAccount.Annotations[key]}
+		if err := id.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid %s annotation: %w", key, err)
+		}
+		return id, nil
+	}
+
+	return nil, auth.ErrNoIdentityForOIDCImpersonation
 }
 
 // NewTokenForOIDCToken implements auth.ProviderWithOIDCImpersonation.

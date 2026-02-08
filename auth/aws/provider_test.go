@@ -182,11 +182,22 @@ func TestProvider_NewTokenForOIDCToken(t *testing.T) {
 }
 
 func TestProvider_GetAudiences(t *testing.T) {
-	g := NewWithT(t)
-	oidcAud, exchangeAud, err := aws.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(oidcAud).To(Equal("sts.amazonaws.com"))
-	g.Expect(exchangeAud).To(Equal(""))
+	t.Run("default", func(t *testing.T) {
+		g := NewWithT(t)
+		oidcAud, exchangeAud, err := aws.Provider{}.GetAudiences(context.Background())
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(oidcAud).To(Equal("sts.amazonaws.com"))
+		g.Expect(exchangeAud).To(Equal(""))
+	})
+
+	t.Run("explicit audiences", func(t *testing.T) {
+		g := NewWithT(t)
+		oidcAud, exchangeAud, err := aws.Provider{}.GetAudiences(context.Background(),
+			auth.WithAudiences("custom-audience"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(oidcAud).To(Equal("custom-audience"))
+		g.Expect(exchangeAud).To(Equal(""))
+	})
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
@@ -219,11 +230,12 @@ func TestProvider_GetIdentity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			identity, err := aws.Provider{}.GetIdentity(corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: tt.annotations,
-				},
-			})
+			identity, err := aws.Provider{}.GetIdentity(
+				auth.WithServiceAccount(corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: tt.annotations,
+					},
+				}))
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -235,6 +247,50 @@ func TestProvider_GetIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProvider_GetIdentity_WithExplicitIdentity(t *testing.T) {
+	t.Run("valid explicit identity", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := aws.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&aws.Identity{RoleARN: "arn:aws:iam::1234567890:role/some-role"}))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(identity).To(Equal(&aws.Identity{RoleARN: "arn:aws:iam::1234567890:role/some-role"}))
+	})
+
+	t.Run("invalid explicit identity", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := aws.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&aws.Identity{RoleARN: "invalid"}))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("invalid IAM role ARN"))
+		g.Expect(identity).To(BeNil())
+	})
+
+	t.Run("wrong identity type", func(t *testing.T) {
+		g := NewWithT(t)
+		type wrongIdentity struct{ auth.Identity }
+		identity, err := aws.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&wrongIdentity{}))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("invalid identity type"))
+		g.Expect(identity).To(BeNil())
+	})
+
+	t.Run("no SA and no identity", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := aws.Provider{}.GetIdentity()
+		g.Expect(err).To(MatchError(auth.ErrNoIdentityForOIDCImpersonation))
+		g.Expect(identity).To(BeNil())
+	})
+}
+
+func TestIdentity_Validate(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect((&aws.Identity{RoleARN: "arn:aws:iam::1234567890:role/some-role"}).Validate()).To(Succeed())
+	g.Expect((&aws.Identity{RoleARN: "invalid"}).Validate()).To(HaveOccurred())
+	g.Expect((&aws.Identity{RoleARN: ""}).Validate()).To(HaveOccurred())
 }
 
 func TestProvider_GetImpersonationAnnotationKey(t *testing.T) {

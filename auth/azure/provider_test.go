@@ -118,11 +118,22 @@ func TestProvider_NewTokenForOIDCToken(t *testing.T) {
 }
 
 func TestProvider_GetAudiences(t *testing.T) {
-	g := NewWithT(t)
-	oidcAud, exchangeAud, err := azure.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(oidcAud).To(Equal("api://AzureADTokenExchange"))
-	g.Expect(exchangeAud).To(Equal(""))
+	t.Run("default", func(t *testing.T) {
+		g := NewWithT(t)
+		oidcAud, exchangeAud, err := azure.Provider{}.GetAudiences(context.Background())
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(oidcAud).To(Equal("api://AzureADTokenExchange"))
+		g.Expect(exchangeAud).To(Equal(""))
+	})
+
+	t.Run("explicit audiences", func(t *testing.T) {
+		g := NewWithT(t)
+		oidcAud, exchangeAud, err := azure.Provider{}.GetAudiences(context.Background(),
+			auth.WithAudiences("custom-audience"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(oidcAud).To(Equal("custom-audience"))
+		g.Expect(exchangeAud).To(Equal(""))
+	})
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
@@ -158,11 +169,12 @@ func TestProvider_GetIdentity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			identity, err := azure.Provider{}.GetIdentity(corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: tt.annotations,
-				},
-			})
+			identity, err := azure.Provider{}.GetIdentity(
+				auth.WithServiceAccount(corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: tt.annotations,
+					},
+				}))
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -175,6 +187,50 @@ func TestProvider_GetIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProvider_GetIdentity_WithExplicitIdentity(t *testing.T) {
+	t.Run("valid explicit identity", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := azure.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&azure.Identity{TenantID: "t", ClientID: "c"}))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(identity).To(Equal(&azure.Identity{TenantID: "t", ClientID: "c"}))
+	})
+
+	t.Run("invalid explicit identity - missing clientID", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := azure.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&azure.Identity{TenantID: "t"}))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("clientID is required"))
+		g.Expect(identity).To(BeNil())
+	})
+
+	t.Run("wrong identity type", func(t *testing.T) {
+		g := NewWithT(t)
+		type wrongIdentity struct{ auth.Identity }
+		identity, err := azure.Provider{}.GetIdentity(
+			auth.WithIdentityForOIDCImpersonation(&wrongIdentity{}))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("invalid identity type"))
+		g.Expect(identity).To(BeNil())
+	})
+
+	t.Run("no SA and no identity", func(t *testing.T) {
+		g := NewWithT(t)
+		identity, err := azure.Provider{}.GetIdentity()
+		g.Expect(err).To(MatchError(auth.ErrNoIdentityForOIDCImpersonation))
+		g.Expect(identity).To(BeNil())
+	})
+}
+
+func TestIdentity_Validate(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect((&azure.Identity{TenantID: "t", ClientID: "c"}).Validate()).To(Succeed())
+	g.Expect((&azure.Identity{TenantID: "t"}).Validate()).To(HaveOccurred())
+	g.Expect((&azure.Identity{ClientID: "c"}).Validate()).To(HaveOccurred())
 }
 
 func TestIdentity_UnmarshalJSON(t *testing.T) {

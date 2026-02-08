@@ -32,6 +32,17 @@ func (i *Identity) String() string {
 	return fmt.Sprintf("%s/%s", i.TenantID, i.ClientID)
 }
 
+// Validate validates the identity fields.
+func (i *Identity) Validate() error {
+	if i.ClientID == "" {
+		return fmt.Errorf("clientID is required")
+	}
+	if i.TenantID == "" {
+		return fmt.Errorf("tenantID is required")
+	}
+	return nil
+}
+
 // UnmarshalJSON implements json.Unmarshaler to validate the identity format when unmarshaling.
 func (i *Identity) UnmarshalJSON(data []byte) error {
 	type alias Identity
@@ -39,12 +50,6 @@ func (i *Identity) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &id); err != nil {
 		return fmt.Errorf("failed to unmarshal identity: %w", err)
 	}
-	if id.ClientID == "" {
-		return fmt.Errorf("clientID is required")
-	}
-	if id.TenantID == "" {
-		return fmt.Errorf("tenantID is required")
-	}
 	*i = Identity(id)
-	return nil
+	return i.Validate()
 }

@@ -24,6 +24,18 @@ import (
 	"testing"
 )
 
+// startFailingGKEMetadataServer starts a mock GKE metadata server that always
+// returns 404 for all requests. This is useful for testing the case where the
+// pod is not running on GKE and no GKE metadata is available.
+func startFailingGKEMetadataServer(t *testing.T) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("GCE_METADATA_HOST", strings.TrimPrefix(srv.URL, "http://"))
+}
+
 func startGKEMetadataServer(t *testing.T) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
@@ -37,6 +38,7 @@ type Options struct {
 	ServiceAccountName           string
 	ServiceAccountNamespace      string
 	DefaultServiceAccount        string
+	ServiceAccount               *corev1.ServiceAccount
 	IdentityForOIDCImpersonation Identity
 	IdentityForImpersonation     Identity
 	InvolvedObject               cache.InvolvedObject
@@ -82,6 +84,13 @@ func WithServiceAccountNamespace(namespace string) Option {
 func WithDefaultServiceAccount(name string) Option {
 	return func(o *Options) {
 		o.DefaultServiceAccount = name
+	}
+}
+
+// WithServiceAccount sets the ServiceAccount object for the token.
+func WithServiceAccount(sa corev1.ServiceAccount) Option {
+	return func(o *Options) {
+		o.ServiceAccount = &sa
 	}
 }
 

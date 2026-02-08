@@ -24,7 +24,6 @@ import (
 
 	"google.golang.org/api/option"
 	htransport "google.golang.org/api/transport/http"
-	corev1 "k8s.io/api/core/v1"
 
 	"github.com/fluxcd/pkg/auth"
 )
@@ -45,18 +44,7 @@ const workloadIdentityProviderPattern = `^projects/\d{1,30}/locations/global/wor
 
 var workloadIdentityProviderRegex = regexp.MustCompile(workloadIdentityProviderPattern)
 
-func getWorkloadIdentityProviderAudience(serviceAccount corev1.ServiceAccount) (string, error) {
-	const key = ProviderName + "." + auth.APIGroup + "/workload-identity-provider"
-	wip := serviceAccount.Annotations[key]
-	if wip == "" {
-		return "", nil
-	}
-	return GetWorkloadIdentityProviderAudience(wip)
-}
-
-// GetWorkloadIdentityProviderAudience returns the audience to be used for OIDC exchange
-// when using a GCP Workload Identity Provider.
-func GetWorkloadIdentityProviderAudience(workloadIdentityProvider string) (string, error) {
+func getWorkloadIdentityProviderAudience(workloadIdentityProvider string) (string, error) {
 	if !workloadIdentityProviderRegex.MatchString(workloadIdentityProvider) {
 		return "", fmt.Errorf("invalid GCP workload identity provider: '%s'. must match %s",
 			workloadIdentityProvider, workloadIdentityProviderPattern)
