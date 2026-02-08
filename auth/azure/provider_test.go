@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -83,96 +84,142 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	}
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewTokenForOIDCToken(t *testing.T) {
+	g := NewWithT(t)
+
+	impl := &mockImplementation{
+		t:            t,
+		argTenantID:  "tenant-id",
+		argClientID:  "client-id",
+		argOIDCToken: "oidc-token",
+		argProxyURL:  &url.URL{Scheme: "http", Host: "proxy.example.com"},
+		argScopes:    []string{"scope1", "scope2"},
+		returnToken:  "access-token",
+	}
+
+	oidcToken := "oidc-token"
+	identity := &azure.Identity{
+		TenantID: "tenant-id",
+		ClientID: "client-id",
+	}
+	opts := []auth.Option{
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+		auth.WithScopes("scope1", "scope2"),
+	}
+
+	provider := azure.Provider{Implementation: impl}
+	token, err := provider.NewTokenForOIDCToken(context.Background(), oidcToken, "", identity, opts...)
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{
+		Token:     "access-token",
+		ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	}}))
+}
+
+func TestProvider_GetAudiences(t *testing.T) {
+	g := NewWithT(t)
+	oidcAud, exchangeAud, err := azure.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(oidcAud).To(Equal("api://AzureADTokenExchange"))
+	g.Expect(exchangeAud).To(Equal(""))
+}
+
+func TestProvider_GetIdentity(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		annotations map[string]string
+		expected    *azure.Identity
 		err         string
 	}{
 		{
 			name: "valid",
 			annotations: map[string]string{
-				"azure.workload.identity/tenant-id": "tenant-id",
 				"azure.workload.identity/client-id": "client-id",
+				"azure.workload.identity/tenant-id": "tenant-id",
 			},
+			expected: &azure.Identity{TenantID: "tenant-id", ClientID: "client-id"},
 		},
 		{
 			name: "tenant id missing",
 			annotations: map[string]string{
 				"azure.workload.identity/client-id": "client-id",
 			},
-			err: "azure tenant ID is not set in the service account annotation azure.workload.identity/tenant-id",
+			err: "annotation azure.workload.identity/tenant-id is not set",
 		},
 		{
 			name: "client id missing",
 			annotations: map[string]string{
 				"azure.workload.identity/tenant-id": "tenant-id",
 			},
-			err: "azure client ID is not set in the service account annotation azure.workload.identity/client-id",
+			err: "annotation azure.workload.identity/client-id is not set",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			impl := &mockImplementation{
-				t:            t,
-				argTenantID:  "tenant-id",
-				argClientID:  "client-id",
-				argOIDCToken: "oidc-token",
-				argProxyURL:  &url.URL{Scheme: "http", Host: "proxy.example.com"},
-				argScopes:    []string{"scope1", "scope2"},
-				returnToken:  "access-token",
-			}
-
-			oidcToken := "oidc-token"
-			serviceAccount := corev1.ServiceAccount{
+			identity, err := azure.Provider{}.GetIdentity(corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: tt.annotations,
 				},
-			}
-			opts := []auth.Option{
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-				auth.WithScopes("scope1", "scope2"),
-			}
-
-			provider := azure.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			})
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{
-					Token:     "access-token",
-					ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-				}}))
+				g.Expect(identity).To(Equal(tt.expected))
+				g.Expect(identity.String()).To(Equal("tenant-id/client-id"))
 			} else {
 				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(Equal(tt.err))
-				g.Expect(token).To(BeNil())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(identity).To(BeNil())
 			}
 		})
 	}
 }
 
-func TestProvider_GetAudiences(t *testing.T) {
-	g := NewWithT(t)
-	aud, err := azure.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(aud).To(Equal([]string{"api://AzureADTokenExchange"}))
-}
-
-func TestProvider_GetIdentity(t *testing.T) {
-	g := NewWithT(t)
-
-	identity, err := azure.Provider{}.GetIdentity(corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				"azure.workload.identity/client-id": "client-id",
-				"azure.workload.identity/tenant-id": "tenant-id",
-			},
+func TestIdentity_UnmarshalJSON(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		json     string
+		expected *azure.Identity
+		err      string
+	}{
+		{
+			name:     "valid",
+			json:     `{"clientID":"client-id","tenantID":"tenant-id"}`,
+			expected: &azure.Identity{ClientID: "client-id", TenantID: "tenant-id"},
 		},
-	})
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(identity).To(Equal("tenant-id/client-id"))
+		{
+			name: "missing clientID",
+			json: `{"tenantID":"tenant-id"}`,
+			err:  "clientID is required",
+		},
+		{
+			name: "missing tenantID",
+			json: `{"clientID":"client-id"}`,
+			err:  "tenantID is required",
+		},
+		{
+			name: "invalid JSON",
+			json: `{invalid`,
+			err:  "invalid character",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			var id azure.Identity
+			err := json.Unmarshal([]byte(tt.json), &id)
+
+			if tt.err == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(&id).To(Equal(tt.expected))
+			} else {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+			}
+		})
+	}
 }
 
 func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {

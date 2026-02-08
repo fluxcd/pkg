@@ -495,7 +495,7 @@ func TestGetAccessToken(t *testing.T) {
 			expectedErr: "multi-tenancy lockdown is enabled, impersonation without service account is not allowed",
 		},
 		{
-			name: "impersonation NewTokenForIdentity error",
+			name: "impersonation NewTokenForNativeToken error",
 			provider: &mockProvider{
 				returnName:                     "mock-provider",
 				returnAccessToken:              &mockToken{token: "mock-access-token"},
@@ -642,4 +642,79 @@ func TestGetAccessToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetAccessToken_ProviderDoesNotSupportOIDCImpersonation(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+
+	kubeClient, _ := newTestEnv(t, ctx)
+
+	auth.EnableObjectLevelWorkloadIdentity()
+	t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
+
+	// Create a service account.
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "oidc-test-sa",
+			Namespace: "default",
+		},
+	}
+	err := kubeClient.Create(ctx, sa)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Use a basic provider that only implements auth.Provider, not ProviderWithOIDCImpersonation.
+	provider := &mockBasicProvider{returnName: "basic-provider"}
+
+	token, err := auth.GetAccessToken(ctx, provider,
+		auth.WithClient(kubeClient),
+		auth.WithServiceAccountName("oidc-test-sa"),
+		auth.WithServiceAccountNamespace("default"),
+	)
+	g.Expect(err).To(MatchError(ContainSubstring("provider 'basic-provider' does not support impersonation with OIDC tokens")))
+	g.Expect(token).To(BeNil())
+}
+
+func TestGetAccessToken_ProviderDoesNotSupportNativeImpersonation(t *testing.T) {
+	g := NewWithT(t)
+
+	// Use a basic provider that only implements auth.Provider, not ProviderWithImpersonation.
+	provider := &mockBasicProvider{
+		returnName:            "basic-provider",
+		returnControllerToken: &mockToken{token: "controller-token"},
+	}
+
+	token, err := auth.GetAccessToken(context.Background(), provider,
+		auth.WithIdentityForImpersonation(mockIdentity("some-target-identity")),
+	)
+	g.Expect(err).To(MatchError(ContainSubstring("provider 'basic-provider' does not support impersonation with native tokens")))
+	g.Expect(token).To(BeNil())
+}
+
+func TestGetAccessToken_WithIdentityForImpersonation(t *testing.T) {
+	g := NewWithT(t)
+
+	provider := &mockProvider{
+		returnControllerToken:   &mockToken{token: "mock-controller-token"},
+		returnImpersonatedToken: &mockToken{token: "mock-impersonated-token"},
+	}
+	provider.t = t
+
+	p := &mockProviderWithImpersonation{mockProvider: provider}
+
+	token, err := auth.GetAccessToken(context.Background(), p,
+		auth.WithIdentityForImpersonation(mockIdentity("target-role-arn")),
+		auth.WithAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithSTSRegion("us-east-1"),
+		auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(token).To(Equal(&mockToken{token: "mock-impersonated-token"}))
+	g.Expect(provider.gotIdentity).NotTo(BeNil())
+	g.Expect(provider.gotIdentity.String()).To(Equal("target-role-arn"))
 }

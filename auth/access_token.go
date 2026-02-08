@@ -41,6 +41,18 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 		return token, nil
 	}
 
+	var identityForImpersonation Identity
+
+	// Update access token fetcher for an OIDC provider if specified.
+	if o.UseOIDC {
+		// Ensure the provider supports impersonation with OIDC tokens.
+		p, ok := provider.(ProviderWithOIDCImpersonation)
+		if !ok {
+			return nil, fmt.Errorf("provider '%s' does not support impersonation with OIDC tokens", provider.GetName())
+		}
+
+	}
+
 	// Update access token fetcher for a service account if specified.
 	var saInfo *serviceAccountInfo
 	if o.ShouldGetServiceAccount() {
@@ -49,26 +61,34 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 			return nil, ErrObjectLevelWorkloadIdentityNotEnabled
 		}
 
+		// Ensure the provider supports impersonation with OIDC tokens.
+		p, ok := provider.(ProviderWithOIDCImpersonation)
+		if !ok {
+			return nil, fmt.Errorf("provider '%s' does not support impersonation with OIDC tokens", provider.GetName())
+		}
+
 		// Fetch service account details.
 		var err error
 		saInfo, err = getServiceAccountInfo(ctx, provider, o.Client, opts...)
 		if err != nil {
 			return nil, err
 		}
+		identityForImpersonation = saInfo.identityForImpersonation
 
 		// Update the function to create an access token using the service account.
 		if saInfo.useServiceAccount {
 			newAccessToken = func() (Token, error) {
 				// Issue Kubernetes OIDC token for the service account.
 				saKey := client.ObjectKeyFromObject(saInfo.obj)
-				oidcToken, err := CreateServiceAccountToken(ctx, o.Client, saKey, saInfo.audiences...)
+				oidcToken, err := CreateServiceAccountToken(ctx, o.Client, saKey, saInfo.oidcAudiences...)
 				if err != nil {
 					return nil, fmt.Errorf("failed to create kubernetes token for service account '%s/%s': %w",
 						saInfo.obj.Namespace, saInfo.obj.Name, err)
 				}
 
 				// Exchange the Kubernetes OIDC token for a provider access token.
-				token, err := provider.NewTokenForServiceAccount(ctx, oidcToken, *saInfo.obj, opts...)
+				token, err := p.NewTokenForOIDCToken(ctx, oidcToken,
+					saInfo.exchangeAudience, saInfo.identityForOIDCImpersonation, opts...)
 				if err != nil {
 					return nil, fmt.Errorf("failed to create provider access token for service account '%s/%s': %w",
 						saInfo.obj.Namespace, saInfo.obj.Name, err)
@@ -80,15 +100,24 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 	}
 
 	// Update access token fetcher for impersonation if supported by the provider.
-	if saInfo != nil && saInfo.providerIdentityForImpersonation != nil {
+	if o.IdentityForImpersonation != nil {
+		identityForImpersonation = o.IdentityForImpersonation
+	}
+	if identityForImpersonation != nil {
+		// Ensure the provider supports impersonation with native tokens.
+		p, ok := provider.(ProviderWithImpersonation)
+		if !ok {
+			return nil, fmt.Errorf("provider '%s' does not support impersonation with native tokens", provider.GetName())
+		}
+
+		// Update the function to create an access token using impersonation with native tokens.
 		newNonImpersonatedToken := newAccessToken
 		newAccessToken = func() (Token, error) {
 			token, err := newNonImpersonatedToken()
 			if err != nil {
 				return nil, err
 			}
-			p := provider.(ProviderWithImpersonation)
-			return p.NewTokenForIdentity(ctx, token, saInfo.providerIdentityForImpersonation, opts...)
+			return p.NewTokenForNativeToken(ctx, token, identityForImpersonation, opts...)
 		}
 	}
 
@@ -130,11 +159,11 @@ func buildAccessTokenCacheKey(provider Provider, saInfo *serviceAccountInfo, opt
 		if saInfo.useServiceAccount {
 			parts = append(parts, fmt.Sprintf("serviceAccountName=%s", saInfo.obj.Name))
 			parts = append(parts, fmt.Sprintf("serviceAccountNamespace=%s", saInfo.obj.Namespace))
-			parts = append(parts, fmt.Sprintf("serviceAccountTokenAudiences=%s", strings.Join(saInfo.audiences, ",")))
-			parts = append(parts, fmt.Sprintf("providerIdentity=%s", saInfo.providerIdentity))
+			parts = append(parts, fmt.Sprintf("serviceAccountTokenAudiences=%s", strings.Join(saInfo.oidcAudiences, ",")))
+			parts = append(parts, fmt.Sprintf("providerIdentity=%s", saInfo.identityForOIDCImpersonation))
 		}
-		if saInfo.providerIdentityForImpersonation != nil {
-			parts = append(parts, fmt.Sprintf("providerIdentityForImpersonation=%s", saInfo.providerIdentityForImpersonation))
+		if saInfo.identityForImpersonation != nil {
+			parts = append(parts, fmt.Sprintf("providerIdentityForImpersonation=%s", saInfo.identityForImpersonation))
 		}
 	}
 

@@ -23,36 +23,7 @@ import (
 	"regexp"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	corev1 "k8s.io/api/core/v1"
 )
-
-func getIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	tenantID, err := getTenantID(serviceAccount)
-	if err != nil {
-		return "", err
-	}
-	clientID, err := getClientID(serviceAccount)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s/%s", tenantID, clientID), nil
-}
-
-func getTenantID(serviceAccount corev1.ServiceAccount) (string, error) {
-	const key = "azure.workload.identity/tenant-id"
-	if tenantID, ok := serviceAccount.Annotations[key]; ok {
-		return tenantID, nil
-	}
-	return "", fmt.Errorf("azure tenant ID is not set in the service account annotation %s", key)
-}
-
-func getClientID(serviceAccount corev1.ServiceAccount) (string, error) {
-	const key = "azure.workload.identity/client-id"
-	if clientID, ok := serviceAccount.Annotations[key]; ok {
-		return clientID, nil
-	}
-	return "", fmt.Errorf("azure client ID is not set in the service account annotation %s", key)
-}
 
 const clusterPattern = `(?i)^/subscriptions/([^/]{36})/resourceGroups/([^/]{1,200})/providers/Microsoft\.ContainerService/managedClusters/([^/]{1,200})$`
 

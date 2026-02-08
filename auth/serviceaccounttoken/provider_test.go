@@ -18,6 +18,7 @@ package serviceaccounttoken_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -94,7 +95,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	})
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewTokenForOIDCToken(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -159,7 +160,52 @@ func TestProvider_GetIdentity(t *testing.T) {
 		},
 	})
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(id).To(Equal("system:serviceaccount:default:tenant"))
+	g.Expect(id).To(Equal(&serviceaccounttoken.Identity{Name: "tenant", Namespace: "default"}))
+}
+
+func TestIdentity_UnmarshalJSON(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		json     string
+		expected *serviceaccounttoken.Identity
+		err      string
+	}{
+		{
+			name:     "valid identity",
+			json:     `{"name":"tenant","namespace":"default"}`,
+			expected: &serviceaccounttoken.Identity{Name: "tenant", Namespace: "default"},
+		},
+		{
+			name: "missing name",
+			json: `{"namespace":"default"}`,
+			err:  "name is required",
+		},
+		{
+			name: "missing namespace",
+			json: `{"name":"tenant"}`,
+			err:  "namespace is required",
+		},
+		{
+			name: "invalid JSON",
+			json: `{invalid`,
+			err:  "invalid character",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			var id serviceaccounttoken.Identity
+			err := json.Unmarshal([]byte(tt.json), &id)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(&id).To(Equal(tt.expected))
+			}
+		})
+	}
 }
 
 func TestProvider_NewRESTConfig(t *testing.T) {

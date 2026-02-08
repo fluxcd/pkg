@@ -41,6 +41,12 @@ const CredentialName = "ServiceAccountToken"
 // Provider implements the auth.Provider interface for generic authentication.
 type Provider struct{ Implementation }
 
+// Ensure Provider implements the expected interfaces.
+var _ auth.Provider = Provider{}
+var _ auth.ProviderWithOIDCImpersonation = Provider{}
+var _ auth.RESTConfigProvider = Provider{}
+var _ auth.ArtifactRegistryCredentialsProvider = Provider{}
+
 // GetName implements auth.RESTConfigProvider.
 func (p Provider) GetName() string {
 	return CredentialName
@@ -83,19 +89,22 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.RESTConfigProvider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
-	// Use TokenRequest default audiences.
-	return nil, nil
+func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) (string, string, error) {
+	// Use TokenRequest API default audiences.
+	return "", "", nil
 }
 
 // GetIdentity implements auth.RESTConfigProvider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	return fmt.Sprintf("system:serviceaccount:%s:%s", serviceAccount.Namespace, serviceAccount.Name), nil
+func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
+	return &Identity{
+		Name:      serviceAccount.Name,
+		Namespace: serviceAccount.Namespace,
+	}, nil
 }
 
-// NewTokenForServiceAccount implements auth.RESTConfigProvider.
-func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewTokenForOIDCToken implements auth.RESTConfigProvider.
+func (Provider) NewTokenForOIDCToken(ctx context.Context, oidcToken, _ string,
+	_ auth.Identity, opts ...auth.Option) (auth.Token, error) {
 
 	exp, err := getExpirationFromToken(oidcToken)
 	if err != nil {

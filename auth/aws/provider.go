@@ -19,7 +19,6 @@ package aws
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -42,8 +41,18 @@ import (
 // ProviderName is the name of the AWS authentication provider.
 const ProviderName = "aws"
 
+// roleSessionName is used in AssumeRole and similar APIs.
+var roleSessionName = ProviderName + "." + auth.APIGroup
+
 // Provider implements the auth.Provider interface for AWS authentication.
 type Provider struct{ Implementation }
+
+// Ensure Provider implements the expected interfaces.
+var _ auth.Provider = Provider{}
+var _ auth.ProviderWithOIDCImpersonation = Provider{}
+var _ auth.ProviderWithImpersonation = Provider{}
+var _ auth.RESTConfigProvider = Provider{}
+var _ auth.ArtifactRegistryCredentialsProvider = Provider{}
 
 // GetName implements auth.Provider.
 func (Provider) GetName() string {
@@ -92,19 +101,24 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	return newTokenFromAWSCredentials(&creds), nil
 }
 
-// GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
-	return []string{"sts.amazonaws.com"}, nil
+// GetAudiences implements auth.ProviderWithOIDCImpersonation.
+func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) (string, string, error) {
+	return "sts.amazonaws.com", "", nil
 }
 
-// GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	return getRoleARN(serviceAccount)
+// GetIdentity implements auth.ProviderWithOIDCImpersonation.
+func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
+	const key = "eks.amazonaws.com/role-arn"
+	roleARN := serviceAccount.Annotations[key]
+	if err := parseRoleARN(roleARN); err != nil {
+		return nil, fmt.Errorf("invalid %s annotation: %w", key, err)
+	}
+	return &Identity{RoleARN: roleARN}, nil
 }
 
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewTokenForOIDCToken implements auth.ProviderWithOIDCImpersonation.
+func (p Provider) NewTokenForOIDCToken(ctx context.Context, oidcToken, _ string,
+	targetIdentity auth.Identity, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -113,13 +127,6 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	if err != nil {
 		return nil, err
 	}
-
-	roleARN, err := getRoleARN(serviceAccount)
-	if err != nil {
-		return nil, err
-	}
-
-	roleSessionName := getRoleSessionNameForServiceAccount(serviceAccount, stsRegion)
 
 	stsOpts := sts.Options{
 		Region:     stsRegion,
@@ -134,7 +141,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	}
 
 	req := &sts.AssumeRoleWithWebIdentityInput{
-		RoleArn:          &roleARN,
+		RoleArn:          &targetIdentity.(*Identity).RoleARN,
 		RoleSessionName:  &roleSessionName,
 		WebIdentityToken: &oidcToken,
 	}
@@ -159,30 +166,14 @@ func (Provider) GetImpersonationAnnotationKey() string {
 	return "assume-role"
 }
 
-type impersonation struct {
-	RoleARN string `json:"roleARN"`
+// NewIdentity implements auth.ProviderWithImpersonation.
+func (Provider) NewIdentity() auth.Identity {
+	return &Identity{}
 }
 
-func (i impersonation) String() string {
-	return i.RoleARN
-}
-
-// GetIdentityForImpersonation implements auth.ProviderWithImpersonation.
-func (Provider) GetIdentityForImpersonation(identity json.RawMessage) (fmt.Stringer, error) {
-	var id impersonation
-	if err := json.Unmarshal(identity, &id); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal impersonation identity: %w", err)
-	}
-	if !roleARNRegex.MatchString(id.RoleARN) {
-		return nil, fmt.Errorf("invalid role ARN in impersonation identity: '%s'. must match %s",
-			id.RoleARN, roleARNPattern)
-	}
-	return &id, nil
-}
-
-// NewTokenForIdentity implements auth.ProviderWithImpersonation.
-func (p Provider) NewTokenForIdentity(ctx context.Context, token auth.Token,
-	identity fmt.Stringer, opts ...auth.Option) (auth.Token, error) {
+// NewTokenForNativeToken implements auth.ProviderWithImpersonation.
+func (p Provider) NewTokenForNativeToken(ctx context.Context, nativeToken auth.Token,
+	targetIdentity auth.Identity, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -192,17 +183,9 @@ func (p Provider) NewTokenForIdentity(ctx context.Context, token auth.Token,
 		return nil, err
 	}
 
-	roleARN := identity.(*impersonation).RoleARN
-
-	roleName, err := getRoleNameFromARN(roleARN)
-	if err != nil {
-		return nil, err
-	}
-	roleSessionName := getRoleSessionNameForImpersonation(roleName, stsRegion)
-
 	stsOpts := sts.Options{
 		Region:      stsRegion,
-		Credentials: token.(*Credentials).provider(),
+		Credentials: nativeToken.(*Credentials).provider(),
 		HTTPClient:  o.GetHTTPClient(),
 	}
 
@@ -214,7 +197,7 @@ func (p Provider) NewTokenForIdentity(ctx context.Context, token auth.Token,
 	}
 
 	req := &sts.AssumeRoleInput{
-		RoleArn:         &roleARN,
+		RoleArn:         &targetIdentity.(*Identity).RoleARN,
 		RoleSessionName: &roleSessionName,
 	}
 	resp, err := p.impl().AssumeRole(ctx, req, stsOpts)

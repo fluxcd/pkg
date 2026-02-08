@@ -19,7 +19,6 @@ package gcp
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -45,6 +44,13 @@ var scopes = []string{
 // Provider implements the auth.Provider interface for GCP authentication.
 type Provider struct{ Implementation }
 
+// Ensure Provider implements the expected interfaces.
+var _ auth.Provider = Provider{}
+var _ auth.ProviderWithOIDCImpersonation = Provider{}
+var _ auth.ProviderWithImpersonation = Provider{}
+var _ auth.RESTConfigProvider = Provider{}
+var _ auth.ArtifactRegistryCredentialsProvider = Provider{}
+
 // GetName implements auth.Provider.
 func (Provider) GetName() string {
 	return ProviderName
@@ -69,73 +75,65 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	return &Token{*token}, nil
 }
 
-// GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
+// GetAudiences implements auth.ProviderWithOIDCImpersonation.
+func (Provider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, string, error) {
 
 	// Check if a workload identity provider is specified in the service account.
-	// If so, the current cluster is not GKE and the audience is the provider itself.
+	// If so, the current cluster is not GKE and both audiences are the same.
 	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
 	if err != nil {
-		return nil, err
+		return "", "", err
 	}
 	if audience != "" {
-		return []string{audience}, nil
+		return audience, audience, nil
 	}
 
-	// Assume we are in GKE. In this case, the audience is the workload identity pool.
-	audience, err = gkeMetadata.workloadIdentityPool(ctx)
+	// Assume we are in GKE. In this case, the OIDC audience is the workload
+	// identity pool, while the exchange audience is a special one for GKE.
+	oidcAudience, err := gkeMetadata.workloadIdentityPool(ctx)
 	if err != nil {
-		return nil, err
+		return "", "", err
 	}
-	return []string{audience}, nil
+	exchangeAudience, err := gkeMetadata.getAudience(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	return oidcAudience, exchangeAudience, nil
 }
 
-// GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	email, err := getServiceAccountEmail(serviceAccount)
-	if err != nil {
-		return "", err
+// GetIdentity implements auth.ProviderWithOIDCImpersonation.
+func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
+	const keyEmail = "iam.gke.io/gcp-service-account"
+	email := serviceAccount.Annotations[keyEmail]
+
+	// In GCP, a GCP Service Account is optional for getting a native token.
+	if email == "" {
+		return &Identity{}, nil
 	}
-	return email, nil
+
+	if err := parseServiceAccountEmail(email); err != nil {
+		return nil, fmt.Errorf("invalid %s annotation: %w", keyEmail, err)
+	}
+	return &Identity{GCPServiceAccount: email}, nil
 }
 
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewTokenForOIDCToken implements auth.ProviderWithOIDCImpersonation.
+func (p Provider) NewTokenForOIDCToken(ctx context.Context, oidcToken, exchangeAudience string,
+	targetIdentity auth.Identity, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	// Check if a workload identity provider is specified in the service account.
-	// If so, the current cluster is not GKE and the audience is the provider itself.
-	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
-	if err != nil {
-		return nil, err
-	}
-
-	// Assume we are in GKE. In this case, retrieve the audience from the metadata.
-	if audience == "" {
-		audience, err = gkeMetadata.getAudience(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	conf := externalaccount.Config{
 		UniverseDomain:       "googleapis.com",
-		Audience:             audience,
+		Audience:             exchangeAudience,
 		SubjectTokenType:     "urn:ietf:params:oauth:token-type:jwt",
 		TokenURL:             "https://sts.googleapis.com/v1/token",
 		SubjectTokenSupplier: StaticTokenSupplier(oidcToken),
 		Scopes:               scopes,
 	}
 
-	email, err := getServiceAccountEmail(serviceAccount)
-	if err != nil {
-		return nil, err
-	}
-
-	if email != "" { // impersonation
+	if email := targetIdentity.(*Identity).GCPServiceAccount; email != "" { // impersonation
 		conf.ServiceAccountImpersonationURL = fmt.Sprintf(
 			"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken",
 			email)
@@ -162,41 +160,25 @@ func (Provider) GetImpersonationAnnotationKey() string {
 	return "impersonate"
 }
 
-type impersonation struct {
-	GCPServiceAccount string `json:"gcpServiceAccount"`
+// NewIdentity implements auth.ProviderWithImpersonation.
+func (Provider) NewIdentity() auth.Identity {
+	return &Identity{}
 }
 
-func (i impersonation) String() string {
-	return i.GCPServiceAccount
-}
-
-// GetIdentityForImpersonation implements auth.ProviderWithImpersonation.
-func (Provider) GetIdentityForImpersonation(identity json.RawMessage) (fmt.Stringer, error) {
-	var id impersonation
-	if err := json.Unmarshal(identity, &id); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal impersonation identity: %w", err)
-	}
-	if !serviceAccountEmailRegex.MatchString(id.GCPServiceAccount) {
-		return nil, fmt.Errorf("invalid GCP service account in impersonation identity: '%s'. must match %s",
-			id.GCPServiceAccount, serviceAccountEmailPattern)
-	}
-	return &id, nil
-}
-
-// NewTokenForIdentity implements auth.ProviderWithImpersonation.
-func (p Provider) NewTokenForIdentity(ctx context.Context, token auth.Token,
-	identity fmt.Stringer, opts ...auth.Option) (auth.Token, error) {
+// NewTokenForNativeToken implements auth.ProviderWithImpersonation.
+func (p Provider) NewTokenForNativeToken(ctx context.Context, nativeToken auth.Token,
+	targetIdentity auth.Identity, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	hc, err := newHTTPClient(ctx, token, &o)
+	hc, err := newHTTPClient(ctx, nativeToken, &o)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client for impersonation: %w", err)
 	}
 
 	src, err := p.impl().CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
-		TargetPrincipal: identity.(*impersonation).GCPServiceAccount,
+		TargetPrincipal: targetIdentity.(*Identity).GCPServiceAccount,
 		Scopes:          scopes,
 	}, option.WithHTTPClient(hc))
 	if err != nil {

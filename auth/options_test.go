@@ -70,6 +70,36 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 	}
 }
 
+type testIdentity string
+
+func (t testIdentity) String() string { return string(t) }
+
+func TestOptions_WithIdentityForOIDCImpersonation(t *testing.T) {
+	var o auth.Options
+	identity := testIdentity("oidc-identity")
+	o.Apply(auth.WithIdentityForOIDCImpersonation(identity))
+
+	if o.IdentityForOIDCImpersonation == nil {
+		t.Fatal("IdentityForOIDCImpersonation should not be nil")
+	}
+	if o.IdentityForOIDCImpersonation.String() != "oidc-identity" {
+		t.Errorf("IdentityForOIDCImpersonation = %v, want %v", o.IdentityForOIDCImpersonation, "oidc-identity")
+	}
+}
+
+func TestOptions_WithIdentityForImpersonation(t *testing.T) {
+	var o auth.Options
+	identity := testIdentity("impersonation-identity")
+	o.Apply(auth.WithIdentityForImpersonation(identity))
+
+	if o.IdentityForImpersonation == nil {
+		t.Fatal("IdentityForImpersonation should not be nil")
+	}
+	if o.IdentityForImpersonation.String() != "impersonation-identity" {
+		t.Errorf("IdentityForImpersonation = %v, want %v", o.IdentityForImpersonation, "impersonation-identity")
+	}
+}
+
 func TestOptions_ShouldGetServiceAccount(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	authnv1 "k8s.io/api/authentication/v1"
@@ -54,11 +55,12 @@ func CreateServiceAccountToken(ctx context.Context, c client.Client,
 // to be used for fetching the access token and generating the cache key when
 // object-level workload identity is enabled.
 type serviceAccountInfo struct {
-	useServiceAccount                bool
-	obj                              *corev1.ServiceAccount
-	audiences                        []string
-	providerIdentity                 string
-	providerIdentityForImpersonation fmt.Stringer
+	useServiceAccount            bool
+	obj                          *corev1.ServiceAccount
+	oidcAudiences                []string
+	exchangeAudience             string
+	identityForOIDCImpersonation Identity
+	identityForImpersonation     Identity
 }
 
 // getServiceAccountInfo fetches the ServiceAccount and parses the necessary information for
@@ -98,7 +100,7 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 	useServiceAccount := true
 
 	// Get provider identity for impersonation if supported by the provider.
-	var providerIdentityForImpersonation fmt.Stringer
+	var identityForImpersonation Identity
 	if provider, ok := provider.(ProviderWithImpersonation); ok {
 		annotationKey := ImpersonationAnnotation(provider)
 		if impersonationYAML := obj.Annotations[annotationKey]; impersonationYAML != "" {
@@ -109,9 +111,8 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 					"failed to parse impersonation annotation '%s' on service account '%s': %w",
 					annotationKey, key, err)
 			}
-			var err error
-			providerIdentityForImpersonation, err = provider.GetIdentityForImpersonation(impersonation.Identity)
-			if err != nil {
+			identityForImpersonation = provider.NewIdentity()
+			if err := json.Unmarshal(impersonation.Identity, identityForImpersonation); err != nil {
 				return nil, fmt.Errorf(
 					"failed to get provider identity for impersonation from service account '%s' annotation '%s': %w",
 					key, annotationKey, err)
@@ -132,27 +133,32 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 		}
 	}
 
-	var audiences []string
-	var providerIdentity string
+	oidcAudiences := o.Audiences
+	var exchangeAudience string
+	var identityForOIDCImpersonation Identity
 
+	p := provider.(ProviderWithOIDCImpersonation)
 	switch useServiceAccount {
 
 	// If the user intention is to use the ServiceAccount,
 	// get the required fields for the usage.
 	case true:
-		// Get provider audience.
-		audiences = o.Audiences
-		if len(audiences) == 0 {
+		// Get provider audiences.
+		if len(oidcAudiences) > 0 {
+			exchangeAudience = oidcAudiences[0]
+		} else {
+			var oidcAudience string
 			var err error
-			audiences, err = provider.GetAudiences(ctx, obj)
+			oidcAudience, exchangeAudience, err = p.GetAudiences(ctx, obj)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get provider audience: %w", err)
+				return nil, fmt.Errorf("failed to get provider audiences: %w", err)
 			}
+			oidcAudiences = []string{oidcAudience}
 		}
 
 		// Get provider identity.
 		var err error
-		providerIdentity, err = provider.GetIdentity(obj)
+		identityForOIDCImpersonation, err = p.GetIdentity(obj)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"failed to get provider identity from service account '%s' annotations: %w", key, err)
@@ -164,7 +170,7 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 		// No need to check audiences, they may be needed for usage without a ServiceAccount.
 
 		// Check provider identity.
-		if id, err := provider.GetIdentity(obj); err == nil && id != "" {
+		if id, err := p.GetIdentity(obj); err == nil && id.String() != "" {
 			return nil, fmt.Errorf("invalid configuration on service account '%s': "+
 				"identity annotation is present but the ServiceAccount is not used according "+
 				"to the impersonation configuration", key)
@@ -172,10 +178,11 @@ func getServiceAccountInfo(ctx context.Context, provider Provider,
 	}
 
 	return &serviceAccountInfo{
-		useServiceAccount:                useServiceAccount,
-		obj:                              &obj,
-		audiences:                        audiences,
-		providerIdentity:                 providerIdentity,
-		providerIdentityForImpersonation: providerIdentityForImpersonation,
+		useServiceAccount:            useServiceAccount,
+		obj:                          &obj,
+		oidcAudiences:                oidcAudiences,
+		exchangeAudience:             exchangeAudience,
+		identityForOIDCImpersonation: identityForOIDCImpersonation,
+		identityForImpersonation:     identityForImpersonation,
 	}, nil
 }

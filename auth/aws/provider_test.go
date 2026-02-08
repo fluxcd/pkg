@@ -18,6 +18,7 @@ package aws_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"testing"
 	"time"
@@ -101,14 +102,13 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	}
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewTokenForOIDCToken(t *testing.T) {
 	for _, tt := range []struct {
-		name               string
-		roleARN            string
-		stsEndpoint        string
-		artifactRepository string
-		skipSTSRegion      bool
-		err                string
+		name          string
+		roleARN       string
+		stsEndpoint   string
+		skipSTSRegion bool
+		err           string
 	}{
 		{
 			name:        "valid",
@@ -134,12 +134,6 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			err: "an AWS region is required for authenticating with a service account. " +
 				"please configure one in the object spec",
 		},
-		{
-			name:        "invalid role ARN",
-			roleARN:     "foobar",
-			stsEndpoint: "https://sts.amazonaws.com",
-			err:         `invalid eks.amazonaws.com/role-arn annotation: 'foobar'. must match ^arn:aws[\w-]*:iam::[0-9]{1,30}:role/(.{1,200})$`,
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
@@ -148,7 +142,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 				t:                  t,
 				argRegion:          "us-east-1",
 				argRoleARN:         tt.roleARN,
-				argRoleSessionName: "test-sa.test-ns.us-east-1.fluxcd.io",
+				argRoleSessionName: "aws.auth.fluxcd.io",
 				argOIDCToken:       "oidc-token",
 				argProxyURL:        &url.URL{Scheme: "http", Host: "proxy.example.com"},
 				argSTSEndpoint:     "https://sts.amazonaws.com",
@@ -156,13 +150,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			oidcToken := "oidc-token"
-			serviceAccount := corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-sa",
-					Namespace:   "test-ns",
-					Annotations: map[string]string{"eks.amazonaws.com/role-arn": tt.roleARN},
-				},
-			}
+			identity := &aws.Identity{RoleARN: tt.roleARN}
 
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
@@ -174,7 +162,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			token, err := provider.NewTokenForOIDCToken(context.Background(), oidcToken, "", identity, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -195,23 +183,58 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 func TestProvider_GetAudiences(t *testing.T) {
 	g := NewWithT(t)
-	aud, err := aws.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
+	oidcAud, exchangeAud, err := aws.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(aud).To(Equal([]string{"sts.amazonaws.com"}))
+	g.Expect(oidcAud).To(Equal("sts.amazonaws.com"))
+	g.Expect(exchangeAud).To(Equal(""))
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
-	g := NewWithT(t)
-
-	identity, err := aws.Provider{}.GetIdentity(corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
+	for _, tt := range []struct {
+		name        string
+		annotations map[string]string
+		expected    *aws.Identity
+		err         string
+	}{
+		{
+			name: "valid role ARN",
+			annotations: map[string]string{
 				"eks.amazonaws.com/role-arn": "arn:aws:iam::1234567890:role/some-role",
 			},
+			expected: &aws.Identity{RoleARN: "arn:aws:iam::1234567890:role/some-role"},
 		},
-	})
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(identity).To(Equal("arn:aws:iam::1234567890:role/some-role"))
+		{
+			name: "invalid role ARN",
+			annotations: map[string]string{
+				"eks.amazonaws.com/role-arn": "foobar",
+			},
+			err: "invalid eks.amazonaws.com/role-arn annotation",
+		},
+		{
+			name:        "missing annotation",
+			annotations: map[string]string{},
+			err:         "invalid eks.amazonaws.com/role-arn annotation",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			identity, err := aws.Provider{}.GetIdentity(corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tt.annotations,
+				},
+			})
+
+			if tt.err == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(identity).To(Equal(tt.expected))
+			} else {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(identity).To(BeNil())
+			}
+		})
+	}
 }
 
 func TestProvider_GetImpersonationAnnotationKey(t *testing.T) {
@@ -219,48 +242,55 @@ func TestProvider_GetImpersonationAnnotationKey(t *testing.T) {
 	g.Expect(aws.Provider{}.GetImpersonationAnnotationKey()).To(Equal("assume-role"))
 }
 
-func TestProvider_GetIdentityForImpersonation(t *testing.T) {
+func TestProvider_NewIdentity(t *testing.T) {
+	g := NewWithT(t)
+	identity := aws.Provider{}.NewIdentity()
+	g.Expect(identity).NotTo(BeNil())
+	g.Expect(identity.String()).To(Equal(""))
+}
+
+func TestIdentity_UnmarshalJSON(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		identity string
+		json     string
 		expected string
 		err      string
 	}{
 		{
 			name:     "valid role ARN",
-			identity: `{"roleARN":"arn:aws:iam::123456789012:role/some-role"}`,
+			json:     `{"roleARN":"arn:aws:iam::123456789012:role/some-role"}`,
 			expected: "arn:aws:iam::123456789012:role/some-role",
 		},
 		{
 			name:     "valid us-gov role ARN",
-			identity: `{"roleARN":"arn:aws-us-gov:iam::123456789012:role/some-role"}`,
+			json:     `{"roleARN":"arn:aws-us-gov:iam::123456789012:role/some-role"}`,
 			expected: "arn:aws-us-gov:iam::123456789012:role/some-role",
 		},
 		{
-			name:     "invalid role ARN",
-			identity: `{"roleARN":"foobar"}`,
-			err:      "invalid role ARN in impersonation identity: 'foobar'",
+			name: "invalid role ARN",
+			json: `{"roleARN":"foobar"}`,
+			err:  "invalid IAM role ARN: 'foobar'",
 		},
 		{
-			name:     "empty role ARN",
-			identity: `{"roleARN":""}`,
-			err:      "invalid role ARN in impersonation identity: ''",
+			name: "empty role ARN",
+			json: `{"roleARN":""}`,
+			err:  "invalid IAM role ARN: ''",
 		},
 		{
-			name:     "invalid JSON",
-			identity: `{invalid`,
-			err:      "failed to unmarshal impersonation identity",
+			name: "invalid JSON",
+			json: `{invalid`,
+			err:  "invalid character",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			identity, err := aws.Provider{}.GetIdentityForImpersonation([]byte(tt.identity))
+			identity := aws.Provider{}.NewIdentity()
+			err := json.Unmarshal([]byte(tt.json), identity)
 
 			if tt.err != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.err))
-				g.Expect(identity).To(BeNil())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(identity).NotTo(BeNil())
@@ -270,7 +300,7 @@ func TestProvider_GetIdentityForImpersonation(t *testing.T) {
 	}
 }
 
-func TestProvider_NewTokenForIdentity(t *testing.T) {
+func TestProvider_NewTokenForNativeToken(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		roleARN     string
@@ -310,16 +340,16 @@ func TestProvider_NewTokenForIdentity(t *testing.T) {
 				t:                          t,
 				argRegion:                  "us-east-1",
 				argAssumeRoleARN:           tt.roleARN,
-				argAssumeRoleSessionName:   "target-role.us-east-1.fluxcd.io",
+				argAssumeRoleSessionName:   "aws.auth.fluxcd.io",
 				argAssumeRoleCredsProvider: credentials.NewStaticCredentialsProvider("initial-key-id", "initial-secret", "initial-session"),
 				argProxyURL:                &url.URL{Scheme: "http", Host: "proxy.example.com"},
 				argSTSEndpoint:             tt.stsEndpoint,
 				returnAssumeRoleCreds:      awssdk.Credentials{AccessKeyID: "assumed-key-id"},
 			}
 
-			// Create the identity via GetIdentityForImpersonation.
-			identity, err := aws.Provider{}.GetIdentityForImpersonation(
-				[]byte(`{"roleARN":"` + tt.roleARN + `"}`))
+			// Create the identity via NewIdentity + json.Unmarshal.
+			identity := aws.Provider{}.NewIdentity()
+			err := json.Unmarshal([]byte(`{"roleARN":"`+tt.roleARN+`"}`), identity)
 			g.Expect(err).NotTo(HaveOccurred())
 
 			// Create a mock initial token.
@@ -338,7 +368,7 @@ func TestProvider_NewTokenForIdentity(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			token, err := provider.NewTokenForIdentity(context.Background(), initialToken, identity, opts...)
+			token, err := provider.NewTokenForNativeToken(context.Background(), initialToken, identity, opts...)
 
 			if tt.err != "" {
 				g.Expect(err).To(HaveOccurred())

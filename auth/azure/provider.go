@@ -44,6 +44,12 @@ const ProviderName = "azure"
 // Provider implements the auth.Provider interface for Azure authentication.
 type Provider struct{ Implementation }
 
+// Ensure Provider implements the expected interfaces.
+var _ auth.Provider = Provider{}
+var _ auth.ProviderWithOIDCImpersonation = Provider{}
+var _ auth.RESTConfigProvider = Provider{}
+var _ auth.ArtifactRegistryCredentialsProvider = Provider{}
+
 // GetName implements auth.Provider.
 func (Provider) GetName() string {
 	return ProviderName
@@ -79,42 +85,51 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	return &Token{token}, nil
 }
 
-// GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
-	return []string{"api://AzureADTokenExchange"}, nil
+// GetAudiences implements auth.ProviderWithOIDCImpersonation.
+func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) (string, string, error) {
+	return "api://AzureADTokenExchange", "", nil
 }
 
-// GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	return getIdentity(serviceAccount)
+// GetIdentity implements auth.ProviderWithOIDCImpersonation.
+func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
+	const keyTenantID = "azure.workload.identity/tenant-id"
+	tenantID, ok := serviceAccount.Annotations[keyTenantID]
+	if !ok {
+		return nil, fmt.Errorf("annotation %s is not set", keyTenantID)
+	}
+
+	const keyClientID = "azure.workload.identity/client-id"
+	clientID, ok := serviceAccount.Annotations[keyClientID]
+	if !ok {
+		return nil, fmt.Errorf("annotation %s is not set", keyClientID)
+	}
+
+	return &Identity{
+		TenantID: tenantID,
+		ClientID: clientID,
+	}, nil
 }
 
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewTokenForOIDCToken implements auth.ProviderWithOIDCImpersonation.
+func (p Provider) NewTokenForOIDCToken(ctx context.Context, oidcToken, _ string,
+	targetIdentity auth.Identity, opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	identity, err := getIdentity(serviceAccount)
-	if err != nil {
-		return nil, err
-	}
-	s := strings.Split(identity, "/")
-	tenantID, clientID := s[0], s[1]
-
+	id := targetIdentity.(*Identity)
 	azOpts := &azidentity.ClientAssertionCredentialOptions{
 		ClientOptions: azcore.ClientOptions{
 			Transport: o.GetHTTPClient(),
 		},
 	}
-
-	cred, err := p.impl().NewClientAssertionCredential(tenantID, clientID, func(context.Context) (string, error) {
+	cred, err := p.impl().NewClientAssertionCredential(id.TenantID, id.ClientID, func(context.Context) (string, error) {
 		return oidcToken, nil
 	}, azOpts)
 	if err != nil {
 		return nil, err
 	}
+
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: o.Scopes,
 	})

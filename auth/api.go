@@ -38,9 +38,11 @@ func ImpersonationAnnotation(provider ProviderWithImpersonation) string {
 // Impersonation contains the cloud provider identity that should be impersonated
 // after acquiring an initial cloud provider access token.
 type Impersonation struct {
-	// Identity contains the unmarshaled text used for creating an instance of this
-	// struct. This allows providers to define their own fields for expressing an
-	// identity.
+	// Identity contains the marshaled JSON text that was unmarshaled for creating
+	// an instance of this struct. The content of this field is then unmarshaled by
+	// a provider into an Identity value for expressing an identity. This allows
+	// the provider-specific fields extracted by the provider to be included in the
+	// same JSON text object as the provider-agnostic fields defined in this struct.
 	Identity json.RawMessage `json:"-"`
 
 	// UseServiceAccount indicates whether OIDC exchange using a token issued for the

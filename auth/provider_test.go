@@ -18,9 +18,7 @@ package auth_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -33,10 +31,35 @@ import (
 	"github.com/fluxcd/pkg/auth"
 )
 
-// mockIdentity implements fmt.Stringer for testing impersonation identities.
+// mockIdentity implements auth.Identity for testing.
 type mockIdentity string
 
 func (m mockIdentity) String() string { return string(m) }
+
+// mockImpersonationIdentity can be JSON-unmarshaled from impersonation annotations.
+type mockImpersonationIdentity struct {
+	RoleArn string `json:"roleArn"`
+}
+
+func (m *mockImpersonationIdentity) String() string { return m.RoleArn }
+
+// mockFailingIdentity always fails to unmarshal.
+type mockFailingIdentity struct{}
+
+func (*mockFailingIdentity) String() string             { return "" }
+func (*mockFailingIdentity) UnmarshalJSON([]byte) error { return errors.New("mock unmarshal error") }
+
+// mockBasicProvider implements only auth.Provider, not ProviderWithOIDCImpersonation
+// or ProviderWithImpersonation.
+type mockBasicProvider struct {
+	returnName            string
+	returnControllerToken auth.Token
+}
+
+func (m *mockBasicProvider) GetName() string { return m.returnName }
+func (m *mockBasicProvider) NewControllerToken(_ context.Context, _ ...auth.Option) (auth.Token, error) {
+	return m.returnControllerToken, nil
+}
 
 type mockProvider struct {
 	t *testing.T
@@ -70,11 +93,11 @@ type mockProvider struct {
 
 	// Impersonation fields (used when wrapped with mockProviderWithImpersonation).
 	returnImpersonationAnnotationKey  string
-	returnIdentityForImpersonation    fmt.Stringer
+	returnIdentityForImpersonation    auth.Identity
 	returnIdentityForImpersonationErr string
 	returnImpersonatedToken           auth.Token
 	returnImpersonateErr              error
-	gotIdentity                       fmt.Stringer
+	gotIdentity                       auth.Identity
 }
 
 // mockProviderWithImpersonation wraps mockProvider to also implement
@@ -90,15 +113,15 @@ func (m *mockProviderWithImpersonation) GetImpersonationAnnotationKey() string {
 	return "impersonation"
 }
 
-func (m *mockProviderWithImpersonation) GetIdentityForImpersonation(identity json.RawMessage) (fmt.Stringer, error) {
+func (m *mockProviderWithImpersonation) NewIdentity() auth.Identity {
 	if m.returnIdentityForImpersonationErr != "" {
-		return nil, errors.New(m.returnIdentityForImpersonationErr)
+		return &mockFailingIdentity{}
 	}
-	return m.returnIdentityForImpersonation, nil
+	return &mockImpersonationIdentity{}
 }
 
-func (m *mockProviderWithImpersonation) NewTokenForIdentity(ctx context.Context, token auth.Token,
-	identity fmt.Stringer, opts ...auth.Option) (auth.Token, error) {
+func (m *mockProviderWithImpersonation) NewTokenForNativeToken(ctx context.Context, token auth.Token,
+	identity auth.Identity, opts ...auth.Option) (auth.Token, error) {
 	m.gotIdentity = identity
 	if m.returnImpersonateErr != nil {
 		return nil, m.returnImpersonateErr
@@ -115,25 +138,25 @@ func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Opti
 	return m.returnControllerToken, nil
 }
 
-func (m *mockProvider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
+func (m *mockProvider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, string, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
-	return []string{"mock-audience"}, nil
+	return "mock-audience", "", nil
 }
 
-func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (auth.Identity, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
 	if m.returnIdentityErr != "" {
-		return "", errors.New(m.returnIdentityErr)
+		return nil, errors.New(m.returnIdentityErr)
 	}
-	return m.returnIdentity, nil
+	return mockIdentity(m.returnIdentity), nil
 }
 
-func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+func (m *mockProvider) NewTokenForOIDCToken(ctx context.Context, oidcToken, exchangeAudience string,
+	targetIdentity auth.Identity, opts ...auth.Option) (auth.Token, error) {
 
 	m.t.Helper()
 	g := NewWithT(m.t)
@@ -156,8 +179,6 @@ func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken 
 		}).Verify(ctx, oidcToken)
 		g.Expect(err).NotTo(HaveOccurred())
 	}
-
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
 
 	m.checkOptions(opts...)
 

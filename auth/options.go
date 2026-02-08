@@ -32,21 +32,23 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client                  client.Client
-	Cache                   *cache.TokenCache
-	ServiceAccountName      string
-	ServiceAccountNamespace string
-	DefaultServiceAccount   string
-	InvolvedObject          cache.InvolvedObject
-	Audiences               []string
-	Scopes                  []string
-	STSRegion               string
-	STSEndpoint             string
-	ProxyURL                *url.URL
-	CAData                  string
-	ClusterResource         string
-	ClusterAddress          string
-	AllowShellOut           bool
+	Client                       client.Client
+	Cache                        *cache.TokenCache
+	ServiceAccountName           string
+	ServiceAccountNamespace      string
+	DefaultServiceAccount        string
+	IdentityForOIDCImpersonation Identity
+	IdentityForImpersonation     Identity
+	InvolvedObject               cache.InvolvedObject
+	Audiences                    []string
+	Scopes                       []string
+	STSRegion                    string
+	STSEndpoint                  string
+	ProxyURL                     *url.URL
+	CAData                       string
+	ClusterResource              string
+	ClusterAddress               string
+	AllowShellOut                bool
 }
 
 // ShouldGetServiceAccount returns true if a ServiceAccount should be retrieved.
@@ -80,6 +82,21 @@ func WithServiceAccountNamespace(namespace string) Option {
 func WithDefaultServiceAccount(name string) Option {
 	return func(o *Options) {
 		o.DefaultServiceAccount = name
+	}
+}
+
+// WithIdentityForOIDCImpersonation sets the provider identity to impersonate via OIDC.
+func WithIdentityForOIDCImpersonation(identity Identity) Option {
+	return func(o *Options) {
+		o.IdentityForOIDCImpersonation = identity
+	}
+}
+
+// WithIdentityForImpersonation sets the provider identity to impersonate
+// via native provider impersonation (e.g. AWS AssumeRole).
+func WithIdentityForImpersonation(identity Identity) Option {
+	return func(o *Options) {
+		o.IdentityForImpersonation = identity
 	}
 }
 

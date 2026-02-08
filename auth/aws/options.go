@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"regexp"
 
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/fluxcd/pkg/auth"
 )
 
@@ -48,37 +46,15 @@ func ValidateSTSEndpoint(endpoint string) error {
 	return nil
 }
 
-const roleARNPattern = `^arn:aws[\w-]*:iam::[0-9]{1,30}:role/(.{1,200})$`
+const roleARNPattern = `^arn:aws[\w-]*:iam::[0-9]{1,30}:role/.{1,200}$`
 
 var roleARNRegex = regexp.MustCompile(roleARNPattern)
 
-func getRoleARN(serviceAccount corev1.ServiceAccount) (string, error) {
-	const key = "eks.amazonaws.com/role-arn"
-	arn := serviceAccount.Annotations[key]
-	if !roleARNRegex.MatchString(arn) {
-		return "", fmt.Errorf("invalid %s annotation: '%s'. must match %s",
-			key, arn, roleARNPattern)
+func parseRoleARN(roleARN string) error {
+	if !roleARNRegex.MatchString(roleARN) {
+		return fmt.Errorf("invalid IAM role ARN: '%s'. must match %s", roleARN, roleARNPattern)
 	}
-	return arn, nil
-}
-
-func getRoleNameFromARN(arn string) (string, error) {
-	m := roleARNRegex.FindStringSubmatch(arn)
-	if len(m) != 2 {
-		return "", fmt.Errorf("invalid role ARN: '%s'. must match %s",
-			arn, roleARNPattern)
-	}
-	return m[1], nil
-}
-
-func getRoleSessionNameForServiceAccount(serviceAccount corev1.ServiceAccount, region string) string {
-	name := serviceAccount.Name
-	namespace := serviceAccount.Namespace
-	return fmt.Sprintf("%s.%s.%s.fluxcd.io", name, namespace, region)
-}
-
-func getRoleSessionNameForImpersonation(roleName, region string) string {
-	return fmt.Sprintf("%s.%s.fluxcd.io", roleName, region)
+	return nil
 }
 
 const clusterPattern = `^arn:aws[\w-]*:eks:([^:]{1,100}):[0-9]{1,30}:cluster/(.{1,200})$`
@@ -88,8 +64,7 @@ var clusterRegex = regexp.MustCompile(clusterPattern)
 func parseCluster(cluster string) (string, string, error) {
 	m := clusterRegex.FindStringSubmatch(cluster)
 	if len(m) != 3 {
-		return "", "", fmt.Errorf("invalid EKS cluster ARN: '%s'. must match %s",
-			cluster, clusterPattern)
+		return "", "", fmt.Errorf("invalid EKS cluster ARN: '%s'. must match %s", cluster, clusterPattern)
 	}
 	region := m[1]
 	name := m[2]

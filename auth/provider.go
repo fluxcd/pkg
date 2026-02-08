@@ -18,11 +18,13 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 )
+
+// Identity represents a cloud provider identity that can be impersonated.
+type Identity fmt.Stringer
 
 // Provider contains the logic to retrieve security credentials
 // for accessing resources in a cloud provider.
@@ -35,49 +37,50 @@ type Provider interface {
 	// the environment of the controller pod, e.g. files mounted in the pod,
 	// environment variables, local metadata services, etc.
 	NewControllerToken(ctx context.Context, opts ...Option) (Token, error)
+}
 
-	// GetAudiences returns the audiences the OIDC tokens issued representing
-	// ServiceAccounts should have. These are usually strings that represent
-	// the cloud provider's STS service, or some entity in the provider for
-	// which the OIDC tokens are targeted to.
-	GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error)
+// ProviderWithOIDCImpersonation is an optional interface that providers can
+// implement if they support impersonation from OIDC tokens.
+type ProviderWithOIDCImpersonation interface {
+	Provider
+
+	// GetAudiences returns the audiences for OIDC exchange. The first
+	// audience should be added to the OIDC token itself as the "aud"
+	// claim, and the second is the exchangeAudience input for the
+	// NewTokenForOIDCToken method.
+	GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) (string, string, error)
 
 	// GetIdentity takes a ServiceAccount and returns the identity which the
 	// ServiceAccount wants to impersonate, by looking at annotations.
-	GetIdentity(serviceAccount corev1.ServiceAccount) (string, error)
+	GetIdentity(serviceAccount corev1.ServiceAccount) (Identity, error)
 
-	// NewToken takes a ServiceAccount and its OIDC token and returns a token
-	// that can be used to authenticate with the cloud provider. The OIDC token is
-	// the JWT token that was issued for the ServiceAccount by the Kubernetes API.
-	// The implementation should exchange this token for a cloud provider access
-	// token through the provider's STS service.
-	NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-		serviceAccount corev1.ServiceAccount, opts ...Option) (Token, error)
+	// NewTokenForOIDCToken takes an OIDC token and target identity and
+	// returns a native provider token that can be used to authenticate
+	// with the cloud provider APIs representing the given identity.
+	// This may or may not require an exchange step and depends entirely
+	// on the provider. Providers that do not require an exchange step
+	// normally ignore the target identity and just return the OIDC token
+	// itself wrapped in the provider's token type.
+	NewTokenForOIDCToken(ctx context.Context, oidcToken, exchangeAudience string,
+		targetIdentity Identity, opts ...Option) (Token, error)
 }
 
 // ProviderWithImpersonation is an optional interface that providers can
-// implement if they support impersonation of identities. For example, AWS
-// IAM identities can impersonate AWS IAM Roles with the AssumeRole API.
-// Note that the impersonation type here is cloud identity -> cloud identity,
-// and not Kubernetes ServiceAccount -> cloud identity, which is what
-// NewTokenForServiceAccount is for.
+// implement if they support impersonation from native tokens.
 type ProviderWithImpersonation interface {
 	Provider
 
 	// GetImpersonationAnnotationKey returns the annotation key without API group
-	// that should be used in the ServiceAccount to specify the provider identity
-	// to impersonate.
+	// that should be used to specify an identity in a Kubernetes ServiceAccount.
 	GetImpersonationAnnotationKey() string
 
-	// GetIdentityForImpersonation takes the marshaled impersonation
-	// configuration from the ServiceAccount annotations and returns
-	// the identity that should be impersonated with the initially
-	// acquired cloud provider access token.
-	GetIdentityForImpersonation(identity json.RawMessage) (fmt.Stringer, error)
+	// NewIdentity returns an empty identity struct that can be used to unmarshal
+	// the identity description from YAML. Currently used only for impersonation.
+	NewIdentity() Identity
 
-	// NewTokenForIdentity takes a provider token and identity and
-	// returns another provider token that can be used to authenticate
-	// with the cloud provider impersonating the given identity.
-	NewTokenForIdentity(ctx context.Context, token Token,
-		identity fmt.Stringer, opts ...Option) (Token, error)
+	// NewTokenForNativeToken takes an initial provider token and identity and
+	// returns another provider token that can be used to authenticate with
+	// the cloud provider representing the given identity.
+	NewTokenForNativeToken(ctx context.Context, nativeToken Token,
+		targetIdentity Identity, opts ...Option) (Token, error)
 }

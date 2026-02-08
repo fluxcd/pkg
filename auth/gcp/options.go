@@ -33,17 +33,12 @@ const serviceAccountEmailPattern = `^[a-zA-Z0-9-]{1,100}@[a-zA-Z0-9-]{1,100}\.ia
 
 var serviceAccountEmailRegex = regexp.MustCompile(serviceAccountEmailPattern)
 
-func getServiceAccountEmail(serviceAccount corev1.ServiceAccount) (string, error) {
-	const key = "iam.gke.io/gcp-service-account"
-	email := serviceAccount.Annotations[key]
-	if email == "" {
-		return "", nil
-	}
+func parseServiceAccountEmail(email string) error {
 	if !serviceAccountEmailRegex.MatchString(email) {
-		return "", fmt.Errorf("invalid %s annotation: '%s'. must match %s",
-			key, email, serviceAccountEmailPattern)
+		return fmt.Errorf("invalid GCP service account email: '%s'. must match %s",
+			email, serviceAccountEmailPattern)
 	}
-	return email, nil
+	return nil
 }
 
 const workloadIdentityProviderPattern = `^projects/\d{1,30}/locations/global/workloadIdentityPools/[^/]{1,100}/providers/[^/]{1,100}$`
@@ -56,11 +51,17 @@ func getWorkloadIdentityProviderAudience(serviceAccount corev1.ServiceAccount) (
 	if wip == "" {
 		return "", nil
 	}
-	if !workloadIdentityProviderRegex.MatchString(wip) {
-		return "", fmt.Errorf("invalid %s annotation: '%s'. must match %s",
-			key, wip, workloadIdentityProviderPattern)
+	return GetWorkloadIdentityProviderAudience(wip)
+}
+
+// GetWorkloadIdentityProviderAudience returns the audience to be used for OIDC exchange
+// when using a GCP Workload Identity Provider.
+func GetWorkloadIdentityProviderAudience(workloadIdentityProvider string) (string, error) {
+	if !workloadIdentityProviderRegex.MatchString(workloadIdentityProvider) {
+		return "", fmt.Errorf("invalid GCP workload identity provider: '%s'. must match %s",
+			workloadIdentityProvider, workloadIdentityProviderPattern)
 	}
-	return fmt.Sprintf("//iam.googleapis.com/%s", wip), nil
+	return fmt.Sprintf("//iam.googleapis.com/%s", workloadIdentityProvider), nil
 }
 
 const clusterPattern = `^projects/[^/]{1,200}/locations/[^/]{1,200}/clusters/[^/]{1,200}$`
