@@ -5,6 +5,7 @@ go 1.25.0
 replace (
 	github.com/fluxcd/pkg/apis/meta => ../apis/meta
 	github.com/fluxcd/pkg/cache => ../cache
+	github.com/fluxcd/pkg/ssh => ../ssh
 )
 
 require (
@@ -23,10 +24,14 @@ require (
 	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/fluxcd/pkg/apis/meta v1.25.0
 	github.com/fluxcd/pkg/cache v0.13.0
+	github.com/fluxcd/pkg/ssh v0.24.0
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/go-containerregistry v0.20.7
+	github.com/google/go-github/v81 v81.0.0
 	github.com/onsi/gomega v1.39.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
+	golang.org/x/net v0.49.0
 	golang.org/x/oauth2 v0.34.0
 	google.golang.org/api v0.261.0
 	k8s.io/api v0.35.0
@@ -67,6 +72,7 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.11 // indirect
@@ -96,7 +102,6 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.47.0 // indirect
-	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/term v0.39.0 // indirect
 	golang.org/x/text v0.33.0 // indirect

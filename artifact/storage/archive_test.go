@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
+	"github.com/fluxcd/pkg/sourceignore/gitignore"
 
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/artifact/config"
