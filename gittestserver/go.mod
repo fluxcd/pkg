@@ -6,7 +6,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.6.1
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/go-git/go-billy/v5 v5.7.0
-	github.com/go-git/go-git/v5 v5.16.4
+	github.com/go-git/go-git/v5 v5.16.5
 	golang.org/x/crypto v0.47.0
 )
 

@@ -22,7 +22,7 @@ require (
 	github.com/fluxcd/pkg/git v0.42.0
 	github.com/fluxcd/pkg/runtime v0.99.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
-	github.com/go-git/go-git/v5 v5.16.4
+	github.com/go-git/go-git/v5 v5.16.5
 	github.com/google/go-containerregistry v0.20.7
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/terraform-exec v0.24.0
