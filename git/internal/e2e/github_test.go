@@ -31,8 +31,8 @@ import (
 
 	"github.com/fluxcd/go-git-providers/github"
 	"github.com/fluxcd/go-git-providers/gitprovider"
+	"github.com/fluxcd/pkg/auth/githubapp"
 	"github.com/fluxcd/pkg/git"
-	pkggithub "github.com/fluxcd/pkg/git/github"
 	"github.com/fluxcd/pkg/git/gogit"
 	gogithub "github.com/google/go-github/v75/github"
 )
@@ -148,11 +148,11 @@ func TestGitHubE2E(t *testing.T) {
 			if authMethod == "app" {
 				var data map[string][]byte
 				authOptions, err = git.NewAuthOptions(*repoURL, data)
-				username, password, err := pkggithub.GetCredentials(context.Background(),
-					pkggithub.WithAppData(map[string][]byte{
-						pkggithub.KeyAppID:             []byte(githubAppID),
-						pkggithub.KeyAppInstallationID: []byte(githubAppInstallID),
-						pkggithub.KeyAppPrivateKey:     githubAppPrivateKey,
+				username, password, err := githubapp.GetCredentials(context.Background(),
+					githubapp.WithAppData(map[string][]byte{
+						githubapp.KeyAppID:             []byte(githubAppID),
+						githubapp.KeyAppInstallationID: []byte(githubAppInstallID),
+						githubapp.KeyAppPrivateKey:     githubAppPrivateKey,
 					}))
 				if err != nil {
 					return nil, nil, err

@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// auth is a package for handling secret-less authentication with cloud providers.
+// auth is a package for handling short-lived credentials.
 package auth
