@@ -1,5 +1,7 @@
 # Release Documentation
 
+## Releasing minor versions (development branch, `main`)
+
 This process is intended to be run locally, in the clone of a Flux maintainer,
 properly configured with commit signing and GitHub credentials.
 
@@ -17,6 +19,33 @@ If there are any changes, commit, open a PR `Prepare for release` and merge.
 If no changes are needed, then:
 
 1. `git checkout main`
+2. `git pull`
+3. `make release`
+
+Both `make` commands will show a plan of the changes they
+will make and ask for confirmation.
+
+## Releasing patch versions (release branches, `flux/v2.<minor>.x`)
+
+This process is intended to be run locally, in the clone of a Flux maintainer,
+properly configured with commit signing and GitHub credentials.
+
+First, a preparation PR must be created bumping all the Go modules
+from this repository that have changed since their latest version
+in the release branch.
+
+Run the following commands:
+
+1. `git checkout flux/v2.<minor>.x`
+2. `git pull`
+3. `make prep`
+
+If there are any changes, commit, open a PR `Prepare for release` against
+the release branch and merge.
+
+If no changes are needed, then:
+
+1. `git checkout flux/v2.<minor>.x`
 2. `git pull`
 3. `make release`
 
