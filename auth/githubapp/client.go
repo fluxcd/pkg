@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/go-github/v81/github"
+	"github.com/google/go-github/v82/github"
 	"golang.org/x/net/http/httpproxy"
 
 	"github.com/fluxcd/pkg/cache"
