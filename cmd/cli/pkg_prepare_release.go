@@ -52,6 +52,7 @@ func runPrepareRelease(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to compute module bumps: %w", err)
 	}
 	if !res.MustBumpInternalModules() {
+		fmt.Println("No bumps needed.")
 		return nil
 	}
 	res.PrintBumps()

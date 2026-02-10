@@ -53,6 +53,25 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 		return nil, fmt.Errorf("failed to open repository: %w", err)
 	}
 
+	// Get the name of the current branch.
+	headRef, err := repo.Head()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get HEAD reference: %w", err)
+	}
+	if !headRef.Name().IsBranch() {
+		return nil, fmt.Errorf("HEAD is not a branch")
+	}
+	currentBranch := headRef.Name().Short()
+	fmt.Println("Current branch:", currentBranch)
+
+	// If the current branch has the form "flux/v2.<fixed minor>.x", then
+	// our bumps are patches.
+	releaseMode := releaseModeMinor
+	if strings.HasPrefix(currentBranch, "flux/v2.") && strings.HasSuffix(currentBranch, ".x") {
+		releaseMode = releaseModePatch
+	}
+	fmt.Println("Release mode:", releaseMode)
+
 	// Get iterator for tags in the repository.
 	tagsIter, err := repo.Tags()
 	if err != nil {
@@ -91,10 +110,6 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 	// Find modules that have a diff between the latest tag and HEAD,
 	// i.e. those that need to be bumped.
 	var moduleBumps []*ModuleBump
-	headRef, err := repo.Head()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get HEAD reference: %w", err)
-	}
 	headCommit, err := repo.CommitObject(headRef.Hash())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get HEAD commit: %w", err)
@@ -158,7 +173,7 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 			}
 		}
 		if changed {
-			bump, err := NewModuleBump(taggable, latest.Original(), latest.IncMinor().String())
+			bump, err := NewModuleBump(taggable, latest, releaseMode)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create module bump for %s: %w", taggable, err)
 			}
@@ -206,7 +221,7 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 						}
 					} else {
 						// This is an existing module that already has a tag.
-						newBump, err = NewModuleBump(targetModule, latest.Original(), latest.IncMinor().String())
+						newBump, err = NewModuleBump(targetModule, latest, releaseMode)
 						if err != nil {
 							return nil, fmt.Errorf("failed to create module bump for %s: %w", targetModule, err)
 						}

@@ -31,3 +31,6 @@
 - name: area/testserver
   description: Test server related issues and pull requests
   color: '#006b75'
+- name: backport:flux/v2.8.x
+  description: To be backported to flux/v2.8.x
+  color: '#ffd700'
