@@ -19,6 +19,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -43,7 +44,7 @@ func NewTokenCredential(ctx context.Context, opts ...auth.Option) azcore.TokenCr
 // the behavior of all providers around this so the usage of this
 // library can be consistent regardless of the provider.
 func (t *tokenCredential) GetToken(_ context.Context, tokenOpts policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	opts := t.opts
+	opts := slices.Clone(t.opts)
 	if tokenOpts.Scopes != nil {
 		opts = append(opts, auth.WithScopes(tokenOpts.Scopes...))
 	}
