@@ -54,6 +54,7 @@ func runRelease(cmd *cobra.Command, args []string) error {
 		return errors.New("modules need to be bumped, please run 'make prep' first and open a pull request")
 	}
 	if !res.MustPushTags() {
+		fmt.Println("No tags to push.")
 		return nil
 	}
 	res.PrintTags()

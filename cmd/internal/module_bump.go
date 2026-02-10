@@ -22,6 +22,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 // ModuleBump represents a module version bump operation and
@@ -34,11 +36,22 @@ type ModuleBump struct {
 }
 
 // NewModuleBump creates a ModuleBump for the given module with the old and new versions.
-func NewModuleBump(module, oldVersion, newVersion string) (*ModuleBump, error) {
+func NewModuleBump(module string, latest *semver.Version, releaseMode string) (*ModuleBump, error) {
 	pattern := fmt.Sprintf(`github\.com/fluxcd/pkg/%s v([^\s]+)`, module)
 	regex, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile regex for module %s: %w", module, err)
+	}
+	var newVersion string
+	oldVersion := latest.Original()
+	switch releaseMode {
+	case releaseModeMinor:
+		newVersion = latest.IncMinor().String()
+	case releaseModePatch:
+		newVersion = latest.IncPatch().String()
+	default:
+		return nil, fmt.Errorf("invalid release mode: '%s'. must be one of [%s, %s]",
+			releaseMode, releaseModeMinor, releaseModePatch)
 	}
 	return &ModuleBump{
 		module:     module,
@@ -50,13 +63,13 @@ func NewModuleBump(module, oldVersion, newVersion string) (*ModuleBump, error) {
 
 // NewModuleBumpForNewModule creates a ModuleBump for a new module with an initial version.
 func NewModuleBumpForNewModule(module string) (*ModuleBump, error) {
-	return NewModuleBump(module, "", "0.1.0")
+	return NewModuleBump(module, semver.MustParse("0.0.0"), releaseModeMinor)
 }
 
 // String implements the fmt.Stringer interface for *ModuleBump.
 func (m *ModuleBump) String() string {
 	from := "new module"
-	if m.oldVersion != "" {
+	if m.oldVersion != "0.0.0" {
 		from = m.oldVersion
 	}
 	return fmt.Sprintf("%s: %s => %s", m.module, from, m.newVersion)
