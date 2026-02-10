@@ -19,13 +19,13 @@ runs:
     - name: Setup Go
       uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
       with:
-        go-version: 1.20.x
+        go-version: 1.25.x
         cache: false
     - name: Use specified version to install
       if: inputs.envtest_version != ''
       shell: bash
       run: |
-        echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+        echo "VERSION=${{ inputs.envtest_version }}" >> "$GITHUB_ENV"
     - name: Determine version to install
       if: inputs.envtest_version == ''
       shell: bash
