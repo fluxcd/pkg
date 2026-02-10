@@ -19,15 +19,15 @@ require (
 	k8s.io/apimachinery v0.35.0
 	k8s.io/client-go v0.35.0
 	sigs.k8s.io/controller-runtime v0.23.0
-	sigs.k8s.io/kustomize/api v0.21.0
-	sigs.k8s.io/kustomize/kyaml v0.21.0
+	sigs.k8s.io/kustomize/api v0.21.1
+	sigs.k8s.io/kustomize/kyaml v0.21.1
 	sigs.k8s.io/yaml v1.6.0
 )
 
-// Pin kustomize to v5.7.1
+// Pin kustomize to v5.8.1
 replace (
-	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.21.0
-	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.21.0
+	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.21.1
+	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.21.1
 )
 
 // Fix CVE-2022-28948

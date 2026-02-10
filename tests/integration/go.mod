@@ -17,10 +17,10 @@ require (
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fluxcd/cli-utils v0.37.1-flux.1
 	github.com/fluxcd/pkg/apis/meta v1.25.0
-	github.com/fluxcd/pkg/auth v0.37.0
+	github.com/fluxcd/pkg/auth v0.38.0
 	github.com/fluxcd/pkg/cache v0.13.0
 	github.com/fluxcd/pkg/git v0.43.0
-	github.com/fluxcd/pkg/runtime v0.99.0
+	github.com/fluxcd/pkg/runtime v0.100.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.16.5
 	github.com/google/go-containerregistry v0.20.7
@@ -185,8 +185,8 @@ require (
 	k8s.io/kubectl v0.35.0 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
-	sigs.k8s.io/kustomize/api v0.21.0 // indirect
-	sigs.k8s.io/kustomize/kyaml v0.21.0 // indirect
+	sigs.k8s.io/kustomize/api v0.21.1 // indirect
+	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
