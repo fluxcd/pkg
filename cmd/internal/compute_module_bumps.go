@@ -53,7 +53,7 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 		return nil, fmt.Errorf("failed to open repository: %w", err)
 	}
 
-	// Get the name of the current branch.
+	// Get the name of the current branch and the release mode from it.
 	headRef, err := repo.Head()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get HEAD reference: %w", err)
@@ -62,14 +62,8 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 		return nil, fmt.Errorf("HEAD is not a branch")
 	}
 	currentBranch := headRef.Name().Short()
+	releaseMode := releaseModeFromBranch(currentBranch)
 	fmt.Println("Current branch:", currentBranch)
-
-	// If the current branch has the form "flux/v2.<fixed minor>.x", then
-	// our bumps are patches.
-	releaseMode := releaseModeMinor
-	if strings.HasPrefix(currentBranch, "flux/v2.") && strings.HasSuffix(currentBranch, ".x") {
-		releaseMode = releaseModePatch
-	}
 	fmt.Println("Release mode:", releaseMode)
 
 	// Get iterator for tags in the repository.
@@ -288,4 +282,19 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 		mustBumpInternalModules: false,
 		tagsToPush:              tagsToPush,
 	}, nil
+}
+
+// releaseModeFromBranch determines the release mode (patch or minor) based on the branch name.
+// If the branch has the form "flux/v2.<minor>.x" or "backport-*-to-flux/v2.<minor>.x", then
+// the release mode is patch. Otherwise, it is minor.
+func releaseModeFromBranch(branch string) string {
+	switch {
+	case !strings.HasSuffix(branch, ".x"):
+		return releaseModeMinor
+	case strings.HasPrefix(branch, "flux/v2."),
+		strings.HasPrefix(branch, "backport-") && strings.Contains(branch, "-to-flux/v2."):
+		return releaseModePatch
+	default:
+		return releaseModeMinor
+	}
 }

@@ -52,6 +52,14 @@ If no changes are needed, then:
 Both `make` commands will show a plan of the changes they
 will make and ask for confirmation.
 
+## Backporting fixes to release branches
+
+When backporting fixes to release branches through the `backport:<branch>` label,
+you can checkout the backport PR branch, i.e. `backport-<PR number>-to-<branch>`,
+and run `make prep` to update the Go modules in the backport branch. Then commit
+`Prepare for release` and push the branch to update the backport PR. Once it's
+merged, the release branch will be ready for `make release`.
+
 ## New test Go modules
 
 Whenever adding new test Go modules like `git/internal/e2e` or `tests/integration`,
