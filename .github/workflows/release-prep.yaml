@@ -14,13 +14,15 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          fetch-depth: 0
+          fetch-tags: true
       - name: Setup Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: cmd/go.mod
           cache-dependency-path: "**/go.sum"
-      - name: Run make prep
-        run: make prep
+      - name: Run make prep-ci
+        run: make prep-ci
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f # v7.0.5
         with:
