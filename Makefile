@@ -141,19 +141,20 @@ fuzz-smoketest: fuzz-build
 
 # Prepare release for Go modules.
 .PHONY: prep
-prep: tools
+prep: flux-tools
 	@./bin/flux-tools pkg prep
+
+# Prepare release for Go modules (in CI).
+.PHONY: prep-ci
+prep-ci: flux-tools
+	@./bin/flux-tools pkg prep --yes
 
 # Release Go modules.
 .PHONY: release
-release: tools
+release: flux-tools
 	@./bin/flux-tools pkg release
 
-# Run vet for tools.
-.PHONY: tools
-tools:
-	@cd cmd; \
-	go mod tidy; \
-	go fmt ./internal/... ./cli/...; \
-	go vet ./internal/... ./cli/...; \
-	go build -o ../bin/flux-tools ./cli
+# Build the flux-tools binary.
+.PHONY: flux-tools
+flux-tools:
+	@cd cmd; go build -o ../bin/flux-tools ./cli
