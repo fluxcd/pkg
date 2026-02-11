@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -95,7 +96,7 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 	if err != nil {
 		return nil, err
 	}
-	accessTokenOpts = append(opts, accessTokenOpts...)
+	accessTokenOpts = append(slices.Clone(opts), accessTokenOpts...)
 	accessToken, err := GetAccessToken(ctx, provider, accessTokenOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get access token for artifact registry: %w", err)

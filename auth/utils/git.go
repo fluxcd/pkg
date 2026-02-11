@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
@@ -37,7 +38,7 @@ type GitCredentials struct {
 func GetGitCredentials(ctx context.Context, providerName string, opts ...auth.Option) (*GitCredentials, error) {
 	switch providerName {
 	case azure.ProviderName:
-		opts = append(opts, auth.WithScopes(azure.ScopeDevOps))
+		opts = append(slices.Clone(opts), auth.WithScopes(azure.ScopeDevOps))
 		token, err := auth.GetAccessToken(ctx, azure.Provider{}, opts...)
 		if err != nil {
 			return nil, err
