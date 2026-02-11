@@ -17,7 +17,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version-file: go.mod
+          go-version-file: cmd/go.mod
           cache-dependency-path: "**/go.sum"
       - name: Run make prep
         run: make prep
