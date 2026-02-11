@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -90,6 +91,7 @@ func GetRESTConfig(ctx context.Context,
 	}
 
 	// Configure options.
+	opts = slices.Clone(opts)
 	if c, ok := cm.Data[meta.KubeConfigKeyCluster]; ok {
 		opts = append(opts, auth.WithClusterResource(c))
 	}
