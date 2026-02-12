@@ -366,6 +366,26 @@ func TestProvider_ParseArtifactRepository(t *testing.T) {
 			expectValid:        true,
 		},
 		{
+			artifactRepository: "557238627320.dkr-ecr.us-west-2.on.aws/foo:v1",
+			expectedRegion:     "us-west-2",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "557238627320.dkr-ecr.us-west-2.on.aws/foo",
+			expectedRegion:     "us-west-2",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "557238627320.dkr-ecr.us-west-2.on.aws",
+			expectedRegion:     "us-west-2",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "557238627320.dkr-ecr.eu-central-1.on.aws/v2/part/part",
+			expectedRegion:     "eu-central-1",
+			expectValid:        true,
+		},
+		{
 			artifactRepository: "gcr.io/foo/bar:baz",
 			expectValid:        false,
 		},
