@@ -185,7 +185,7 @@ func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository 
 
 // This regex is sourced from the AWS ECR Credential Helper (https://github.com/awslabs/amazon-ecr-credential-helper).
 // It covers both public AWS partitions like amazonaws.com, China partitions like amazonaws.com.cn, and non-public partitions.
-const registryPattern = `([0-9+]*).dkr.ecr(?:-fips)?\.([^/.]*)\.(amazonaws\.com[.cn]*|amazonaws\.eu|sc2s\.sgov\.gov|c2s\.ic\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov)`
+const registryPattern = `([0-9+]*).dkr[.-]ecr(?:-fips)?\.([^/.]*)\.(amazonaws\.com[.cn]*|amazonaws\.eu|sc2s\.sgov\.gov|c2s\.ic\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov|on\.aws)`
 
 const publicECR = "public.ecr.aws"
 
