@@ -25,9 +25,6 @@ import (
 	"strings"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/fluxcd/pkg/cache"
 )
 
@@ -128,24 +125,17 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	}
 
 	// Build cache key.
-	var serviceAccount *corev1.ServiceAccount
-	var providerIdentity string
-	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	var saInfo *serviceAccountInfo
+	if o.ShouldGetServiceAccount() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
-		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+		saInfo, err = getServiceAccountInfo(ctx, provider, o.Client, opts...)
 		if err != nil {
 			return nil, err
 		}
 	}
 	var cacheKeyParts []string
 	for i, atOpts := range accessTokenOpts {
-		key := buildAccessTokenCacheKey(provider, audiences, providerIdentity, serviceAccount, atOpts...)
+		key := buildAccessTokenCacheKey(provider, saInfo, atOpts...)
 		cacheKeyParts = append(cacheKeyParts, fmt.Sprintf("accessToken%dCacheKey=%s", i, key))
 	}
 	if c := o.ClusterResource; c != "" {

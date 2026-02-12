@@ -129,13 +129,65 @@ func getClusterConfigMapAWS(output map[string]*tfjson.StateOutput) (map[string]s
 	}, nil
 }
 
+// getImpersonationAnnotationsAWS returns annotations for impersonation target SAs.
+func getImpersonationAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]map[string]string, error) {
+	targetARN := output["aws_assume_role_target_arn"].Value.(string)
+	if targetARN == "" {
+		return nil, fmt.Errorf("no target role ARN in terraform output")
+	}
+	sourceARN := output["aws_wi_iam_arn"].Value.(string)
+	if sourceARN == "" {
+		return nil, fmt.Errorf("no source role ARN in terraform output")
+	}
+
+	return map[string]map[string]string{
+		// Controller-level target SA (useServiceAccount: false).
+		wiAssumeRoleCtrlSA: {
+			"aws.auth.fluxcd.io/assume-role": fmt.Sprintf(
+				`{"roleARN":"%s","useServiceAccount":false}`, targetARN),
+		},
+		// Object-level target SA with IRSA (useServiceAccount: true).
+		wiAssumeRoleSA: {
+			eksRoleArnAnnotation: sourceARN,
+			"aws.auth.fluxcd.io/assume-role": fmt.Sprintf(
+				`{"roleARN":"%s","useServiceAccount":true}`, targetARN),
+		},
+	}, nil
+}
+
+// getControllerAnnotationsAWS returns annotations for controller SAs used in
+// impersonation testing.
+func getControllerAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]map[string]string, error) {
+	controllerIRSAArn := output["aws_controller_irsa_arn"].Value.(string)
+	if controllerIRSAArn == "" {
+		return nil, fmt.Errorf("no controller IRSA role ARN in terraform output")
+	}
+
+	return map[string]map[string]string{
+		// Controller with IRSA credentials.
+		wiControllerIRSA: {
+			eksRoleArnAnnotation: controllerIRSAArn,
+		},
+		// Controller with Pod Identity credentials (no annotations needed,
+		// Pod Identity Agent injects credentials).
+		wiControllerPodIdentity: {},
+	}, nil
+}
+
 // getClusterUsersAWS returns the cluster users for kubeconfig auth tests.
 func getClusterUsersAWS(output map[string]*tfjson.StateOutput) ([]string, error) {
 	clusterUser := output["aws_wi_iam_arn"].Value.(string)
 	if clusterUser == "" {
 		return nil, fmt.Errorf("no EKS cluster user id in terraform output")
 	}
-	return []string{clusterUser}, nil
+	users := []string{clusterUser}
+
+	// Include the assume role target ARN as a cluster user for restconfig tests.
+	if targetARN := output["aws_assume_role_target_arn"].Value.(string); targetARN != "" {
+		users = append(users, targetARN)
+	}
+
+	return users, nil
 }
 
 // When implemented, getGitTestConfigAws would return the git-specific test config for AWS

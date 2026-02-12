@@ -47,3 +47,11 @@ output "aws_wi_iam_arn" {
 output "ecrpublic_repository_url" {
   value = aws_ecrpublic_repository.test_ecr_public.repository_uri
 }
+
+output "aws_assume_role_target_arn" {
+  value = var.enable_wi ? aws_iam_role.assume_role_target[0].arn : ""
+}
+
+output "aws_controller_irsa_arn" {
+  value = var.enable_wi ? aws_iam_role.controller_irsa[0].arn : ""
+}

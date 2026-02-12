@@ -18,6 +18,7 @@ package auth_test
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -63,14 +64,81 @@ func TestGetAccessToken(t *testing.T) {
 	err = kubeClient.Create(ctx, lockdownServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
 
+	// Create a service account with impersonation annotation.
+	impersonationServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "impersonation-sa",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"mock-provider.auth.fluxcd.io/impersonation": "roleArn: arn:aws:iam::123456789012:role/target-role\nuseServiceAccount: true",
+			},
+		},
+	}
+	err = kubeClient.Create(ctx, impersonationServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Create a service account with impersonation annotation (no useServiceAccount, defaults to false without lockdown).
+	impersonationNoSAServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "impersonation-no-sa",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"mock-provider.auth.fluxcd.io/impersonation": "roleArn: arn:aws:iam::123456789012:role/target-role",
+			},
+		},
+	}
+	err = kubeClient.Create(ctx, impersonationNoSAServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Create a service account with impersonation annotation with explicit useServiceAccount: false.
+	impersonationExplicitNoSAServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "impersonation-explicit-no-sa",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"mock-provider.auth.fluxcd.io/impersonation": "roleArn: arn:aws:iam::123456789012:role/target-role\nuseServiceAccount: false",
+			},
+		},
+	}
+	err = kubeClient.Create(ctx, impersonationExplicitNoSAServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Create a service account with impersonation annotation (useServiceAccount: false)
+	// AND a provider identity annotation (which should be rejected).
+	impersonationNoSAWithIdentityServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "impersonation-no-sa-with-identity",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"mock-provider.auth.fluxcd.io/impersonation": "roleArn: arn:aws:iam::123456789012:role/target-role\nuseServiceAccount: false",
+			},
+		},
+	}
+	err = kubeClient.Create(ctx, impersonationNoSAWithIdentityServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Create a service account with invalid impersonation annotation.
+	invalidImpersonationServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "invalid-impersonation-sa",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"mock-provider.auth.fluxcd.io/impersonation": "{{invalid yaml",
+			},
+		},
+	}
+	err = kubeClient.Create(ctx, invalidImpersonationServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
 	for _, tt := range []struct {
 		name               string
 		provider           *mockProvider
+		withImpersonation  bool
 		opts               []auth.Option
 		disableObjectLevel bool
-		defaultSA          string
 		expectedToken      auth.Token
 		expectedErr        string
+		verifyIdentity     string
 	}{
 		{
 			name: "controller access token",
@@ -116,6 +184,7 @@ func TestGetAccessToken(t *testing.T) {
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
 				auth.WithServiceAccountNamespace("default"),
+				auth.WithDefaultServiceAccount("lockdown-sa"),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -123,7 +192,6 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultSA:     "lockdown-sa",
 			expectedToken: &mockToken{token: "mock-access-token"},
 		},
 		{
@@ -138,6 +206,7 @@ func TestGetAccessToken(t *testing.T) {
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
 				auth.WithServiceAccountNamespace("default"),
+				auth.WithDefaultServiceAccount("lockdown-sa"),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -145,7 +214,6 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultSA:          "lockdown-sa",
 			disableObjectLevel: true,
 			expectedToken:      &mockToken{token: "mock-access-token"},
 			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
@@ -162,9 +230,9 @@ func TestGetAccessToken(t *testing.T) {
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
 				auth.WithServiceAccountNamespace("default"),
+				auth.WithDefaultServiceAccount("non-existent-sa"),
 				auth.WithAudiences("audience1", "audience2"),
 			},
-			defaultSA:   "non-existent-sa",
 			expectedErr: "the specified default service account does not exist in the object namespace",
 		},
 		{
@@ -209,6 +277,7 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithClient(kubeClient),
 				auth.WithServiceAccountName(saRef.Name),
 				auth.WithServiceAccountNamespace(saRef.Namespace),
+				auth.WithDefaultServiceAccount("non-existent-sa"),
 				auth.WithAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithSTSRegion("us-east-1"),
@@ -216,7 +285,6 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultSA:     "non-existent-sa",
 			expectedToken: &mockToken{token: "mock-access-token"},
 		},
 		{
@@ -262,7 +330,7 @@ func TestGetAccessToken(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const key = "db625bd5a96dc48fcc100659c6db98857d1e0ceec930bbded0fdece14af4307c"
+					const key = "6fbdfd364d87e47e6aad554232b927805c949ac461c43eb1c84d7dbcd58c38fb"
 					token := &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, key, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -293,7 +361,7 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			expectedErr: "failed to get provider identity from service account 'default/default' annotations: mock error",
+			expectedErr: "failed to get provider identity from service account 'default/default' annotations:",
 		},
 		{
 			name: "error getting identity using cache",
@@ -317,7 +385,7 @@ func TestGetAccessToken(t *testing.T) {
 					o.Cache = tokenCache
 				},
 			},
-			expectedErr: "failed to get provider identity from service account 'default/default' annotations: mock error",
+			expectedErr: "failed to get provider identity from service account 'default/default' annotations:",
 		},
 		{
 			name: "disable object level workload identity",
@@ -338,6 +406,210 @@ func TestGetAccessToken(t *testing.T) {
 			disableObjectLevel: true,
 			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
 		},
+		{
+			name: "impersonation skipped without service account",
+			provider: &mockProvider{
+				returnControllerToken:   &mockToken{token: "mock-controller-token"},
+				returnImpersonatedToken: &mockToken{token: "should-not-appear"},
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedToken: &mockToken{token: "mock-controller-token"},
+		},
+		{
+			name: "access token from service account with impersonation",
+			provider: &mockProvider{
+				returnName:                     "mock-provider",
+				returnAccessToken:              &mockToken{token: "mock-access-token"},
+				returnIdentityForImpersonation: mockIdentity("arn:aws:iam::123456789012:role/target-role"),
+				returnImpersonatedToken:        &mockToken{token: "mock-impersonated-sa-token"},
+				paramAudiences:                 []string{"audience1", "audience2"},
+				paramServiceAccount:            *impersonationServiceAccount,
+				paramOIDCTokenClient:           oidcClient,
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName("impersonation-sa"),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedToken:  &mockToken{token: "mock-impersonated-sa-token"},
+			verifyIdentity: "arn:aws:iam::123456789012:role/target-role",
+		},
+		{
+			name: "impersonation with useServiceAccount false uses controller token",
+			provider: &mockProvider{
+				returnName:                     "mock-provider",
+				returnControllerToken:          &mockToken{token: "mock-controller-token"},
+				returnIdentityForImpersonation: mockIdentity("arn:aws:iam::123456789012:role/target-role"),
+				returnImpersonatedToken:        &mockToken{token: "mock-impersonated-controller-token"},
+				paramServiceAccount:            *impersonationNoSAServiceAccount,
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName("impersonation-no-sa"),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedToken:  &mockToken{token: "mock-impersonated-controller-token"},
+			verifyIdentity: "arn:aws:iam::123456789012:role/target-role",
+		},
+		{
+			name: "impersonation with useServiceAccount false and lockdown enabled errors",
+			provider: &mockProvider{
+				returnName:                     "mock-provider",
+				returnIdentityForImpersonation: mockIdentity("arn:aws:iam::123456789012:role/target-role"),
+				paramServiceAccount:            *impersonationExplicitNoSAServiceAccount,
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithDefaultServiceAccount("impersonation-explicit-no-sa"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedErr: "multi-tenancy lockdown is enabled, impersonation without service account is not allowed",
+		},
+		{
+			name: "impersonation NewTokenForIdentity error",
+			provider: &mockProvider{
+				returnName:                     "mock-provider",
+				returnAccessToken:              &mockToken{token: "mock-access-token"},
+				returnIdentityForImpersonation: mockIdentity("arn:aws:iam::123456789012:role/target-role"),
+				returnImpersonateErr:           fmt.Errorf("impersonation failed"),
+				paramAudiences:                 []string{"audience1", "audience2"},
+				paramServiceAccount:            *impersonationServiceAccount,
+				paramOIDCTokenClient:           oidcClient,
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName("impersonation-sa"),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedErr:    "impersonation failed",
+			verifyIdentity: "arn:aws:iam::123456789012:role/target-role",
+		},
+		{
+			name: "impersonation skipped when no impersonation annotation",
+			provider: &mockProvider{
+				returnName:              "mock-provider",
+				returnAccessToken:       &mockToken{token: "mock-access-token"},
+				returnImpersonatedToken: &mockToken{token: "should-not-appear"},
+				paramAudiences:          []string{"audience1", "audience2"},
+				paramServiceAccount:     *defaultServiceAccount,
+				paramOIDCTokenClient:    oidcClient,
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName(saRef.Name),
+				auth.WithServiceAccountNamespace(saRef.Namespace),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedToken: &mockToken{token: "mock-access-token"},
+		},
+		{
+			name: "GetIdentityForImpersonation error",
+			provider: &mockProvider{
+				returnName:                        "mock-provider",
+				returnAccessToken:                 &mockToken{token: "mock-access-token"},
+				returnIdentityForImpersonationErr: "impersonation identity lookup failed",
+				paramAudiences:                    []string{"audience1", "audience2"},
+				paramServiceAccount:               *impersonationServiceAccount,
+				paramOIDCTokenClient:              oidcClient,
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName("impersonation-sa"),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedErr: "failed to get provider identity for impersonation from service account 'default/impersonation-sa'",
+		},
+		{
+			name: "invalid impersonation annotation YAML",
+			provider: &mockProvider{
+				returnName:          "mock-provider",
+				paramServiceAccount: *invalidImpersonationServiceAccount,
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName("invalid-impersonation-sa"),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedErr: "failed to parse impersonation annotation",
+		},
+		{
+			name: "impersonation useServiceAccount false with identity annotation errors",
+			provider: &mockProvider{
+				returnName:                     "mock-provider",
+				returnIdentity:                 "mock-identity",
+				returnIdentityForImpersonation: mockIdentity("arn:aws:iam::123456789012:role/target-role"),
+				paramServiceAccount:            *impersonationNoSAWithIdentityServiceAccount,
+			},
+			withImpersonation: true,
+			opts: []auth.Option{
+				auth.WithClient(kubeClient),
+				auth.WithServiceAccountName("impersonation-no-sa-with-identity"),
+				auth.WithServiceAccountNamespace("default"),
+				auth.WithAudiences("audience1", "audience2"),
+				auth.WithScopes("scope1", "scope2"),
+				auth.WithSTSRegion("us-east-1"),
+				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+				auth.WithCAData("ca-data"),
+			},
+			expectedErr: "identity annotation is present but the ServiceAccount is not used",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
@@ -349,12 +621,12 @@ func TestGetAccessToken(t *testing.T) {
 				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
 			}
 
-			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
+			var p auth.Provider = tt.provider
+			if tt.withImpersonation {
+				p = &mockProviderWithImpersonation{mockProvider: tt.provider}
 			}
 
-			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)
+			token, err := auth.GetAccessToken(ctx, p, tt.opts...)
 
 			if tt.expectedErr != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.expectedErr)))
@@ -362,6 +634,11 @@ func TestGetAccessToken(t *testing.T) {
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(token).To(Equal(tt.expectedToken))
+			}
+
+			if tt.verifyIdentity != "" {
+				g.Expect(tt.provider.gotIdentity).NotTo(BeNil())
+				g.Expect(tt.provider.gotIdentity.String()).To(Equal(tt.verifyIdentity))
 			}
 		})
 	}

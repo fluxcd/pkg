@@ -42,6 +42,26 @@ variable "wi_k8s_sa_name_federation_direct_access" {
   description = "Name of kubernetes service account to get direct permissions in GCP (For workload identity federation)"
 }
 
+variable "wi_k8s_sa_name_impersonation_target" {
+  type        = string
+  description = "Name of kubernetes service account used as impersonation target with GCP SA annotation"
+}
+
+variable "wi_k8s_sa_name_impersonation_da" {
+  type        = string
+  description = "Name of kubernetes service account used as impersonation target with WIF direct access"
+}
+
+variable "wi_k8s_sa_name_controller" {
+  type        = string
+  description = "Name of the default controller kubernetes service account (for GKE WIF principal)"
+}
+
+variable "wi_k8s_sa_name_controller_gcp_sa" {
+  type        = string
+  description = "Name of the controller kubernetes service account with GCP SA annotation"
+}
+
 variable "enable_wi" {
   type        = bool
   default     = false

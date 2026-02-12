@@ -121,14 +121,13 @@ func TestGetRESTConfig(t *testing.T) {
 	now := time.Now()
 
 	for _, tt := range []struct {
-		name                string
-		provider            *mockProvider
-		cluster             string
-		opts                []auth.Option
-		disableObjectLevel  bool
-		defaultKubeConfigSA string
-		expectedCreds       *auth.RESTConfig
-		expectedErr         string
+		name               string
+		provider           *mockProvider
+		cluster            string
+		opts               []auth.Option
+		disableObjectLevel bool
+		expectedCreds      *auth.RESTConfig
+		expectedErr        string
 	}{
 		{
 			name: "restconfig from controller access token",
@@ -236,7 +235,7 @@ func TestGetRESTConfig(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(3)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					accessTokenKey := "500a3116f5d1c492d7a5ea97cdf9a7f869815346c79f01c7368703c241ebb5eb"
+					accessTokenKey := "3db1f35173795b209e61309a55f292c1696023a5fa5138ad9b32ba38f02720d4"
 					var token auth.Token = &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -245,7 +244,7 @@ func TestGetRESTConfig(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedToken).To(Equal(token))
 
-					accessTokenKey = "0b1167fc851943c6153d40e149cd2970aac121aaf03b1fcad158672974f58827"
+					accessTokenKey = "92cb5ac8dd7147e4d9f57d4675497ef6ccf0fafcdbcc6d268901964371f8040c"
 					token = &mockToken{token: "cached-token"}
 					cachedToken, ok, err = tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -254,7 +253,7 @@ func TestGetRESTConfig(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedToken).To(Equal(token))
 
-					const restConfigKey = "a1937b7b1df13ac8ad784db686088c4cd5b4c4877318d07d3fa19ab8caf9d7c2"
+					const restConfigKey = "5666bcc9d6bed56d22e203ac7956db030464fc1b8f3e677ac32297b2db60b240"
 					token = &auth.RESTConfig{
 						Host:        "https://cluster/resource/name",
 						BearerToken: "mock-bearer-token",
@@ -320,8 +319,8 @@ func TestGetRESTConfig(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
+				auth.WithDefaultServiceAccount("lockdown-sa"),
 			},
-			defaultKubeConfigSA: "lockdown-sa",
 			expectedCreds: &auth.RESTConfig{
 				Host:        "https://cluster/resource/name",
 				BearerToken: "mock-bearer-token",
@@ -361,9 +360,9 @@ func TestGetRESTConfig(t *testing.T) {
 				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
+				auth.WithDefaultServiceAccount("lockdown-sa"),
 			},
-			defaultKubeConfigSA: "lockdown-sa",
-			disableObjectLevel:  true,
+			disableObjectLevel: true,
 			expectedCreds: &auth.RESTConfig{
 				Host:        "https://cluster/resource/name",
 				BearerToken: "mock-bearer-token",
@@ -403,11 +402,6 @@ func TestGetRESTConfig(t *testing.T) {
 			if !tt.disableObjectLevel {
 				auth.EnableObjectLevelWorkloadIdentity()
 				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-			}
-
-			if tt.defaultKubeConfigSA != "" {
-				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
-				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
 			}
 
 			if tt.cluster != "" {
