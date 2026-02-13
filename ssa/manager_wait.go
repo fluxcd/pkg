@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -96,12 +97,14 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 	}
 	eventsChan := m.poller.Poll(ctx, set, pollingOpts)
 
+	var mu sync.Mutex
 	lastStatus := make(map[object.ObjMetadata]*event.ResourceStatus)
 
 	done := statusCollector.ListenWithObserver(eventsChan, collector.ObserverFunc(
 		func(statusCollector *collector.ResourceStatusCollector, e event.Event) {
 			var rss []*event.ResourceStatus
 			counts := make(map[status.Status]int)
+			mu.Lock()
 			for _, rs := range statusCollector.ResourceStatuses {
 				if rs == nil {
 					continue
@@ -117,6 +120,7 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 				rss = append(rss, rs)
 				counts[effectiveStatus]++
 			}
+			mu.Unlock()
 
 			// If only Failed or Current statuses are present,
 			// we can consider this a terminal state. Detecting
@@ -152,10 +156,7 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 		return ctx.Err()
 	}
 
-	if statusCollector.Error != nil {
-		return statusCollector.Error
-	}
-
+	mu.Lock()
 	var errs []string
 	for id, rs := range statusCollector.ResourceStatuses {
 		switch {
@@ -172,14 +173,16 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 			errors.Is(ctx.Err(), context.DeadlineExceeded) &&
 				lastStatus[id].Status != status.CurrentStatus:
 			var builder strings.Builder
-			builder.WriteString(fmt.Sprintf("%s status: '%s'",
-				utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status))
+			fmt.Fprintf(&builder, "%s status: '%s'",
+				utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status)
 			if rs.Error != nil {
-				builder.WriteString(fmt.Sprintf(": %s", rs.Error))
+				fmt.Fprintf(&builder, ": %s", rs.Error)
 			}
 			errs = append(errs, builder.String())
 		}
 	}
+
+	mu.Unlock()
 
 	if len(errs) > 0 {
 		msg := "failed early due to stalled resources"
@@ -187,6 +190,10 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 			msg = "timeout waiting for"
 		}
 		return fmt.Errorf("%s: [%s]", msg, strings.Join(errs, ", "))
+	}
+
+	if statusCollector.Error != nil {
+		return statusCollector.Error
 	}
 
 	return nil
