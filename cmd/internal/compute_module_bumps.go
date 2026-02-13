@@ -27,6 +27,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/format/diff"
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 // ComputeModuleBumps looks at the current Git repository and computes
@@ -66,6 +67,21 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 	fmt.Println("Current branch:", currentBranch)
 	fmt.Println("Release mode:", releaseMode)
 
+	// Build set of all commits reachable from HEAD.
+	commitIter, err := repo.Log(&git.LogOptions{From: headRef.Hash()})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commit log: %w", err)
+	}
+	defer commitIter.Close()
+	reachable := make(map[plumbing.Hash]struct{})
+	err = commitIter.ForEach(func(c *object.Commit) error {
+		reachable[c.Hash] = struct{}{}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to iterate commits: %w", err)
+	}
+
 	// Get iterator for tags in the repository.
 	tagsIter, err := repo.Tags()
 	if err != nil {
@@ -77,6 +93,18 @@ func ComputeModuleBumps(ctx context.Context) (*ModuleBumps, error) {
 	moduleTags := make(map[string][]*semver.Version)
 	err = tagsIter.ForEach(func(ref *plumbing.Reference) error {
 		tag := ref.Name().Short()
+
+		// Resolve tag to its target commit and skip if not reachable from HEAD.
+		var targetHash plumbing.Hash
+		if tagObj, err := repo.TagObject(ref.Hash()); err == nil {
+			targetHash = tagObj.Target
+		} else {
+			targetHash = ref.Hash()
+		}
+		if _, ok := reachable[targetHash]; !ok {
+			return nil
+		}
+
 		for _, module := range taggables {
 			prefix := module + "/v"
 			if !strings.HasPrefix(tag, prefix) {
