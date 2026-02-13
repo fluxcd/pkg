@@ -411,6 +411,87 @@ func TestWaitForSet_RateLimiterError(t *testing.T) {
 	}
 }
 
+func TestWaitForSet_RateLimiterErrorIncludesObjectNames(t *testing.T) {
+	g := NewWithT(t)
+
+	id := generateName("rlname")
+
+	// Create real resources on the cluster that will reach Current status.
+	objects, err := readManifest("testdata/test14.yaml", id)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	manager.SetOwnerLabels(objects, "infra", "default")
+	cs, err := manager.ApplyAllStaged(context.Background(), objects, DefaultApplyOptions())
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Add a non-existent Deployment to the wait set. This simulates the
+	// real-world scenario where a health check includes a resource that
+	// doesn't exist on the cluster (e.g. "does-not-exist").
+	nonExistent := object.ObjMetadata{
+		Name:      "does-not-exist",
+		Namespace: id,
+		GroupKind: schema.GroupKind{Group: "apps", Kind: "Deployment"},
+	}
+	waitSet := append(cs.ToObjMetadataSet(), nonExistent)
+
+	// Use a custom status reader that simulates the rate limiter firing
+	// at the context deadline. In production, the Go rate limiter fires
+	// preemptively when it detects that waiting would exceed the deadline.
+	// We simulate this by sleeping past the deadline before returning the
+	// rate limiter error, ensuring both statusCollector.Error is set AND
+	// ctx.Err() is context.DeadlineExceeded.
+	timeout := 500 * time.Millisecond
+	start := time.Now()
+	manager.poller = polling.NewStatusPoller(manager.client, restMapper, polling.Options{
+		CustomStatusReaders: []engine.StatusReader{
+			kstatusreaders.NewGenericStatusReader(restMapper,
+				func(u *unstructured.Unstructured) (*status.Result, error) {
+					if time.Since(start) > 300*time.Millisecond {
+						// Sleep past the context deadline to ensure
+						// ctx.Err() == context.DeadlineExceeded when
+						// WaitForSetWithContext processes the error.
+						remaining := timeout - time.Since(start)
+						if remaining > 0 {
+							time.Sleep(remaining + 50*time.Millisecond)
+						}
+						return nil, fmt.Errorf("rate: Wait(n=1) would exceed context deadline")
+					}
+					return status.Compute(u)
+				},
+			),
+		},
+	})
+	defer func() {
+		manager.poller = poller
+	}()
+
+	err = manager.WaitForSet(waitSet, WaitOptions{
+		Interval: 100 * time.Millisecond,
+		Timeout:  timeout,
+	})
+
+	g.Expect(err).To(HaveOccurred())
+	errMsg := err.Error()
+	t.Logf("error message: %s", errMsg)
+
+	// The error must include the name of the non-existent resource.
+	// Before the fix, statusCollector.Error was returned directly without
+	// any object context, producing: "rate: Wait(n=1) would exceed context deadline".
+	// After the fix, the per-object status loop runs first, producing:
+	// "timeout waiting for: [Deployment/id/does-not-exist status: 'NotFound']".
+	g.Expect(errMsg).To(ContainSubstring("does-not-exist"),
+		"error must contain the name of the non-existent resource")
+	g.Expect(errMsg).To(ContainSubstring("timeout waiting for"),
+		"error must indicate it was a timeout")
+
+	// ConfigMaps that reached Current status should NOT appear in the error.
+	for i := 1; i <= 4; i++ {
+		cmName := fmt.Sprintf("%s-cm%d", id, i)
+		g.Expect(errMsg).NotTo(ContainSubstring(cmName),
+			"error should not contain ConfigMap %s which reached Current status", cmName)
+	}
+}
+
 func TestWaitForSet_ErrorOnReaderError(t *testing.T) {
 	g := NewWithT(t)
 
