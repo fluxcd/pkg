@@ -27,10 +27,6 @@ import (
 )
 
 const (
-	// FeatureGateDisableConfigWatchers must be used in the controllers to turn off
-	// the watching of ConfigMaps and Secrets.
-	FeatureGateDisableConfigWatchers = "DisableConfigWatchers"
-
 	flagWatchWatchAllNamespaces   = "watch-all-namespaces"
 	flagWatchLabelSelector        = "watch-label-selector"
 	flagWatchConfigsLabelSelector = "watch-configs-label-selector"
