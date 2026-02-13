@@ -185,7 +185,7 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	}
 	patch = append(patch, metaPatch...)
 
-	resPatch, err := diffUnstructured(filteredObj, dryRunObj, diffOpts...)
+	resPatch, err := DiffUnstructured(filteredObj, dryRunObj, diffOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -228,9 +228,9 @@ func diffUnstructuredMetadata(x, y *unstructured.Unstructured, opts ...jsondiff.
 	return filteredPatch, nil
 }
 
-// diffUnstructured returns a JSON patch with the differences between the given
+// DiffUnstructured returns a JSON patch with the differences between the given
 // objects while ignoring "metadata" and "status" fields.
-func diffUnstructured(x, y *unstructured.Unstructured, opts ...jsondiff.Option) (jsondiff.Patch, error) {
+func DiffUnstructured(x, y *unstructured.Unstructured, opts ...jsondiff.Option) (jsondiff.Patch, error) {
 	xSpec, ySpec := removeMetadataAndStatus(x), removeMetadataAndStatus(y)
 	patch, err := jsondiff.Compare(xSpec.Object, ySpec.Object, opts...)
 	if err != nil {
