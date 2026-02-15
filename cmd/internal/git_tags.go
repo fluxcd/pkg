@@ -74,7 +74,7 @@ func collectLatestReachableTags(repo *git.Repository, head plumbing.Hash) (map[s
 			return nil
 		}
 		module := tag[:idx]
-		v, err := semver.NewVersion(tag[idx+1:])
+		v, err := semver.NewVersion(strings.TrimPrefix(tag[idx+1:], "v"))
 		if err != nil {
 			return nil
 		}
