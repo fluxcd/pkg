@@ -169,7 +169,7 @@ func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *pol
 		return nil, nil, err
 	}
 
-	restConfig = KubeConfig(restConfig, i.kubeConfigOpts)
+	restConfig = KubeConfig(ctx, restConfig, i.kubeConfigOpts)
 	i.setImpersonationConfig(restConfig)
 
 	restMapper, err := NewDynamicRESTMapper(restConfig)

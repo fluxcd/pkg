@@ -17,20 +17,22 @@ limitations under the License.
 package client
 
 import (
-	"reflect"
+	"context"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 func TestKubeConfig(t *testing.T) {
 	tests := []struct {
-		description string
-		in          *rest.Config
-		opts        KubeConfigOptions
-		expected    *rest.Config
+		description        string
+		in                 *rest.Config
+		opts               KubeConfigOptions
+		flowControlEnabled bool
+		expected           *rest.Config
 	}{
 		{
 			description: "ignore nil configs",
@@ -140,13 +142,24 @@ func TestKubeConfig(t *testing.T) {
 				Timeout:   30 * time.Second,
 			},
 		},
+		{
+			description:        "Flowcontrol enabled disables ratelimiting",
+			in:                 &rest.Config{},
+			opts:               KubeConfigOptions{},
+			flowControlEnabled: true,
+			expected: &rest.Config{
+				QPS:     -1,
+				Timeout: 30 * time.Second,
+			},
+		},
 	}
 
 	for _, tt := range tests {
-		got := KubeConfig(tt.in, tt.opts)
-		if !reflect.DeepEqual(tt.expected, got) {
-			t.Error(tt.description)
-		}
+		t.Run(tt.description, func(t *testing.T) {
+			flowControlChecker := func(context.Context, *rest.Config) (bool, error) { return tt.flowControlEnabled, nil }
+			got := kubeconfig(t.Context(), tt.in, tt.opts, flowControlChecker)
+			assert.Equal(t, tt.expected, got)
+		})
 	}
 }
 
