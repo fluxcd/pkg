@@ -17,8 +17,10 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"time"
 
+	"github.com/fluxcd/cli-utils/pkg/flowcontrol"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/rest"
 )
@@ -67,7 +69,11 @@ func (o *KubeConfigOptions) BindFlags(fs *pflag.FlagSet) {
 
 // KubeConfig sanitises a kubeconfig represented as *rest.Config using
 // KubeConfigOptions to inform the transformation decisions.
-func KubeConfig(in *rest.Config, opts KubeConfigOptions) *rest.Config {
+func KubeConfig(ctx context.Context, in *rest.Config, opts KubeConfigOptions) *rest.Config {
+	return kubeconfig(ctx, in, opts, flowcontrol.IsEnabled)
+}
+
+func kubeconfig(ctx context.Context, in *rest.Config, opts KubeConfigOptions, flowcontrolChecker func(context.Context, *rest.Config) (bool, error)) *rest.Config {
 	var out *rest.Config
 
 	if in != nil {
@@ -106,6 +112,13 @@ func KubeConfig(in *rest.Config, opts KubeConfigOptions) *rest.Config {
 		if opts.InsecureExecProvider {
 			out.ExecProvider = in.ExecProvider
 		}
+	}
+
+	enabled, err := flowcontrolChecker(ctx, out)
+	if err == nil && enabled {
+		// A negative QPS indicates that the client should not have a rate limiter.
+		// Ref: https://github.com/kubernetes/kubernetes/blob/v1.24.0/staging/src/k8s.io/client-go/rest/config.go#L354-L364
+		out.QPS = -1
 	}
 
 	return out
