@@ -17,10 +17,16 @@ limitations under the License.
 package gcp
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"regexp"
 
+	"google.golang.org/api/option"
+	htransport "google.golang.org/api/transport/http"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/fluxcd/pkg/auth"
 )
 
 const serviceAccountEmailPattern = `^[a-zA-Z0-9-]{1,100}@[a-zA-Z0-9-]{1,100}\.iam\.gserviceaccount\.com$`
@@ -45,7 +51,7 @@ const workloadIdentityProviderPattern = `^projects/\d{1,30}/locations/global/wor
 var workloadIdentityProviderRegex = regexp.MustCompile(workloadIdentityProviderPattern)
 
 func getWorkloadIdentityProviderAudience(serviceAccount corev1.ServiceAccount) (string, error) {
-	const key = "gcp.auth.fluxcd.io/workload-identity-provider"
+	const key = ProviderName + "." + auth.APIGroup + "/workload-identity-provider"
 	wip := serviceAccount.Annotations[key]
 	if wip == "" {
 		return "", nil
@@ -67,4 +73,16 @@ func parseCluster(cluster string) error {
 			cluster, clusterPattern)
 	}
 	return nil
+}
+
+func newHTTPClient(ctx context.Context, token auth.Token, o *auth.Options) (*http.Client, error) {
+	baseTransport := http.DefaultTransport.(*http.Transport).Clone()
+	if p := o.ProxyURL; p != nil {
+		baseTransport.Proxy = http.ProxyURL(p)
+	}
+	transport, err := htransport.NewTransport(ctx, baseTransport, option.WithTokenSource(token.(*Token).source()))
+	if err != nil {
+		return nil, err
+	}
+	return &http.Client{Transport: transport}, nil
 }

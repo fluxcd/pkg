@@ -7,7 +7,7 @@ provider "google" {
 resource "random_pet" "suffix" {}
 
 locals {
-  name               = "flux-test-${random_pet.suffix.id}"
+  name               = substr("flux-test-${random_pet.suffix.id}", 0, 25)
   federation_pool_id = var.enable_wi ? google_iam_workload_identity_pool.main[0].name : ""
   gke_pool_id        = "projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${module.gke.project}.svc.id.goog"
 
@@ -27,10 +27,14 @@ locals {
   # direct access.
   wi_k8s_sa_principal_direct_access_federation = var.enable_wi ? "principal://iam.googleapis.com/${local.federation_pool_id}/subject/system:serviceaccount:${var.wi_k8s_sa_ns}:${var.wi_k8s_sa_name_federation_direct_access}" : ""
 
+  # Principal for the impersonation target GCP SA.
+  wi_impersonation_target_principal = var.enable_wi ? "serviceAccount:${google_service_account.impersonation_target[0].email}" : ""
+
   permission_principals = var.enable_wi ? [
     local.wi_gcp_sa_principal,
     local.wi_k8s_sa_principal_direct_access,
     local.wi_k8s_sa_principal_direct_access_federation,
+    local.wi_impersonation_target_principal,
   ] : []
 }
 
@@ -91,6 +95,16 @@ resource "google_service_account_iam_binding" "main" {
     # testing Workload Identity Federation for other Kubernetes clusters with
     # impersonation.
     "principal://iam.googleapis.com/${local.federation_pool_id}/subject/system:serviceaccount:${var.wi_k8s_sa_ns}:${var.wi_k8s_sa_name_federation}",
+
+    # This principal represents the impersonation target SA that needs to
+    # get the existing GCP SA's token as step 1 of GCP impersonation
+    # (GCPImpersonateObj: useServiceAccount=true with GCP SA annotation).
+    "serviceAccount:${var.gcp_project_id}.svc.id.goog[${var.wi_k8s_sa_ns}/${var.wi_k8s_sa_name_impersonation_target}]",
+
+    # This principal represents the controller SA with GCP SA annotation
+    # that needs to get the existing GCP SA's token via GKE WIF
+    # (GCPImpersonateCtrlSA: controller with iam.gke.io/gcp-service-account).
+    "serviceAccount:${var.gcp_project_id}.svc.id.goog[${var.wi_k8s_sa_ns}/${var.wi_k8s_sa_name_controller_gcp_sa}]",
   ]
 }
 
@@ -104,6 +118,39 @@ resource "google_service_account_iam_binding" "main" {
 # for the built-in Workload Identity Federation for GKE (think about
 # Workload Identity Pool and Provider as AWS EKS IRSA and built-in
 # Workload Identity Federation for GKE as AWS EKS Pod Identity).
+
+# --- Impersonation testing resources ---
+
+# Impersonation target GCP service account.
+resource "google_service_account" "impersonation_target" {
+  count       = var.enable_wi ? 1 : 0
+  account_id  = "${local.name}-impt"
+  project     = var.gcp_project_id
+  description = "Target service account for impersonation testing"
+}
+
+# Grant serviceAccountTokenCreator on the target to principals that
+# will impersonate it via the impersonate.CredentialsTokenSource API.
+resource "google_service_account_iam_binding" "impersonation_token_creator" {
+  count              = var.enable_wi ? 1 : 0
+  service_account_id = google_service_account.impersonation_target[0].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  members = [
+    # Controller-level with GCP SA (GCPImpersonateCtrlSA + GCPImpersonateObj):
+    # the existing GCP SA identity.
+    local.wi_gcp_sa_principal,
+
+    # Controller-level without GCP SA (GCPImpersonateCtrl): the controller
+    # K8s SA's GKE WIF federated identity.
+    "serviceAccount:${var.gcp_project_id}.svc.id.goog[${var.wi_k8s_sa_ns}/${var.wi_k8s_sa_name_controller}]",
+
+    # Object-level WIF direct access (GCPImpersonateObjDA): the target SA's
+    # custom WIF pool federated identity.
+    "principal://iam.googleapis.com/${local.federation_pool_id}/subject/system:serviceaccount:${var.wi_k8s_sa_ns}:${var.wi_k8s_sa_name_impersonation_da}",
+  ]
+}
+
+# --- Workload Identity Federation resources ---
 
 resource "google_iam_workload_identity_pool" "main" {
   count                     = var.enable_wi ? 1 : 0

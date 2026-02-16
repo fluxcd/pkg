@@ -18,6 +18,7 @@ package gcp_test
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"testing"
 	"time"
@@ -460,4 +461,126 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 		g.Expect(opts).To(HaveLen(1))
 		g.Expect(opts[0]).To(HaveLen(0)) // Empty slice - no options needed for GCP
 	})
+}
+
+func TestProvider_GetImpersonationAnnotationKey(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(gcp.Provider{}.GetImpersonationAnnotationKey()).To(Equal("impersonate"))
+}
+
+func TestProvider_GetIdentityForImpersonation(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		identity string
+		expected string
+		err      string
+	}{
+		{
+			name:     "valid GCP service account",
+			identity: `{"gcpServiceAccount":"test-sa@project-id.iam.gserviceaccount.com"}`,
+			expected: "test-sa@project-id.iam.gserviceaccount.com",
+		},
+		{
+			name:     "invalid GCP service account",
+			identity: `{"gcpServiceAccount":"foobar"}`,
+			err:      "invalid GCP service account in impersonation identity: 'foobar'",
+		},
+		{
+			name:     "empty GCP service account",
+			identity: `{"gcpServiceAccount":""}`,
+			err:      "invalid GCP service account in impersonation identity: ''",
+		},
+		{
+			name:     "invalid JSON",
+			identity: `{invalid`,
+			err:      "failed to unmarshal impersonation identity",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			identity, err := gcp.Provider{}.GetIdentityForImpersonation([]byte(tt.identity))
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(identity).To(BeNil())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(identity).NotTo(BeNil())
+				g.Expect(identity.String()).To(Equal(tt.expected))
+			}
+		})
+	}
+}
+
+func TestProvider_NewTokenForIdentity(t *testing.T) {
+	for _, tt := range []struct {
+		name              string
+		gcpServiceAccount string
+		impersonationErr  error
+		err               string
+	}{
+		{
+			name:              "valid",
+			gcpServiceAccount: "target-sa@project-id.iam.gserviceaccount.com",
+		},
+		{
+			name:              "impersonation error",
+			gcpServiceAccount: "target-sa@project-id.iam.gserviceaccount.com",
+			impersonationErr:  errors.New("impersonation failed"),
+			err:               "failed to create impersonated token source: impersonation failed",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			tokenExpiry := time.Now().Add(1 * time.Hour)
+			impl := &mockImplementation{
+				t:                          t,
+				expectImpersonationAPICall: true,
+				argProxyURL:                &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				argImpersonateTarget:       tt.gcpServiceAccount,
+				returnToken: &oauth2.Token{
+					AccessToken: "initial-token",
+					Expiry:      tokenExpiry,
+				},
+				returnImpersonatedToken: &oauth2.Token{
+					AccessToken: "impersonated-token",
+					Expiry:      tokenExpiry,
+				},
+				returnImpersonationErr: tt.impersonationErr,
+			}
+
+			// Create the identity via GetIdentityForImpersonation.
+			identity, err := gcp.Provider{}.GetIdentityForImpersonation(
+				[]byte(`{"gcpServiceAccount":"` + tt.gcpServiceAccount + `"}`))
+			g.Expect(err).NotTo(HaveOccurred())
+
+			// Create a mock initial token.
+			initialToken := &gcp.Token{Token: oauth2.Token{
+				AccessToken: "initial-token",
+				Expiry:      tokenExpiry,
+			}}
+
+			opts := []auth.Option{
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+			}
+
+			provider := gcp.Provider{Implementation: impl}
+			token, err := provider.NewTokenForIdentity(context.Background(), initialToken, identity, opts...)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(token).To(BeNil())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(token).To(Equal(&gcp.Token{Token: oauth2.Token{
+					AccessToken: "impersonated-token",
+					Expiry:      tokenExpiry,
+				}}))
+			}
+		})
+	}
 }

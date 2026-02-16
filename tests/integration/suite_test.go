@@ -112,6 +112,67 @@ const (
 	// workload identity.
 	controllerWIRBACName = "flux-controller"
 
+	// wiControllerIRSA is the name of the controller service account with
+	// IRSA credentials for impersonation testing.
+	wiControllerIRSA = "flux-controller-irsa"
+
+	// wiControllerPodIdentity is the name of the controller service account
+	// with Pod Identity credentials for impersonation testing.
+	wiControllerPodIdentity = "flux-controller-pod-identity"
+
+	// wiControllerGCPSA is the name of the controller service account with
+	// GCP service account annotation for impersonation testing.
+	wiControllerGCPSA = "flux-controller-gcp-sa"
+
+	// wiAssumeRoleCtrlSA is the name of the target SA for controller-level
+	// AWS AssumeRole impersonation (useServiceAccount: false).
+	wiAssumeRoleCtrlSA = "test-workload-id-assume-role-ctrl"
+
+	// wiAssumeRoleSA is the name of the target SA for object-level
+	// AWS AssumeRole impersonation (useServiceAccount: true).
+	wiAssumeRoleSA = "test-workload-id-assume-role"
+
+	// wiImpersonateCtrlSA is the name of the target SA for controller-level
+	// GCP impersonation (useServiceAccount: false).
+	wiImpersonateCtrlSA = "test-workload-id-impersonate-ctrl"
+
+	// wiImpersonateSA is the name of the target SA for object-level GCP
+	// impersonation with GCP SA (useServiceAccount: true).
+	wiImpersonateSA = "test-workload-id-impersonate"
+
+	// wiImpersonateDirectAccessSA is the name of the target SA for
+	// object-level GCP impersonation with direct access federation
+	// (useServiceAccount: true).
+	wiImpersonateDirectAccessSA = "test-workload-id-impersonate-da"
+
+	// envVarWISANameAssumeRole is the name of the terraform environment
+	// variable for the assume-role SA name (object-level IRSA → AssumeRole).
+	envVarWISANameAssumeRole = "TF_VAR_wi_k8s_sa_name_assume_role"
+
+	// envVarWISANameControllerIRSA is the name of the terraform environment
+	// variable for the controller IRSA SA name.
+	envVarWISANameControllerIRSA = "TF_VAR_wi_k8s_sa_name_controller_irsa"
+
+	// envVarWISANameControllerPodIdentity is the name of the terraform environment
+	// variable for the controller Pod Identity SA name.
+	envVarWISANameControllerPodIdentity = "TF_VAR_wi_k8s_sa_name_controller_pod_identity"
+
+	// envVarWISANameImpersonationTarget is the name of the terraform environment
+	// variable for the GCP impersonation target SA name (with GCP SA annotation).
+	envVarWISANameImpersonationTarget = "TF_VAR_wi_k8s_sa_name_impersonation_target"
+
+	// envVarWISANameImpersonationDA is the name of the terraform environment
+	// variable for the GCP impersonation target SA name (with WIF direct access).
+	envVarWISANameImpersonationDA = "TF_VAR_wi_k8s_sa_name_impersonation_da"
+
+	// envVarWISANameController is the name of the terraform environment
+	// variable for the default controller SA name (for GKE WIF principal).
+	envVarWISANameController = "TF_VAR_wi_k8s_sa_name_controller"
+
+	// envVarWISANameControllerGCPSA is the name of the terraform environment
+	// variable for the controller SA with GCP SA annotation.
+	envVarWISANameControllerGCPSA = "TF_VAR_wi_k8s_sa_name_controller_gcp_sa"
+
 	// skippedMessage is the message used to skip tests for features
 	// that are not supported by the provider or cluster configuration.
 	skippedMessage = "Skipping test, feature not supported by the provider or by the current cluster configuration"
@@ -172,6 +233,9 @@ var (
 	// testWIFederation is set by the provider config.
 	testWIFederation bool
 
+	// testImpersonation is set when impersonation testing is enabled.
+	testImpersonation bool
+
 	// testGitCfg is a struct containing different variables needed for running git tests.
 	testGitCfg *gitTestConfig
 
@@ -216,6 +280,13 @@ type getGitTestConfig func(output map[string]*tfjson.StateOutput) (*gitTestConfi
 
 // loadGitSSHSecret is used to load the SSH key pair for git authentication.
 type loadGitSSHSecret func(output map[string]*tfjson.StateOutput) (map[string]string, string, error)
+
+// getImpersonationAnnotations returns multiple sets of annotations for creating
+// impersonation-related service accounts. The returned map is keyed by SA name.
+type getImpersonationAnnotations func(output map[string]*tfjson.StateOutput) (map[string]map[string]string, error)
+
+// getControllerAnnotations returns annotations for a controller service account.
+type getControllerAnnotations func(output map[string]*tfjson.StateOutput) (map[string]map[string]string, error)
 
 // gitTestConfig hold different variable that will be needed by the different test functions.
 type gitTestConfig struct {
@@ -270,6 +341,13 @@ type ProviderConfig struct {
 	supportsGit bool
 	// loadGitSSHSecret is used to load the SSH key pair for git authentication.
 	loadGitSSHSecret loadGitSSHSecret
+	// supportsImpersonation indicates whether impersonation tests should run.
+	supportsImpersonation bool
+	// getImpersonationAnnotations returns annotations for impersonation target SAs.
+	getImpersonationAnnotations getImpersonationAnnotations
+	// getControllerAnnotations returns annotations for controller SAs
+	// used in impersonation testing.
+	getControllerAnnotations getControllerAnnotations
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
@@ -300,6 +378,7 @@ func TestMain(m *testing.M) {
 	if enableWI {
 		testWIDirectAccess = providerCfg.supportsWIDirectAccess
 		testWIFederation = providerCfg.supportsWIFederation
+		testImpersonation = providerCfg.supportsImpersonation
 		// we only support git with workload identity
 		testGit = providerCfg.supportsGit
 		// we only support cluster auth with workload identity
@@ -311,6 +390,13 @@ func TestMain(m *testing.M) {
 	os.Setenv(envVarWISANameDirectAccess, wiServiceAccountDirectAccess)
 	os.Setenv(envVarWISANameFederation, wiServiceAccountFederation)
 	os.Setenv(envVarWISANameFederationDirectAccess, wiServiceAccountFederationDirectAccess)
+	os.Setenv(envVarWISANameAssumeRole, wiAssumeRoleSA)
+	os.Setenv(envVarWISANameControllerIRSA, wiControllerIRSA)
+	os.Setenv(envVarWISANameControllerPodIdentity, wiControllerPodIdentity)
+	os.Setenv(envVarWISANameImpersonationTarget, wiImpersonateSA)
+	os.Setenv(envVarWISANameImpersonationDA, wiImpersonateDirectAccessSA)
+	os.Setenv(envVarWISANameController, controllerWIRBACName)
+	os.Setenv(envVarWISANameControllerGCPSA, wiControllerGCPSA)
 
 	// Run destroy-only mode if enabled.
 	if *destroyOnly {
@@ -432,6 +518,9 @@ func getProviderConfig(provider string) *ProviderConfig {
 			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryAWS,
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryAWS,
 			getGitTestConfig:                 getGitTestConfigAWS,
+			supportsImpersonation:            true,
+			getImpersonationAnnotations:      getImpersonationAnnotationsAWS,
+			getControllerAnnotations:         getControllerAnnotationsAWS,
 		}
 	case "azure":
 		providerCfg := &ProviderConfig{
@@ -464,6 +553,9 @@ func getProviderConfig(provider string) *ProviderConfig {
 			getGitTestConfig:                 getGitTestConfigGCP,
 			supportsWIDirectAccess:           true,
 			supportsWIFederation:             true,
+			supportsImpersonation:            true,
+			getImpersonationAnnotations:      getImpersonationAnnotationsGCP,
+			getControllerAnnotations:         getControllerAnnotationsGCP,
 		}
 	}
 	return nil
@@ -628,6 +720,32 @@ func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, 
 		}
 		if err := grantNamespaceAdminToClusterUsers(ctx, clusterUsers); err != nil {
 			panic(err)
+		}
+
+		if testImpersonation {
+			log.Println("Impersonation is enabled, creating controller and target service accounts")
+
+			// Create impersonation target SAs (provider-specific annotations).
+			impersonationAnnotations, err := providerCfg.getImpersonationAnnotations(tfOutput)
+			if err != nil {
+				panic(err)
+			}
+			for saName, saAnnotations := range impersonationAnnotations {
+				if err := createServiceAccountWithAnnotations(ctx, saName, saAnnotations); err != nil {
+					panic(fmt.Sprintf("failed to create impersonation SA %s: %v", saName, err))
+				}
+			}
+
+			// Create controller SAs for impersonation (provider-specific annotations).
+			controllerAnnotations, err := providerCfg.getControllerAnnotations(tfOutput)
+			if err != nil {
+				panic(err)
+			}
+			for saName, saAnnotations := range controllerAnnotations {
+				if err := createControllerServiceAccount(ctx, saName, saAnnotations); err != nil {
+					panic(fmt.Sprintf("failed to create controller SA %s: %v", saName, err))
+				}
+			}
 		}
 	}
 }
@@ -805,6 +923,73 @@ func createControllerWorkloadIdentityServiceAccount(ctx context.Context) error {
 	return nil
 }
 
+// createServiceAccountWithAnnotations creates a service account with the given
+// name and annotations in the default namespace.
+func createServiceAccountWithAnnotations(ctx context.Context, name string, annotations map[string]string) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: wiSANamespace,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, sa, func() error {
+		sa.Annotations = annotations
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create service account %s: %w", name, err)
+	}
+	return nil
+}
+
+// createControllerServiceAccount creates a controller service account with the
+// given name and annotations, and binds it to the existing controller ClusterRole
+// so it can impersonate workload identity service accounts.
+func createControllerServiceAccount(ctx context.Context, name string, annotations map[string]string) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: wiSANamespace,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, sa, func() error {
+		sa.Annotations = annotations
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create controller service account %s: %w", name, err)
+	}
+
+	// Bind the controller SA to the existing ClusterRole.
+	roleRef := rbacv1.RoleRef{
+		APIGroup: rbacv1.SchemeGroupVersion.Group,
+		Kind:     "ClusterRole",
+		Name:     controllerWIRBACName,
+	}
+	subjects := []rbacv1.Subject{{
+		Kind:      "ServiceAccount",
+		Name:      name,
+		Namespace: wiSANamespace,
+	}}
+	roleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		RoleRef:  roleRef,
+		Subjects: subjects,
+	}
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, roleBinding, func() error {
+		roleBinding.RoleRef = roleRef
+		roleBinding.Subjects = subjects
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create controller cluster role binding for %s: %w", name, err)
+	}
+
+	return nil
+}
+
 // createClusterConfigMapAndConfigureRBAC creates a configmap with the cluster
 // kubeconfig and configures RBAC to allow the test jobs to read it.
 func createClusterConfigMapAndConfigureRBAC(ctx context.Context, cmData map[string]string) error {
@@ -858,6 +1043,21 @@ func createClusterConfigMapAndConfigureRBAC(ctx context.Context, cmData map[stri
 		{
 			Kind:      "ServiceAccount",
 			Name:      controllerWIRBACName,
+			Namespace: cm.Namespace,
+		},
+		{
+			Kind:      "ServiceAccount",
+			Name:      wiControllerIRSA,
+			Namespace: cm.Namespace,
+		},
+		{
+			Kind:      "ServiceAccount",
+			Name:      wiControllerPodIdentity,
+			Namespace: cm.Namespace,
+		},
+		{
+			Kind:      "ServiceAccount",
+			Name:      wiControllerGCPSA,
 			Namespace: cm.Namespace,
 		},
 	}

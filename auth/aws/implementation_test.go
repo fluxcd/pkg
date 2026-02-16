@@ -61,6 +61,13 @@ type mockImplementation struct {
 	returnEndpoint     string
 	returnCAData       string
 	returnPresignedURL string
+
+	// AssumeRole fields
+	argAssumeRoleARN           string
+	argAssumeRoleSessionName   string
+	argAssumeRoleCredsProvider aws.CredentialsProvider
+	returnAssumeRoleCreds      aws.Credentials
+	returnAssumeRoleErr        error
 }
 
 type mockHTTPPresigner struct {
@@ -118,6 +125,43 @@ func (m *mockImplementation) AssumeRoleWithWebIdentity(ctx context.Context, para
 			SecretAccessKey: aws.String(m.returnCreds.SecretAccessKey),
 			SessionToken:    aws.String(m.returnCreds.SessionToken),
 			Expiration:      aws.Time(m.returnCreds.Expires),
+		},
+	}, nil
+}
+
+func (m *mockImplementation) AssumeRole(ctx context.Context, params *sts.AssumeRoleInput, options sts.Options) (*sts.AssumeRoleOutput, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(params).NotTo(BeNil())
+	g.Expect(params.RoleArn).NotTo(BeNil())
+	g.Expect(*params.RoleArn).To(Equal(m.argAssumeRoleARN))
+	g.Expect(params.RoleSessionName).NotTo(BeNil())
+	g.Expect(*params.RoleSessionName).To(Equal(m.argAssumeRoleSessionName))
+	g.Expect(options.Region).To(Equal(m.argRegion))
+	if m.argAssumeRoleCredsProvider != nil {
+		g.Expect(options.Credentials).To(Equal(m.argAssumeRoleCredsProvider))
+	}
+	if m.argSTSEndpoint != "" {
+		g.Expect(options.BaseEndpoint).NotTo(BeNil())
+		g.Expect(*options.BaseEndpoint).To(Equal(m.argSTSEndpoint))
+	}
+	g.Expect(options.HTTPClient).NotTo(BeNil())
+	g.Expect(options.HTTPClient.(*http.Client)).NotTo(BeNil())
+	g.Expect(options.HTTPClient.(*http.Client).Transport).NotTo(BeNil())
+	g.Expect(options.HTTPClient.(*http.Client).Transport.(*http.Transport)).NotTo(BeNil())
+	g.Expect(options.HTTPClient.(*http.Client).Transport.(*http.Transport).Proxy).NotTo(BeNil())
+	proxyURL, err := options.HTTPClient.(*http.Client).Transport.(*http.Transport).Proxy(nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(proxyURL).To(Equal(m.argProxyURL))
+	if m.returnAssumeRoleErr != nil {
+		return nil, m.returnAssumeRoleErr
+	}
+	return &sts.AssumeRoleOutput{
+		Credentials: &ststypes.Credentials{
+			AccessKeyId:     aws.String(m.returnAssumeRoleCreds.AccessKeyID),
+			SecretAccessKey: aws.String(m.returnAssumeRoleCreds.SecretAccessKey),
+			SessionToken:    aws.String(m.returnAssumeRoleCreds.SessionToken),
+			Expiration:      aws.Time(m.returnAssumeRoleCreds.Expires),
 		},
 	}, nil
 }

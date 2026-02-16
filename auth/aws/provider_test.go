@@ -138,7 +138,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			name:        "invalid role ARN",
 			roleARN:     "foobar",
 			stsEndpoint: "https://sts.amazonaws.com",
-			err:         `invalid eks.amazonaws.com/role-arn annotation: 'foobar'. must match ^arn:aws[\w-]*:iam::[0-9]{1,30}:role/.{1,200}$`,
+			err:         `invalid eks.amazonaws.com/role-arn annotation: 'foobar'. must match ^arn:aws[\w-]*:iam::[0-9]{1,30}:role/(.{1,200})$`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -212,6 +212,149 @@ func TestProvider_GetIdentity(t *testing.T) {
 	})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(identity).To(Equal("arn:aws:iam::1234567890:role/some-role"))
+}
+
+func TestProvider_GetImpersonationAnnotationKey(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(aws.Provider{}.GetImpersonationAnnotationKey()).To(Equal("assume-role"))
+}
+
+func TestProvider_GetIdentityForImpersonation(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		identity string
+		expected string
+		err      string
+	}{
+		{
+			name:     "valid role ARN",
+			identity: `{"roleARN":"arn:aws:iam::123456789012:role/some-role"}`,
+			expected: "arn:aws:iam::123456789012:role/some-role",
+		},
+		{
+			name:     "valid us-gov role ARN",
+			identity: `{"roleARN":"arn:aws-us-gov:iam::123456789012:role/some-role"}`,
+			expected: "arn:aws-us-gov:iam::123456789012:role/some-role",
+		},
+		{
+			name:     "invalid role ARN",
+			identity: `{"roleARN":"foobar"}`,
+			err:      "invalid role ARN in impersonation identity: 'foobar'",
+		},
+		{
+			name:     "empty role ARN",
+			identity: `{"roleARN":""}`,
+			err:      "invalid role ARN in impersonation identity: ''",
+		},
+		{
+			name:     "invalid JSON",
+			identity: `{invalid`,
+			err:      "failed to unmarshal impersonation identity",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			identity, err := aws.Provider{}.GetIdentityForImpersonation([]byte(tt.identity))
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(identity).To(BeNil())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(identity).NotTo(BeNil())
+				g.Expect(identity.String()).To(Equal(tt.expected))
+			}
+		})
+	}
+}
+
+func TestProvider_NewTokenForIdentity(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		roleARN     string
+		stsEndpoint string
+		skipRegion  bool
+		err         string
+	}{
+		{
+			name:        "valid",
+			roleARN:     "arn:aws:iam::123456789012:role/target-role",
+			stsEndpoint: "https://sts.amazonaws.com",
+		},
+		{
+			name:        "us gov role ARN",
+			roleARN:     "arn:aws-us-gov:iam::123456789012:role/target-role",
+			stsEndpoint: "https://sts.amazonaws.com",
+		},
+		{
+			name:        "missing region",
+			roleARN:     "arn:aws:iam::123456789012:role/target-role",
+			stsEndpoint: "https://sts.amazonaws.com",
+			skipRegion:  true,
+			err: "an AWS region is required for authenticating with a service account. " +
+				"please configure one in the object spec",
+		},
+		{
+			name:        "invalid STS endpoint",
+			roleARN:     "arn:aws:iam::123456789012:role/target-role",
+			stsEndpoint: "https://something.amazonaws.com",
+			err:         `invalid STS endpoint: 'https://something.amazonaws.com'`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			impl := &mockImplementation{
+				t:                          t,
+				argRegion:                  "us-east-1",
+				argAssumeRoleARN:           tt.roleARN,
+				argAssumeRoleSessionName:   "target-role.us-east-1.fluxcd.io",
+				argAssumeRoleCredsProvider: credentials.NewStaticCredentialsProvider("initial-key-id", "initial-secret", "initial-session"),
+				argProxyURL:                &url.URL{Scheme: "http", Host: "proxy.example.com"},
+				argSTSEndpoint:             tt.stsEndpoint,
+				returnAssumeRoleCreds:      awssdk.Credentials{AccessKeyID: "assumed-key-id"},
+			}
+
+			// Create the identity via GetIdentityForImpersonation.
+			identity, err := aws.Provider{}.GetIdentityForImpersonation(
+				[]byte(`{"roleARN":"` + tt.roleARN + `"}`))
+			g.Expect(err).NotTo(HaveOccurred())
+
+			// Create a mock initial token.
+			initialToken := &aws.Credentials{Credentials: types.Credentials{
+				AccessKeyId:     awssdk.String("initial-key-id"),
+				SecretAccessKey: awssdk.String("initial-secret"),
+				SessionToken:    awssdk.String("initial-session"),
+			}}
+
+			opts := []auth.Option{
+				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+				auth.WithSTSEndpoint(tt.stsEndpoint),
+			}
+			if !tt.skipRegion {
+				opts = append(opts, auth.WithSTSRegion("us-east-1"))
+			}
+
+			provider := aws.Provider{Implementation: impl}
+			token, err := provider.NewTokenForIdentity(context.Background(), initialToken, identity, opts...)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(token).To(BeNil())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(token).To(Equal(&aws.Credentials{Credentials: types.Credentials{
+					AccessKeyId:     awssdk.String("assumed-key-id"),
+					SecretAccessKey: awssdk.String(""),
+					SessionToken:    awssdk.String(""),
+					Expiration:      awssdk.Time(time.Time{}),
+				}}))
+			}
+		})
+	}
 }
 
 func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {

@@ -128,13 +128,68 @@ func getClusterUsersGCP(output map[string]*tfjson.StateOutput) ([]string, error)
 		"wi_iam_serviceaccount_email",
 		"wi_k8s_sa_principal_direct_access",
 		"wi_k8s_sa_principal_direct_access_federation",
+		"impersonation_target_email",
 	} {
-		if clusterUser := output[key].Value.(string); clusterUser != "" {
-			clusterUsers = append(clusterUsers, clusterUser)
+		if v, ok := output[key]; ok {
+			if clusterUser := v.Value.(string); clusterUser != "" {
+				clusterUsers = append(clusterUsers, clusterUser)
+			}
 		}
 	}
 
 	return clusterUsers, nil
+}
+
+// getImpersonationAnnotationsGCP returns annotations for impersonation target SAs.
+func getImpersonationAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]map[string]string, error) {
+	targetEmail := output["impersonation_target_email"].Value.(string)
+	if targetEmail == "" {
+		return nil, fmt.Errorf("no impersonation target email in terraform output")
+	}
+	saEmail := output["wi_iam_serviceaccount_email"].Value.(string)
+	if saEmail == "" {
+		return nil, fmt.Errorf("no GCP serviceaccount email in terraform output")
+	}
+	wip := output["workload_identity_provider"].Value.(string)
+	if wip == "" {
+		return nil, fmt.Errorf("no workload identity provider in terraform output")
+	}
+
+	return map[string]map[string]string{
+		// Controller-level target SA (useServiceAccount: false).
+		wiImpersonateCtrlSA: {
+			"gcp.auth.fluxcd.io/impersonate": fmt.Sprintf(
+				`{"gcpServiceAccount":"%s","useServiceAccount":false}`, targetEmail),
+		},
+		// Object-level target SA with GCP SA (useServiceAccount: true).
+		wiImpersonateSA: {
+			gcpIAMAnnotation: saEmail,
+			"gcp.auth.fluxcd.io/impersonate": fmt.Sprintf(
+				`{"gcpServiceAccount":"%s","useServiceAccount":true}`, targetEmail),
+		},
+		// Object-level target SA with WIF federation direct access (useServiceAccount: true).
+		wiImpersonateDirectAccessSA: {
+			gcpWorkloadIdentityProviderAnnotation: wip,
+			"gcp.auth.fluxcd.io/impersonate": fmt.Sprintf(
+				`{"gcpServiceAccount":"%s","useServiceAccount":true}`, targetEmail),
+		},
+	}, nil
+}
+
+// getControllerAnnotationsGCP returns annotations for controller SAs used in
+// impersonation testing.
+func getControllerAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]map[string]string, error) {
+	saEmail := output["wi_iam_serviceaccount_email"].Value.(string)
+	if saEmail == "" {
+		return nil, fmt.Errorf("no GCP serviceaccount email in terraform output")
+	}
+
+	return map[string]map[string]string{
+		// Controller with GCP SA annotation (gets GCP SA-impersonated token from GKE metadata).
+		wiControllerGCPSA: {
+			gcpIAMAnnotation: saEmail,
+		},
+	}, nil
 }
 
 // When implemented, getGitTestConfigGCP would return the git-specific test config for GCP

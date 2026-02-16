@@ -29,19 +29,25 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google/externalaccount"
 	"google.golang.org/api/container/v1"
+	"google.golang.org/api/impersonate"
+	"google.golang.org/api/option"
 )
 
 type mockImplementation struct {
 	t *testing.T
 
-	expectGKEAPICall bool
+	expectGKEAPICall           bool
+	expectImpersonationAPICall bool
 
-	argConfig   externalaccount.Config
-	argProxyURL *url.URL
-	argCluster  string
+	argConfig            externalaccount.Config
+	argProxyURL          *url.URL
+	argCluster           string
+	argImpersonateTarget string
 
-	returnToken   *oauth2.Token
-	returnCluster *container.Cluster
+	returnToken             *oauth2.Token
+	returnCluster           *container.Cluster
+	returnImpersonatedToken *oauth2.Token
+	returnImpersonationErr  error
 }
 
 func (m *mockImplementation) DefaultTokenSource(ctx context.Context, scope ...string) (oauth2.TokenSource, error) {
@@ -109,4 +115,21 @@ func (m *mockImplementation) GetCluster(ctx context.Context, cluster string, cli
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(proxyURL).To(Equal(m.argProxyURL))
 	return m.returnCluster, nil
+}
+
+func (m *mockImplementation) CredentialsTokenSource(ctx context.Context, conf impersonate.CredentialsConfig, opts ...option.ClientOption) (oauth2.TokenSource, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(m.expectImpersonationAPICall).To(BeTrue())
+	g.Expect(ctx).NotTo(BeNil())
+	g.Expect(conf.TargetPrincipal).To(Equal(m.argImpersonateTarget))
+	g.Expect(conf.Scopes).To(Equal([]string{
+		"https://www.googleapis.com/auth/cloud-platform",
+		"https://www.googleapis.com/auth/userinfo.email",
+	}))
+	g.Expect(opts).To(HaveLen(1))
+	if m.returnImpersonationErr != nil {
+		return nil, m.returnImpersonationErr
+	}
+	return oauth2.StaticTokenSource(m.returnImpersonatedToken), nil
 }

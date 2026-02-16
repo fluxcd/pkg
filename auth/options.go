@@ -36,6 +36,7 @@ type Options struct {
 	Cache                   *cache.TokenCache
 	ServiceAccountName      string
 	ServiceAccountNamespace string
+	DefaultServiceAccount   string
 	InvolvedObject          cache.InvolvedObject
 	Audiences               []string
 	Scopes                  []string
@@ -48,13 +49,9 @@ type Options struct {
 	AllowShellOut           bool
 }
 
-// ShouldGetServiceAccountToken returns true if ServiceAccount token should be retrieved.
-func (o *Options) ShouldGetServiceAccountToken() bool {
-	// ServiceAccount namespace is required because ServiceAccounts are namespace-scoped resources.
-	// ServiceAccountName can be empty as it may be provided by defaultServiceAccount or by
-	// defaultKubeConfigServiceAccount.
-	return o.ServiceAccountNamespace != "" &&
-		(o.ServiceAccountName != "" || getDefaultServiceAccount() != "")
+// ShouldGetServiceAccount returns true if a ServiceAccount should be retrieved.
+func (o *Options) ShouldGetServiceAccount() bool {
+	return o.ServiceAccountName != "" || o.DefaultServiceAccount != ""
 }
 
 // WithClient sets the controller-runtime client for the provider.
@@ -75,6 +72,14 @@ func WithServiceAccountName(name string) Option {
 func WithServiceAccountNamespace(namespace string) Option {
 	return func(o *Options) {
 		o.ServiceAccountNamespace = namespace
+	}
+}
+
+// WithDefaultServiceAccount sets the default ServiceAccount name for the token
+// if ServiceAccountName is not provided.
+func WithDefaultServiceAccount(name string) Option {
+	return func(o *Options) {
+		o.DefaultServiceAccount = name
 	}
 }
 
