@@ -75,7 +75,7 @@ func GetConfigOrDie(opts Options) *rest.Config {
 	config := ctrl.GetConfigOrDie()
 	enabled, err := flowcontrol.IsEnabled(context.Background(), config)
 	if err == nil && enabled {
-		// A negative QPS and Burst indicates that the client should not have a rate limiter.
+		// A negative QPS indicates that the client should not have a rate limiter.
 		// Ref: https://github.com/kubernetes/kubernetes/blob/v1.24.0/staging/src/k8s.io/client-go/rest/config.go#L354-L364
 		config.QPS = -1
 		config.Burst = -1
