@@ -15,9 +15,12 @@ jobs:
           fetch-depth: 0
       - name: Setup Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version-file: cmd/go.mod
+          cache-dependency-path: "**/go.sum"
       - run: git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - run: git config --global user.name "github-actions[bot]"
-      - run: make tools
+      - run: make flux-tools
       - run: ./bin/flux-tools pkg prep --yes
       - run: git add .
       - run: git commit -m "Release preview" || true
