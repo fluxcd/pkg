@@ -183,8 +183,17 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 		if strings.HasSuffix(registry, registrySuffix) {
 			return registry, nil
 		}
+		// Skip validation if configured (allows custom registry proxies)
+		if auth.GetOCISkipRegistryValidation() {
+			return registry, nil
+		}
 		return "", fmt.Errorf("invalid Azure registry: '%s'. must end with %s",
 			registry, registrySuffix)
+	}
+
+	// Skip validation if configured (allows custom registry proxies)
+	if auth.GetOCISkipRegistryValidation() {
+		return registry, nil
 	}
 
 	return "", fmt.Errorf("invalid Azure registry: '%s'. must match %s",

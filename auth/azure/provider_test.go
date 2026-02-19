@@ -313,6 +313,43 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 	}
 }
 
+func TestProvider_ParseArtifactRegistry_SkipValidation(t *testing.T) {
+	g := NewWithT(t)
+
+	auth.SetOCISkipRegistryValidation(true)
+	t.Cleanup(func() { auth.SetOCISkipRegistryValidation(false) })
+
+	// Test that invalid registries are accepted when skip validation is enabled
+	for _, tt := range []struct {
+		name               string
+		artifactRepository string
+		expectedRegistry   string
+	}{
+		{
+			name:               "custom proxy",
+			artifactRepository: "oci-gateway.example.org/oci/charts/",
+			expectedRegistry:   "oci-gateway.example.org",
+		},
+		{
+			name:               "non-Azure registry",
+			artifactRepository: "gcr.io/foo/bar:baz",
+			expectedRegistry:   "gcr.io",
+		},
+		{
+			name:               "private registry",
+			artifactRepository: "registry.internal.company.com/images",
+			expectedRegistry:   "registry.internal.company.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			registry, err := azure.Provider{}.ParseArtifactRepository(tt.artifactRepository)
+
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(registry).To(Equal(tt.expectedRegistry))
+		})
+	}
+}
+
 func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
 	for _, tt := range []struct {
 		name               string

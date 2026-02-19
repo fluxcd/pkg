@@ -101,3 +101,29 @@ func TestGetDefaultDecryptionServiceAccount(t *testing.T) {
 		g.Expect(auth.GetDefaultDecryptionServiceAccount()).To(Equal(""))
 	})
 }
+
+func TestSetOCISkipRegistryValidation(t *testing.T) {
+	g := NewWithT(t)
+
+	auth.SetOCISkipRegistryValidation(true)
+	t.Cleanup(func() { auth.SetOCISkipRegistryValidation(false) })
+
+	g.Expect(auth.GetOCISkipRegistryValidation()).To(BeTrue())
+}
+
+func TestGetOCISkipRegistryValidation(t *testing.T) {
+	t.Run("returns true when set", func(t *testing.T) {
+		g := NewWithT(t)
+
+		auth.SetOCISkipRegistryValidation(true)
+		t.Cleanup(func() { auth.SetOCISkipRegistryValidation(false) })
+
+		g.Expect(auth.GetOCISkipRegistryValidation()).To(BeTrue())
+	})
+
+	t.Run("returns false when not set", func(t *testing.T) {
+		g := NewWithT(t)
+
+		g.Expect(auth.GetOCISkipRegistryValidation()).To(BeFalse())
+	})
+}

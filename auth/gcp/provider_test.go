@@ -331,6 +331,39 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 	}
 }
 
+func TestProvider_ParseArtifactRegistry_SkipValidation(t *testing.T) {
+	g := NewWithT(t)
+
+	auth.SetOCISkipRegistryValidation(true)
+	t.Cleanup(func() { auth.SetOCISkipRegistryValidation(false) })
+
+	// Test that invalid registries are accepted when skip validation is enabled
+	for _, tt := range []struct {
+		name               string
+		artifactRepository string
+	}{
+		{
+			name:               "custom proxy",
+			artifactRepository: "oci-gateway.example.org/oci/charts/",
+		},
+		{
+			name:               "non-GCP registry",
+			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com",
+		},
+		{
+			name:               "private registry",
+			artifactRepository: "registry.internal.company.com/images",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cacheKey, err := gcp.Provider{}.ParseArtifactRepository(tt.artifactRepository)
+
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(cacheKey).To(Equal("gcp"))
+		})
+	}
+}
+
 func TestProvider_NewRESTConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
