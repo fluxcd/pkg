@@ -2,8 +2,11 @@ module github.com/fluxcd/pkg/cmd
 
 go 1.25.0
 
+replace github.com/fluxcd/pkg/version => ../version
+
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
+	github.com/fluxcd/pkg/version v0.12.0
 	github.com/go-git/go-git/v5 v5.16.5
 	github.com/spf13/cobra v1.10.2
 )
@@ -21,7 +24,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/onsi/gomega v1.39.0 // indirect
 	github.com/pjbgf/sha1cd v0.4.0 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
