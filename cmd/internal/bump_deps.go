@@ -27,27 +27,9 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/storage/memory"
+
+	"github.com/fluxcd/pkg/version"
 )
-
-// Baseline: controller minor versions at flux 2.7.
-// For each flux2 minor bump, all controller minors increase by 1.
-// Every time a new controller is added, this baseline should be
-// updated to the flux2 minor at which it was added.
-const baselineFluxMinor = 7
-
-var controllerBaselineMinor = map[string]int{
-	// the distro itself
-	"flux2": baselineFluxMinor, // 2.7
-
-	// controllers
-	"source-controller":           7, // 1.7
-	"kustomize-controller":        7, // 1.7
-	"helm-controller":             4, // 1.4
-	"notification-controller":     7, // 1.7
-	"image-reflector-controller":  0, // 1.0
-	"image-automation-controller": 0, // 1.0
-	"source-watcher":              0, // 2.0
-}
 
 const pkgRepoURL = "https://github.com/fluxcd/pkg.git"
 
@@ -184,26 +166,27 @@ func detectControllerName(repoPath string) (string, error) {
 // releaseBranchRegex matches branch names like "release/v1.5.x" or "release/v2.3.x".
 var releaseBranchRegex = regexp.MustCompile(`^release/v\d+\.(\d+)\.x$`)
 
-// mapToPkgBranch maps a caller repo branch to the corresponding fluxcd/pkg branch
-// using the controller's baseline minor version offset.
-func mapToPkgBranch(branch, controllerName string, preReleasePkg bool) (string, error) {
+// mapToPkgBranch maps a caller repo branch to the corresponding fluxcd/pkg
+// branch using the controller's baseline minor version offset.
+// This function also works for controllerName="flux2" and
+// controllerBranch=<flux2 repo branch>.
+func mapToPkgBranch(controllerBranch, controllerName string, preReleasePkg bool) (string, error) {
 	switch {
 	case preReleasePkg: // TODO: remove after 2.8.0 is released
 		return "flux/v2.8.x", nil
-	case branch == "main":
+	case controllerBranch == "main":
 		return "main", nil
 	}
-	m := releaseBranchRegex.FindStringSubmatch(branch)
+	m := releaseBranchRegex.FindStringSubmatch(controllerBranch)
 	if m == nil {
-		fmt.Printf("Warning: branch %q does not match expected patterns, defaulting to main\n", branch)
+		fmt.Printf("Warning: branch %q does not match expected patterns, defaulting to main\n", controllerBranch)
 		return "main", nil
 	}
-	branchMinor, _ := strconv.Atoi(m[1])
-	baseline, ok := controllerBaselineMinor[controllerName]
-	if !ok {
-		return "", fmt.Errorf("unknown controller %q: not in baseline mapping", controllerName)
+	controllerBranchMinor, _ := strconv.Atoi(m[1])
+	fluxMinor, err := version.FluxMinorForControllerMinor(controllerName, controllerBranchMinor)
+	if err != nil {
+		return "", err
 	}
-	fluxMinor := baselineFluxMinor + (branchMinor - baseline)
 	return fmt.Sprintf("flux/v2.%d.x", fluxMinor), nil
 }
 
