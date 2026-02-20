@@ -192,15 +192,15 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 	}{
 		{
 			registry:      "foo.azurecr.io",
-			expectedScope: "https://management.azure.com/.default",
+			expectedScope: "https://containerregistry.azure.net/.default",
 		},
 		{
 			registry:      "foo.azurecr.cn",
-			expectedScope: "https://management.chinacloudapi.cn/.default",
+			expectedScope: "https://containerregistry.azure.net/.default",
 		},
 		{
 			registry:      "foo.azurecr.us",
-			expectedScope: "https://management.usgovcloudapi.net/.default",
+			expectedScope: "https://containerregistry.azure.net/.default",
 		},
 	} {
 		t.Run(tt.registry, func(t *testing.T) {
@@ -323,22 +323,22 @@ func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
 		{
 			name:               "Azure Public Cloud",
 			artifactRepository: "myregistry.azurecr.io",
-			expectedScope:      "https://management.azure.com/.default",
+			expectedScope:      "https://containerregistry.azure.net/.default",
 		},
 		{
 			name:               "Azure China Cloud",
 			artifactRepository: "myregistry.azurecr.cn",
-			expectedScope:      "https://management.chinacloudapi.cn/.default",
+			expectedScope:      "https://containerregistry.azure.net/.default",
 		},
 		{
 			name:               "Azure Government Cloud",
 			artifactRepository: "myregistry.azurecr.us",
-			expectedScope:      "https://management.usgovcloudapi.net/.default",
+			expectedScope:      "https://containerregistry.azure.net/.default",
 		},
 		{
 			name:               "Invalid registry",
 			artifactRepository: "myregistry.invalid.io",
-			expectedScope:      "https://management.azure.com/.default",
+			expectedScope:      "https://containerregistry.azure.net/.default",
 		},
 		{
 			name:               "Custom environment file",
