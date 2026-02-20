@@ -15,7 +15,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.6.1
 	github.com/fluxcd/pkg/apis/meta v1.25.0
 	github.com/fluxcd/pkg/lockedfile v0.7.0
-	github.com/fluxcd/pkg/oci v0.60.0
+	github.com/fluxcd/pkg/oci v0.61.0
 	github.com/fluxcd/pkg/sourceignore v0.17.0
 	github.com/fluxcd/pkg/tar v0.17.0
 	github.com/onsi/gomega v1.39.0
@@ -35,7 +35,7 @@ require (
 	github.com/docker/cli v29.1.5+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
-	github.com/fluxcd/pkg/version v0.12.0 // indirect
+	github.com/fluxcd/pkg/version v0.13.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
