@@ -82,95 +82,105 @@ func TestSort(t *testing.T) {
 	}))
 }
 
-func TestControllerMajor(t *testing.T) {
+func TestRepoMajor(t *testing.T) {
 	g := NewWithT(t)
-	g.Expect(ControllerMajor("flux2")).To(Equal(2))
-	g.Expect(ControllerMajor("source-controller")).To(Equal(1))
-	g.Expect(ControllerMajor("kustomize-controller")).To(Equal(1))
-	g.Expect(ControllerMajor("helm-controller")).To(Equal(1))
-	g.Expect(ControllerMajor("notification-controller")).To(Equal(1))
-	g.Expect(ControllerMajor("image-reflector-controller")).To(Equal(1))
-	g.Expect(ControllerMajor("image-automation-controller")).To(Equal(1))
-	g.Expect(ControllerMajor("source-watcher")).To(Equal(2))
+	g.Expect(RepoMajor("flux2")).To(Equal(2))
+	g.Expect(RepoMajor("source-controller")).To(Equal(1))
+	g.Expect(RepoMajor("kustomize-controller")).To(Equal(1))
+	g.Expect(RepoMajor("helm-controller")).To(Equal(1))
+	g.Expect(RepoMajor("notification-controller")).To(Equal(1))
+	g.Expect(RepoMajor("image-reflector-controller")).To(Equal(1))
+	g.Expect(RepoMajor("image-automation-controller")).To(Equal(1))
+	g.Expect(RepoMajor("source-watcher")).To(Equal(2))
 
-	_, err := ControllerMajor("unknown-controller")
+	_, err := RepoMajor("unknown-controller")
 	g.Expect(err).To(HaveOccurred())
 }
 
-func TestControllerMinorForFluxMinor(t *testing.T) {
+func TestRepoMinorForFluxMinor(t *testing.T) {
 	tests := []struct {
-		name           string
-		controllerName string
-		flux2Minor     int
-		expected       int
-		expectErr      bool
+		name       string
+		repoName   string
+		flux2Minor int
+		expected   int
+		expectErr  bool
 	}{
 		{
-			name:           "flux2 identity",
-			controllerName: "flux2",
-			flux2Minor:     7,
-			expected:       7,
+			name:       "flux2 identity",
+			repoName:   "flux2",
+			flux2Minor: 7,
+			expected:   7,
 		},
 		{
-			name:           "flux2 higher minor",
-			controllerName: "flux2",
-			flux2Minor:     10,
-			expected:       10,
+			name:       "flux2 higher minor",
+			repoName:   "flux2",
+			flux2Minor: 10,
+			expected:   10,
 		},
 		{
-			name:           "source-controller at baseline",
-			controllerName: "source-controller",
-			flux2Minor:     7,
-			expected:       7,
+			name:       "source-controller at baseline",
+			repoName:   "source-controller",
+			flux2Minor: 7,
+			expected:   7,
 		},
 		{
-			name:           "source-controller above baseline",
-			controllerName: "source-controller",
-			flux2Minor:     9,
-			expected:       9,
+			name:       "source-controller above baseline",
+			repoName:   "source-controller",
+			flux2Minor: 9,
+			expected:   9,
 		},
 		{
-			name:           "helm-controller at baseline",
-			controllerName: "helm-controller",
-			flux2Minor:     7,
-			expected:       4,
+			name:       "helm-controller at baseline",
+			repoName:   "helm-controller",
+			flux2Minor: 7,
+			expected:   4,
 		},
 		{
-			name:           "helm-controller above baseline",
-			controllerName: "helm-controller",
-			flux2Minor:     10,
-			expected:       7,
+			name:       "helm-controller above baseline",
+			repoName:   "helm-controller",
+			flux2Minor: 10,
+			expected:   7,
 		},
 		{
-			name:           "image-reflector-controller at baseline",
-			controllerName: "image-reflector-controller",
-			flux2Minor:     7,
-			expected:       0,
+			name:       "image-reflector-controller at baseline",
+			repoName:   "image-reflector-controller",
+			flux2Minor: 7,
+			expected:   0,
 		},
 		{
-			name:           "image-reflector-controller above baseline",
-			controllerName: "image-reflector-controller",
-			flux2Minor:     8,
-			expected:       1,
+			name:       "image-reflector-controller above baseline",
+			repoName:   "image-reflector-controller",
+			flux2Minor: 8,
+			expected:   1,
 		},
 		{
-			name:           "source-watcher at baseline",
-			controllerName: "source-watcher",
-			flux2Minor:     7,
-			expected:       0,
+			name:       "source-watcher at baseline",
+			repoName:   "source-watcher",
+			flux2Minor: 7,
+			expected:   0,
 		},
 		{
-			name:           "unknown controller",
-			controllerName: "unknown-controller",
-			flux2Minor:     7,
-			expectErr:      true,
+			// Negative results are valid: the baseline is a reference
+			// point for the linear offset, not a statement about when
+			// the repository was introduced in the distribution. We
+			// don't offer such API in this package at the moment.
+			name:       "source-watcher before baseline",
+			repoName:   "source-watcher",
+			flux2Minor: 6,
+			expected:   -1,
+		},
+		{
+			name:       "unknown repository",
+			repoName:   "unknown-repo",
+			flux2Minor: 7,
+			expectErr:  true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-			result, err := ControllerMinorForFluxMinor(tc.controllerName, tc.flux2Minor)
+			result, err := RepoMinorForFluxMinor(tc.repoName, tc.flux2Minor)
 			if tc.expectErr {
 				g.Expect(err).To(HaveOccurred())
 			} else {
@@ -181,80 +191,86 @@ func TestControllerMinorForFluxMinor(t *testing.T) {
 	}
 }
 
-func TestFluxMinorForControllerMinor(t *testing.T) {
+func TestFluxMinorForRepoMinor(t *testing.T) {
 	tests := []struct {
-		name            string
-		controllerName  string
-		controllerMinor int
-		expected        int
-		expectErr       bool
+		name      string
+		repoName  string
+		repoMinor int
+		expected  int
+		expectErr bool
 	}{
 		{
-			name:            "flux2 identity",
-			controllerName:  "flux2",
-			controllerMinor: 7,
-			expected:        7,
+			name:      "flux2 identity",
+			repoName:  "flux2",
+			repoMinor: 7,
+			expected:  7,
 		},
 		{
-			name:            "flux2 higher minor",
-			controllerName:  "flux2",
-			controllerMinor: 10,
-			expected:        10,
+			name:      "flux2 higher minor",
+			repoName:  "flux2",
+			repoMinor: 10,
+			expected:  10,
 		},
 		{
-			name:            "source-controller at baseline",
-			controllerName:  "source-controller",
-			controllerMinor: 7,
-			expected:        7,
+			name:      "source-controller at baseline",
+			repoName:  "source-controller",
+			repoMinor: 7,
+			expected:  7,
 		},
 		{
-			name:            "source-controller above baseline",
-			controllerName:  "source-controller",
-			controllerMinor: 9,
-			expected:        9,
+			name:      "source-controller above baseline",
+			repoName:  "source-controller",
+			repoMinor: 9,
+			expected:  9,
 		},
 		{
-			name:            "helm-controller at baseline",
-			controllerName:  "helm-controller",
-			controllerMinor: 4,
-			expected:        7,
+			name:      "helm-controller at baseline",
+			repoName:  "helm-controller",
+			repoMinor: 4,
+			expected:  7,
 		},
 		{
-			name:            "helm-controller above baseline",
-			controllerName:  "helm-controller",
-			controllerMinor: 7,
-			expected:        10,
+			name:      "helm-controller above baseline",
+			repoName:  "helm-controller",
+			repoMinor: 7,
+			expected:  10,
 		},
 		{
-			name:            "image-reflector-controller at baseline",
-			controllerName:  "image-reflector-controller",
-			controllerMinor: 0,
-			expected:        7,
+			name:      "image-reflector-controller at baseline",
+			repoName:  "image-reflector-controller",
+			repoMinor: 0,
+			expected:  7,
 		},
 		{
-			name:            "image-reflector-controller above baseline",
-			controllerName:  "image-reflector-controller",
-			controllerMinor: 1,
-			expected:        8,
+			name:      "image-reflector-controller above baseline",
+			repoName:  "image-reflector-controller",
+			repoMinor: 1,
+			expected:  8,
 		},
 		{
-			name:            "source-watcher at baseline",
-			controllerName:  "source-watcher",
-			controllerMinor: 0,
-			expected:        7,
+			name:      "source-watcher at baseline",
+			repoName:  "source-watcher",
+			repoMinor: 0,
+			expected:  7,
 		},
 		{
-			name:            "unknown controller",
-			controllerName:  "unknown-controller",
-			controllerMinor: 7,
-			expectErr:       true,
+			name:      "helm-controller before baseline",
+			repoName:  "helm-controller",
+			repoMinor: 3,
+			expected:  6,
+		},
+		{
+			name:      "unknown repository",
+			repoName:  "unknown-repo",
+			repoMinor: 7,
+			expectErr: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-			result, err := FluxMinorForControllerMinor(tc.controllerName, tc.controllerMinor)
+			result, err := FluxMinorForRepoMinor(tc.repoName, tc.repoMinor)
 			if tc.expectErr {
 				g.Expect(err).To(HaveOccurred())
 			} else {
@@ -265,17 +281,17 @@ func TestFluxMinorForControllerMinor(t *testing.T) {
 	}
 }
 
-func TestControllerMinorFluxMinorRoundTrip(t *testing.T) {
+func TestRepoMinorFluxMinorRoundTrip(t *testing.T) {
 	g := NewWithT(t)
 
-	for controllerName := range baselineControllerMinors {
-		for flux2Minor := BaselineFlux2Minor; flux2Minor <= BaselineFlux2Minor+5; flux2Minor++ {
-			controllerMinor, err := ControllerMinorForFluxMinor(controllerName, flux2Minor)
-			g.Expect(err).NotTo(HaveOccurred(), "controller: %s, flux2Minor: %d", controllerName, flux2Minor)
+	for repoName, cv := range baseline {
+		for flux2Minor := cv.flux2Minor; flux2Minor <= cv.flux2Minor+5; flux2Minor++ {
+			repoMinor, err := RepoMinorForFluxMinor(repoName, flux2Minor)
+			g.Expect(err).NotTo(HaveOccurred(), "repo: %s, flux2Minor: %d", repoName, flux2Minor)
 
-			roundTripped, err := FluxMinorForControllerMinor(controllerName, controllerMinor)
-			g.Expect(err).NotTo(HaveOccurred(), "controller: %s, controllerMinor: %d", controllerName, controllerMinor)
-			g.Expect(roundTripped).To(Equal(flux2Minor), "round-trip failed for controller: %s, flux2Minor: %d", controllerName, flux2Minor)
+			roundTripped, err := FluxMinorForRepoMinor(repoName, repoMinor)
+			g.Expect(err).NotTo(HaveOccurred(), "repo: %s, repoMinor: %d", repoName, repoMinor)
+			g.Expect(roundTripped).To(Equal(flux2Minor), "round-trip failed for repo: %s, flux2Minor: %d", repoName, flux2Minor)
 		}
 	}
 }
