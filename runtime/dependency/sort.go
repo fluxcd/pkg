@@ -56,7 +56,11 @@ func Sort(objects []Dependent) ([]meta.NamespacedObjectReference, error) {
 			Namespace: obj.GetNamespace(),
 		}
 		vertices = append(vertices, u)
-		for _, v := range obj.GetDependsOn() {
+		for _, depRef := range obj.GetDependsOn() {
+			v := meta.NamespacedObjectReference{
+				Name:      depRef.Name,
+				Namespace: depRef.Namespace,
+			}
 			if v.Namespace == "" {
 				v.Namespace = obj.GetNamespace()
 			}
