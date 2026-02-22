@@ -183,7 +183,7 @@ func mapToPkgBranch(controllerBranch, controllerName string, preReleasePkg bool)
 		return "main", nil
 	}
 	controllerBranchMinor, _ := strconv.Atoi(m[1])
-	fluxMinor, err := version.FluxMinorForControllerMinor(controllerName, controllerBranchMinor)
+	fluxMinor, err := version.FluxMinorForRepoMinor(controllerName, controllerBranchMinor)
 	if err != nil {
 		return "", err
 	}

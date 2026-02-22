@@ -54,66 +54,68 @@ func Sort(c *semver.Constraints, vs []string) []string {
 	return sorted
 }
 
-// controllerVersion holds a major and minor version for a controller.
-type controllerVersion struct {
+// repositoryBaseline holds the baseline version information for a repository.
+type repositoryBaseline struct {
+	// major is the major version of the repository. in the flux2Minor version.
 	major int
+
+	// minor is the minor version of the repository in the flux2Minor version.
 	minor int
+
+	// flux2Minor is any flux2 minor version where the repository
+	// was present in the distribution. The major and minor fields
+	// represent the version of the repository in that flux2 minor
+	// version.
+	flux2Minor int
 }
 
-// BaselineFlux2Minor is the baseline minor version of the flux2
-// distribution used for computing the minor versions of the
-// controllers in that version. This is Flux v2.7 at the moment.
-// When a new controller is added to the distribution, this
-// baseline MUST be updated, as our release workflows depend
-// on it. Flux v2.7 is, at the moment, the latest version where
-// a controller was added to the distribution: source-watcher.
-const BaselineFlux2Minor = 7
-
-// baselineControllerMinors are the minor versions for
-// the controllers in the baseline version of the flux2
-// distribution, i.e. Flux v2.{baselineFlux2Minor}.
-var baselineControllerMinors = map[string]controllerVersion{
-	// The distribution itself.
-	"flux2": {2, BaselineFlux2Minor},
-
-	// Controllers.
-	"source-controller":           {1, 7},
-	"kustomize-controller":        {1, 7},
-	"helm-controller":             {1, 4},
-	"notification-controller":     {1, 7},
-	"image-reflector-controller":  {1, 0},
-	"image-automation-controller": {1, 0},
-	"source-watcher":              {2, 0},
+// baseline maps repository names to a reference point used for
+// computing version offsets. When a new repository is added, a
+// new entry MUST be added here where major and minor represent
+// the repository version in the given flux2Minor. As long as
+// this relationship holds, any values are fine. It doesn't have
+// to be the first flux2 minor where the repository was introduced,
+// as we offer no API for such use case. It hasn't been needed so
+// far.
+var baseline = map[string]repositoryBaseline{
+	"flux2":                       {major: 2, minor: 7, flux2Minor: 7},
+	"source-controller":           {major: 1, minor: 7, flux2Minor: 7},
+	"kustomize-controller":        {major: 1, minor: 7, flux2Minor: 7},
+	"helm-controller":             {major: 1, minor: 4, flux2Minor: 7},
+	"notification-controller":     {major: 1, minor: 7, flux2Minor: 7},
+	"image-reflector-controller":  {major: 1, minor: 0, flux2Minor: 7},
+	"image-automation-controller": {major: 1, minor: 0, flux2Minor: 7},
+	"source-watcher":              {major: 2, minor: 0, flux2Minor: 7},
 }
 
-// ControllerMajor returns the major version for the given controller name.
-func ControllerMajor(controllerName string) (int, error) {
-	cv, ok := baselineControllerMinors[controllerName]
+// RepoMajor returns the major version for the given repository name.
+func RepoMajor(repoName string) (int, error) {
+	cv, ok := baseline[repoName]
 	if !ok {
-		return 0, fmt.Errorf("unknown controller %q: not in baseline mapping", controllerName)
+		return 0, fmt.Errorf("unknown repository %q: not in baseline mapping", repoName)
 	}
 	return cv.major, nil
 }
 
-// ControllerMinorForFluxMinor computes the controller minor
-// version for the given flux2 distribution minor version.
-// This function also supports controllerName="flux2".
-func ControllerMinorForFluxMinor(controllerName string, flux2Minor int) (int, error) {
-	baselineControllerMinor, ok := baselineControllerMinors[controllerName]
+// RepoMinorForFluxMinor computes the repository minor version
+// for the given flux2 distribution minor version.
+// This function also supports repoName="flux2".
+func RepoMinorForFluxMinor(repoName string, flux2Minor int) (int, error) {
+	cv, ok := baseline[repoName]
 	if !ok {
-		return 0, fmt.Errorf("unknown controller %q: not in baseline mapping", controllerName)
+		return 0, fmt.Errorf("unknown repository %q: not in baseline mapping", repoName)
 	}
-	return flux2Minor - BaselineFlux2Minor + baselineControllerMinor.minor, nil
+	return flux2Minor - cv.flux2Minor + cv.minor, nil
 }
 
-// FluxMinorForControllerMinor computes the flux2 distribution
-// minor version for the given controller minor version.
-// This function also supports controllerName="flux2" and
-// controllerMinor=<any minor version of flux2>.
-func FluxMinorForControllerMinor(controllerName string, controllerMinor int) (int, error) {
-	baselineControllerMinor, ok := baselineControllerMinors[controllerName]
+// FluxMinorForRepoMinor computes the flux2 distribution minor
+// version for the given repository minor version.
+// This function also supports repoName="flux2" and
+// repoMinor=<any minor version of flux2>.
+func FluxMinorForRepoMinor(repoName string, repoMinor int) (int, error) {
+	cv, ok := baseline[repoName]
 	if !ok {
-		return 0, fmt.Errorf("unknown controller %q: not in baseline mapping", controllerName)
+		return 0, fmt.Errorf("unknown repository %q: not in baseline mapping", repoName)
 	}
-	return controllerMinor - baselineControllerMinor.minor + BaselineFlux2Minor, nil
+	return repoMinor - cv.minor + cv.flux2Minor, nil
 }
