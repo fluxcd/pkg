@@ -1660,3 +1660,198 @@ func TestApplyAllStaged_AppliesRoleAndRoleBinding(t *testing.T) {
 		}
 	})
 }
+
+func TestApply_APIVersionMigration(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("api-version-migrate")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	// Get the configmap object
+	_, configMap := getFirstObject(objects, "ConfigMap", id)
+
+	t.Run("creates object with initial API version", func(t *testing.T) {
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if entry.Action != CreatedAction {
+				t.Errorf("Expected %s, got %s for %s", CreatedAction, entry.Action, entry.Subject)
+			}
+		}
+	})
+
+	t.Run("patches managed fields with new API version", func(t *testing.T) {
+		// Simulate an API version migration by updating the managed fields
+		// In a real scenario, this would happen when a CRD version is deprecated
+		// and the user updates their manifests to use the new version
+
+		// Get the existing object
+		existingConfigMap := configMap.DeepCopy()
+		err := manager.client.Get(ctx, client.ObjectKeyFromObject(existingConfigMap), existingConfigMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify the object was created with proper managed fields
+		managedFields := existingConfigMap.GetManagedFields()
+		if len(managedFields) == 0 {
+			t.Fatal("Expected managed fields to be present")
+		}
+
+		// Verify that the manager's field owner is in managed fields
+		foundManager := false
+		for _, field := range managedFields {
+			if field.Manager == manager.owner.Field {
+				foundManager = true
+				break
+			}
+		}
+		if !foundManager {
+			t.Errorf("Expected to find manager %s in managed fields", manager.owner.Field)
+		}
+	})
+
+	t.Run("re-applies object without changes", func(t *testing.T) {
+		changeSet, err := manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range changeSet.Entries {
+			if entry.Action != UnchangedAction {
+				t.Errorf("Expected %s, got %s for %s", UnchangedAction, entry.Action, entry.Subject)
+			}
+		}
+	})
+}
+
+func TestPatchMigrateToVersion(t *testing.T) {
+	tests := []struct {
+		name          string
+		object        *unstructured.Unstructured
+		targetVersion string
+		expectPatches bool
+		expectedLen   int
+	}{
+		{
+			name: "no managed fields",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]interface{}{
+						"name":      "test",
+						"namespace": "default",
+					},
+				},
+			},
+			targetVersion: "v1",
+			expectPatches: false,
+		},
+		{
+			name: "same API version",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]interface{}{
+						"name":      "test",
+						"namespace": "default",
+						"managedFields": []interface{}{
+							map[string]interface{}{
+								"apiVersion": "v1",
+								"manager":    "test-manager",
+								"operation":  "Apply",
+							},
+						},
+					},
+				},
+			},
+			targetVersion: "v1",
+			expectPatches: false,
+		},
+		{
+			name: "different API version - single managed field",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "policy.linkerd.io/v1beta1",
+					"kind":       "Server",
+					"metadata": map[string]interface{}{
+						"name":      "test",
+						"namespace": "default",
+						"managedFields": []interface{}{
+							map[string]interface{}{
+								"apiVersion": "policy.linkerd.io/v1beta1",
+								"manager":    "kustomize-controller",
+								"operation":  "Apply",
+							},
+						},
+					},
+				},
+			},
+			targetVersion: "policy.linkerd.io/v1beta3",
+			expectPatches: true,
+			expectedLen:   1,
+		},
+		{
+			name: "different API version - multiple managed fields",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "policy.linkerd.io/v1beta3",
+					"kind":       "Server",
+					"metadata": map[string]interface{}{
+						"name":      "test",
+						"namespace": "default",
+						"managedFields": []interface{}{
+							map[string]interface{}{
+								"apiVersion": "policy.linkerd.io/v1beta1",
+								"manager":    "kubectl",
+								"operation":  "Update",
+							},
+							map[string]interface{}{
+								"apiVersion": "policy.linkerd.io/v1beta1",
+								"manager":    "kustomize-controller",
+								"operation":  "Apply",
+							},
+						},
+					},
+				},
+			},
+			targetVersion: "policy.linkerd.io/v1beta3",
+			expectPatches: true,
+			expectedLen:   1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			patches, err := PatchMigrateToVersion(tt.object, tt.targetVersion)
+			if err != nil {
+				t.Fatalf("PatchMigrateToVersion returned error: %v", err)
+			}
+
+			if tt.expectPatches {
+				if len(patches) == 0 {
+					t.Errorf("Expected patches to be returned, got none")
+				}
+				if tt.expectedLen > 0 && len(patches) != tt.expectedLen {
+					t.Errorf("Expected %d patches, got %d", tt.expectedLen, len(patches))
+				}
+			} else {
+				if len(patches) > 0 {
+					t.Errorf("Expected no patches, got %d", len(patches))
+				}
+			}
+		})
+	}
+}

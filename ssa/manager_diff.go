@@ -65,10 +65,15 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 	utils.RemoveCABundleFromCRD(object)
 	existingObject := &unstructured.Unstructured{}
 	existingObject.SetGroupVersionKind(object.GroupVersionKind())
-	_ = m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
+	getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
 	if m.shouldSkipDiff(object, existingObject, opts) {
 		return m.changeSetEntry(existingObject, SkippedAction), nil, nil, nil
+	}
+
+	// Migrate managed fields API version if needed before dry-run
+	if err := m.migrateAPIVersion(ctx, object, existingObject, getError); err != nil {
+		return nil, nil, nil, err
 	}
 
 	dryRunObject := object.DeepCopy()
