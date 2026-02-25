@@ -108,9 +108,11 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return m.changeSetEntry(object, SkippedAction), nil
 	}
 
-	// Migrate managed fields API version if needed before dry-run
-	if err := m.migrateAPIVersion(ctx, object, existingObject, getError); err != nil {
-		return nil, fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(object), err)
+	// Migrate managed fields API version if the object exists and has a different API version
+	if getError == nil && existingObject.GetUID() != "" {
+		if err := m.migrateAPIVersion(ctx, existingObject, object.GetAPIVersion()); err != nil {
+			return nil, fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(object), err)
+		}
 	}
 
 	dryRunObject := object.DeepCopy()
@@ -177,9 +179,11 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					return nil
 				}
 
-				// Migrate managed fields API version if needed before dry-run
-				if err := m.migrateAPIVersion(ctx, object, existingObject, getError); err != nil {
-					return fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(object), err)
+				// Migrate managed fields API version if the object exists and has a different API version
+				if getError == nil && existingObject.GetUID() != "" {
+					if err := m.migrateAPIVersion(ctx, existingObject, object.GetAPIVersion()); err != nil {
+						return fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(object), err)
+					}
 				}
 
 				dryRunObject := object.DeepCopy()
@@ -355,18 +359,12 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 	return m.client.Patch(ctx, object, client.Apply, opts...)
 }
 
-// migrateAPIVersion updates the managed fields API version when the desired object
-// has a different API version than the existing object. This is necessary because
+// migrateAPIVersion updates the managed fields API version when the existing object
+// has a different API version than the desired API version. This is necessary because
 // Kubernetes server-side apply validates managed fields against the schema of the
 // API version they reference, and when upgrading CRD versions, the old API version
 // may have fields that don't exist in the new schema, causing dry-run to fail.
-func (m *ResourceManager) migrateAPIVersion(ctx context.Context, object *unstructured.Unstructured, existingObject *unstructured.Unstructured, getError error) error {
-	// Skip if object doesn't exist or there's an error getting it
-	if getError != nil || existingObject == nil || existingObject.GetUID() == "" {
-		return nil
-	}
-
-	desiredAPIVersion := object.GetAPIVersion()
+func (m *ResourceManager) migrateAPIVersion(ctx context.Context, existingObject *unstructured.Unstructured, desiredAPIVersion string) error {
 	existingAPIVersion := existingObject.GetAPIVersion()
 
 	// Skip if API versions are the same
