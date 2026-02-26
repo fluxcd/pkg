@@ -86,6 +86,10 @@ func (m *ResourceManager) WaitForSet(set object.ObjMetadataSet, opts WaitOptions
 // WaitForSetWithContext checks if the given ObjMetadataSet has been fully reconciled.
 // The provided context can be used to cancel the operation.
 func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.ObjMetadataSet, opts WaitOptions) error {
+	if len(set) == 0 {
+		return nil
+	}
+
 	statusCollector := collector.NewResourceStatusCollector(set)
 	canceledInternally := false
 
