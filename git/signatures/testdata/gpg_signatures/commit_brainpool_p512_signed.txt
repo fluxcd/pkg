@@ -1,0 +1,13 @@
+tree a9ac3b19ae895b654fadecbf65d68b6b904e9015
+author Test User <sign-user@example.com> 1772188964 +0100
+committer Test User <sign-user@example.com> 1772188964 +0100
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iLUEABMKAB0WIQRFqHbkH9cuZyIgGbcl0p71vcaJEQUCaaF1JAAKCRAl0p71vcaJ
+ EbsGAf0UpYkwRuLxUfV19hj31s8CFTrqe4e8DgKhZxv1cNX/0FUE8n/u15GePsQQ
+ /I0Omw7bXSKo8wh0VeUD17GjiDOeAf9WBNDV9qQh3Z1Vc01DHQrzp0RKzoeTquxe
+ ivA0N6jknF9V6smfTbL0I6SLu3dtrA+1dh3CDeQCROdhH3aA7ZaG
+ =aUDv
+ -----END PGP SIGNATURE-----
+
+Test commit signed with brainpool_p512
