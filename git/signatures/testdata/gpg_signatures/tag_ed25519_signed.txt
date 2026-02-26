@@ -1,0 +1,13 @@
+object 35e58b202d6ba7a15f33b4e893b6da021c7132b7
+type commit
+tag test-tag-ed25519
+tagger Test User <sign-user@example.com> 1772188970 +0100
+
+Test tag signed with ed25519
+-----BEGIN PGP SIGNATURE-----
+
+iHUEABYKAB0WIQRnYqhdVzl5MeAXXPFaeBMjEbdVcgUCaaF1KgAKCRBaeBMjEbdV
+cgc0AQDdONxRMTofNPtHP+BDEWsGFcDdyBGb9xxp5D5Xa3rYyQD/VLvlPmxl3jk5
+JUczWsHgXxcLWXP6e/N42Mf6ddU4lwg=
+=Dt+S
+-----END PGP SIGNATURE-----

@@ -1,0 +1,21 @@
+tree 596e4c43898dcf2a6aa08cb9c0f3e0bbb8ecc26d
+author Test User <sign-user@example.com> 1772188967 +0100
+committer Test User <sign-user@example.com> 1772188967 +0100
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iQIzBAABCAAdFiEEXu1Q4zHdzEIbmc8LmBNHwX31dl4FAmmhdScACgkQmBNHwX31
+ dl6pzA//RS+ffLDBShXdWCry8pmfIs4/Wkcz0oMlhetcpuErjCjOMI1ZEHao5J5G
+ +8l7UcMFq1JtpjQ156mFboJ1ZaAPmAAOAoGB+uJ20ncr/TXprOlc5pP6ssSIDsoU
+ n+zk+bONfIkdMQKdEcrAyOJPVuIFs7OvDY017n2kOTytCsWqxIWLgj/OrZCIyemd
+ EaumIoHCMkwAdfklWqba0v9OG7fw/knLFg8kvrjTZFmsi8GJcfdrCsqveS/sE3z5
+ 2hEsleDavQ1FHTw0zOuN1y7E2CUXbMphQe+OxR6ypk53JQE4f0TsIYGItr9UQn7Y
+ tY1bYDiyJlTm6v/BRRl5J4qMgnNNsttjrl8cVihacYi1Gq6Mbl/vDYbZBLtWl9/7
+ Bx8hPruqeZkix2nmA1lsFXAUDpumSERpjab3GjzzLW2hqIButodToD+3Jais01a/
+ +JXsmZRvco3MjoLEKiSsM6BKp/FeWsH72A06/7JJ4i6LjFcJT8t1ljaSmNEZsQm2
+ d10mHLQ34+9sgA35IaNFnF56XwZ9mX+NkLM9nTrtbaF/FHlzAd1k1HoNIT2NQ2tH
+ 5xydmyKJOkUEiaZXUIgsINI8RB5ERSCSJCXHk2G/N4ShT62jKqj3GmywWgKyGCpP
+ IQOUSxv6TZlZR2r5J1OIGzjZsFEWJyvq2u1vBG71uXnUOExt1k4=
+ =39uJ
+ -----END PGP SIGNATURE-----
+
+Test commit signed with rsa_4096

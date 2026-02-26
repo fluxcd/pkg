@@ -1,0 +1,13 @@
+object 8ee3b79d5ad1fa463deea7fc9bfcbca311168d01
+type commit
+tag test-tag-dsa_2048
+tagger Test User <sign-user@example.com> 1772188968 +0100
+
+Test tag signed with dsa_2048
+-----BEGIN PGP SIGNATURE-----
+
+iHUEABEIAB0WIQQ3p1oEVydAtN6w28QIntqNADkiBwUCaaF1KAAKCRAIntqNADki
+Byq0AP9rHhQiJKh3rPNYW06C6N9yGnccU8nE5S5EfeH8Gps6SQD/f19dyM5euse9
+vylc3KD1sfdFekiLuW2WpDIw4JbAbMg=
+=k9QD
+-----END PGP SIGNATURE-----

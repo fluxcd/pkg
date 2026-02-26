@@ -1,0 +1,14 @@
+object 68211368f80d9087df5e0d9ec5e9f0f01d0f9251
+type commit
+tag test-tag-brainpool_p384
+tagger Test User <sign-user@example.com> 1772188968 +0100
+
+Test tag signed with brainpool_p384
+-----BEGIN PGP SIGNATURE-----
+
+iJUEABMJAB0WIQQ/Ad7FJfKxg1LGHLMZ238vxsg1ZQUCaaF1KAAKCRAZ238vxsg1
+ZUxdAX9Ymfjm35gtB0+cEXryF+10W2EBt8xYtw11BSfhwZ43qiHzw6GeNgGqGWf+
+Q+6aq/wBf0/1JmwcKWR6kko5TXcvU6SIjxg8JJxEzjFvUNKuhAu29QmK+bv+oW2I
+kqg3pbWh9A==
+=Yavx
+-----END PGP SIGNATURE-----

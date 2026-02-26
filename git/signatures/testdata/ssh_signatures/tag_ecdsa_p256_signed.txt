@@ -1,0 +1,13 @@
+object a9ce559c0acfc9268bdd854dec51d77ead112ab5
+type commit
+tag test-tag-ecdsa_p256
+tagger Test User <sign-user@example.com> 1772153089 +0100
+
+Test tag signed with ecdsa_p256
+-----BEGIN SSH SIGNATURE-----
+U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAE
+EEvteyl/kGZEPuKkajhI0J+2PN66evLXOeZTvxGFxU5jAs0JHkxWbbY31zVphpwjEeaL9P
+GQ1N1B0QHx13iZ8DhAAAAANnaXQAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi
+1uaXN0cDI1NgAAAEoAAAAhAOQrMY08WBF4tTiUz3vq48VoKjvjOR9y75YzhMShbmGEAAAA
+IQCF2ZvBxS6o/sZuRRw6HrFNryg2PU4ambnsRlC2cqOgfA==
+-----END SSH SIGNATURE-----
