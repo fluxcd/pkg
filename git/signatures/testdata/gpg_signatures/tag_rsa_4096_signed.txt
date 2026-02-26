@@ -1,0 +1,22 @@
+object f75808dabeb766be8c47519fdea37ae4a0a6a613
+type commit
+tag test-tag-rsa_4096
+tagger Test User <sign-user@example.com> 1772188971 +0100
+
+Test tag signed with rsa_4096
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAABCAAdFiEEXu1Q4zHdzEIbmc8LmBNHwX31dl4FAmmhdSsACgkQmBNHwX31
+dl4gqxAAi/EifC0soQ6F5tj2EkKn4j9w7I5B505X2c2KUKWPUtGAMevwbeFFNLgn
+S+kx/cl0xjkrrfv8mEWts9OPr2YRqMOojVKa5kBfqfSaZVEXJpic8Ocs2FhYbic+
+h7FQggtMNagkMKtqSw6qbXg9E3ZnZ/9iaF+EEHGNLdp6OSJEtpulidyOB1zPS5A3
+K7D1Y1Q+Z47v+x2ljwlAGjabZzkokwSIDScM1PyHCwoRmGeolzGjgyZFg/ROg8he
+HpmxnDqS3uIzfjqFvusfYOO8aMJh9cir2KSsqzyc+basbciwwm/ChwXg93rpE7kc
+sQWaWCBRCq4Z3VHL19Grl+BeqoSl2aeSgJn1hG2pYEDxbFe3ci6l8frgppcUXlhL
+rMo5NaAZainHMge0lin3aZBenqH0GUzbaf4VtwzKVpnwWF/TGLcjNemnRn0Slfui
+9w4tYQTiv6zNTwNBUG7YXgWs4jMgvLor5bbsTcZX6Zm3zvKDOGWPHX9UlQGFFBpB
+W8zifKGES0KykcpJsGximwamoc5tjnuBSIUiFJVnGOT3uSONQRsSjX+CLiLrym/1
+k9V1OH92mW/1R8uW8ZjndOCmjNwKsLzU9hBg6MVaV+9gIbc37OTGMohLyEAn4mbk
+8MuhIkSW8FsDedJCBhxbjMdCBV97cgffyHFu9FirchSAjbfQBZA=
+=xzA8
+-----END PGP SIGNATURE-----

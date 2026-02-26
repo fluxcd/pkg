@@ -1,0 +1,11 @@
+tree 7c5bd8f246ab8e8c6a5749c3d2f44018aa029fb8
+author Test User <sign-user@example.com> 1772153088 +0100
+committer Test User <sign-user@example.com> 1772153088 +0100
+gpgsig -----BEGIN SSH SIGNATURE-----
+ U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgHRfgHA3PrVXK+vIj9qrm9Rz19k
+ rWdqNjpYJJ3HOkstYAAAADZ2l0AAAAAAAAAAZzaGE1MTIAAABTAAAAC3NzaC1lZDI1NTE5
+ AAAAQFOFBI8DavCfBEiobPbMvmFO5gcAzy1BLwKfo4djvxbhDYi74cg7Bejqqcv7NakDNL
+ rKJYnzrfnNIIk6GDmC7QY=
+ -----END SSH SIGNATURE-----
+
+Test commit signed with ed25519

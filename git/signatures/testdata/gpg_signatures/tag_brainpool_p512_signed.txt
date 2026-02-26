@@ -1,0 +1,14 @@
+object b3156f0627e50dfa726e48dbf8e94adc6bdebf03
+type commit
+tag test-tag-brainpool_p512
+tagger Test User <sign-user@example.com> 1772188968 +0100
+
+Test tag signed with brainpool_p512
+-----BEGIN PGP SIGNATURE-----
+
+iLUEABMKAB0WIQRFqHbkH9cuZyIgGbcl0p71vcaJEQUCaaF1KAAKCRAl0p71vcaJ
+ESzuAfkBoKFp7ZeomqTWBgHSkMRgzSup5vhlit8+RcH9b4pEy+kXCq8OjWEh45S6
+ACSbOwUGXPOb3azuUqDEaNu/RDEPAf0aJQv16PdYHKayxyV64UNn+dZvoTbmOVtr
+cAOWxHe2rfix9yob9Rt497/hCUWFjxy3LLeIIsSEAARLXrmSokTE
+=ZE3W
+-----END PGP SIGNATURE-----

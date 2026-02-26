@@ -1,0 +1,17 @@
+object 2aa79d2bc04180cb05948619bcd3edb60703c214
+type commit
+tag test-tag-rsa_2048
+tagger Test User <sign-user@example.com> 1772188970 +0100
+
+Test tag signed with rsa_2048
+-----BEGIN PGP SIGNATURE-----
+
+iQEzBAABCAAdFiEEjxo8CPOWlAXK18ap+GK+ySN6ocgFAmmhdSoACgkQ+GK+ySN6
+ocib9gf/ewYsCH6QEx6L3MAT5sJFlN2USLRCSeLTE9/l6Bm/h/DITK2xlkbADQOC
+3Ct4IXjrXaWMJ+G2vTdvmdxDAvNkga/RpbkEPapedwVoYMRqVWgC4pF6+aZH6EF2
+omd7p7+er/HCmRfe+5NFwUOSsYAxt0yB2lZC5Mq3Vz99KLi0daUoHY+ymkzFE1kk
+Hdu94PG/g4YLHFY7PP7EtOq3NH0HrCxombcU+n8rkqjquwH7rJk5ZYMSI5HcDD2l
+qB6R0zRGDpwH9IiMmSpNNWpcRKqUmORLGCaeJdfhh++ZaEJdF7AkBQkGy4WV/A2k
+Te0lLC3zVqsMB/9T3nzbklyWpweZsA==
+=xjd+
+-----END PGP SIGNATURE-----
