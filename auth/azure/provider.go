@@ -150,7 +150,14 @@ func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository 
 	default:
 		conf = &cloud.AzurePublic
 	}
-	acrScope := conf.Services[cloud.ResourceManager].Endpoint + "/.default"
+
+	var acrScope string
+	if acrService, ok := conf.Services[azcontainerregistry.ServiceName]; ok {
+		acrScope = acrService.Audience + "/.default"
+	} else {
+		// Fallback for custom environments that don't define ACR service config.
+		acrScope = conf.Services[cloud.ResourceManager].Endpoint + "/.default"
+	}
 
 	return []auth.Option{auth.WithScopes(acrScope)}, nil
 }
