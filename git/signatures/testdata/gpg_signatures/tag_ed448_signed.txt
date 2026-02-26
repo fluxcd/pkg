@@ -1,0 +1,14 @@
+object 594f42b8ecaad08227805a281ca4b053ff7fdae4
+type commit
+tag test-tag-ed448
+tagger Test User <sign-user@example.com> 1772188970 +0100
+
+Test tag signed with ed448
+-----BEGIN PGP SIGNATURE-----
+
+iKkFABYKACkiIQWoMJZGKPzTpyuUAJVTaO7/Ty5E4I2nu8xGwMU1m96nfAUCaaF1
+KgAAe94Bx0QXkRdhxyHoybrUWYIcs0ZFMhZRQa823NLlMtlPIVjUAieWGSJrVJyD
+ZJbDprNIyLFRvEFYoYdEgAHDB+NuVFZQ+wvqwrQ6DryI4Azh6AorZCCxeHQ3dpm/
+o3KzUg0YxLeBptuESwPGyTqnTqublmc4xAMA
+=axq3
+-----END PGP SIGNATURE-----

@@ -1,0 +1,12 @@
+tree 94e5cb8fdb0551092fe394328dd9de2dbd8394f3
+author Test User <sign-user@example.com> 1772188965 +0100
+committer Test User <sign-user@example.com> 1772188965 +0100
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iHUEABEIAB0WIQQ3p1oEVydAtN6w28QIntqNADkiBwUCaaF1JQAKCRAIntqNADki
+ B3brAP9bhBteRaxkRDN2rXbAxFdBLACqgqTH10Zv4if3gxZxKQD/ZoAiBYUyWq3C
+ HKyihQ+PCD2wMv6tyzkC5RI5mumh5Fw=
+ =C3Wn
+ -----END PGP SIGNATURE-----
+
+Test commit signed with dsa_2048

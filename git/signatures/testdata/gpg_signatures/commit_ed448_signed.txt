@@ -1,0 +1,13 @@
+tree d49a4c033c2a0d7c2d5882461a0e70f61e021959
+author Test User <sign-user@example.com> 1772188966 +0100
+committer Test User <sign-user@example.com> 1772188966 +0100
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iKkFABYKACkiIQWoMJZGKPzTpyuUAJVTaO7/Ty5E4I2nu8xGwMU1m96nfAUCaaF1
+ JgAA0yIByPwhpDW6dmJddCS/TsB2z2Wu30Vjd3wGLCp3J6N8FHsVi6jcmbPM2JXF
+ /uA7DZWryLM1Rgtsbcv9AAHGMTePYjyduBDw/uK7K3kgL0NnLHGHEQ1545mSmk4Z
+ Q8ltXviJqCQ4Ut549BoZxM8YbIieNmVWtiwA
+ =cJtf
+ -----END PGP SIGNATURE-----
+
+Test commit signed with ed448
