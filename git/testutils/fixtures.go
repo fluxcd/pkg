@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package signatures_test
+package testutils
 
 import (
 	"os"
@@ -23,8 +23,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-// parseCommitFromFixture parses a git commit object from a fixture file
-func parseCommitFromFixture(fixturePath string) (*object.Commit, error) {
+// ParseCommitFromFixture parses a git commit object from a fixture file
+func ParseCommitFromFixture(fixturePath string) (*object.Commit, error) {
 	data, err := os.ReadFile(fixturePath)
 	if err != nil {
 		return nil, err
@@ -46,8 +46,8 @@ func parseCommitFromFixture(fixturePath string) (*object.Commit, error) {
 	return commit, nil
 }
 
-// parseTagFromFixture parses a git tag object from a fixture file
-func parseTagFromFixture(fixturePath string) (*object.Tag, error) {
+// ParseTagFromFixture parses a git tag object from a fixture file
+func ParseTagFromFixture(fixturePath string) (*object.Tag, error) {
 	data, err := os.ReadFile(fixturePath)
 	if err != nil {
 		return nil, err
