@@ -62,7 +62,8 @@ EOF
     gpg --batch --generate-key "$batch_file" 2>&1
     
     # Get the key ID
-    local key_id=$(gpg --list-keys --with-colons "test-${key_name}@example.com" | grep '^fpr' | head -1 | cut -d: -f10)
+    local key_id
+    key_id=$(gpg --list-keys --with-colons "test-${key_name}@example.com" | grep '^fpr' | head -1 | cut -d: -f10)
     
     echo "  Key ID: $key_id"
     
@@ -88,7 +89,8 @@ create_signed_object() {
     echo "Creating signed $object_type for $key_name..."
     
     # Get key ID
-    local key_id=$(cat "$TEMP_DIR/${key_name}_id.txt")
+    local key_id
+    key_id=$(cat "$TEMP_DIR/${key_name}_id.txt")
     
     # Create temporary Git repository
     local repo_dir="$TEMP_DIR/repo_${key_name}_${object_type}"
@@ -201,10 +203,10 @@ main() {
     echo "----------------------------------------"
     
     # Get list of successfully generated keys
-    local keys=()
+    local keys=() key_name=""
     for key_file in "$TEMP_DIR"/*_id.txt; do
         if [[ -f "$key_file" ]]; then
-            local key_name=$(basename "$key_file" "_id.txt")
+            key_name=$(basename "$key_file" "_id.txt")
             keys+=("$key_name")
         fi
     done

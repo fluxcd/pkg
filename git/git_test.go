@@ -17,10 +17,25 @@ limitations under the License.
 package git
 
 import (
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/fluxcd/pkg/git/testutils"
+	"github.com/go-git/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
+)
+
+const (
+	signaturePGPSignature                      = "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----"
+	signaturePGPMessage                        = "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----"
+	signatureSSH                               = "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----"
+	signatureX509                              = "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----"
+	signatureUnknown                           = "-----BEGIN UNKNOWN SIGNATURE-----\n-----END UNKNOWN SIGNATURE-----"
+	signaturePGPSignatureWithLeadingWhitespace = "  " + signaturePGPSignature
+	signatureSSHWithLeadingWhitespace          = "  " + signatureSSH
 )
 
 func TestHash_Algorithm(t *testing.T) {
@@ -253,152 +268,297 @@ func TestIsConcreteCommit(t *testing.T) {
 	}
 }
 
-func TestCommit_IsPGPSigned(t *testing.T) {
+func TestIsAnnotatedTag(t *testing.T) {
 	tests := []struct {
 		name   string
-		commit *Commit
-		want   bool
+		tag    Tag
+		result bool
 	}{
 		{
-			name: "PGP signed commit with SIGNATURE prefix",
-			commit: &Commit{
-				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+			name: "annotated tag",
+			tag: Tag{
+				Hash:    Hash("foo"),
+				Name:    "v1.0.0",
+				Encoded: []byte("tag-content"),
 			},
-			want: true,
+			result: true,
 		},
 		{
-			name: "PGP signed commit with MESSAGE prefix",
-			commit: &Commit{
-				Signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
+			name: "lightweight tag",
+			tag: Tag{
+				Hash: Hash("foo"),
+				Name: "v1.0.0",
 			},
-			want: true,
+			result: false,
 		},
 		{
-			name: "SSH signed commit",
-			commit: &Commit{
-				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			name: "empty encoded",
+			tag: Tag{
+				Hash:    Hash("foo"),
+				Name:    "v1.0.0",
+				Encoded: []byte{},
 			},
-			want: false,
+			result: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(IsAnnotatedTag(tt.tag)).To(Equal(tt.result))
+		})
+	}
+}
+
+func TestIsSignedTag(t *testing.T) {
+	tests := []struct {
+		name   string
+		tag    Tag
+		result bool
+	}{
+		{
+			name: "signed tag",
+			tag: Tag{
+				Hash:      Hash("foo"),
+				Name:      "v1.0.0",
+				Signature: signaturePGPSignature,
+			},
+			result: true,
 		},
 		{
-			name: "X509 signed commit",
-			commit: &Commit{
-				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			name: "unsigned tag",
+			tag: Tag{
+				Hash: Hash("foo"),
+				Name: "v1.0.0",
 			},
-			want: false,
+			result: false,
 		},
 		{
-			name:   "unsigned commit",
-			commit: &Commit{},
-			want:   false,
+			name: "empty signature",
+			tag: Tag{
+				Hash:      Hash("foo"),
+				Name:      "v1.0.0",
+				Signature: "",
+			},
+			result: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(IsSignedTag(tt.tag)).To(Equal(tt.result))
+		})
+	}
+}
+
+func TestTag_String(t *testing.T) {
+	tests := []struct {
+		name string
+		tag  *Tag
+		want string
+	}{
+		{
+			name: "annotated tag with hash",
+			tag: &Tag{
+				Hash: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+				Name: "v1.0.0",
+			},
+			want: "v1.0.0@5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
 		},
 		{
-			name: "PGP signed commit with leading whitespace",
-			commit: &Commit{
-				Signature: "  -----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+			name: "lightweight tag without hash",
+			tag: &Tag{
+				Name: "v1.0.0",
 			},
-			want: true,
+			want: "v1.0.0",
+		},
+		{
+			name: "tag with empty hash",
+			tag: &Tag{
+				Hash: Hash(""),
+				Name: "v2.0.0",
+			},
+			want: "v2.0.0",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			g.Expect(tt.commit.IsPGPSigned()).To(Equal(tt.want))
+			g.Expect(tt.tag.String()).To(Equal(tt.want))
 		})
 	}
 }
 
-func TestCommit_IsSSHSigned(t *testing.T) {
+func TestIsSigned(t *testing.T) {
 	tests := []struct {
-		name   string
-		commit *Commit
-		want   bool
+		name          string
+		commit        *Commit
+		tag           *Tag
+		wantPGPCommit bool
+		wantSSHCommit bool
+		wantPGPTag    bool
+		wantSSHTag    bool
 	}{
 		{
-			name: "SSH signed commit",
+			name: "PGP signed with SIGNATURE prefix",
 			commit: &Commit{
-				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+				Signature: signaturePGPSignature,
 			},
-			want: true,
+			tag: &Tag{
+				Signature: signaturePGPSignature,
+			},
+			wantPGPCommit: true,
+			wantSSHCommit: false,
+			wantPGPTag:    true,
+			wantSSHTag:    false,
 		},
 		{
-			name: "PGP signed commit",
+			name: "PGP signed with MESSAGE prefix",
 			commit: &Commit{
-				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+				Signature: signaturePGPMessage,
 			},
-			want: false,
+			tag: &Tag{
+				Signature: signaturePGPMessage,
+			},
+			wantPGPCommit: true,
+			wantSSHCommit: false,
+			wantPGPTag:    true,
+			wantSSHTag:    false,
 		},
 		{
-			name: "X509 signed commit",
+			name: "SSH signed",
 			commit: &Commit{
-				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+				Signature: signatureSSH,
 			},
-			want: false,
+			tag: &Tag{
+				Signature: signatureSSH,
+			},
+			wantPGPCommit: false,
+			wantSSHCommit: true,
+			wantPGPTag:    false,
+			wantSSHTag:    true,
 		},
 		{
-			name:   "unsigned commit",
-			commit: &Commit{},
-			want:   false,
+			name: "X509 signed",
+			commit: &Commit{
+				Signature: signatureX509,
+			},
+			tag: &Tag{
+				Signature: signatureX509,
+			},
+			wantPGPCommit: false,
+			wantSSHCommit: false,
+			wantPGPTag:    false,
+			wantSSHTag:    false,
 		},
 		{
-			name: "SSH signed commit with leading whitespace",
+			name:          "unsigned",
+			commit:        &Commit{},
+			tag:           &Tag{},
+			wantPGPCommit: false,
+			wantSSHCommit: false,
+			wantPGPTag:    false,
+			wantSSHTag:    false,
+		},
+		{
+			name: "PGP signed with leading whitespace",
 			commit: &Commit{
-				Signature: "  -----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+				Signature: signaturePGPSignatureWithLeadingWhitespace,
 			},
-			want: true,
+			tag: &Tag{
+				Signature: signaturePGPSignatureWithLeadingWhitespace,
+			},
+			wantPGPCommit: true,
+			wantSSHCommit: false,
+			wantPGPTag:    true,
+			wantSSHTag:    false,
+		},
+		{
+			name: "SSH signed with leading whitespace",
+			commit: &Commit{
+				Signature: signatureSSHWithLeadingWhitespace,
+			},
+			tag: &Tag{
+				Signature: signatureSSHWithLeadingWhitespace,
+			},
+			wantPGPCommit: false,
+			wantSSHCommit: true,
+			wantPGPTag:    false,
+			wantSSHTag:    true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			g.Expect(tt.commit.IsSSHSigned()).To(Equal(tt.want))
+			g.Expect(tt.commit.IsPGPSigned()).To(Equal(tt.wantPGPCommit))
+			g.Expect(tt.commit.IsSSHSigned()).To(Equal(tt.wantSSHCommit))
+			g.Expect(tt.tag.IsPGPSigned()).To(Equal(tt.wantPGPTag))
+			g.Expect(tt.tag.IsSSHSigned()).To(Equal(tt.wantSSHTag))
 		})
 	}
 }
 
-func TestCommit_SignatureType(t *testing.T) {
+func TestSignatureType(t *testing.T) {
 	tests := []struct {
 		name   string
 		commit *Commit
+		tag    *Tag
 		want   string
 	}{
 		{
-			name: "PGP signed commit with SIGNATURE prefix",
+			name: "PGP signed with SIGNATURE prefix",
 			commit: &Commit{
-				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+				Signature: signaturePGPSignature,
+			},
+			tag: &Tag{
+				Signature: signaturePGPSignature,
 			},
 			want: "openpgp",
 		},
 		{
-			name: "PGP signed commit with MESSAGE prefix",
+			name: "PGP signed with MESSAGE prefix",
 			commit: &Commit{
-				Signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
+				Signature: signaturePGPMessage,
+			},
+			tag: &Tag{
+				Signature: signaturePGPMessage,
 			},
 			want: "openpgp",
 		},
 		{
-			name: "SSH signed commit",
+			name: "SSH signed",
 			commit: &Commit{
-				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+				Signature: signatureSSH,
+			},
+			tag: &Tag{
+				Signature: signatureSSH,
 			},
 			want: "ssh",
 		},
 		{
-			name: "X509 signed commit",
+			name: "X509 signed",
 			commit: &Commit{
-				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+				Signature: signatureX509,
+			},
+			tag: &Tag{
+				Signature: signatureX509,
 			},
 			want: "x509",
 		},
 		{
-			name:   "unsigned commit",
+			name:   "unsigned",
 			commit: &Commit{},
+			tag:    &Tag{},
 			want:   "unknown",
 		},
 		{
 			name: "unknown signature type",
 			commit: &Commit{
-				Signature: "-----BEGIN UNKNOWN SIGNATURE-----\n-----END UNKNOWN SIGNATURE-----",
+				Signature: signatureUnknown,
+			},
+			tag: &Tag{
+				Signature: signatureUnknown,
 			},
 			want: "unknown",
 		},
@@ -407,164 +567,380 @@ func TestCommit_SignatureType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			g.Expect(tt.commit.SignatureType()).To(Equal(tt.want))
+			g.Expect(tt.tag.SignatureType()).To(Equal(tt.want))
 		})
 	}
 }
 
-func TestTag_IsPGPSigned(t *testing.T) {
+func TestCommit_VerifyGPG(t *testing.T) {
+	testDataDir := filepath.Join("signatures", "testdata", "gpg_signatures")
+
 	tests := []struct {
-		name string
-		tag  *Tag
-		want bool
+		name    string
+		sigFile string
+		keyFile string
+		wantErr string
 	}{
 		{
-			name: "PGP signed tag with SIGNATURE prefix",
-			tag: &Tag{
-				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
-			},
-			want: true,
+			name:    "valid PGP signature",
+			sigFile: "commit_rsa_2048_signed.txt",
+			keyFile: "key_rsa_2048.pub",
 		},
 		{
-			name: "PGP signed tag with MESSAGE prefix",
-			tag: &Tag{
-				Signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
-			},
-			want: true,
+			name:    "missing signature",
+			sigFile: "commit_unsigned.txt",
+			keyFile: "key_rsa_2048.pub",
+			wantErr: "unable to verify Git commit: unable to verify payload as the provided signature is empty",
 		},
 		{
-			name: "SSH signed tag",
-			tag: &Tag{
-				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
-			},
-			want: false,
+			name:    "invalid signature",
+			sigFile: "commit_rsa_2048_signed.txt",
+			keyFile: "key_ed25519.pub",
+			wantErr: "unable to verify Git commit: unable to verify payload with any of the given key rings",
 		},
 		{
-			name: "X509 signed tag",
-			tag: &Tag{
-				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
-			},
-			want: false,
-		},
-		{
-			name: "unsigned tag",
-			tag:  &Tag{},
-			want: false,
-		},
-		{
-			name: "PGP signed tag with leading whitespace",
-			tag: &Tag{
-				Signature: "  -----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
-			},
-			want: true,
+			name:    "no key rings provided",
+			sigFile: "commit_rsa_2048_signed.txt",
+			wantErr: "unable to verify Git commit: unable to verify payload with any of the given key rings",
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			g.Expect(tt.tag.IsPGPSigned()).To(Equal(tt.want))
+
+			// Parse the commit from the fixture file
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create a git.Commit from the parsed object
+			encoded := &plumbing.MemoryObject{}
+			err = commitObj.EncodeWithoutSignature(encoded)
+			g.Expect(err).ToNot(HaveOccurred())
+			reader, err := encoded.Reader()
+			g.Expect(err).ToNot(HaveOccurred())
+			b, err := io.ReadAll(reader)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			gitCommit := &Commit{
+				Signature: commitObj.PGPSignature,
+				Encoded:   b,
+			}
+
+			// Prepare key rings
+			var keyRings []string
+			if tt.keyFile != "" {
+				publicKey, err := os.ReadFile(filepath.Join(testDataDir, tt.keyFile))
+				g.Expect(err).ToNot(HaveOccurred())
+				keyRings = append(keyRings, string(publicKey))
+			}
+
+			// get result from deprecated function
+			depFingerprint, depErr := gitCommit.Verify(keyRings...)
+
+			// Verify the signature using the git.Commit's VerifyGPG method
+			fingerprint, err := gitCommit.VerifyGPG(keyRings...)
+
+			g.Expect(fingerprint).To(ContainSubstring(depFingerprint))
+			if err == nil {
+				g.Expect(depErr).ToNot(HaveOccurred())
+			} else {
+				g.Expect(err.Error()).To(ContainSubstring(depErr.Error()))
+			}
+
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
 		})
 	}
 }
 
-func TestTag_IsSSHSigned(t *testing.T) {
+func TestTag_VerifyGPG(t *testing.T) {
+	testDataDir := filepath.Join("signatures", "testdata", "gpg_signatures")
+
 	tests := []struct {
-		name string
-		tag  *Tag
-		want bool
+		name    string
+		sigFile string
+		keyFile string
+		wantErr string
 	}{
 		{
-			name: "SSH signed tag",
-			tag: &Tag{
-				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
-			},
-			want: true,
+			name:    "valid PGP signature",
+			sigFile: "tag_rsa_2048_signed.txt",
+			keyFile: "key_rsa_2048.pub",
 		},
 		{
-			name: "PGP signed tag",
-			tag: &Tag{
-				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
-			},
-			want: false,
+			name:    "missing signature",
+			sigFile: "commit_unsigned.txt",
+			keyFile: "key_rsa_2048.pub",
+			wantErr: "unable to verify Git tag: unable to verify payload as the provided signature is empty",
 		},
 		{
-			name: "X509 signed tag",
-			tag: &Tag{
-				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
-			},
-			want: false,
+			name:    "invalid signature",
+			sigFile: "tag_rsa_2048_signed.txt",
+			keyFile: "key_ed25519.pub",
+			wantErr: "unable to verify Git tag: unable to verify payload with any of the given key rings",
 		},
 		{
-			name: "unsigned tag",
-			tag:  &Tag{},
-			want: false,
-		},
-		{
-			name: "SSH signed tag with leading whitespace",
-			tag: &Tag{
-				Signature: "  -----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
-			},
-			want: true,
+			name:    "no key rings provided",
+			sigFile: "tag_rsa_2048_signed.txt",
+			wantErr: "unable to verify Git tag: unable to verify payload with any of the given key rings",
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			g.Expect(tt.tag.IsSSHSigned()).To(Equal(tt.want))
+
+			// Parse the tag from the fixture file
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create a git.Tag from the parsed object
+			encoded := &plumbing.MemoryObject{}
+			err = tagObj.EncodeWithoutSignature(encoded)
+			g.Expect(err).ToNot(HaveOccurred())
+			reader, err := encoded.Reader()
+			g.Expect(err).ToNot(HaveOccurred())
+			b, err := io.ReadAll(reader)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			gitTag := &Tag{
+				Signature: tagObj.PGPSignature,
+				Encoded:   b,
+			}
+
+			// Prepare key rings
+			var keyRings []string
+			if tt.keyFile != "" {
+				publicKey, err := os.ReadFile(filepath.Join(testDataDir, tt.keyFile))
+				g.Expect(err).ToNot(HaveOccurred())
+				keyRings = append(keyRings, string(publicKey))
+			}
+
+			// get result from deprecated function
+			depFingerprint, depErr := gitTag.Verify(keyRings...)
+
+			// Verify the signature using the git.Tag's VerifyGPG method
+			fingerprint, err := gitTag.VerifyGPG(keyRings...)
+
+			g.Expect(fingerprint).To(ContainSubstring(depFingerprint))
+			if err == nil {
+				g.Expect(depErr).ToNot(HaveOccurred())
+			} else {
+				g.Expect(err.Error()).To(ContainSubstring(depErr.Error()))
+			}
+
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
 		})
 	}
 }
 
-func TestTag_SignatureType(t *testing.T) {
+func TestCommit_VerifySSH(t *testing.T) {
+	testDataDir := filepath.Join("signatures", "testdata", "ssh_signatures")
+
+	tests := []struct {
+		name           string
+		sigFile        string
+		authorizedKeys string
+		wantErr        string
+	}{
+		{
+			name:           "valid SSH signature",
+			sigFile:        "commit_rsa_signed.txt",
+			authorizedKeys: "authorized_keys_rsa",
+		},
+		{
+			name:           "missing signature",
+			sigFile:        "commit_unsigned.txt",
+			authorizedKeys: "authorized_keys_rsa",
+			wantErr:        "unable to verify Git commit SSH signature: unable to verify payload as the provided signature is empty",
+		},
+		{
+			name:           "invalid signature",
+			sigFile:        "commit_rsa_signed.txt",
+			authorizedKeys: "authorized_keys_ed25519",
+			wantErr:        "unable to verify Git commit SSH signature: unable to verify payload with any of the given authorized keys",
+		},
+		{
+			name:    "no authorized keys provided",
+			sigFile: "commit_rsa_signed.txt",
+			wantErr: "unable to verify Git commit SSH signature: unable to verify payload with any of the given authorized keys",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Parse the commit from the fixture file
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create a git.Commit from the parsed object
+			encoded := &plumbing.MemoryObject{}
+			err = commitObj.EncodeWithoutSignature(encoded)
+			g.Expect(err).ToNot(HaveOccurred())
+			reader, err := encoded.Reader()
+			g.Expect(err).ToNot(HaveOccurred())
+			b, err := io.ReadAll(reader)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			gitCommit := &Commit{
+				Signature: commitObj.PGPSignature,
+				Encoded:   b,
+			}
+
+			// Prepare authorized keys
+			var authorizedKeys []string
+			if tt.authorizedKeys != "" {
+				authorizedKey, err := os.ReadFile(filepath.Join(testDataDir, tt.authorizedKeys))
+				g.Expect(err).ToNot(HaveOccurred())
+				authorizedKeys = append(authorizedKeys, string(authorizedKey))
+			}
+
+			// Verify the signature using the git.Commit's VerifySSH method
+			fingerprint, err := gitCommit.VerifySSH(authorizedKeys...)
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+		})
+	}
+}
+
+func TestTag_VerifySSH(t *testing.T) {
+	testDataDir := filepath.Join("signatures", "testdata", "ssh_signatures")
+
+	tests := []struct {
+		name           string
+		sigFile        string
+		authorizedKeys string
+		wantErr        string
+	}{
+		{
+			name:           "valid SSH signature",
+			sigFile:        "tag_rsa_signed.txt",
+			authorizedKeys: "authorized_keys_rsa",
+		},
+		{
+			name:           "missing signature",
+			sigFile:        "commit_unsigned.txt",
+			authorizedKeys: "authorized_keys_rsa",
+			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload as the provided signature is empty",
+		},
+		{
+			name:           "invalid signature",
+			sigFile:        "tag_rsa_signed.txt",
+			authorizedKeys: "authorized_keys_ed25519",
+			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload with any of the given authorized keys",
+		},
+		{
+			name:    "no authorized keys provided",
+			sigFile: "tag_rsa_signed.txt",
+			wantErr: "unable to verify Git tag SSH signature: unable to verify payload with any of the given authorized keys",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Parse the tag from the fixture file
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create a git.Tag from the parsed object
+			encoded := &plumbing.MemoryObject{}
+			err = tagObj.EncodeWithoutSignature(encoded)
+			g.Expect(err).ToNot(HaveOccurred())
+			reader, err := encoded.Reader()
+			g.Expect(err).ToNot(HaveOccurred())
+			b, err := io.ReadAll(reader)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			gitTag := &Tag{
+				Signature: tagObj.PGPSignature,
+				Encoded:   b,
+			}
+
+			// Prepare authorized keys
+			var authorizedKeys []string
+			if tt.authorizedKeys != "" {
+				authorizedKey, err := os.ReadFile(filepath.Join(testDataDir, tt.authorizedKeys))
+				g.Expect(err).ToNot(HaveOccurred())
+				authorizedKeys = append(authorizedKeys, string(authorizedKey))
+			}
+
+			// Verify the signature using the git.Tag's VerifySSH method
+			fingerprint, err := gitTag.VerifySSH(authorizedKeys...)
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+		})
+	}
+}
+
+func TestErrRepositoryNotFound_Error(t *testing.T) {
 	tests := []struct {
 		name string
-		tag  *Tag
+		err  ErrRepositoryNotFound
 		want string
 	}{
 		{
-			name: "PGP signed tag with SIGNATURE prefix",
-			tag: &Tag{
-				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+			name: "with message and URL",
+			err: ErrRepositoryNotFound{
+				Message: "repository not found",
+				URL:     "https://github.com/example/repo.git",
 			},
-			want: "openpgp",
+			want: "repository not found: git repository: 'https://github.com/example/repo.git'",
 		},
 		{
-			name: "PGP signed tag with MESSAGE prefix",
-			tag: &Tag{
-				Signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
+			name: "with empty message",
+			err: ErrRepositoryNotFound{
+				Message: "",
+				URL:     "https://github.com/example/repo.git",
 			},
-			want: "openpgp",
+			want: ": git repository: 'https://github.com/example/repo.git'",
 		},
 		{
-			name: "SSH signed tag",
-			tag: &Tag{
-				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			name: "with empty URL",
+			err: ErrRepositoryNotFound{
+				Message: "repository not found",
+				URL:     "",
 			},
-			want: "ssh",
-		},
-		{
-			name: "X509 signed tag",
-			tag: &Tag{
-				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
-			},
-			want: "x509",
-		},
-		{
-			name: "unsigned tag",
-			tag:  &Tag{},
-			want: "unknown",
-		},
-		{
-			name: "unknown signature type",
-			tag: &Tag{
-				Signature: "-----BEGIN UNKNOWN SIGNATURE-----\n-----END UNKNOWN SIGNATURE-----",
-			},
-			want: "unknown",
+			want: "repository not found: git repository: ''",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			g.Expect(tt.tag.SignatureType()).To(Equal(tt.want))
+			g.Expect(tt.err.Error()).To(Equal(tt.want))
 		})
 	}
 }
