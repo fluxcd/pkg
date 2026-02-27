@@ -24,6 +24,7 @@ import (
 
 	"github.com/fluxcd/pkg/git/gogit"
 	"github.com/fluxcd/pkg/git/signatures"
+	"github.com/fluxcd/pkg/git/testutils"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/hiddeco/sshsig"
 )
@@ -389,7 +390,7 @@ func TestVerifySSHSignature(t *testing.T) {
 	for _, kt := range keyTypes {
 		t.Run(kt.name, func(t *testing.T) {
 			// Parse the commit from the fixture file
-			commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			if err != nil {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
@@ -429,7 +430,7 @@ func TestVerifySSHSignature(t *testing.T) {
 		}
 
 		// Parse the commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse commit from fixture: %v", err)
 		}
@@ -459,7 +460,7 @@ func TestVerifySSHSignature(t *testing.T) {
 		}
 
 		// Parse the commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse commit from fixture: %v", err)
 		}
@@ -484,7 +485,7 @@ func TestVerifySSHSignature(t *testing.T) {
 
 	t.Run("wrong authorized keys", func(t *testing.T) {
 		// Parse the commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse commit from fixture: %v", err)
 		}
@@ -513,7 +514,7 @@ func TestVerifySSHSignature(t *testing.T) {
 
 	t.Run("empty authorized keys", func(t *testing.T) {
 		// Parse the commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse commit from fixture: %v", err)
 		}
@@ -546,7 +547,7 @@ func TestVerifySSHSignature(t *testing.T) {
 		}
 
 		// Parse the commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse commit from fixture: %v", err)
 		}
@@ -573,7 +574,7 @@ func TestVerifySSHSignature(t *testing.T) {
 
 	t.Run("non-SSH signature", func(t *testing.T) {
 		// Parse the commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse commit from fixture: %v", err)
 		}
@@ -601,7 +602,7 @@ func TestVerifySSHSignature(t *testing.T) {
 
 	t.Run("invalid authorized keys", func(t *testing.T) {
 		// Parse the commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse commit from fixture: %v", err)
 		}
@@ -648,7 +649,7 @@ func TestVerifySSHSignatureAllKeyTypes(t *testing.T) {
 	for _, kt := range keyTypes {
 		t.Run(kt.name, func(t *testing.T) {
 			// Parse the commit from the fixture file
-			commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			if err != nil {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
@@ -706,7 +707,7 @@ func TestVerifySSHSignatureCombinedKeys(t *testing.T) {
 	for _, kt := range keyTypes {
 		t.Run(kt.name, func(t *testing.T) {
 			// Parse the commit from the fixture file
-			commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			if err != nil {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
@@ -783,7 +784,7 @@ func TestBuildCommitWithRefFromFixture(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse the commit from the fixture file
-			commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, tt.fixture))
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, tt.fixture))
 			if err != nil {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
@@ -894,7 +895,7 @@ func TestBuildCommitWithRefAndVerifySSH(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse the commit from the fixture file
-			commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, tt.fixture))
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, tt.fixture))
 			if err != nil {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
@@ -932,7 +933,7 @@ func TestBuildCommitWithRefWithDifferentRefs(t *testing.T) {
 	testDataDir := filepath.Join("testdata", "ssh_signatures")
 
 	// Parse a signed commit from the fixture file
-	commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+	commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 	if err != nil {
 		t.Fatalf("Failed to parse commit from fixture: %v", err)
 	}
@@ -1027,7 +1028,7 @@ func TestBuildTagFromFixture(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse the tag from the fixture file
-			tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, tt.fixture))
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, tt.fixture))
 			if err != nil {
 				t.Fatalf("Failed to parse tag from fixture: %v", err)
 			}
@@ -1109,7 +1110,7 @@ func TestVerifySSHSignatureForTags(t *testing.T) {
 	for _, kt := range keyTypes {
 		t.Run(kt.name, func(t *testing.T) {
 			// Parse the tag from the fixture file
-			tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			if err != nil {
 				t.Fatalf("Failed to parse tag from fixture: %v", err)
 			}
@@ -1149,7 +1150,7 @@ func TestVerifySSHSignatureForTags(t *testing.T) {
 		}
 
 		// Parse the tag from the fixture file
-		tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, "tag_ed25519_signed.txt"))
+		tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse tag from fixture: %v", err)
 		}
@@ -1179,7 +1180,7 @@ func TestVerifySSHSignatureForTags(t *testing.T) {
 		}
 
 		// Parse the tag from the fixture file
-		tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, "tag_ed25519_signed.txt"))
+		tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse tag from fixture: %v", err)
 		}
@@ -1204,7 +1205,7 @@ func TestVerifySSHSignatureForTags(t *testing.T) {
 
 	t.Run("wrong authorized keys", func(t *testing.T) {
 		// Parse the tag from the fixture file
-		tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, "tag_ed25519_signed.txt"))
+		tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse tag from fixture: %v", err)
 		}
@@ -1238,7 +1239,7 @@ func TestVerifySSHSignatureForTags(t *testing.T) {
 		}
 
 		// Parse the tag from the fixture file
-		tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, "tag_ed25519_signed.txt"))
+		tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_ed25519_signed.txt"))
 		if err != nil {
 			t.Fatalf("Failed to parse tag from fixture: %v", err)
 		}
@@ -1284,7 +1285,7 @@ func TestVerifySSHSignatureForTagsAllKeyTypes(t *testing.T) {
 	for _, kt := range keyTypes {
 		t.Run(kt.name, func(t *testing.T) {
 			// Parse the tag from the fixture file
-			tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			if err != nil {
 				t.Fatalf("Failed to parse tag from fixture: %v", err)
 			}
@@ -1342,7 +1343,7 @@ func TestVerifySSHSignatureForTagsCombinedKeys(t *testing.T) {
 	for _, kt := range keyTypes {
 		t.Run(kt.name, func(t *testing.T) {
 			// Parse the tag from the fixture file
-			tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			if err != nil {
 				t.Fatalf("Failed to parse tag from fixture: %v", err)
 			}
@@ -1413,7 +1414,7 @@ func TestBuildTagAndVerifySSH(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse the tag from the fixture file
-			tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, tt.fixture))
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, tt.fixture))
 			if err != nil {
 				t.Fatalf("Failed to parse tag from fixture: %v", err)
 			}

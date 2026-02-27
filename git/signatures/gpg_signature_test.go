@@ -23,6 +23,7 @@ import (
 
 	"github.com/fluxcd/pkg/git/gogit"
 	"github.com/fluxcd/pkg/git/signatures"
+	"github.com/fluxcd/pkg/git/testutils"
 	"github.com/go-git/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
 )
@@ -223,7 +224,7 @@ func TestVerifyPGPSignatureWithFixturesForTags(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the tag from the fixture file
-			tagObj, err := parseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Build a git.Tag using BuildTag
@@ -281,7 +282,7 @@ func TestVerifyPGPSignatureWithFixtures(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the commit from the fixture file
-			commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Build a git.Commit using BuildCommitWithRef
@@ -310,7 +311,7 @@ func TestVerifyPGPSignatureWithFixtures(t *testing.T) {
 		g := NewWithT(t)
 
 		// Parse the unsigned commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Build a git.Commit using BuildCommitWithRef
@@ -377,7 +378,7 @@ func TestVerifyPGPSignatureWithMultipleKeyRing(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the commit from the fixture file
-			commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Build a git.Commit using BuildCommitWithRef
@@ -402,7 +403,7 @@ func TestVerifyPGPSignatureWithMultipleKeyRing(t *testing.T) {
 		g := NewWithT(t)
 
 		// Parse the unsigned commit from the fixture file
-		commitObj, err := parseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Build a git.Commit using BuildCommitWithRef
