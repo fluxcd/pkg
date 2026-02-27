@@ -112,6 +112,7 @@ func (c *Commit) AbsoluteReference() string {
 	return c.Hash.Digest()
 }
 
+// Deprecated: Verify is deprecated, use VerifySSH or VerifyGPG
 // wrapper function to ensure backwards compatibility
 func (c *Commit) Verify(keyRings ...string) (string, error) {
 	return c.VerifyGPG(keyRings...)
@@ -168,6 +169,7 @@ type Tag struct {
 	Message string
 }
 
+// Deprecated: Verify is deprecated, use VerifySSH or VerifyGPG
 // wrapper function to ensure backwards compatibility
 func (t *Tag) Verify(keyRings ...string) (string, error) {
 	return t.VerifyGPG(keyRings...)
