@@ -25,7 +25,11 @@ import (
 )
 
 // PGPSignaturePrefix is the prefix used by Git to identify PGP signatures.
-const PGPSignaturePrefix = "-----BEGIN PGP SIGNATURE-----"
+// https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L56
+var PGPSignaturePrefix = []string{
+	"-----BEGIN PGP SIGNATURE-----",
+	"-----BEGIN PGP MESSAGE-----",
+}
 
 // VerifyPGPSignature verifies the PGP signature against the payload using
 // the provided key rings. It returns the fingerprint of the key that
@@ -33,6 +37,14 @@ const PGPSignaturePrefix = "-----BEGIN PGP SIGNATURE-----"
 func VerifyPGPSignature(signature string, payload []byte, keyRings ...string) (string, error) {
 	if signature == "" {
 		return "", fmt.Errorf("unable to verify payload as the provided signature is empty")
+	}
+
+	if len(payload) == 0 {
+		return "", fmt.Errorf("unable to verify payload as the provided payload is empty")
+	}
+
+	if !IsPGPSignature(signature) {
+		return "", fmt.Errorf("unable to verify openPGP signature, detected signature format: %s", GetSignatureType(signature))
 	}
 
 	for _, r := range keyRings {

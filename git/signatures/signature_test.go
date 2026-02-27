@@ -39,6 +39,16 @@ func TestIsPGPSignature(t *testing.T) {
 			want:      true,
 		},
 		{
+			name:      "valid PGP signature",
+			signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
+			want:      true,
+		},
+		{
+			name:      "PGP signature with leading whitespace",
+			signature: "  -----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
+			want:      true,
+		},
+		{
 			name:      "empty signature",
 			signature: "",
 			want:      false,
@@ -116,6 +126,58 @@ func TestIsSSHSignature(t *testing.T) {
 	}
 }
 
+func TestIsx509Signature(t *testing.T) {
+	tests := []struct {
+		name      string
+		signature string
+		want      bool
+	}{
+		{
+			name:      "valid x509 signature",
+			signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			want:      true,
+		},
+		{
+			name:      "x509 signature with leading whitespace",
+			signature: "  -----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			want:      true,
+		},
+		{
+			name:      "empty signature",
+			signature: "",
+			want:      false,
+		},
+		{
+			name:      "PGP signature",
+			signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+			want:      false,
+		},
+		{
+			name:      "SSH signature",
+			signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			want:      false,
+		},
+		{
+			name:      "unknown signature",
+			signature: "-----BEGIN UNKNOWN SIGNATURE-----\n-----END UNKNOWN SIGNATURE-----",
+			want:      false,
+		},
+		{
+			name:      "whitespace only",
+			signature: "   \n\t  ",
+			want:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Isx509Signature(tt.signature); got != tt.want {
+				t.Errorf("Isx509Signature() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetSignatureType(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -141,6 +203,16 @@ func TestGetSignatureType(t *testing.T) {
 			name:      "SSH signature with leading whitespace",
 			signature: "  -----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
 			want:      string(SignatureTypeSSH),
+		},
+		{
+			name:      "x509 signature",
+			signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			want:      string(SignatureTypeX509),
+		},
+		{
+			name:      "x509 signature with leading whitespace",
+			signature: "  -----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			want:      string(SignatureTypeX509),
 		},
 		{
 			name:      "empty signature",

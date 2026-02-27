@@ -157,6 +157,20 @@ func TestVerifyPGPSignature(t *testing.T) {
 			keyRings: []string{armoredKeyRingFixture},
 			wantErr:  "unable to verify payload as the provided signature is empty",
 		},
+		{
+			name:     "Empty payload",
+			payload:  []byte{},
+			sig:      signatureCommitFixture,
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload as the provided payload is empty",
+		},
+		{
+			name:     "Non-PGP signature",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify openPGP signature, detected signature format: ssh",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

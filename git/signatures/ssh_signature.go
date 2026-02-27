@@ -28,7 +28,8 @@ import (
 )
 
 // SSHSignaturePrefix is the prefix used by Git to identify SSH signatures.
-const SSHSignaturePrefix = "-----BEGIN SSH SIGNATURE-----"
+// https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L71
+var SSHSignaturePrefix = []string{"-----BEGIN SSH SIGNATURE-----"}
 
 // ParseAuthorizedKeys parses the given authorized keys string and returns
 // a slice of public keys. It supports comments and empty lines.
@@ -65,6 +66,10 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 
 	if len(payload) == 0 {
 		return "", fmt.Errorf("unable to verify payload as the provided payload is empty")
+	}
+
+	if !IsSSHSignature(signature) {
+		return "", fmt.Errorf("unable to verify SSH signature, detected signature format: %s", GetSignatureType(signature))
 	}
 
 	// Unarmor the signature (remove PEM-like armor)
