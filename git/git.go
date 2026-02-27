@@ -135,8 +135,6 @@ func (c *Commit) VerifyGPG(keyRings ...string) (string, error) {
 // It does not verify the signature of the referencing tag (if present). Users are
 // expected to explicitly verify the referencing tag's signature using `c.ReferencingTag.VerifySSH()`
 func (c *Commit) VerifySSH(authorizedKeys ...string) (string, error) {
-	// The Encoded field already contains the commit data without the signature
-	// (it was encoded using EncodeWithoutSignature in BuildCommitWithRef)
 	fingerprint, err := signatures.VerifySSHSignature(c.Signature, c.Encoded, authorizedKeys...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git commit SSH signature: %w", err)
@@ -189,8 +187,6 @@ func (t *Tag) VerifyGPG(keyRings ...string) (string, error) {
 // VerifySSH verifies the SSH signature of the tag with the given authorized keys.
 // It returns the fingerprint of the key the signature was verified with, or an error.
 func (t *Tag) VerifySSH(authorizedKeys ...string) (string, error) {
-	// The Encoded field already contains the tag data without the signature
-	// (it was encoded using EncodeWithoutSignature in BuildCommitWithRef)
 	fingerprint, err := signatures.VerifySSHSignature(t.Signature, t.Encoded, authorizedKeys...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git tag SSH signature: %w", err)
