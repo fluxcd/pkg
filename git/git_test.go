@@ -260,9 +260,16 @@ func TestCommit_IsPGPSigned(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "PGP signed commit",
+			name: "PGP signed commit with SIGNATURE prefix",
 			commit: &Commit{
 				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+			},
+			want: true,
+		},
+		{
+			name: "PGP signed commit with MESSAGE prefix",
+			commit: &Commit{
+				Signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
 			},
 			want: true,
 		},
@@ -270,6 +277,13 @@ func TestCommit_IsPGPSigned(t *testing.T) {
 			name: "SSH signed commit",
 			commit: &Commit{
 				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			},
+			want: false,
+		},
+		{
+			name: "X509 signed commit",
+			commit: &Commit{
+				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
 			},
 			want: false,
 		},
@@ -315,6 +329,13 @@ func TestCommit_IsSSHSigned(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "X509 signed commit",
+			commit: &Commit{
+				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			},
+			want: false,
+		},
+		{
 			name:   "unsigned commit",
 			commit: &Commit{},
 			want:   false,
@@ -342,11 +363,18 @@ func TestCommit_SignatureType(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "PGP signed commit",
+			name: "PGP signed commit with SIGNATURE prefix",
 			commit: &Commit{
 				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
 			},
-			want: "pgp",
+			want: "openpgp",
+		},
+		{
+			name: "PGP signed commit with MESSAGE prefix",
+			commit: &Commit{
+				Signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
+			},
+			want: "openpgp",
 		},
 		{
 			name: "SSH signed commit",
@@ -354,6 +382,13 @@ func TestCommit_SignatureType(t *testing.T) {
 				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
 			},
 			want: "ssh",
+		},
+		{
+			name: "X509 signed commit",
+			commit: &Commit{
+				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			},
+			want: "x509",
 		},
 		{
 			name:   "unsigned commit",
@@ -383,9 +418,16 @@ func TestTag_IsPGPSigned(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "PGP signed tag",
+			name: "PGP signed tag with SIGNATURE prefix",
 			tag: &Tag{
 				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+			},
+			want: true,
+		},
+		{
+			name: "PGP signed tag with MESSAGE prefix",
+			tag: &Tag{
+				Signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
 			},
 			want: true,
 		},
@@ -393,6 +435,13 @@ func TestTag_IsPGPSigned(t *testing.T) {
 			name: "SSH signed tag",
 			tag: &Tag{
 				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			},
+			want: false,
+		},
+		{
+			name: "X509 signed tag",
+			tag: &Tag{
+				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
 			},
 			want: false,
 		},
@@ -438,6 +487,13 @@ func TestTag_IsSSHSigned(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "X509 signed tag",
+			tag: &Tag{
+				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			},
+			want: false,
+		},
+		{
 			name: "unsigned tag",
 			tag:  &Tag{},
 			want: false,
@@ -465,11 +521,18 @@ func TestTag_SignatureType(t *testing.T) {
 		want string
 	}{
 		{
-			name: "PGP signed tag",
+			name: "PGP signed tag with SIGNATURE prefix",
 			tag: &Tag{
 				Signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
 			},
-			want: "pgp",
+			want: "openpgp",
+		},
+		{
+			name: "PGP signed tag with MESSAGE prefix",
+			tag: &Tag{
+				Signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
+			},
+			want: "openpgp",
 		},
 		{
 			name: "SSH signed tag",
@@ -477,6 +540,13 @@ func TestTag_SignatureType(t *testing.T) {
 				Signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
 			},
 			want: "ssh",
+		},
+		{
+			name: "X509 signed tag",
+			tag: &Tag{
+				Signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
+			},
+			want: "x509",
 		},
 		{
 			name: "unsigned tag",
