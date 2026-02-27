@@ -18,7 +18,9 @@ package auth_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -30,6 +32,11 @@ import (
 
 	"github.com/fluxcd/pkg/auth"
 )
+
+// mockIdentity implements fmt.Stringer for testing impersonation identities.
+type mockIdentity string
+
+func (m mockIdentity) String() string { return string(m) }
 
 type mockProvider struct {
 	t *testing.T
@@ -60,6 +67,43 @@ type mockProvider struct {
 	paramSecondScopes  []string
 	expectFirstScopes  bool
 	expectSecondScopes bool
+
+	// Impersonation fields (used when wrapped with mockProviderWithImpersonation).
+	returnImpersonationAnnotationKey  string
+	returnIdentityForImpersonation    fmt.Stringer
+	returnIdentityForImpersonationErr string
+	returnImpersonatedToken           auth.Token
+	returnImpersonateErr              error
+	gotIdentity                       fmt.Stringer
+}
+
+// mockProviderWithImpersonation wraps mockProvider to also implement
+// auth.ProviderWithImpersonation.
+type mockProviderWithImpersonation struct {
+	*mockProvider
+}
+
+func (m *mockProviderWithImpersonation) GetImpersonationAnnotationKey() string {
+	if m.returnImpersonationAnnotationKey != "" {
+		return m.returnImpersonationAnnotationKey
+	}
+	return "impersonation"
+}
+
+func (m *mockProviderWithImpersonation) GetIdentityForImpersonation(identity json.RawMessage) (fmt.Stringer, error) {
+	if m.returnIdentityForImpersonationErr != "" {
+		return nil, errors.New(m.returnIdentityForImpersonationErr)
+	}
+	return m.returnIdentityForImpersonation, nil
+}
+
+func (m *mockProviderWithImpersonation) NewTokenForIdentity(ctx context.Context, token auth.Token,
+	identity fmt.Stringer, opts ...auth.Option) (auth.Token, error) {
+	m.gotIdentity = identity
+	if m.returnImpersonateErr != nil {
+		return nil, m.returnImpersonateErr
+	}
+	return m.returnImpersonatedToken, nil
 }
 
 func (m *mockProvider) GetName() string {

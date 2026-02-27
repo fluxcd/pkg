@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -51,4 +53,31 @@ type Provider interface {
 	// token through the provider's STS service.
 	NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 		serviceAccount corev1.ServiceAccount, opts ...Option) (Token, error)
+}
+
+// ProviderWithImpersonation is an optional interface that providers can
+// implement if they support impersonation of identities. For example, AWS
+// IAM identities can impersonate AWS IAM Roles with the AssumeRole API.
+// Note that the impersonation type here is cloud identity -> cloud identity,
+// and not Kubernetes ServiceAccount -> cloud identity, which is what
+// NewTokenForServiceAccount is for.
+type ProviderWithImpersonation interface {
+	Provider
+
+	// GetImpersonationAnnotationKey returns the annotation key without API group
+	// that should be used in the ServiceAccount to specify the provider identity
+	// to impersonate.
+	GetImpersonationAnnotationKey() string
+
+	// GetIdentityForImpersonation takes the marshaled impersonation
+	// configuration from the ServiceAccount annotations and returns
+	// the identity that should be impersonated with the initially
+	// acquired cloud provider access token.
+	GetIdentityForImpersonation(identity json.RawMessage) (fmt.Stringer, error)
+
+	// NewTokenForIdentity takes a provider token and identity and
+	// returns another provider token that can be used to authenticate
+	// with the cloud provider impersonating the given identity.
+	NewTokenForIdentity(ctx context.Context, token Token,
+		identity fmt.Stringer, opts ...Option) (Token, error)
 }

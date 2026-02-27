@@ -19,6 +19,7 @@ package aws
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -98,11 +99,7 @@ func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, 
 
 // GetIdentity implements auth.Provider.
 func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	roleARN, err := getRoleARN(serviceAccount)
-	if err != nil {
-		return "", err
-	}
-	return roleARN, nil
+	return getRoleARN(serviceAccount)
 }
 
 // NewTokenForServiceAccount implements auth.Provider.
@@ -112,16 +109,9 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	var o auth.Options
 	o.Apply(opts...)
 
-	stsRegion := o.STSRegion
-	if stsRegion == "" {
-		// In this case we can't rely on IRSA or EKS Pod Identity for the controller
-		// pod because this is object-level configuration, so we show a different
-		// error message.
-		// In this error message we assume an API that has a region field, e.g. the
-		// Bucket API. APIs that can extract the region from the ARN (e.g. KMS) will
-		// never reach this code path.
-		return nil, errors.New("an AWS region is required for authenticating with a service account. " +
-			"please configure one in the object spec")
+	stsRegion, err := getSTSRegionForObjectLevel(&o)
+	if err != nil {
+		return nil, err
 	}
 
 	roleARN, err := getRoleARN(serviceAccount)
@@ -129,7 +119,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		return nil, err
 	}
 
-	roleSessionName := getRoleSessionName(serviceAccount, stsRegion)
+	roleSessionName := getRoleSessionNameForServiceAccount(serviceAccount, stsRegion)
 
 	stsOpts := sts.Options{
 		Region:     stsRegion,
@@ -149,6 +139,85 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		WebIdentityToken: &oidcToken,
 	}
 	resp, err := p.impl().AssumeRoleWithWebIdentity(ctx, req, stsOpts)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Credentials == nil {
+		return nil, fmt.Errorf("credentials are nil")
+	}
+
+	creds := &Credentials{*resp.Credentials}
+	if creds.Expiration == nil {
+		creds.Expiration = &time.Time{}
+	}
+
+	return creds, nil
+}
+
+// GetImpersonationAnnotationKey implements auth.ProviderWithImpersonation.
+func (Provider) GetImpersonationAnnotationKey() string {
+	return "assume-role"
+}
+
+type impersonation struct {
+	RoleARN string `json:"roleARN"`
+}
+
+func (i impersonation) String() string {
+	return i.RoleARN
+}
+
+// GetIdentityForImpersonation implements auth.ProviderWithImpersonation.
+func (Provider) GetIdentityForImpersonation(identity json.RawMessage) (fmt.Stringer, error) {
+	var id impersonation
+	if err := json.Unmarshal(identity, &id); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal impersonation identity: %w", err)
+	}
+	if !roleARNRegex.MatchString(id.RoleARN) {
+		return nil, fmt.Errorf("invalid role ARN in impersonation identity: '%s'. must match %s",
+			id.RoleARN, roleARNPattern)
+	}
+	return &id, nil
+}
+
+// NewTokenForIdentity implements auth.ProviderWithImpersonation.
+func (p Provider) NewTokenForIdentity(ctx context.Context, token auth.Token,
+	identity fmt.Stringer, opts ...auth.Option) (auth.Token, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	stsRegion, err := getSTSRegionForObjectLevel(&o)
+	if err != nil {
+		return nil, err
+	}
+
+	roleARN := identity.(*impersonation).RoleARN
+
+	roleName, err := getRoleNameFromARN(roleARN)
+	if err != nil {
+		return nil, err
+	}
+	roleSessionName := getRoleSessionNameForImpersonation(roleName, stsRegion)
+
+	stsOpts := sts.Options{
+		Region:      stsRegion,
+		Credentials: token.(*Credentials).provider(),
+		HTTPClient:  o.GetHTTPClient(),
+	}
+
+	if e := o.STSEndpoint; e != "" {
+		if err := ValidateSTSEndpoint(e); err != nil {
+			return nil, err
+		}
+		stsOpts.BaseEndpoint = &e
+	}
+
+	req := &sts.AssumeRoleInput{
+		RoleArn:         &roleARN,
+		RoleSessionName: &roleSessionName,
+	}
+	resp, err := p.impl().AssumeRole(ctx, req, stsOpts)
 	if err != nil {
 		return nil, err
 	}

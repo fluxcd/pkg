@@ -38,6 +38,17 @@ const (
 	objectLevelWIModeImpersonation
 	objectLevelWIModeDirectAccessFederation
 	objectLevelWIModeImpersonationFederation
+
+	// AWS AssumeRole impersonation modes.
+	objectLevelWIModeAssumeRoleIRSA        // pod=flux-controller-irsa, wisa=test-workload-id-assume-role-ctrl
+	objectLevelWIModeAssumeRolePodIdentity // pod=flux-controller-pod-identity, wisa=test-workload-id-assume-role-ctrl
+	objectLevelWIModeAssumeRoleObjectLevel // pod=flux-controller, wisa=test-workload-id-assume-role
+
+	// GCP impersonation modes.
+	objectLevelWIModeGCPImpersonateCtrl   // pod=flux-controller, wisa=test-workload-id-impersonate-ctrl
+	objectLevelWIModeGCPImpersonateCtrlSA // pod=flux-controller-gcp-sa, wisa=test-workload-id-impersonate-ctrl
+	objectLevelWIModeGCPImpersonateObj    // pod=flux-controller, wisa=test-workload-id-impersonate
+	objectLevelWIModeGCPImpersonateObjDA  // pod=flux-controller, wisa=test-workload-id-impersonate-da
 )
 
 type objectLevelWIMode int
@@ -90,6 +101,23 @@ func testjobExecutionWithArgs(t *testing.T, args []string, opts ...jobOption) {
 				args = append(args, "-wisa-name="+wiServiceAccountFederation)
 			case objectLevelWIModeDirectAccessFederation:
 				args = append(args, "-wisa-name="+wiServiceAccountFederationDirectAccess)
+			case objectLevelWIModeAssumeRoleIRSA:
+				saName = wiControllerIRSA
+				args = append(args, "-wisa-name="+wiAssumeRoleCtrlSA)
+			case objectLevelWIModeAssumeRolePodIdentity:
+				saName = wiControllerPodIdentity
+				args = append(args, "-wisa-name="+wiAssumeRoleCtrlSA)
+			case objectLevelWIModeAssumeRoleObjectLevel:
+				args = append(args, "-wisa-name="+wiAssumeRoleSA)
+			case objectLevelWIModeGCPImpersonateCtrl:
+				args = append(args, "-wisa-name="+wiImpersonateCtrlSA)
+			case objectLevelWIModeGCPImpersonateCtrlSA:
+				saName = wiControllerGCPSA
+				args = append(args, "-wisa-name="+wiImpersonateCtrlSA)
+			case objectLevelWIModeGCPImpersonateObj:
+				args = append(args, "-wisa-name="+wiImpersonateSA)
+			case objectLevelWIModeGCPImpersonateObjDA:
+				args = append(args, "-wisa-name="+wiImpersonateDirectAccessSA)
 			}
 		}
 		job.Spec.Template.Spec.ServiceAccountName = saName
