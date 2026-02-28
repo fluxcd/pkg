@@ -103,9 +103,9 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 	return "", fmt.Errorf("unable to verify payload with any of the given authorized keys")
 }
 
-// getPublicKeyFingerprint returns the SHA256 fingerprint of the public key
+// GetPublicKeyFingerprint returns the SHA256 fingerprint of the public key
 // in the format used by SSH (e.g., "SHA256:abc123...").
 func GetPublicKeyFingerprint(pubKey gossh.PublicKey) string {
 	hash := sha256.Sum256(pubKey.Marshal())
-	return "SHA256:" + strings.TrimSuffix(base64.StdEncoding.EncodeToString(hash[:]), "=")
+	return "SHA256:" + base64.RawStdEncoding.EncodeToString(hash[:])
 }

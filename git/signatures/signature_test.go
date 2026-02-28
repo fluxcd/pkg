@@ -126,7 +126,7 @@ func TestIsSSHSignature(t *testing.T) {
 	}
 }
 
-func TestIsx509Signature(t *testing.T) {
+func TestIsX509Signature(t *testing.T) {
 	tests := []struct {
 		name      string
 		signature string
@@ -171,8 +171,8 @@ func TestIsx509Signature(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Isx509Signature(tt.signature); got != tt.want {
-				t.Errorf("Isx509Signature() = %v, want %v", got, tt.want)
+			if got := IsX509Signature(tt.signature); got != tt.want {
+				t.Errorf("IsX509Signature() = %v, want %v", got, tt.want)
 			}
 		})
 	}
