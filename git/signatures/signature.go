@@ -34,7 +34,7 @@ const (
 	SignatureTypeUnknown SignatureType = "unknown"
 )
 
-// Isx509Signature is the prefix used by Git to identify x509 signatures.
+// IsX509Signature is the prefix used by Git to identify x509 signatures.
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L65
 var X509SignaturePrefix = []string{"-----BEGIN SIGNED MESSAGE-----"}
 
@@ -64,9 +64,9 @@ func IsSSHSignature(signature string) bool {
 	return startsWithStrings(signature, SSHSignaturePrefix)
 }
 
-// Isx509Signature tests if the given signature is of type x509.
+// IsX509Signature tests if the given signature is of type x509.
 // It returns true if the signature starts with the x509 signature prefix.
-func Isx509Signature(signature string) bool {
+func IsX509Signature(signature string) bool {
 	return startsWithStrings(signature, X509SignaturePrefix)
 }
 
@@ -80,7 +80,7 @@ func GetSignatureType(signature string) string {
 	if IsSSHSignature(signature) {
 		return string(SignatureTypeSSH)
 	}
-	if Isx509Signature(signature) {
+	if IsX509Signature(signature) {
 		return string(SignatureTypeX509)
 	}
 	return string(SignatureTypeUnknown)
