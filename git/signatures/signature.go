@@ -66,6 +66,8 @@ func IsSSHSignature(signature string) bool {
 
 // IsX509Signature tests if the given signature is of type x509.
 // It returns true if the signature starts with the x509 signature prefix.
+// This is a place holder / compatibility implementation to embed the signature
+// type into the error message to inform the user about the wrong type of signature
 func IsX509Signature(signature string) bool {
 	return startsWithStrings(signature, X509SignaturePrefix)
 }

@@ -191,40 +191,50 @@ func TestVerifyPGPSignature(t *testing.T) {
 	}
 }
 
-func TestVerifyPGPSignatureWithFixturesForTags(t *testing.T) {
+func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 	testDataDir := filepath.Join("testdata", "gpg_signatures")
 
 	// Test cases for each key type using fixtures
 	keyTypes := []struct {
-		name    string
-		sigFile string
-		keyFile string
-		wantErr bool
+		name       string
+		commitFile string
+		tagFile    string
+		keyFile    string
+		wantErr    bool
 	}{
-		{"rsa_2048 valid tag signature", "tag_rsa_2048_signed.txt", "key_rsa_2048.pub", false},
-		{"rsa_4096 valid tag signature", "tag_rsa_4096_signed.txt", "key_rsa_4096.pub", false},
-		{"ed25519 valid tag signature", "tag_ed25519_signed.txt", "key_ed25519.pub", false},
-		{"ecdsa_p256 valid tag signature", "tag_ecdsa_p256_signed.txt", "key_ecdsa_p256.pub", false},
-		{"ecdsa_p384 valid tag signature", "tag_ecdsa_p384_signed.txt", "key_ecdsa_p384.pub", false},
-		{"ecdsa_p521 valid tag signature", "tag_ecdsa_p521_signed.txt", "key_ecdsa_p521.pub", false},
-		{"dsa_2048 valid tag signature", "tag_dsa_2048_signed.txt", "key_dsa_2048.pub", false},
-		{"brainpool_p256 valid tag signature", "tag_brainpool_p256_signed.txt", "key_brainpool_p256.pub", false},
-		{"brainpool_p384 valid tag signature", "tag_brainpool_p384_signed.txt", "key_brainpool_p384.pub", false},
-		{"brainpool_p512 valid tag signature", "tag_brainpool_p512_signed.txt", "key_brainpool_p512.pub", false},
+		{"rsa_2048 valid signature", "commit_rsa_2048_signed.txt", "tag_rsa_2048_signed.txt", "key_rsa_2048.pub", false},
+		{"rsa_4096 valid signature", "commit_rsa_4096_signed.txt", "tag_rsa_4096_signed.txt", "key_rsa_4096.pub", false},
+		{"ed25519 valid signature", "commit_ed25519_signed.txt", "tag_ed25519_signed.txt", "key_ed25519.pub", false},
+		{"ecdsa_p256 valid signature", "commit_ecdsa_p256_signed.txt", "tag_ecdsa_p256_signed.txt", "key_ecdsa_p256.pub", false},
+		{"ecdsa_p384 valid signature", "commit_ecdsa_p384_signed.txt", "tag_ecdsa_p384_signed.txt", "key_ecdsa_p384.pub", false},
+		{"ecdsa_p521 valid signature", "commit_ecdsa_p521_signed.txt", "tag_ecdsa_p521_signed.txt", "key_ecdsa_p521.pub", false},
+		{"dsa_2048 valid signature", "commit_dsa_2048_signed.txt", "tag_dsa_2048_signed.txt", "key_dsa_2048.pub", false},
+		{"brainpool_p256 valid signature", "commit_brainpool_p256_signed.txt", "tag_brainpool_p256_signed.txt", "key_brainpool_p256.pub", false},
+		{"brainpool_p384 valid signature", "commit_brainpool_p384_signed.txt", "tag_brainpool_p384_signed.txt", "key_brainpool_p384.pub", false},
+		{"brainpool_p512 valid signature", "commit_brainpool_p512_signed.txt", "tag_brainpool_p512_signed.txt", "key_brainpool_p512.pub", false},
 
 		// ed448 test fails because the key was created with OpenPGP version 5,
 		// which is not supported by github.com/ProtonMail/go-crypto (only version 4 is supported).
 		// The error occurs when trying to read the armored key ring:
 		// "unable to read armored key ring: openpgp: invalid data: first packet was not a public/private key"
-		{"ed448 valid tag signature", "tag_ed448_signed.txt", "key_ed448.pub", true},
+		{"ed448 valid signature", "commit_ed448_signed.txt", "tag_ed448_signed.txt", "key_ed448.pub", true},
+	}
+
+	var allKeysRing []string
+	for _, kt := range keyTypes {
+		publicKey, err := os.ReadFile(filepath.Join(testDataDir, kt.keyFile))
+		if err != nil {
+			t.Fatalf("failed to read public key file %s: %v", kt.keyFile, err)
+		}
+		allKeysRing = append(allKeysRing, string(publicKey))
 	}
 
 	for _, kt := range keyTypes {
-		t.Run(kt.name, func(t *testing.T) {
+		t.Run(kt.name+" tag", func(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the tag from the fixture file
-			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.tagFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Build a git.Tag using BuildTag
@@ -245,44 +255,27 @@ func TestVerifyPGPSignatureWithFixturesForTags(t *testing.T) {
 
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(fingerprint).ToNot(BeEmpty())
+
+			// Verify the signature using the multi-key keyring
+			fingerprint, err = signatures.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, allKeysRing...)
+			if kt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+
 		})
-	}
-}
-
-func TestVerifyPGPSignatureWithFixtures(t *testing.T) {
-	testDataDir := filepath.Join("testdata", "gpg_signatures")
-
-	// Test cases for each key type using fixtures
-	keyTypes := []struct {
-		name    string
-		sigFile string
-		keyFile string
-		wantErr bool
-	}{
-		{"rsa_2048 valid signature", "commit_rsa_2048_signed.txt", "key_rsa_2048.pub", false},
-		{"rsa_4096 valid signature", "commit_rsa_4096_signed.txt", "key_rsa_4096.pub", false},
-		{"ed25519 valid signature", "commit_ed25519_signed.txt", "key_ed25519.pub", false},
-		{"ecdsa_p256 valid signature", "commit_ecdsa_p256_signed.txt", "key_ecdsa_p256.pub", false},
-		{"ecdsa_p384 valid signature", "commit_ecdsa_p384_signed.txt", "key_ecdsa_p384.pub", false},
-		{"ecdsa_p521 valid signature", "commit_ecdsa_p521_signed.txt", "key_ecdsa_p521.pub", false},
-		{"dsa_2048 valid signature", "commit_dsa_2048_signed.txt", "key_dsa_2048.pub", false},
-		{"brainpool_p256 valid signature", "commit_brainpool_p256_signed.txt", "key_brainpool_p256.pub", false},
-		{"brainpool_p384 valid signature", "commit_brainpool_p384_signed.txt", "key_brainpool_p384.pub", false},
-		{"brainpool_p512 valid signature", "commit_brainpool_p512_signed.txt", "key_brainpool_p512.pub", false},
-
-		// ed448 test fails because the key was created with OpenPGP version 5,
-		// which is not supported by github.com/ProtonMail/go-crypto (only version 4 is supported).
-		// The error occurs when trying to read the armored key ring:
-		// "unable to read armored key ring: openpgp: invalid data: first packet was not a public/private key"
-		{"ed448 valid signature", "commit_ed448_signed.txt", "key_ed448.pub", true},
 	}
 
 	for _, kt := range keyTypes {
-		t.Run(kt.name, func(t *testing.T) {
+		t.Run(kt.name+" commit", func(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the commit from the fixture file
-			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.commitFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Build a git.Commit using BuildCommitWithRef
@@ -303,6 +296,18 @@ func TestVerifyPGPSignatureWithFixtures(t *testing.T) {
 
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(fingerprint).ToNot(BeEmpty())
+
+			// Verify the signature using the multi-key keyring
+			fingerprint, err = signatures.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, allKeysRing...)
+			if kt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+
 		})
 	}
 
@@ -324,94 +329,6 @@ func TestVerifyPGPSignatureWithFixtures(t *testing.T) {
 
 		// Verify the signature - should fail as the commit is unsigned
 		fingerprint, err := signatures.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, string(publicKey))
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(fingerprint).To(BeEmpty())
-	})
-}
-
-func TestVerifyPGPSignatureWithMultipleKeyRing(t *testing.T) {
-	testDataDir := filepath.Join("testdata", "gpg_signatures")
-
-	// Read multiple public keys to create a multi-key keyring
-	keyFiles := []string{
-		"key_rsa_2048.pub",
-		"key_rsa_4096.pub",
-		"key_ed25519.pub",
-		"key_ecdsa_p256.pub",
-		"key_ecdsa_p384.pub",
-		"key_ecdsa_p521.pub",
-		"key_dsa_2048.pub",
-		"key_brainpool_p256.pub",
-		"key_brainpool_p384.pub",
-		"key_brainpool_p512.pub",
-	}
-
-	var keyRings []string
-	for _, keyFile := range keyFiles {
-		publicKey, err := os.ReadFile(filepath.Join(testDataDir, keyFile))
-		if err != nil {
-			t.Fatalf("failed to read public key file %s: %v", keyFile, err)
-		}
-		keyRings = append(keyRings, string(publicKey))
-	}
-
-	// Test cases for each key type using the multi-key keyring
-	keyTypes := []struct {
-		name    string
-		sigFile string
-		wantErr bool
-	}{
-		{"rsa_2048 valid signature with multi-key keyring", "commit_rsa_2048_signed.txt", false},
-		{"rsa_4096 valid signature with multi-key keyring", "commit_rsa_4096_signed.txt", false},
-		{"ed25519 valid signature with multi-key keyring", "commit_ed25519_signed.txt", false},
-		{"ecdsa_p256 valid signature with multi-key keyring", "commit_ecdsa_p256_signed.txt", false},
-		{"ecdsa_p384 valid signature with multi-key keyring", "commit_ecdsa_p384_signed.txt", false},
-		{"ecdsa_p521 valid signature with multi-key keyring", "commit_ecdsa_p521_signed.txt", false},
-		{"dsa_2048 valid signature with multi-key keyring", "commit_dsa_2048_signed.txt", false},
-		{"brainpool_p256 valid signature with multi-key keyring", "commit_brainpool_p256_signed.txt", false},
-		{"brainpool_p384 valid signature with multi-key keyring", "commit_brainpool_p384_signed.txt", false},
-		{"brainpool_p512 valid signature with multi-key keyring", "commit_brainpool_p512_signed.txt", false},
-	}
-
-	for _, kt := range keyTypes {
-		t.Run(kt.name, func(t *testing.T) {
-			g := NewWithT(t)
-
-			// Parse the commit from the fixture file
-			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.sigFile))
-			g.Expect(err).ToNot(HaveOccurred())
-
-			// Build a git.Commit using BuildCommitWithRef
-			gitCommit, err := gogit.BuildCommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
-			g.Expect(err).ToNot(HaveOccurred())
-
-			// Verify the signature using the multi-key keyring
-			fingerprint, err := signatures.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, keyRings...)
-			if kt.wantErr {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(fingerprint).To(BeEmpty())
-				return
-			}
-
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(fingerprint).ToNot(BeEmpty())
-		})
-	}
-
-	// Test that an unsigned commit fails with multi-key keyring
-	t.Run("unsigned commit with multi-key keyring", func(t *testing.T) {
-		g := NewWithT(t)
-
-		// Parse the unsigned commit from the fixture file
-		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
-		g.Expect(err).ToNot(HaveOccurred())
-
-		// Build a git.Commit using BuildCommitWithRef
-		gitCommit, err := gogit.BuildCommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
-		g.Expect(err).ToNot(HaveOccurred())
-
-		// Verify the signature - should fail as the commit is unsigned
-		fingerprint, err := signatures.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, keyRings...)
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(fingerprint).To(BeEmpty())
 	})

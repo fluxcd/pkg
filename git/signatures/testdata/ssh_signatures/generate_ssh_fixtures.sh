@@ -46,18 +46,6 @@ generate_ssh_key() {
     echo "  ✓ key_${key_name}.pub_fingerprint created"
 }
 
-# Function to create authorized_keys files
-create_authorized_keys() {
-    local key_name=$1
-    local output_file="$SCRIPT_DIR/authorized_keys_${key_name}"
-
-    echo "Creating authorized_keys for $key_name..."
-
-    # Copy public key
-    cp "$TEMP_DIR/${key_name}.pub" "$output_file"
-    echo "  ✓ $output_file created"
-}
-
 # Function to create verified signers files with git namespace
 create_verified_signers() {
     local key_name=$1
@@ -71,8 +59,8 @@ create_verified_signers() {
 }
 
 # Function to create combined authorized_keys file
-create_combined_authorized_keys() {
-    local output_file="$SCRIPT_DIR/authorized_keys_all"
+create_combined_pub_keys() {
+    local output_file="$SCRIPT_DIR/keys_all.pub"
 
     echo "Creating combined authorized_keys..."
 
@@ -218,18 +206,11 @@ main() {
     generate_ssh_key "ed25519" "" "ed25519"
 
     echo ""
-    echo "Step 2: Create authorized_keys files..."
+    echo "Step 2: Create pub_keys files..."
     echo "-----------------------------------------------"
 
-    # Individual authorized_keys files
-    create_authorized_keys "rsa"
-    create_authorized_keys "ecdsa_p256"
-    create_authorized_keys "ecdsa_p384"
-    create_authorized_keys "ecdsa_p521"
-    create_authorized_keys "ed25519"
-
-    # Combined authorized_keys file
-    create_combined_authorized_keys
+    # Combined pub_keys file
+    create_combined_pub_keys
 
     echo ""
     echo "Step 3: Create verified signers files..."
