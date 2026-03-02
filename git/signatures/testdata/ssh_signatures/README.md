@@ -163,14 +163,7 @@ The script generates the following files:
 - `key_ecdsa_p384.pub` - ECDSA P-384 public key
 - `key_ecdsa_p521.pub` - ECDSA P-521 public key
 - `key_ed25519.pub` - ED25519 public key
-
-### Authorized Keys Files
-- `authorized_keys_rsa` - RSA public key
-- `authorized_keys_ecdsa_p256` - ECDSA P-256 public key
-- `authorized_keys_ecdsa_p384` - ECDSA P-384 public key
-- `authorized_keys_ecdsa_p521` - ECDSA P-521 public key
-- `authorized_keys_ed25519` - ED25519 public key
-- `authorized_keys_all` - All public keys combined
+- `keys_all.pub` - All public keys
 
 ### Verified Signers Files
 - `verified_signers_rsa` - RSA public key with git namespace

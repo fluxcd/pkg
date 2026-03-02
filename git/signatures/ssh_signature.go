@@ -89,13 +89,10 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 		for _, pubKey := range publicKeys {
 			// Verify the signature using sshsig library
 			// The namespace for Git is "git"
-			// Git supports both SHA256 and SHA512, so we try both
-			for _, hashAlgo := range []sshsig.HashAlgorithm{sshsig.HashSHA256, sshsig.HashSHA512} {
-				err := sshsig.Verify(bytes.NewReader(payload), sig, pubKey, hashAlgo, "git")
-				if err == nil {
-					// Signature verified successfully
-					return GetPublicKeyFingerprint(pubKey), nil
-				}
+			err := sshsig.Verify(bytes.NewReader(payload), sig, pubKey, sig.HashAlgorithm, "git")
+			if err == nil {
+				// Signature verified successfully
+				return getPublicKeyFingerprint(pubKey), nil
 			}
 		}
 	}
@@ -103,9 +100,9 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 	return "", fmt.Errorf("unable to verify payload with any of the given authorized keys")
 }
 
-// GetPublicKeyFingerprint returns the SHA256 fingerprint of the public key
+// getPublicKeyFingerprint returns the SHA256 fingerprint of the public key
 // in the format used by SSH (e.g., "SHA256:abc123...").
-func GetPublicKeyFingerprint(pubKey gossh.PublicKey) string {
+func getPublicKeyFingerprint(pubKey gossh.PublicKey) string {
 	hash := sha256.Sum256(pubKey.Marshal())
 	return "SHA256:" + base64.RawStdEncoding.EncodeToString(hash[:])
 }
