@@ -24,7 +24,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/go-openapi/jsonpointer"
 	"golang.org/x/sync/errgroup"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
+	"github.com/fluxcd/pkg/ssa/jsondiff"
 	"github.com/fluxcd/pkg/ssa/utils"
 )
 
@@ -78,6 +81,12 @@ type ApplyOptions struct {
 	// tagged with the old API version causes the API server to fail the
 	// apply with "field not declared in schema" for the new defaulted field.
 	MigrateAPIVersion bool `json:"migrateAPIVersion,omitempty"`
+
+	// DriftIgnoreRules defines a list of JSON pointer ignore rules that are used to
+	// remove specific fields from objects before applying them.
+	// This is useful for ignoring fields that are managed by other controllers
+	// (e.g. VPA, HPA) and would otherwise cause drift.
+	DriftIgnoreRules []jsondiff.IgnoreRule `json:"driftIgnoreRules,omitempty"`
 }
 
 // ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
@@ -95,6 +104,10 @@ type ApplyCleanupOptions struct {
 	// based on the specified key-value pairs.
 	Exclusions map[string]string `json:"exclusions"`
 }
+
+// compiledIgnoreRules is a map of pre-compiled selectors to their associated
+// JSON pointer paths, used to avoid recompiling selectors for each object.
+type compiledIgnoreRules map[*jsondiff.SelectorRegex][]string
 
 // DefaultApplyOptions returns the default apply options where force apply is disabled.
 func DefaultApplyOptions() ApplyOptions {
@@ -147,12 +160,41 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	}
 	patched = patched || patchedCleanupMetadata
 
-	// do not apply objects that have not drifted to avoid bumping the resource version
-	if !patched && !m.hasDrifted(existingObject, dryRunObject) {
+	// Compile ignore rules once for both drift detection and conditional field stripping.
+	var compiled compiledIgnoreRules
+	if existingObject.GetResourceVersion() != "" && len(opts.DriftIgnoreRules) > 0 {
+		compiled, err = compileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Do not apply objects that have not drifted to avoid bumping the resource version.
+	// Ignored fields are excluded from the comparison so that differences in fields
+	// managed by other controllers (e.g. VPA, HPA) do not trigger unnecessary applies.
+	drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, compiled)
+	if err != nil {
+		return nil, err
+	}
+	if !patched && !drifted {
 		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
 	appliedObject := object.DeepCopy()
+
+	// Strip only the ignored fields that have actually drifted between the
+	// existing and dry-run objects. Fields that match are kept in the payload
+	// to preserve Flux's ownership.
+	if compiled != nil {
+		driftedPaths := computeDriftedPaths(existingObject, dryRunObject, compiled)
+		if len(driftedPaths) > 0 {
+			patch := jsondiff.GenerateRemovePatch(driftedPaths...)
+			if err := jsondiff.ApplyPatchToUnstructured(appliedObject, patch); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	if err := m.apply(ctx, appliedObject); err != nil {
 		return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 	}
@@ -174,6 +216,17 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 	// is an object to apply
 	toApply := make([]*unstructured.Unstructured, len(objects))
 	changes := make([]ChangeSetEntry, len(objects))
+	driftedIgnorePaths := make([]jsondiff.IgnorePaths, len(objects))
+
+	// Compile ignore rules once for drift detection and conditional field stripping.
+	var compiled compiledIgnoreRules
+	if len(opts.DriftIgnoreRules) > 0 {
+		var err error
+		compiled, err = compileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	{
 		g, ctx := errgroup.WithContext(ctx)
@@ -243,8 +296,16 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				}
 				patched = patched || patchedCleanupMetadata
 
-				if patched || m.hasDrifted(existingObject, dryRunObject) {
+				drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, compiled)
+				if err != nil {
+					return err
+				}
+				if patched || drifted {
 					toApply[i] = object
+					// Compute drifted paths while existingObject and dryRunObject are available.
+					if compiled != nil && existingObject.GetResourceVersion() != "" {
+						driftedIgnorePaths[i] = computeDriftedPaths(existingObject, dryRunObject, compiled)
+					}
 					if dryRunObject.GetResourceVersion() == "" {
 						changes[i] = *m.changeSetEntry(dryRunObject, CreatedAction)
 					} else {
@@ -262,9 +323,15 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		}
 	}
 
-	for _, object := range toApply {
+	for i, object := range toApply {
 		if object != nil {
 			appliedObject := object.DeepCopy()
+			if changes[i].Action != CreatedAction && len(driftedIgnorePaths[i]) > 0 {
+				patch := jsondiff.GenerateRemovePatch(driftedIgnorePaths[i]...)
+				if err := jsondiff.ApplyPatchToUnstructured(appliedObject, patch); err != nil {
+					return nil, err
+				}
+			}
 			if err := m.apply(ctx, appliedObject); err != nil {
 				return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 			}
@@ -487,4 +554,99 @@ func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructur
 	}
 
 	return false
+}
+
+// compileIgnoreRules compiles the selectors from the given ignore rules into
+// regular expressions. The compiled rules can be reused across multiple objects.
+func compileIgnoreRules(rules []jsondiff.IgnoreRule) (compiledIgnoreRules, error) {
+	sm := make(compiledIgnoreRules, len(rules))
+	for _, rule := range rules {
+		sr, err := jsondiff.NewSelectorRegex(rule.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create ignore rule selector: %w", err)
+		}
+		sm[sr] = rule.Paths
+	}
+	return sm, nil
+}
+
+// removeIgnoredFields removes the fields matched by the given pre-compiled
+// ignore rules from obj. Selectors are evaluated against matchObj so that
+// existing and dry-run copies are stripped based on the same decision.
+func removeIgnoredFields(matchObj, obj *unstructured.Unstructured, rules compiledIgnoreRules) error {
+	var ignorePaths jsondiff.IgnorePaths
+	for sr, paths := range rules {
+		if sr.MatchUnstructured(matchObj) {
+			ignorePaths = append(ignorePaths, paths...)
+		}
+	}
+
+	if len(ignorePaths) > 0 {
+		patch := jsondiff.GenerateRemovePatch(ignorePaths...)
+		if err := jsondiff.ApplyPatchToUnstructured(obj, patch); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// lookupJSONPointer resolves an RFC 6901 JSON pointer against the unstructured
+// object's content. A missing path is reported as (nil, false, nil).
+func lookupJSONPointer(obj *unstructured.Unstructured, pointer string) (any, bool, error) {
+	ptr, err := jsonpointer.New(pointer)
+	if err != nil {
+		return nil, false, err
+	}
+	val, _, err := ptr.Get(obj.Object)
+	if err != nil {
+		// jsonpointer returns an error when any segment of the pointer cannot
+		// be resolved; treat that as "not present" rather than a hard failure.
+		return nil, false, nil
+	}
+	return val, true, nil
+}
+
+// computeDriftedPaths returns the subset of ignored paths whose values differ
+// between existingObject and dryRunObject.
+func computeDriftedPaths(
+	existingObject, dryRunObject *unstructured.Unstructured,
+	rules compiledIgnoreRules,
+) jsondiff.IgnorePaths {
+	var drifted jsondiff.IgnorePaths
+	for sr, paths := range rules {
+		if sr.MatchUnstructured(dryRunObject) {
+			for _, path := range paths {
+				existingVal, ef, eerr := lookupJSONPointer(existingObject, path)
+				dryRunVal, df, derr := lookupJSONPointer(dryRunObject, path)
+				if eerr != nil || derr != nil || ef != df ||
+					!apiequality.Semantic.DeepEqual(existingVal, dryRunVal) {
+					drifted = append(drifted, path)
+				}
+			}
+		}
+	}
+	return drifted
+}
+
+// hasDriftedWithIgnore is like hasDrifted but strips ignored fields from deep
+// copies before comparing. If compiled is nil, it falls back to hasDrifted.
+// Selector matching is done against dryRunObject so both copies are stripped
+// on the same decision, matching computeDriftedPaths.
+func (m *ResourceManager) hasDriftedWithIgnore(
+	existingObject, dryRunObject *unstructured.Unstructured,
+	compiled compiledIgnoreRules,
+) (bool, error) {
+	if compiled == nil {
+		return m.hasDrifted(existingObject, dryRunObject), nil
+	}
+	existingCopy := existingObject.DeepCopy()
+	dryRunCopy := dryRunObject.DeepCopy()
+	if err := removeIgnoredFields(dryRunObject, existingCopy, compiled); err != nil {
+		return false, err
+	}
+	if err := removeIgnoredFields(dryRunObject, dryRunCopy, compiled); err != nil {
+		return false, err
+	}
+	return m.hasDrifted(existingCopy, dryRunCopy), nil
 }
