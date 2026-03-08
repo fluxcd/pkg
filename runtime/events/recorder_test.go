@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	eventv1 "github.com/fluxcd/pkg/apis/event/v1beta1"
+	eventv1 "github.com/fluxcd/pkg/apis/event/v1"
 )
 
 func TestEventRecorder_AnnotatedEventf(t *testing.T) {
@@ -102,6 +102,7 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 				require.Equal(t, "webapp", payload.InvolvedObject.Name)
 				require.Equal(t, "gitops-system", payload.InvolvedObject.Namespace)
 				require.Equal(t, "sync", payload.Reason)
+				require.Equal(t, eventv1.ActionReconciling, payload.Action)
 				require.Equal(t, "sync object", payload.Message)
 
 				for k, v := range tt.expectedMetadata {
@@ -117,11 +118,11 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 
 			const msg = "sync object"
 
-			eventRecorder.AnnotatedEventf(obj, tt.inputAnnotations, corev1.EventTypeNormal, "sync", "%s", msg)
+			eventRecorder.AnnotatedEventf(obj, nil, tt.inputAnnotations, corev1.EventTypeNormal, "sync", eventv1.ActionReconciling, "%s", msg)
 			require.Equal(t, 1, requestCount)
 
 			// When a trace event is sent, it's dropped, no new request.
-			eventRecorder.AnnotatedEventf(obj, tt.inputAnnotations, eventv1.EventTypeTrace, "sync", "%s", msg)
+			eventRecorder.AnnotatedEventf(obj, nil, tt.inputAnnotations, eventv1.EventTypeTrace, "sync", eventv1.ActionReconciling, "%s", msg)
 			require.Equal(t, 1, requestCount)
 		})
 	}
@@ -150,7 +151,7 @@ func TestEventRecorder_AnnotatedEventf_Retry(t *testing.T) {
 	obj.Namespace = "gitops-system"
 	obj.Name = "webapp"
 
-	eventRecorder.AnnotatedEventf(obj, nil, corev1.EventTypeNormal, "sync", "sync %s", obj.Name)
+	eventRecorder.AnnotatedEventf(obj, nil, nil, corev1.EventTypeNormal, "sync", eventv1.ActionReconciling, "sync %s", obj.Name)
 	require.True(t, requestCount > 1)
 }
 
@@ -177,7 +178,7 @@ func TestEventRecorder_AnnotatedEventf_RateLimited(t *testing.T) {
 	obj.Namespace = "gitops-system"
 	obj.Name = "webapp"
 
-	eventRecorder.AnnotatedEventf(obj, nil, corev1.EventTypeNormal, "sync", "sync %s", obj.Name)
+	eventRecorder.AnnotatedEventf(obj, nil, nil, corev1.EventTypeNormal, "sync", eventv1.ActionReconciling, "sync %s", obj.Name)
 	require.Equal(t, 1, requestCount)
 }
 
