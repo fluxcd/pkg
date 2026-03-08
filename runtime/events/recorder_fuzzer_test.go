@@ -36,7 +36,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	eventv1 "github.com/fluxcd/pkg/apis/event/v1beta1"
+	eventv1 "github.com/fluxcd/pkg/apis/event/v1"
 )
 
 var (
@@ -91,11 +91,10 @@ func Fuzz_Eventf(f *testing.F) {
 		}()
 		<-fuzzEnv.Manager.Elected()
 
-		eventRecorder, err := NewRecorder(fuzzEnv, ctrl.Log, fuzzTs.URL, "test-controller")
+		eventRecorder, err := NewRecorder(ctrl.Log, fuzzTs.URL, "test-controller", WithManager(fuzzEnv), WithRetryMax(2))
 		if err != nil {
 			return
 		}
-		eventRecorder.Client.RetryMax = 2
 
 		f := fuzz.NewConsumer(data)
 		obj := corev1.ConfigMap{}
@@ -111,7 +110,7 @@ func Fuzz_Eventf(f *testing.F) {
 		if err != nil {
 			return
 		}
-		eventRecorder.Eventf(&obj, eventtype, reason, obj.Name)
+		eventRecorder.Eventf(&obj, nil, eventtype, reason, eventv1.ActionReconciling, obj.Name)
 
 		_ = fuzzEnv.Stop()
 	})
