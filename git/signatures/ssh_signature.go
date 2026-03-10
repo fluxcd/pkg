@@ -27,6 +27,8 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
+const SSHSignatureNamespace = "git"
+
 // SSHSignaturePrefix is the prefix used by Git to identify SSH signatures.
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L71
 var SSHSignaturePrefix = []string{"-----BEGIN SSH SIGNATURE-----"}
@@ -56,7 +58,7 @@ func ParseAuthorizedKeys(authorizedKeys string) ([]gossh.PublicKey, error) {
 	return publicKeys, nil
 }
 
-// verifySSHSignature verifies the SSH signature against the payload using
+// VerifySSHSignature verifies the SSH signature against the payload using
 // the provided authorized keys. It returns the fingerprint of the key that
 // successfully verified the signature, or an error.
 func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...string) (string, error) {
@@ -88,8 +90,7 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 		// Try to verify with each public key
 		for _, pubKey := range publicKeys {
 			// Verify the signature using sshsig library
-			// The namespace for Git is "git"
-			err := sshsig.Verify(bytes.NewReader(payload), sig, pubKey, sig.HashAlgorithm, "git")
+			err := sshsig.Verify(bytes.NewReader(payload), sig, pubKey, sig.HashAlgorithm, SSHSignatureNamespace)
 			if err == nil {
 				// Signature verified successfully
 				return getPublicKeyFingerprint(pubKey), nil
