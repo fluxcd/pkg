@@ -217,7 +217,7 @@ func TestGetSignatureType(t *testing.T) {
 		{
 			name:      "empty signature",
 			signature: "",
-			want:      string(SignatureTypeUnknown),
+			want:      string(SignatureTypeEmpty),
 		},
 		{
 			name:      "unknown signature",

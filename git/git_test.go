@@ -550,7 +550,7 @@ func TestSignatureType(t *testing.T) {
 			name:   "unsigned",
 			commit: &Commit{},
 			tag:    &Tag{},
-			want:   "unknown",
+			want:   "empty",
 		},
 		{
 			name: "unknown signature type",
