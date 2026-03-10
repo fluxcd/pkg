@@ -762,18 +762,18 @@ func TestCommit_VerifySSH(t *testing.T) {
 		{
 			name:           "valid SSH signature",
 			sigFile:        "commit_rsa_signed.txt",
-			authorizedKeys: "authorized_keys_rsa",
+			authorizedKeys: "key_rsa.pub",
 		},
 		{
 			name:           "missing signature",
 			sigFile:        "commit_unsigned.txt",
-			authorizedKeys: "authorized_keys_rsa",
+			authorizedKeys: "key_rsa.pub",
 			wantErr:        "unable to verify Git commit SSH signature: unable to verify payload as the provided signature is empty",
 		},
 		{
 			name:           "invalid signature",
 			sigFile:        "commit_rsa_signed.txt",
-			authorizedKeys: "authorized_keys_ed25519",
+			authorizedKeys: "key_ed25519.pub",
 			wantErr:        "unable to verify Git commit SSH signature: unable to verify payload with any of the given authorized keys",
 		},
 		{
@@ -840,18 +840,18 @@ func TestTag_VerifySSH(t *testing.T) {
 		{
 			name:           "valid SSH signature",
 			sigFile:        "tag_rsa_signed.txt",
-			authorizedKeys: "authorized_keys_rsa",
+			authorizedKeys: "key_rsa.pub",
 		},
 		{
 			name:           "missing signature",
 			sigFile:        "commit_unsigned.txt",
-			authorizedKeys: "authorized_keys_rsa",
+			authorizedKeys: "key_rsa.pub",
 			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload as the provided signature is empty",
 		},
 		{
 			name:           "invalid signature",
 			sigFile:        "tag_rsa_signed.txt",
-			authorizedKeys: "authorized_keys_ed25519",
+			authorizedKeys: "key_ed25519.pub",
 			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload with any of the given authorized keys",
 		},
 		{
