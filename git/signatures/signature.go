@@ -32,6 +32,8 @@ const (
 	SignatureTypeX509 SignatureType = "x509"
 	// SignatureTypeUnknown represents an unknown signature type.
 	SignatureTypeUnknown SignatureType = "unknown"
+	// SignatureTypeEmpty represents an empty signature.
+	SignatureTypeEmpty SignatureType = "empty"
 )
 
 // IsX509Signature is the prefix used by Git to identify x509 signatures.
@@ -72,9 +74,16 @@ func IsX509Signature(signature string) bool {
 	return startsWithStrings(signature, X509SignaturePrefix)
 }
 
+// IsEmptySignature tests if the given signature string is empty.
+// It returns true if the signature string has a length of 0.
+func IsEmptySignature(signature string) bool {
+	return len(signature) == 0
+}
+
 // GetSignatureType returns the type of the signature as a string.
 // It returns "pgp" for PGP signatures, "ssh" for SSH signatures,
-// and "unknown" for unrecognized or empty signatures.
+// "x509" for S/MIME signatures, "empty" for an empty signature
+// and "unknown" for unrecognized signatures.
 func GetSignatureType(signature string) string {
 	if IsPGPSignature(signature) {
 		return string(SignatureTypePGP)
@@ -84,6 +93,9 @@ func GetSignatureType(signature string) string {
 	}
 	if IsX509Signature(signature) {
 		return string(SignatureTypeX509)
+	}
+	if IsEmptySignature(signature) {
+		return string(SignatureTypeEmpty)
 	}
 	return string(SignatureTypeUnknown)
 }
