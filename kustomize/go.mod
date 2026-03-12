@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/apis/kustomize v1.15.0
+	github.com/fluxcd/pkg/apis/kustomize v1.16.0
 	github.com/fluxcd/pkg/envsubst v1.5.0
 	github.com/fluxcd/pkg/sourceignore v0.17.0
 	github.com/onsi/gomega v1.39.0
