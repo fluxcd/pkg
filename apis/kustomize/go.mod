@@ -2,7 +2,7 @@ module github.com/fluxcd/pkg/apis/kustomize
 
 go 1.25.0
 
-require k8s.io/apiextensions-apiserver v0.35.0
+require k8s.io/apiextensions-apiserver v0.35.2
 
 require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
@@ -17,7 +17,7 @@ require (
 	golang.org/x/text v0.33.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	k8s.io/apimachinery v0.35.0 // indirect
+	k8s.io/apimachinery v0.35.2 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
