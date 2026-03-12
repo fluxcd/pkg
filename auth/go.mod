@@ -22,7 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.77.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.6
 	github.com/coreos/go-oidc/v3 v3.17.0
-	github.com/fluxcd/pkg/apis/meta v1.25.0
+	github.com/fluxcd/pkg/apis/meta v1.26.0
 	github.com/fluxcd/pkg/cache v0.13.0
 	github.com/fluxcd/pkg/ssh v0.24.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
