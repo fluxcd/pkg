@@ -20,7 +20,6 @@ The [`generate_gpg_fixtures.sh`](generate_gpg_fixtures.sh) script automates the 
 
 1. **GPG Key Pairs** in supported variants:
    - RSA (2048 and 4096 bits)
-   - DSA (2048 bits)
    - ECC/ECDSA (NIST P-256, P-384, P-521)
    - Brainpool curves (P-256, P-384, P-512)
    - EdDSA (Ed25519, Ed448)
@@ -80,18 +79,6 @@ Expire-Date: 0
 %commit
 EOF
 gpg --batch --generate-key batch_rsa_4096.txt
-
-# DSA 2048-bit key
-cat > batch_dsa_2048.txt <<EOF
-%no-protection
-Key-Type: DSA
-Key-Length: 2048
-Name-Real: Test User
-Name-Email: test-dsa-2048@example.com
-Expire-Date: 0
-%commit
-EOF
-gpg --batch --generate-key batch_dsa_2048.txt
 
 # ECDSA P-256 key
 cat > batch_ecdsa_p256.txt <<EOF
@@ -192,7 +179,6 @@ gpg --batch --generate-key batch_ed448.txt
 # Export public keys
 gpg --armor --export test-rsa-2048@example.com > key_rsa_2048.pub
 gpg --armor --export test-rsa-4096@example.com > key_rsa_4096.pub
-gpg --armor --export test-dsa-2048@example.com > key_dsa_2048.pub
 gpg --armor --export test-ecdsa-p256@example.com > key_ecdsa_p256.pub
 gpg --armor --export test-ecdsa-p384@example.com > key_ecdsa_p384.pub
 gpg --armor --export test-ecdsa-p521@example.com > key_ecdsa_p521.pub
@@ -284,7 +270,6 @@ The script generates the following files:
 ### Public Keys
 - `key_rsa_2048.pub` - RSA 2048-bit public key
 - `key_rsa_4096.pub` - RSA 4096-bit public key
-- `key_dsa_2048.pub` - DSA 2048-bit public key
 - `key_ecdsa_p256.pub` - ECDSA P-256 public key
 - `key_ecdsa_p384.pub` - ECDSA P-384 public key
 - `key_ecdsa_p521.pub` - ECDSA P-521 public key
@@ -297,7 +282,6 @@ The script generates the following files:
 ### Signed Commits
 - `commit_rsa_2048_signed.txt` - RSA 2048-bit signed commit
 - `commit_rsa_4096_signed.txt` - RSA 4096-bit signed commit
-- `commit_dsa_2048_signed.txt` - DSA 2048-bit signed commit
 - `commit_ecdsa_p256_signed.txt` - ECDSA P-256 signed commit
 - `commit_ecdsa_p384_signed.txt` - ECDSA P-384 signed commit
 - `commit_ecdsa_p521_signed.txt` - ECDSA P-521 signed commit
@@ -310,7 +294,6 @@ The script generates the following files:
 ### Signed Tags
 - `tag_rsa_2048_signed.txt` - RSA 2048-bit signed tag
 - `tag_rsa_4096_signed.txt` - RSA 4096-bit signed tag
-- `tag_dsa_2048_signed.txt` - DSA 2048-bit signed tag
 - `tag_ecdsa_p256_signed.txt` - ECDSA P-256 signed tag
 - `tag_ecdsa_p384_signed.txt` - ECDSA P-384 signed tag
 - `tag_ecdsa_p521_signed.txt` - ECDSA P-521 signed tag
@@ -329,10 +312,6 @@ The script generates the following files:
 - **RSA 2048**: Standard RSA key with 2048-bit modulus
 - **RSA 4096**: Stronger RSA key with 4096-bit modulus
 - Widely supported, but slower than ECC keys
-
-### DSA (Digital Signature Algorithm)
-- **DSA 2048**: Legacy algorithm, 2048-bit key
-- Less secure than modern alternatives, included for compatibility testing
 
 ### ECDSA (Elliptic Curve Digital Signature Algorithm)
 - **P-256**: NIST P-256 curve (secp256r1)
@@ -385,7 +364,7 @@ If key generation fails, ensure that:
 
 ### Script structure
 The script uses separate functions for different key types:
-- `generate_rsa_dsa_key()` - For RSA and DSA keys with key length validation
+- `generate_rsa_dsa_key()` - For RSA keys with key length validation
 - `generate_ecc_key()` - For ECC/ECDSA/EdDSA keys with curve validation
 - `create_signed_object()` - For creating signed commits and tags
 - `create_unsigned_commit()` - For creating unsigned test commits
