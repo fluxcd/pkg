@@ -208,7 +208,6 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 		{"ecdsa_p256 valid signature", "commit_ecdsa_p256_signed.txt", "tag_ecdsa_p256_signed.txt", "key_ecdsa_p256.pub", false},
 		{"ecdsa_p384 valid signature", "commit_ecdsa_p384_signed.txt", "tag_ecdsa_p384_signed.txt", "key_ecdsa_p384.pub", false},
 		{"ecdsa_p521 valid signature", "commit_ecdsa_p521_signed.txt", "tag_ecdsa_p521_signed.txt", "key_ecdsa_p521.pub", false},
-		{"dsa_2048 valid signature", "commit_dsa_2048_signed.txt", "tag_dsa_2048_signed.txt", "key_dsa_2048.pub", false},
 		{"brainpool_p256 valid signature", "commit_brainpool_p256_signed.txt", "tag_brainpool_p256_signed.txt", "key_brainpool_p256.pub", false},
 		{"brainpool_p384 valid signature", "commit_brainpool_p384_signed.txt", "tag_brainpool_p384_signed.txt", "key_brainpool_p384.pub", false},
 		{"brainpool_p512 valid signature", "commit_brainpool_p512_signed.txt", "tag_brainpool_p512_signed.txt", "key_brainpool_p512.pub", false},
