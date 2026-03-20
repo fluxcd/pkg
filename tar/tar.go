@@ -177,7 +177,12 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 				}
 			}
 		case mode.IsDir():
-			if err := os.MkdirAll(abs, 0o750); err != nil {
+			// Ensure the owner can always traverse, read, and write
+			// into extracted directories, regardless of what the tar
+			// header claims. This prevents crafted archives from
+			// creating directories that block cleanup or future writes.
+			dirPerm := mode.Perm() | 0o700
+			if err := os.MkdirAll(abs, dirPerm); err != nil {
 				return err
 			}
 			madeDir[abs] = true

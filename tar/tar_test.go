@@ -35,6 +35,7 @@ type untarTestCase struct {
 	content         []byte
 	wantErr         string
 	maxUntarSize    int
+	fileMode        int64
 }
 
 func TestUntar(t *testing.T) {
@@ -178,6 +179,40 @@ func TestUntar(t *testing.T) {
 	}
 }
 
+func TestUntarDirectoryPermissions(t *testing.T) {
+	testDirName := "test-dir"
+
+	f, err := createTestTar(untarTestCase{
+		fileName: testDirName + "/", // from tar.Header: a trailing slash makes the entry a TypeDir
+		fileMode: 0o555,
+		content:  nil,
+	})
+	if err != nil {
+		t.Fatalf("creating test tar: %v", err)
+	}
+
+	targetDir := t.TempDir()
+
+	if err := Untar(f, targetDir); err != nil {
+		t.Fatalf("untar: %v", err)
+	}
+
+	fullPath := filepath.Join(targetDir, testDirName)
+	fi, err := os.Lstat(fullPath)
+	if err != nil {
+		t.Errorf("stat %q: %v", fullPath, err)
+	}
+
+	if !fi.Mode().IsDir() {
+		t.Fatalf("%q: not a directory", fullPath)
+	}
+
+	ownerPerm := fi.Mode().Perm() & 0o700
+	if ownerPerm != 0o700 {
+		t.Errorf("the owner must always be able to traverse, read, and write extracted directories")
+	}
+}
+
 func Fuzz_Untar(f *testing.F) {
 	tf, err := createTestTar(untarTestCase{
 		name:     "file at root",
@@ -211,10 +246,15 @@ func createTestTar(tt untarTestCase) (*os.File, error) {
 	gzw := gzip.NewWriter(f)
 	writer := tar.NewWriter(gzw)
 
+	fileMode := tt.fileMode
+	if fileMode == 0 {
+		fileMode = 0o777
+	}
+
 	writer.WriteHeader(&tar.Header{
 		Name: tt.fileName,
 		Size: int64(len(tt.content)),
-		Mode: 0o777,
+		Mode: fileMode,
 	})
 
 	writer.Write(tt.content)
