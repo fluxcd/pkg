@@ -63,3 +63,40 @@ func TestClient_Diff(t *testing.T) {
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err).To(MatchError("the remote artifact contents differs from the local one"))
 }
+
+func TestClient_PushPullDiff_RoundTrip(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+	c := NewClient(DefaultOptions())
+	tag := "v0.0.1"
+	repo := "test-push" + randStringRunes(5)
+
+	url := fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag)
+	metadata := Metadata{
+		Source:   "github.com/fluxcd/flux2",
+		Revision: "rev",
+	}
+
+	testDir := "testdata/artifact"
+	_, err := c.Push(ctx, url, testDir, WithPushMetadata(metadata))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = c.Diff(ctx, url, testDir, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	testDirStat, err := os.Stat(testDir)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tmpPullDir, err := os.MkdirTemp("", "oci")
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(tmpPullDir)
+
+	err = os.Chmod(tmpPullDir, testDirStat.Mode())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	_, err = c.Pull(ctx, url, tmpPullDir)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = c.Diff(ctx, url, tmpPullDir, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+}
