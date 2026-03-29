@@ -129,19 +129,43 @@ func WithSaveOriginalKustomization() SavingOptions {
 //		log.Fatal(err)
 //	}
 func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, error) {
+	manifest, kfile, action, err := g.GenerateManifest(dirPath)
+	if err != nil {
+		errf := CleanDirectory(dirPath, action)
+		return action, fmt.Errorf("%v %v", err, errf)
+	}
+
+	for _, opt := range opts {
+		if err := opt(dirPath, kfile, action); err != nil {
+			return action, fmt.Errorf("failed to save original kustomization.yaml: %w", err)
+		}
+	}
+
+	err = os.WriteFile(kfile, manifest, os.ModePerm)
+	if err != nil {
+		errf := CleanDirectory(dirPath, action)
+		return action, fmt.Errorf("%v %v", err, errf)
+	}
+
+	return action, nil
+}
+
+// GenerateManifest returns the kustomization.yaml content, the full path to the
+// kustomization file, and the action taken, without writing to disk.
+func (g *Generator) GenerateManifest(dirPath string) ([]byte, string, Action, error) {
 	var ignorePatterns []gitignore.Pattern
 	var ignoreDomain []string
 
 	if g.filter || g.ignore != "" {
 		absPath, err := filepath.Abs(dirPath)
 		if err != nil {
-			return UnchangedAction, fmt.Errorf("failed to get absolute path: %w", err)
+			return nil, "", UnchangedAction, fmt.Errorf("failed to get absolute path: %w", err)
 		}
 
 		ignoreDomain = strings.Split(absPath, string(filepath.Separator))
 		ignorePatterns, err = sourceignore.LoadIgnorePatterns(absPath, ignoreDomain)
 		if err != nil {
-			return UnchangedAction, fmt.Errorf("failed to load ignore patterns: %w", err)
+			return nil, "", UnchangedAction, fmt.Errorf("failed to load ignore patterns: %w", err)
 		}
 
 		// Add additional patterns from command line
@@ -151,17 +175,9 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 		}
 	}
 
-	action, kfile, err := g.generateKustomization(dirPath, ignorePatterns, ignoreDomain)
-
+	data, kfile, action, err := g.findOrGenerateKustomization(dirPath, ignorePatterns, ignoreDomain)
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%v %v", err, errf)
-	}
-
-	data, err := os.ReadFile(kfile)
-	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%w %s", err, errf)
+		return nil, "", action, err
 	}
 
 	kus := kustypes.Kustomization{
@@ -172,8 +188,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 	}
 
 	if err := yaml.Unmarshal(data, &kus); err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%v %v", err, errf)
+		return nil, "", action, err
 	}
 
 	if action == UnchangedAction && len(kus.Resources) == 0 {
@@ -184,17 +199,14 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	// apply filters if any
 	if g.filter {
-		err = filterKsWithIgnoreFiles(&kus, dirPath, ignorePatterns, ignoreDomain)
-		if err != nil {
-			errf := CleanDirectory(dirPath, action)
-			return action, fmt.Errorf("%v %v", err, errf)
+		if err := filterKsWithIgnoreFiles(&kus, dirPath, ignorePatterns, ignoreDomain); err != nil {
+			return nil, "", action, err
 		}
 	}
 
 	tg, ok, err := g.getNestedString(specField, targetNSField)
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%v %v", err, errf)
+		return nil, "", action, err
 	}
 	if ok {
 		kus.Namespace = tg
@@ -202,8 +214,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	nprefix, ok, err := g.getNestedString(specField, namePrefixField)
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%v %v", err, errf)
+		return nil, "", action, err
 	}
 	if ok {
 		kus.NamePrefix = nprefix
@@ -211,8 +222,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	nsuffix, ok, err := g.getNestedString(specField, nameSuffixField)
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%v %v", err, errf)
+		return nil, "", action, err
 	}
 	if ok {
 		kus.NameSuffix = nsuffix
@@ -220,8 +230,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	patches, err := g.getPatches()
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("unable to get patches: %w", fmt.Errorf("%v %v", err, errf))
+		return nil, "", action, fmt.Errorf("unable to get patches: %w", err)
 	}
 
 	for _, p := range patches {
@@ -233,14 +242,13 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	components, _, err := g.getNestedStringSlice(specField, componentsField)
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("unable to get components: %w", fmt.Errorf("%v %v", err, errf))
+		return nil, "", action, fmt.Errorf("unable to get components: %w", err)
 	}
 
 	ignoreMissing := g.getNestedBool(specField, ignoreComponentsField)
 	for _, component := range components {
 		if !IsLocalRelativePath(component) {
-			return "", fmt.Errorf("component path '%s' must be local and relative", component)
+			return nil, "", action, fmt.Errorf("component path '%s' must be local and relative", component)
 		}
 		if _, err := os.Stat(filepath.Join(dirPath, component)); errors.Is(err, os.ErrNotExist) && ignoreMissing {
 			continue
@@ -250,8 +258,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	patchesSM, err := g.getPatchesStrategicMerge()
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("unable to get patchesStrategicMerge: %w", fmt.Errorf("%v %v", err, errf))
+		return nil, "", action, fmt.Errorf("unable to get patchesStrategicMerge: %w", err)
 	}
 
 	for _, p := range patchesSM {
@@ -260,15 +267,13 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	patchesJSON, err := g.getPatchesJson6902()
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("unable to get patchesJson6902: %w", fmt.Errorf("%v %v", err, errf))
+		return nil, "", action, fmt.Errorf("unable to get patchesJson6902: %w", err)
 	}
 
 	for _, p := range patchesJSON {
 		patch, err := json.Marshal(p.Patch)
 		if err != nil {
-			errf := CleanDirectory(dirPath, action)
-			return action, fmt.Errorf("%v %v", err, errf)
+			return nil, "", action, err
 		}
 		kus.PatchesJson6902 = append(kus.PatchesJson6902, kustypes.Patch{
 			Patch:  string(patch),
@@ -278,8 +283,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	images, err := g.getImages()
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("unable to get images: %w", fmt.Errorf("%v %v", err, errf))
+		return nil, "", action, fmt.Errorf("unable to get images: %w", err)
 	}
 
 	for _, image := range images {
@@ -298,24 +302,10 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 
 	manifest, err := yaml.Marshal(kus)
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%v %v", err, errf)
+		return nil, "", action, err
 	}
 
-	// copy the original kustomization.yaml to the directory if we did not create it
-	for _, opt := range opts {
-		if err := opt(dirPath, kfile, action); err != nil {
-			return action, fmt.Errorf("failed to save original kustomization.yaml: %w", err)
-		}
-	}
-
-	err = os.WriteFile(kfile, manifest, os.ModePerm)
-	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%v %v", err, errf)
-	}
-
-	return action, nil
+	return manifest, kfile, action, nil
 }
 
 func (g *Generator) getPatches() ([]kustomize.Patch, error) {
@@ -476,7 +466,9 @@ func (g *Generator) getNestedSlice(fields ...string) ([]interface{}, bool, error
 	return val, ok, nil
 }
 
-func (g *Generator) generateKustomization(dirPath string, ignorePatterns []gitignore.Pattern, ignoreDomain []string) (Action, string, error) {
+// findOrGenerateKustomization reads an existing kustomization file or generates
+// content for a new one without writing to disk.
+func (g *Generator) findOrGenerateKustomization(dirPath string, ignorePatterns []gitignore.Pattern, ignoreDomain []string) ([]byte, string, Action, error) {
 	var (
 		err error
 		fs  filesys.FileSystem
@@ -489,33 +481,28 @@ func (g *Generator) generateKustomization(dirPath string, ignorePatterns []gitig
 		fs = filesys.MakeFsOnDisk()
 	}
 	if err != nil {
-		return UnchangedAction, "", err
+		return nil, "", UnchangedAction, err
 	}
 
 	// Determine if there already is a Kustomization file at the root,
 	// as this means we do not have to generate one.
 	for _, kfilename := range konfig.RecognizedKustomizationFileNames() {
-		if kpath := filepath.Join(dirPath, kfilename); fs.Exists(kpath) && !fs.IsDir(kpath) {
-			return UnchangedAction, kpath, nil
+		kpath := filepath.Join(dirPath, kfilename)
+		if fs.Exists(kpath) && !fs.IsDir(kpath) {
+			data, err := os.ReadFile(kpath)
+			return data, kpath, UnchangedAction, err
 		}
 	}
 
 	abs, err := filepath.Abs(dirPath)
 	if err != nil {
-		return UnchangedAction, "", err
+		return nil, "", UnchangedAction, err
 	}
 
 	files, err := scanManifests(fs, abs, ignorePatterns, ignoreDomain)
 	if err != nil {
-		return UnchangedAction, "", err
+		return nil, "", UnchangedAction, err
 	}
-
-	kfile := filepath.Join(dirPath, konfig.DefaultKustomizationFileName())
-	f, err := fs.Create(kfile)
-	if err != nil {
-		return UnchangedAction, "", err
-	}
-	f.Close()
 
 	kus := kustypes.Kustomization{
 		TypeMeta: kustypes.TypeMeta{
@@ -537,14 +524,9 @@ func (g *Generator) generateKustomization(dirPath string, ignorePatterns []gitig
 		kus.Resources = resources
 	}
 
-	kd, err := yaml.Marshal(kus)
-	if err != nil {
-		// delete the kustomization file
-		errf := CleanDirectory(dirPath, CreatedAction)
-		return UnchangedAction, "", fmt.Errorf("%v %v", err, errf)
-	}
-
-	return CreatedAction, kfile, os.WriteFile(kfile, kd, os.ModePerm)
+	kfile := filepath.Join(dirPath, konfig.DefaultKustomizationFileName())
+	data, err := yaml.Marshal(kus)
+	return data, kfile, CreatedAction, err
 }
 
 // scanManifests walks through the given base path parsing all the files and
