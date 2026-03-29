@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -109,7 +108,7 @@ func WithSaveOriginalKustomization() SavingOptions {
 	return func(dirPath, kfile string, action Action) error {
 		// copy the original kustomization.yaml to the directory if we did not create it
 		if action != CreatedAction {
-			if err := copyFile(kfile, filepath.Join(dirPath, fmt.Sprint(path.Base(kfile), ".original"))); err != nil {
+			if err := copyFile(kfile, filepath.Join(dirPath, fmt.Sprint(filepath.Base(kfile), ".original"))); err != nil {
 				errf := CleanDirectory(dirPath, action)
 				return fmt.Errorf("%v %v", err, errf)
 			}
