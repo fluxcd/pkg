@@ -131,8 +131,7 @@ func WithSaveOriginalKustomization() SavingOptions {
 func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, error) {
 	manifest, kfile, action, err := g.GenerateManifest(dirPath)
 	if err != nil {
-		errf := CleanDirectory(dirPath, action)
-		return action, fmt.Errorf("%v %v", err, errf)
+		return action, err
 	}
 
 	for _, opt := range opts {
