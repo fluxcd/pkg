@@ -43,7 +43,7 @@ func Test_fsMemory_ReadFile_fromDisk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs := MakeFsMemory(diskFS)
+	fs := MakeFsInMemory(diskFS)
 
 	data, err := fs.ReadFile(filepath.Join(tmp, "a.txt"))
 	if err != nil {
@@ -61,7 +61,7 @@ func Test_fsMemory_WriteFile_toMemory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs := MakeFsMemory(diskFS)
+	fs := MakeFsInMemory(diskFS)
 
 	path := filepath.Join(tmp, "new.txt")
 	if err := fs.WriteFile(path, []byte("memory")); err != nil {
@@ -94,7 +94,7 @@ func Test_fsMemory_memoryOverridesDisk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs := MakeFsMemory(diskFS)
+	fs := MakeFsInMemory(diskFS)
 
 	if err := fs.WriteFile(path, []byte("memory")); err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func Test_fsMemory_Exists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs := MakeFsMemory(diskFS)
+	fs := MakeFsInMemory(diskFS)
 
 	if err := fs.WriteFile(filepath.Join(tmp, "mem.txt"), []byte("m")); err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func Test_fsMemory_IsDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs := MakeFsMemory(diskFS)
+	fs := MakeFsInMemory(diskFS)
 
 	if err := fs.MkdirAll(filepath.Join(tmp, "memdir")); err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func Test_fsMemory_ReadDir_merged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs := MakeFsMemory(diskFS)
+	fs := MakeFsInMemory(diskFS)
 
 	if err := fs.WriteFile(filepath.Join(tmp, "b.txt"), []byte("b")); err != nil {
 		t.Fatal(err)
@@ -204,7 +204,7 @@ func Test_fsMemory_diskSecurityConstraint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs := MakeFsMemory(diskFS)
+	fs := MakeFsInMemory(diskFS)
 
 	// Reading outside the secure root should fail.
 	_, err = fs.ReadFile("/etc/passwd")
@@ -219,7 +219,7 @@ func Test_fsMemory_Walk(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fs := MakeFsMemory(filesys.MakeFsOnDisk())
+	fs := MakeFsInMemory(filesys.MakeFsOnDisk())
 	if err := fs.WriteFile(filepath.Join(tmp, "mem.txt"), []byte("m")); err != nil {
 		t.Fatal(err)
 	}

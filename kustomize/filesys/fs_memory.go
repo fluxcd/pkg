@@ -30,7 +30,7 @@ import (
 //
 // The disk layer can be any filesys.FileSystem (e.g., an fsSecure instance to
 // constrain reads to a root directory).
-func MakeFsMemory(disk filesys.FileSystem) filesys.FileSystem {
+func MakeFsInMemory(disk filesys.FileSystem) filesys.FileSystem {
 	return fsMemory{disk: disk, memory: filesys.MakeFsInMemory()}
 }
 
