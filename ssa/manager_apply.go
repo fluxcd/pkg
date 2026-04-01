@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
+	"github.com/fluxcd/pkg/ssa/jsondiff"
 	"github.com/fluxcd/pkg/ssa/utils"
 )
 
@@ -68,6 +69,12 @@ type ApplyOptions struct {
 	// CustomStageKinds defines a set of Kubernetes resource types that should be applied
 	// in a separate stage after CRDs and before namespaced objects.
 	CustomStageKinds map[schema.GroupKind]struct{} `json:"customStageKinds,omitempty"`
+
+	// DriftIgnoreRules defines a list of JSON pointer ignore rules that are used to
+	// remove specific fields from objects before applying them.
+	// This is useful for ignoring fields that are managed by other controllers
+	// (e.g. VPA, HPA) and would otherwise cause drift.
+	DriftIgnoreRules []jsondiff.IgnoreRule `json:"driftIgnoreRules,omitempty"`
 }
 
 // ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
@@ -85,6 +92,10 @@ type ApplyCleanupOptions struct {
 	// based on the specified key-value pairs.
 	Exclusions map[string]string `json:"exclusions"`
 }
+
+// compiledIgnoreRules is a map of pre-compiled selectors to their associated
+// JSON pointer paths, used to avoid recompiling selectors for each object.
+type compiledIgnoreRules map[*jsondiff.SelectorRegex][]string
 
 // DefaultApplyOptions returns the default apply options where force apply is disabled.
 func DefaultApplyOptions() ApplyOptions {
@@ -133,6 +144,17 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	}
 
 	appliedObject := object.DeepCopy()
+
+	if existingObject.GetResourceVersion() != "" && len(opts.DriftIgnoreRules) > 0 {
+		compiled, err := compileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, err
+		}
+		if err := removeIgnoredFields(appliedObject, compiled); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := m.apply(ctx, appliedObject); err != nil {
 		return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 	}
@@ -232,9 +254,23 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		}
 	}
 
-	for _, object := range toApply {
+	var compiled compiledIgnoreRules
+	if len(opts.DriftIgnoreRules) > 0 {
+		var err error
+		compiled, err = compileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for i, object := range toApply {
 		if object != nil {
 			appliedObject := object.DeepCopy()
+			if changes[i].Action != CreatedAction && compiled != nil {
+				if err := removeIgnoredFields(appliedObject, compiled); err != nil {
+					return nil, err
+				}
+			}
 			if err := m.apply(ctx, appliedObject); err != nil {
 				return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 			}
@@ -423,4 +459,39 @@ func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructur
 	}
 
 	return false
+}
+
+// compileIgnoreRules compiles the selectors from the given ignore rules into
+// regular expressions. The compiled rules can be reused across multiple objects.
+func compileIgnoreRules(rules []jsondiff.IgnoreRule) (compiledIgnoreRules, error) {
+	sm := make(compiledIgnoreRules, len(rules))
+	for _, rule := range rules {
+		sr, err := jsondiff.NewSelectorRegex(rule.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create ignore rule selector: %w", err)
+		}
+		sm[sr] = rule.Paths
+	}
+	return sm, nil
+}
+
+// removeIgnoredFields removes the fields matched by the given pre-compiled
+// ignore rules from the object. If a rule's selector matches the object,
+// the rule's paths are collected and a JSON remove patch is applied.
+func removeIgnoredFields(obj *unstructured.Unstructured, rules compiledIgnoreRules) error {
+	var ignorePaths jsondiff.IgnorePaths
+	for sr, paths := range rules {
+		if sr.MatchUnstructured(obj) {
+			ignorePaths = append(ignorePaths, paths...)
+		}
+	}
+
+	if len(ignorePaths) > 0 {
+		patch := jsondiff.GenerateRemovePatch(ignorePaths...)
+		if err := jsondiff.ApplyPatchToUnstructured(obj, patch); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
