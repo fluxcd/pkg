@@ -49,7 +49,7 @@ metadata:
 ### Amazon Web Services
 
 - AWS account with access key ID and secret access key with permissions to
-    create EKS cluster and ECR repository.
+    create EKS cluster, ECR and a CodeCommit repositories.
 - AWS CLI v2.x, does not need to be configured with the AWS account.
 - Docker CLI for registry login.
 - kubectl for applying certain install manifests.
@@ -68,6 +68,13 @@ provisioning the infrastructure and running the tests:
             "Sid": "testinfra",
             "Effect": "Allow",
             "Action": [
+                "codecommit:CreateRepository",
+                "codecommit:DeleteRepository",
+                "codecommit:GetRepository",
+                "codecommit:TagResource",
+                "codecommit:UntagResource",
+                "codecommit:GitPull",
+                "codecommit:GitPush",
                 "ec2:AllocateAddress",
                 "ec2:AssociateRouteTable",
                 "ec2:AttachInternetGateway",
@@ -213,6 +220,13 @@ module "aws_gh_actions" {
   aws_policy_name        = "oci-e2e"
   aws_policy_description = "policy for OCI e2e tests"
   aws_provision_perms = [
+    "codecommit:CreateRepository",
+    "codecommit:DeleteRepository",
+    "codecommit:GetRepository",
+    "codecommit:TagResource",
+    "codecommit:UntagResource",
+    "codecommit:GitPull",
+    "codecommit:GitPush",
     "ec2:AllocateAddress",
     "ec2:AssociateRouteTable",
     "ec2:AttachInternetGateway",
