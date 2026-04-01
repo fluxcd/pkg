@@ -18,11 +18,14 @@ package utils_test
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
 
+	"github.com/fluxcd/pkg/auth"
 	authutils "github.com/fluxcd/pkg/auth/utils"
 )
 
@@ -42,6 +45,19 @@ func TestGetGitCredentials(t *testing.T) {
 		p, err := authutils.GetGitCredentials(context.Background(), "unknown")
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(Equal("provider 'unknown' does not support Git credentials"))
+		g.Expect(p).To(BeNil())
+	})
+
+	t.Run("aws", func(t *testing.T) {
+		g := NewWithT(t)
+		region := "us-east-1"
+		t.Setenv("AWS_REGION", region)
+		u, err := url.Parse(fmt.Sprintf("https://git-codecommit.%s.amazonaws.com/v1/repos/repo-name", region))
+		g.Expect(err).ToNot(HaveOccurred())
+		opts := []auth.Option{auth.WithGitURL(*u)}
+		p, err := authutils.GetGitCredentials(context.Background(), "aws", opts...)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("failed to create provider access token"))
 		g.Expect(p).To(BeNil())
 	})
 }

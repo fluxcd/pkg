@@ -22,6 +22,7 @@ import (
 	"slices"
 
 	"github.com/fluxcd/pkg/auth"
+	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
 )
 
@@ -45,6 +46,22 @@ func GetGitCredentials(ctx context.Context, providerName string, opts ...auth.Op
 		}
 		return &GitCredentials{
 			BearerToken: token.(*azure.Token).Token,
+		}, nil
+	case aws.ProviderName:
+		provider := aws.Provider{}
+		awsOpts := slices.Clone(opts)
+		token, err := auth.GetAccessToken(ctx, provider, awsOpts...)
+		if err != nil {
+			return nil, err
+		}
+
+		username, password, err := provider.NewCodeCommitGitCredentials(ctx, []auth.Token{token}, awsOpts...)
+		if err != nil {
+			return nil, err
+		}
+		return &GitCredentials{
+			Username: username,
+			Password: password,
 		}, nil
 	default:
 		return nil, fmt.Errorf("provider '%s' does not support Git credentials", providerName)
