@@ -47,3 +47,11 @@ output "aws_wi_iam_arn" {
 output "ecrpublic_repository_url" {
   value = aws_ecrpublic_repository.test_ecr_public.repository_uri
 }
+
+output "git_repo_http_url" {
+  value = aws_codecommit_repository.test_git.clone_url_http
+}
+
+output "git_repo_name" {
+  value = aws_codecommit_repository.test_git.repository_name
+}
