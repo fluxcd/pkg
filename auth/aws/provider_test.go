@@ -32,6 +32,7 @@ import (
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/aws"
+	"github.com/fluxcd/pkg/auth/generic"
 )
 
 func TestProvider_NewControllerToken(t *testing.T) {
@@ -535,4 +536,110 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	o.Apply(opts[0]...)
 
 	g.Expect(o.STSRegion).To(Equal("us-west-2"))
+}
+
+func TestProvider_NewCodeCommitGitCredentials(t *testing.T) {
+	invalidToken := &generic.Token{Token: "invalid", ExpiresAt: time.Now().Add(time.Hour)}
+	proxyUrl := url.URL{Scheme: "http", Host: "proxy.example.com"}
+	awsRegion := "us-east-1"
+	for _, tt := range []struct {
+		name             string
+		gitURL           string
+		getAccessToken   bool
+		accessTokens     []auth.Token
+		expectedUsername string
+		err              string
+	}{
+		{
+			name:             "valid CodeCommit URL",
+			gitURL:           "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			getAccessToken:   true,
+			expectedUsername: "access-key-id%session-token",
+		},
+		{
+			name:             "valid CodeCommit FIPS URL",
+			gitURL:           "https://git-codecommit-fips.us-east-1.amazonaws.com/v1/repos/test-repo",
+			getAccessToken:   true,
+			expectedUsername: "access-key-id%session-token",
+		},
+		{
+			name:             "valid CodeCommit China URL",
+			gitURL:           "https://git-codecommit.cn-north-1.amazonaws.com.cn/v1/repos/test-repo",
+			getAccessToken:   true,
+			expectedUsername: "access-key-id%session-token",
+		},
+		{
+			name:           "missing Git URL",
+			getAccessToken: true,
+			err:            "Git URL must be specified for AWS CodeCommit authentication",
+		},
+		{
+			name:           "non HTTPS URL",
+			gitURL:         "http://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			getAccessToken: true,
+			err:            "AWS CodeCommit authentication requires an HTTPS Git URL",
+		},
+		{
+			name:           "invalid CodeCommit URL",
+			gitURL:         "https://github.com/org/repo",
+			getAccessToken: true,
+			err:            "invalid AWS CodeCommit Git URL: github.com",
+		},
+		{
+			name:           "missing access token",
+			gitURL:         "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			getAccessToken: false,
+			accessTokens:   []auth.Token{},
+			err:            `AWS access token is required for region "us-east-1"`,
+		},
+		{
+			name:           "invalid access token type",
+			gitURL:         "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			getAccessToken: false,
+			accessTokens:   []auth.Token{invalidToken},
+			err:            "failed to cast token to AWS token: *generic.Token",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			impl := &mockImplementation{
+				t:           t,
+				argRegion:   awsRegion,
+				argProxyURL: &proxyUrl,
+				returnCreds: awssdk.Credentials{AccessKeyID: "access-key-id", SecretAccessKey: "secret-access-key", SessionToken: "session-token"},
+			}
+
+			opts := []auth.Option{}
+			if tt.gitURL != "" {
+				gitURL, err := url.Parse(tt.gitURL)
+				g.Expect(err).NotTo(HaveOccurred())
+				opts = append(opts, auth.WithGitURL(*gitURL))
+			}
+
+			provider := aws.Provider{Implementation: impl}
+			accessTokens := tt.accessTokens
+			if tt.getAccessToken {
+				accessToken, err := auth.GetAccessToken(context.Background(), provider,
+					auth.WithSTSRegion(awsRegion),
+					auth.WithProxyURL(proxyUrl),
+				)
+				g.Expect(err).NotTo(HaveOccurred())
+				accessTokens = []auth.Token{accessToken}
+			}
+
+			username, password, err := provider.NewCodeCommitGitCredentials(context.Background(), accessTokens, opts...)
+
+			if tt.err == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(username).To(Equal(tt.expectedUsername))
+				g.Expect(password).To(MatchRegexp(`^[0-9]{8}T[0-9]{6}Z[0-9a-f]{64}$`))
+			} else {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(Equal(tt.err))
+				g.Expect(username).To(BeEmpty())
+				g.Expect(password).To(BeEmpty())
+			}
+		})
+	}
 }

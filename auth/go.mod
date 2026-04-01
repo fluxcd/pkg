@@ -21,6 +21,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.38.9
 	github.com/aws/aws-sdk-go-v2/service/eks v1.77.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.6
+	// TODO: update to the tagged version that includes
+	// https://github.com/aws/smithy-go/pull/628
+	github.com/aws/smithy-go/aws-http-auth v1.1.2-0.20260302195807-5bb6ea94670a
 	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/fluxcd/pkg/apis/meta v1.26.0
 	github.com/fluxcd/pkg/cache v0.13.0
