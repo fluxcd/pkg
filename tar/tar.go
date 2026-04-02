@@ -177,7 +177,7 @@ func Untar(r io.Reader, dir string, inOpts ...TarOption) (err error) {
 				}
 			}
 		case mode.IsDir():
-			if err := os.MkdirAll(abs, 0o750); err != nil {
+			if err := os.MkdirAll(abs, mode); err != nil {
 				return err
 			}
 			madeDir[abs] = true
