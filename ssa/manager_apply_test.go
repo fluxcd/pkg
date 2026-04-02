@@ -1660,3 +1660,124 @@ func TestApplyAllStaged_AppliesRoleAndRoleBinding(t *testing.T) {
 		}
 	})
 }
+
+func TestPatchMigrateToVersion(t *testing.T) {
+	tests := []struct {
+		name          string
+		object        *unstructured.Unstructured
+		targetVersion string
+		expectPatches bool
+		expectedLen   int
+	}{
+		{
+			name: "no managed fields",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]interface{}{
+						"name":      "test",
+						"namespace": "default",
+					},
+				},
+			},
+			targetVersion: "v1",
+			expectPatches: false,
+		},
+		{
+			name: "same API version",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]interface{}{
+						"name":      "test",
+						"namespace": "default",
+						"managedFields": []interface{}{
+							map[string]interface{}{
+								"apiVersion": "v1",
+								"manager":    "test-manager",
+								"operation":  "Apply",
+							},
+						},
+					},
+				},
+			},
+			targetVersion: "v1",
+			expectPatches: false,
+		},
+		{
+			name: "different API version - single managed field",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "policy.linkerd.io/v1beta1",
+					"kind":       "Server",
+					"metadata": map[string]interface{}{
+						"name":      "test",
+						"namespace": "default",
+						"managedFields": []interface{}{
+							map[string]interface{}{
+								"apiVersion": "policy.linkerd.io/v1beta1",
+								"manager":    "kustomize-controller",
+								"operation":  "Apply",
+							},
+						},
+					},
+				},
+			},
+			targetVersion: "policy.linkerd.io/v1beta3",
+			expectPatches: true,
+			expectedLen:   1,
+		},
+		{
+			name: "different API version - multiple managed fields",
+			object: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "policy.linkerd.io/v1beta3",
+					"kind":       "Server",
+					"metadata": map[string]interface{}{
+						"name":      "test",
+						"namespace": "default",
+						"managedFields": []interface{}{
+							map[string]interface{}{
+								"apiVersion": "policy.linkerd.io/v1beta1",
+								"manager":    "kubectl",
+								"operation":  "Update",
+							},
+							map[string]interface{}{
+								"apiVersion": "policy.linkerd.io/v1beta1",
+								"manager":    "kustomize-controller",
+								"operation":  "Apply",
+							},
+						},
+					},
+				},
+			},
+			targetVersion: "policy.linkerd.io/v1beta3",
+			expectPatches: true,
+			expectedLen:   1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			patches, err := PatchMigrateToVersion(tt.object, tt.targetVersion)
+			if err != nil {
+				t.Fatalf("PatchMigrateToVersion returned error: %v", err)
+			}
+
+			if tt.expectPatches {
+				if len(patches) == 0 {
+					t.Errorf("Expected patches to be returned, got none")
+				}
+				if tt.expectedLen > 0 && len(patches) != tt.expectedLen {
+					t.Errorf("Expected %d patches, got %d", tt.expectedLen, len(patches))
+				}
+			} else {
+				if len(patches) > 0 {
+					t.Errorf("Expected no patches, got %d", len(patches))
+				}
+			}
+		})
+	}
+}

@@ -108,6 +108,13 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return m.changeSetEntry(object, SkippedAction), nil
 	}
 
+	// Migrate managed fields API version if the object exists and has a different API version
+	if getError == nil && existingObject.GetUID() != "" {
+		if err := m.migrateAPIVersion(ctx, existingObject, object.GetAPIVersion()); err != nil {
+			return nil, fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(object), err)
+		}
+	}
+
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
@@ -170,6 +177,13 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				if m.shouldSkipApply(object, existingObject, opts) {
 					changes[i] = *m.changeSetEntry(object, SkippedAction)
 					return nil
+				}
+
+				// Migrate managed fields API version if the object exists and has a different API version
+				if getError == nil && existingObject.GetUID() != "" {
+					if err := m.migrateAPIVersion(ctx, existingObject, object.GetAPIVersion()); err != nil {
+						return fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(object), err)
+					}
 				}
 
 				dryRunObject := object.DeepCopy()
@@ -343,6 +357,43 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 		client.FieldOwner(m.owner.Field),
 	}
 	return m.client.Patch(ctx, object, client.Apply, opts...)
+}
+
+// migrateAPIVersion updates the managed fields API version when the existing object
+// has a different API version than the desired API version. This is necessary because
+// Kubernetes server-side apply validates managed fields against the schema of the
+// API version they reference, and when upgrading CRD versions, the old API version
+// may have fields that don't exist in the new schema, causing dry-run to fail.
+func (m *ResourceManager) migrateAPIVersion(ctx context.Context, existingObject *unstructured.Unstructured, desiredAPIVersion string) error {
+	existingAPIVersion := existingObject.GetAPIVersion()
+
+	// Skip if API versions are the same
+	if desiredAPIVersion == existingAPIVersion {
+		return nil
+	}
+
+	// Check if managed fields need migration
+	patches, err := PatchMigrateToVersion(existingObject, desiredAPIVersion)
+	if err != nil {
+		return fmt.Errorf("failed to create managed fields migration patch: %w", err)
+	}
+
+	if len(patches) == 0 {
+		return nil
+	}
+
+	// Apply the migration patch to update managed fields API version
+	rawPatch, err := json.Marshal(patches)
+	if err != nil {
+		return fmt.Errorf("failed to marshal managed fields migration patch: %w", err)
+	}
+	patch := client.RawPatch(types.JSONPatchType, rawPatch)
+
+	if err := m.client.Patch(ctx, existingObject, patch, client.FieldOwner(m.owner.Field)); err != nil {
+		return fmt.Errorf("failed to migrate managed fields API version from %s to %s: %w", existingAPIVersion, desiredAPIVersion, err)
+	}
+
+	return nil
 }
 
 // cleanupMetadata performs an HTTP PATCH request to remove entries from metadata annotations, labels and managedFields.
