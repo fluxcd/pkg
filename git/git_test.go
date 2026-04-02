@@ -17,106 +17,25 @@ limitations under the License.
 package git
 
 import (
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/fluxcd/pkg/git/testutils"
+	"github.com/go-git/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
 )
 
 const (
-	encodedCommitFixture = `tree f0c522d8cc4c90b73e2bc719305a896e7e3c108a
-parent eb167bc68d0a11530923b1f24b4978535d10b879
-author Stefan Prodan <stefan.prodan@gmail.com> 1633681364 +0300
-committer Stefan Prodan <stefan.prodan@gmail.com> 1633681364 +0300
-
-Update containerd and runc to fix CVEs
-
-Signed-off-by: Stefan Prodan <stefan.prodan@gmail.com>
-`
-
-	malformedEncodedCommitFixture = `parent eb167bc68d0a11530923b1f24b4978535d10b879
-author Stefan Prodan <stefan.prodan@gmail.com> 1633681364 +0300
-committer Stefan Prodan <stefan.prodan@gmail.com> 1633681364 +0300
-
-Update containerd and runc to fix CVEs
-
-Signed-off-by: Stefan Prodan <stefan.prodan@gmail.com>
-`
-
-	signatureCommitFixture = `-----BEGIN PGP SIGNATURE-----
-
-iHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb
-r7nJAQCQU4zEJu04/Q0ac/UaL6htjhq/wTDNMeUM+aWG/LcBogEAqFUea1oR2BJQ
-JCJmEtERFh39zNWSazQmxPAFhEE0kbc=
-=+Wlj
------END PGP SIGNATURE-----`
-
-	armoredKeyRingFixture = `-----BEGIN PGP PUBLIC KEY BLOCK-----
-
-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
-=/4e+
------END PGP PUBLIC KEY BLOCK-----
-`
-
-	keyRingFingerprintFixture = "3299AEB0E4085BAF"
-
-	malformedKeyRingFixture = `
------BEGIN PGP PUBLIC KEY BLOCK-----
-
-mQSuBF9+HgMRDADKT8UBcSzpTi4JXt/ohhVW3x81AGFPrQvs6MYrcnNJfIkPTJD8
-mY5T7j1fkaN5wcf1wnxM9qTcW8BodkWNGEoEYOtVuigLSxPFqIncxK0PHvdU8ths
-TEInBrgZv9t6xIVa4QngOEUd2D/aYni7M+75z7ntgj6eU1xLZ60upRFn05862OvJ
-rZFUvzjsZXMAO3enCu2VhG/2axCY/5uI8PgWjyiKV2TH4LBJgzlb0v6SyI+fYf5K
-Bg2WzDuLKvQBi9tFSwnUbQoFFlOeiGW8G/bdkoJDWeS1oYgSD3nkmvXvrVESCrbT
------END PGP PUBLIC KEY BLOCK-----
-`
+	signaturePGPSignature                      = "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----"
+	signaturePGPMessage                        = "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----"
+	signatureSSH                               = "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----"
+	signatureX509                              = "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----"
+	signatureUnknown                           = "-----BEGIN UNKNOWN SIGNATURE-----\n-----END UNKNOWN SIGNATURE-----"
+	signaturePGPSignatureWithLeadingWhitespace = "  " + signaturePGPSignature
+	signatureSSHWithLeadingWhitespace          = "  " + signatureSSH
 )
 
 func TestHash_Algorithm(t *testing.T) {
@@ -151,61 +70,6 @@ func TestHash_Algorithm(t *testing.T) {
 			g := NewWithT(t)
 
 			g.Expect(tt.hash.Algorithm()).To(Equal(tt.want))
-		})
-	}
-}
-
-func Test_verifySignature(t *testing.T) {
-	tests := []struct {
-		name     string
-		payload  []byte
-		sig      string
-		keyRings []string
-		want     string
-		wantErr  string
-	}{
-		{
-			name:     "Valid commit signature",
-			payload:  []byte(encodedCommitFixture),
-			sig:      signatureCommitFixture,
-			keyRings: []string{armoredKeyRingFixture},
-			want:     keyRingFingerprintFixture,
-		},
-		{
-			name:     "Malformed encoded commit",
-			payload:  []byte(malformedEncodedCommitFixture),
-			sig:      signatureCommitFixture,
-			keyRings: []string{armoredKeyRingFixture},
-			wantErr:  "unable to verify payload with any of the given key rings",
-		},
-		{
-			name:     "Malformed key ring",
-			payload:  []byte(encodedCommitFixture),
-			sig:      signatureCommitFixture,
-			keyRings: []string{malformedKeyRingFixture},
-			wantErr:  "unable to read armored key ring: unexpected EOF",
-		},
-		{
-			name:     "Missing signature",
-			payload:  []byte(encodedCommitFixture),
-			keyRings: []string{armoredKeyRingFixture},
-			wantErr:  "unable to verify payload as the provided signature is empty",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
-
-			got, err := verifySignature(tt.sig, tt.payload, tt.keyRings...)
-			if tt.wantErr != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
-				g.Expect(got).To(BeEmpty())
-				return
-			}
-
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(got).To(Equal(tt.want))
 		})
 	}
 }
@@ -400,6 +264,683 @@ func TestIsConcreteCommit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			g.Expect(IsConcreteCommit(tt.commit)).To(Equal(tt.result))
+		})
+	}
+}
+
+func TestIsAnnotatedTag(t *testing.T) {
+	tests := []struct {
+		name   string
+		tag    Tag
+		result bool
+	}{
+		{
+			name: "annotated tag",
+			tag: Tag{
+				Hash:    Hash("foo"),
+				Name:    "v1.0.0",
+				Encoded: []byte("tag-content"),
+			},
+			result: true,
+		},
+		{
+			name: "lightweight tag",
+			tag: Tag{
+				Hash: Hash("foo"),
+				Name: "v1.0.0",
+			},
+			result: false,
+		},
+		{
+			name: "empty encoded",
+			tag: Tag{
+				Hash:    Hash("foo"),
+				Name:    "v1.0.0",
+				Encoded: []byte{},
+			},
+			result: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(IsAnnotatedTag(tt.tag)).To(Equal(tt.result))
+		})
+	}
+}
+
+func TestIsSignedTag(t *testing.T) {
+	tests := []struct {
+		name   string
+		tag    Tag
+		result bool
+	}{
+		{
+			name: "signed tag",
+			tag: Tag{
+				Hash:      Hash("foo"),
+				Name:      "v1.0.0",
+				Signature: signaturePGPSignature,
+			},
+			result: true,
+		},
+		{
+			name: "unsigned tag",
+			tag: Tag{
+				Hash: Hash("foo"),
+				Name: "v1.0.0",
+			},
+			result: false,
+		},
+		{
+			name: "empty signature",
+			tag: Tag{
+				Hash:      Hash("foo"),
+				Name:      "v1.0.0",
+				Signature: "",
+			},
+			result: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(IsSignedTag(tt.tag)).To(Equal(tt.result))
+		})
+	}
+}
+
+func TestTag_String(t *testing.T) {
+	tests := []struct {
+		name string
+		tag  *Tag
+		want string
+	}{
+		{
+			name: "annotated tag with hash",
+			tag: &Tag{
+				Hash: Hash("5394cb7f48332b2de7c17dd8b8384bbc84b7e738"),
+				Name: "v1.0.0",
+			},
+			want: "v1.0.0@5394cb7f48332b2de7c17dd8b8384bbc84b7e738",
+		},
+		{
+			name: "lightweight tag without hash",
+			tag: &Tag{
+				Name: "v1.0.0",
+			},
+			want: "v1.0.0",
+		},
+		{
+			name: "tag with empty hash",
+			tag: &Tag{
+				Hash: Hash(""),
+				Name: "v2.0.0",
+			},
+			want: "v2.0.0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(tt.tag.String()).To(Equal(tt.want))
+		})
+	}
+}
+
+func TestIsSigned(t *testing.T) {
+	tests := []struct {
+		name          string
+		commit        *Commit
+		tag           *Tag
+		wantPGPCommit bool
+		wantSSHCommit bool
+		wantPGPTag    bool
+		wantSSHTag    bool
+	}{
+		{
+			name: "PGP signed with SIGNATURE prefix",
+			commit: &Commit{
+				Signature: signaturePGPSignature,
+			},
+			tag: &Tag{
+				Signature: signaturePGPSignature,
+			},
+			wantPGPCommit: true,
+			wantSSHCommit: false,
+			wantPGPTag:    true,
+			wantSSHTag:    false,
+		},
+		{
+			name: "PGP signed with MESSAGE prefix",
+			commit: &Commit{
+				Signature: signaturePGPMessage,
+			},
+			tag: &Tag{
+				Signature: signaturePGPMessage,
+			},
+			wantPGPCommit: true,
+			wantSSHCommit: false,
+			wantPGPTag:    true,
+			wantSSHTag:    false,
+		},
+		{
+			name: "SSH signed",
+			commit: &Commit{
+				Signature: signatureSSH,
+			},
+			tag: &Tag{
+				Signature: signatureSSH,
+			},
+			wantPGPCommit: false,
+			wantSSHCommit: true,
+			wantPGPTag:    false,
+			wantSSHTag:    true,
+		},
+		{
+			name: "X509 signed",
+			commit: &Commit{
+				Signature: signatureX509,
+			},
+			tag: &Tag{
+				Signature: signatureX509,
+			},
+			wantPGPCommit: false,
+			wantSSHCommit: false,
+			wantPGPTag:    false,
+			wantSSHTag:    false,
+		},
+		{
+			name:          "unsigned",
+			commit:        &Commit{},
+			tag:           &Tag{},
+			wantPGPCommit: false,
+			wantSSHCommit: false,
+			wantPGPTag:    false,
+			wantSSHTag:    false,
+		},
+		{
+			name: "PGP signed with leading whitespace",
+			commit: &Commit{
+				Signature: signaturePGPSignatureWithLeadingWhitespace,
+			},
+			tag: &Tag{
+				Signature: signaturePGPSignatureWithLeadingWhitespace,
+			},
+			wantPGPCommit: true,
+			wantSSHCommit: false,
+			wantPGPTag:    true,
+			wantSSHTag:    false,
+		},
+		{
+			name: "SSH signed with leading whitespace",
+			commit: &Commit{
+				Signature: signatureSSHWithLeadingWhitespace,
+			},
+			tag: &Tag{
+				Signature: signatureSSHWithLeadingWhitespace,
+			},
+			wantPGPCommit: false,
+			wantSSHCommit: true,
+			wantPGPTag:    false,
+			wantSSHTag:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(tt.commit.IsPGPSigned()).To(Equal(tt.wantPGPCommit))
+			g.Expect(tt.commit.IsSSHSigned()).To(Equal(tt.wantSSHCommit))
+			g.Expect(tt.tag.IsPGPSigned()).To(Equal(tt.wantPGPTag))
+			g.Expect(tt.tag.IsSSHSigned()).To(Equal(tt.wantSSHTag))
+		})
+	}
+}
+
+func TestSignatureType(t *testing.T) {
+	tests := []struct {
+		name   string
+		commit *Commit
+		tag    *Tag
+		want   string
+	}{
+		{
+			name: "PGP signed with SIGNATURE prefix",
+			commit: &Commit{
+				Signature: signaturePGPSignature,
+			},
+			tag: &Tag{
+				Signature: signaturePGPSignature,
+			},
+			want: "openpgp",
+		},
+		{
+			name: "PGP signed with MESSAGE prefix",
+			commit: &Commit{
+				Signature: signaturePGPMessage,
+			},
+			tag: &Tag{
+				Signature: signaturePGPMessage,
+			},
+			want: "openpgp",
+		},
+		{
+			name: "SSH signed",
+			commit: &Commit{
+				Signature: signatureSSH,
+			},
+			tag: &Tag{
+				Signature: signatureSSH,
+			},
+			want: "ssh",
+		},
+		{
+			name: "X509 signed",
+			commit: &Commit{
+				Signature: signatureX509,
+			},
+			tag: &Tag{
+				Signature: signatureX509,
+			},
+			want: "x509",
+		},
+		{
+			name:   "unsigned",
+			commit: &Commit{},
+			tag:    &Tag{},
+			want:   "empty",
+		},
+		{
+			name: "unknown signature type",
+			commit: &Commit{
+				Signature: signatureUnknown,
+			},
+			tag: &Tag{
+				Signature: signatureUnknown,
+			},
+			want: "unknown",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(tt.commit.SignatureType()).To(Equal(tt.want))
+			g.Expect(tt.tag.SignatureType()).To(Equal(tt.want))
+		})
+	}
+}
+
+func TestCommit_VerifyGPG(t *testing.T) {
+	testDataDir := filepath.Join("signatures", "testdata", "gpg_signatures")
+
+	tests := []struct {
+		name    string
+		sigFile string
+		keyFile string
+		wantErr string
+	}{
+		{
+			name:    "valid PGP signature",
+			sigFile: "commit_rsa_2048_signed.txt",
+			keyFile: "key_rsa_2048.pub",
+		},
+		{
+			name:    "missing signature",
+			sigFile: "commit_unsigned.txt",
+			keyFile: "key_rsa_2048.pub",
+			wantErr: "unable to verify Git commit: unable to verify payload as the provided signature is empty",
+		},
+		{
+			name:    "invalid signature",
+			sigFile: "commit_rsa_2048_signed.txt",
+			keyFile: "key_ed25519.pub",
+			wantErr: "unable to verify Git commit: unable to verify payload with any of the given key rings",
+		},
+		{
+			name:    "no key rings provided",
+			sigFile: "commit_rsa_2048_signed.txt",
+			wantErr: "unable to verify Git commit: unable to verify payload with any of the given key rings",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Parse the commit from the fixture file
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create a git.Commit from the parsed object
+			encoded := &plumbing.MemoryObject{}
+			err = commitObj.EncodeWithoutSignature(encoded)
+			g.Expect(err).ToNot(HaveOccurred())
+			reader, err := encoded.Reader()
+			g.Expect(err).ToNot(HaveOccurred())
+			b, err := io.ReadAll(reader)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			gitCommit := &Commit{
+				Signature: commitObj.PGPSignature,
+				Encoded:   b,
+			}
+
+			// Prepare key rings
+			var keyRings []string
+			if tt.keyFile != "" {
+				publicKey, err := os.ReadFile(filepath.Join(testDataDir, tt.keyFile))
+				g.Expect(err).ToNot(HaveOccurred())
+				keyRings = append(keyRings, string(publicKey))
+			}
+
+			// get result from deprecated function
+			depFingerprint, depErr := gitCommit.Verify(keyRings...)
+
+			// Verify the signature using the git.Commit's VerifyGPG method
+			fingerprint, err := gitCommit.VerifyGPG(keyRings...)
+
+			g.Expect(fingerprint).To(ContainSubstring(depFingerprint))
+			if err == nil {
+				g.Expect(depErr).ToNot(HaveOccurred())
+			} else {
+				g.Expect(err.Error()).To(ContainSubstring(depErr.Error()))
+			}
+
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+		})
+	}
+}
+
+func TestTag_VerifyGPG(t *testing.T) {
+	testDataDir := filepath.Join("signatures", "testdata", "gpg_signatures")
+
+	tests := []struct {
+		name    string
+		sigFile string
+		keyFile string
+		wantErr string
+	}{
+		{
+			name:    "valid PGP signature",
+			sigFile: "tag_rsa_2048_signed.txt",
+			keyFile: "key_rsa_2048.pub",
+		},
+		{
+			name:    "missing signature",
+			sigFile: "commit_unsigned.txt",
+			keyFile: "key_rsa_2048.pub",
+			wantErr: "unable to verify Git tag: unable to verify payload as the provided signature is empty",
+		},
+		{
+			name:    "invalid signature",
+			sigFile: "tag_rsa_2048_signed.txt",
+			keyFile: "key_ed25519.pub",
+			wantErr: "unable to verify Git tag: unable to verify payload with any of the given key rings",
+		},
+		{
+			name:    "no key rings provided",
+			sigFile: "tag_rsa_2048_signed.txt",
+			wantErr: "unable to verify Git tag: unable to verify payload with any of the given key rings",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Parse the tag from the fixture file
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create a git.Tag from the parsed object
+			encoded := &plumbing.MemoryObject{}
+			err = tagObj.EncodeWithoutSignature(encoded)
+			g.Expect(err).ToNot(HaveOccurred())
+			reader, err := encoded.Reader()
+			g.Expect(err).ToNot(HaveOccurred())
+			b, err := io.ReadAll(reader)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			gitTag := &Tag{
+				Signature: tagObj.PGPSignature,
+				Encoded:   b,
+			}
+
+			// Prepare key rings
+			var keyRings []string
+			if tt.keyFile != "" {
+				publicKey, err := os.ReadFile(filepath.Join(testDataDir, tt.keyFile))
+				g.Expect(err).ToNot(HaveOccurred())
+				keyRings = append(keyRings, string(publicKey))
+			}
+
+			// get result from deprecated function
+			depFingerprint, depErr := gitTag.Verify(keyRings...)
+
+			// Verify the signature using the git.Tag's VerifyGPG method
+			fingerprint, err := gitTag.VerifyGPG(keyRings...)
+
+			g.Expect(fingerprint).To(ContainSubstring(depFingerprint))
+			if err == nil {
+				g.Expect(depErr).ToNot(HaveOccurred())
+			} else {
+				g.Expect(err.Error()).To(ContainSubstring(depErr.Error()))
+			}
+
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+		})
+	}
+}
+
+func TestCommit_VerifySSH(t *testing.T) {
+	testDataDir := filepath.Join("signatures", "testdata", "ssh_signatures")
+
+	tests := []struct {
+		name           string
+		sigFile        string
+		authorizedKeys string
+		wantErr        string
+	}{
+		{
+			name:           "valid SSH signature",
+			sigFile:        "commit_rsa_signed.txt",
+			authorizedKeys: "key_rsa.pub",
+		},
+		{
+			name:           "missing signature",
+			sigFile:        "commit_unsigned.txt",
+			authorizedKeys: "key_rsa.pub",
+			wantErr:        "unable to verify Git commit SSH signature: unable to verify payload as the provided signature is empty",
+		},
+		{
+			name:           "invalid signature",
+			sigFile:        "commit_rsa_signed.txt",
+			authorizedKeys: "key_ed25519.pub",
+			wantErr:        "unable to verify Git commit SSH signature: unable to verify payload with any of the given authorized keys",
+		},
+		{
+			name:    "no authorized keys provided",
+			sigFile: "commit_rsa_signed.txt",
+			wantErr: "unable to verify Git commit SSH signature: unable to verify payload with any of the given authorized keys",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Parse the commit from the fixture file
+			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create a git.Commit from the parsed object
+			encoded := &plumbing.MemoryObject{}
+			err = commitObj.EncodeWithoutSignature(encoded)
+			g.Expect(err).ToNot(HaveOccurred())
+			reader, err := encoded.Reader()
+			g.Expect(err).ToNot(HaveOccurred())
+			b, err := io.ReadAll(reader)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			gitCommit := &Commit{
+				Signature: commitObj.PGPSignature,
+				Encoded:   b,
+			}
+
+			// Prepare authorized keys
+			var authorizedKeys []string
+			if tt.authorizedKeys != "" {
+				authorizedKey, err := os.ReadFile(filepath.Join(testDataDir, tt.authorizedKeys))
+				g.Expect(err).ToNot(HaveOccurred())
+				authorizedKeys = append(authorizedKeys, string(authorizedKey))
+			}
+
+			// Verify the signature using the git.Commit's VerifySSH method
+			fingerprint, err := gitCommit.VerifySSH(authorizedKeys...)
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+		})
+	}
+}
+
+func TestTag_VerifySSH(t *testing.T) {
+	testDataDir := filepath.Join("signatures", "testdata", "ssh_signatures")
+
+	tests := []struct {
+		name           string
+		sigFile        string
+		authorizedKeys string
+		wantErr        string
+	}{
+		{
+			name:           "valid SSH signature",
+			sigFile:        "tag_rsa_signed.txt",
+			authorizedKeys: "key_rsa.pub",
+		},
+		{
+			name:           "missing signature",
+			sigFile:        "commit_unsigned.txt",
+			authorizedKeys: "key_rsa.pub",
+			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload as the provided signature is empty",
+		},
+		{
+			name:           "invalid signature",
+			sigFile:        "tag_rsa_signed.txt",
+			authorizedKeys: "key_ed25519.pub",
+			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload with any of the given authorized keys",
+		},
+		{
+			name:    "no authorized keys provided",
+			sigFile: "tag_rsa_signed.txt",
+			wantErr: "unable to verify Git tag SSH signature: unable to verify payload with any of the given authorized keys",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Parse the tag from the fixture file
+			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Create a git.Tag from the parsed object
+			encoded := &plumbing.MemoryObject{}
+			err = tagObj.EncodeWithoutSignature(encoded)
+			g.Expect(err).ToNot(HaveOccurred())
+			reader, err := encoded.Reader()
+			g.Expect(err).ToNot(HaveOccurred())
+			b, err := io.ReadAll(reader)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			gitTag := &Tag{
+				Signature: tagObj.PGPSignature,
+				Encoded:   b,
+			}
+
+			// Prepare authorized keys
+			var authorizedKeys []string
+			if tt.authorizedKeys != "" {
+				authorizedKey, err := os.ReadFile(filepath.Join(testDataDir, tt.authorizedKeys))
+				g.Expect(err).ToNot(HaveOccurred())
+				authorizedKeys = append(authorizedKeys, string(authorizedKey))
+			}
+
+			// Verify the signature using the git.Tag's VerifySSH method
+			fingerprint, err := gitTag.VerifySSH(authorizedKeys...)
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+		})
+	}
+}
+
+func TestErrRepositoryNotFound_Error(t *testing.T) {
+	tests := []struct {
+		name string
+		err  ErrRepositoryNotFound
+		want string
+	}{
+		{
+			name: "with message and URL",
+			err: ErrRepositoryNotFound{
+				Message: "repository not found",
+				URL:     "https://github.com/example/repo.git",
+			},
+			want: "repository not found: git repository: 'https://github.com/example/repo.git'",
+		},
+		{
+			name: "with empty message",
+			err: ErrRepositoryNotFound{
+				Message: "",
+				URL:     "https://github.com/example/repo.git",
+			},
+			want: ": git repository: 'https://github.com/example/repo.git'",
+		},
+		{
+			name: "with empty URL",
+			err: ErrRepositoryNotFound{
+				Message: "repository not found",
+				URL:     "",
+			},
+			want: "repository not found: git repository: ''",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(tt.err.Error()).To(Equal(tt.want))
 		})
 	}
 }

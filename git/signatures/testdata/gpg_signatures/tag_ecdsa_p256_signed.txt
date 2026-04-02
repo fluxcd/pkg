@@ -1,0 +1,13 @@
+object 9b386e46cb3c08a84860225689ebb0696874a288
+type commit
+tag test-tag-ecdsa_p256
+tagger Test User <sign-user@example.com> 1772188969 +0100
+
+Test tag signed with ecdsa_p256
+-----BEGIN PGP SIGNATURE-----
+
+iHUEABMIAB0WIQQZYVspROx35dYcOV/9NQRFrxVHiwUCaaF1KQAKCRD9NQRFrxVH
+i55VAP97X6IxOp3ZxAvdof4h8weHE66FzmqdseCsvUeWHatRWgEAgt7H/Eg2kQUH
+PRHHy4l+joi9tAAg9KClfvq/lA+VcxI=
+=dPQQ
+-----END PGP SIGNATURE-----
