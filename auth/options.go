@@ -42,6 +42,7 @@ type Options struct {
 	STSRegion               string
 	STSEndpoint             string
 	ProxyURL                *url.URL
+	GitURL                  *url.URL
 	CAData                  string
 	ClusterResource         string
 	ClusterAddress          string
@@ -119,6 +120,13 @@ func WithSTSEndpoint(stsEndpoint string) Option {
 func WithProxyURL(proxyURL url.URL) Option {
 	return func(o *Options) {
 		o.ProxyURL = &proxyURL
+	}
+}
+
+// WithGitURL sets the Git repository URL used by Git credential providers.
+func WithGitURL(gitURL url.URL) Option {
+	return func(o *Options) {
+		o.GitURL = &gitURL
 	}
 }
 

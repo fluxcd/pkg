@@ -50,7 +50,7 @@ resource "aws_iam_role" "assume_role" {
   count       = var.enable_wi ? 1 : 0
   name        = local.name
   description = "IAM role used for testing Workload integration for OCI repositories in Flux"
-  assume_role_policy = templatefile("oidc_assume_role_policy.json", {
+  assume_role_policy = templatefile("${path.module}/oidc_assume_role_policy.json", {
     OIDC_ARN  = module.eks.cluster_oidc_arn,
     OIDC_URL  = replace(module.eks.cluster_oidc_url, "https://", ""),
     NAMESPACE = var.wi_k8s_sa_ns,
@@ -90,6 +90,14 @@ resource "aws_iam_policy" "wi_role_policy" {
         ]
         Resource = "*"
       },
+      {
+        Effect = "Allow"
+        Action = [
+          "codecommit:GitPull",
+          "codecommit:GitPush",
+        ]
+        Resource = aws_codecommit_repository.test_git.arn
+      },
     ],
   })
 }
@@ -102,4 +110,10 @@ resource "aws_eks_access_entry" "wi_access_entry" {
   cluster_name  = local.name
   principal_arn = aws_iam_role.assume_role[0].arn
   user_name     = aws_iam_role.assume_role[0].arn
+}
+
+resource "aws_codecommit_repository" "test_git" {
+  repository_name = local.name
+  description     = "Test repository for Flux integration tests"
+  tags            = var.tags
 }

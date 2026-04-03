@@ -22,11 +22,15 @@ package integration
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	tfjson "github.com/hashicorp/terraform-json"
 
 	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/aws"
+	authutils "github.com/fluxcd/pkg/auth/utils"
+	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/test-infra/tftestenv"
 )
 
@@ -94,7 +98,7 @@ func registryLoginECR(ctx context.Context, output map[string]*tfjson.StateOutput
 // logged in and is capable of pushing the test images.
 func pushAppTestImagesECR(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error) {
 	// Get the registry name and construct the image names accordingly.
-	repo := output["ecr_test_app_repo_url"].Value.(string)
+	repo := output["ecr_repository_url"].Value.(string)
 	remoteImage := repo + ":test"
 	return tftestenv.PushTestAppImagesECR(ctx, localImgs, remoteImage)
 }
@@ -138,17 +142,52 @@ func getClusterUsersAWS(output map[string]*tfjson.StateOutput) ([]string, error)
 	return []string{clusterUser}, nil
 }
 
-// When implemented, getGitTestConfigAws would return the git-specific test config for AWS
 func getGitTestConfigAWS(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
-	return nil, fmt.Errorf("NotImplemented for AWS")
+	repoURL := outputs["git_repo_http_url"].Value.(string)
+	if repoURL == "" {
+		return nil, fmt.Errorf("no AWS CodeCommit repository URL in terraform output")
+	}
+
+	region := outputs["region"].Value.(string)
+	if region == "" {
+		return nil, fmt.Errorf("no AWS region in terraform output")
+	}
+
+	parsedRepoURL, err := url.Parse(repoURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse AWS CodeCommit repository URL: %w", err)
+	}
+
+	creds, err := authutils.GetGitCredentials(context.Background(), aws.ProviderName,
+		auth.WithSTSRegion(region),
+		auth.WithGitURL(*parsedRepoURL),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AWS CodeCommit credentials: %w", err)
+	}
+
+	authOpts, err := getAuthOpts(repoURL, map[string][]byte{
+		"username": []byte(creds.Username),
+		"password": []byte(creds.Password),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &gitTestConfig{
+		defaultGitTransport:              git.HTTPS,
+		defaultAuthOpts:                  authOpts,
+		applicationRepository:            repoURL,
+		applicationRepositoryWithoutUser: repoURL,
+	}, nil
 }
 
-// When implemented, grantPermissionsToGitRepositoryAWS would grant the required permissions to AWS CodeCommit repository
 func grantPermissionsToGitRepositoryAWS(ctx context.Context, cfg *gitTestConfig, output map[string]*tfjson.StateOutput) error {
-	return fmt.Errorf("NotImplemented for AWS")
+	// Noop, CodeCommit permissions are granted via Terraform
+	return nil
 }
 
-// When implemented, revokePermissionsToGitRepositoryAWS would revoke the permissions granted to AWS CodeCommit repository
 func revokePermissionsToGitRepositoryAWS(ctx context.Context, cfg *gitTestConfig, outputs map[string]*tfjson.StateOutput) error {
-	return fmt.Errorf("NotImplemented for AWS")
+	// Noop, CodeCommit permissions are granted via Terraform
+	return nil
 }

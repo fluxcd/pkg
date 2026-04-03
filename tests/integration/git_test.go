@@ -83,7 +83,10 @@ func TestGitCloneUsingProvider(t *testing.T) {
 }
 
 func TestGitCloneUsingSSH(t *testing.T) {
-	if !testGit {
+	// Skip SSH authentication test for CodeCommit
+	// while it is possible, it is based on SSH keys attached to an IAM user
+	// which is not the recommended way.
+	if *targetProvider == "aws" || !testGit {
 		t.Skip("Skipping git test, not supported for provider")
 	}
 

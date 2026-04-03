@@ -432,6 +432,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryAWS,
 			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryAWS,
 			getGitTestConfig:                 getGitTestConfigAWS,
+			supportsGit:                      true,
 		}
 	case "azure":
 		providerCfg := &ProviderConfig{
