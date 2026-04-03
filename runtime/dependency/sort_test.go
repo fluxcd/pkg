@@ -28,7 +28,7 @@ import (
 type object struct {
 	name      string
 	namespace string
-	dependsOn []meta.NamespacedObjectReference
+	dependsOn []meta.DependencyReference
 }
 
 func (in object) GetName() string {
@@ -39,7 +39,7 @@ func (in object) GetNamespace() string {
 	return in.namespace
 }
 
-func (in object) GetDependsOn() []meta.NamespacedObjectReference {
+func (in object) GetDependsOn() []meta.DependencyReference {
 	return in.dependsOn
 }
 
@@ -56,7 +56,7 @@ func TestSort(t *testing.T) {
 				&object{
 					name:      "frontend",
 					namespace: "default",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Namespace: "linkerd", Name: "linkerd"},
 						{Namespace: "default", Name: "backend"},
 					},
@@ -68,7 +68,7 @@ func TestSort(t *testing.T) {
 				&object{
 					namespace: "default",
 					name:      "backend",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Namespace: "linkerd", Name: "linkerd"},
 					},
 				},
@@ -85,21 +85,21 @@ func TestSort(t *testing.T) {
 				&object{
 					name:      "dependency",
 					namespace: "default",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Namespace: "default", Name: "endless"},
 					},
 				},
 				&object{
 					name:      "endless",
 					namespace: "default",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Namespace: "default", Name: "circular"},
 					},
 				},
 				&object{
 					name:      "circular",
 					namespace: "default",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Namespace: "default", Name: "dependency"},
 					},
 				},
@@ -116,7 +116,7 @@ func TestSort(t *testing.T) {
 				&object{
 					name:      "frontend",
 					namespace: "application",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Name: "backend"},
 					},
 				},
@@ -132,14 +132,14 @@ func TestSort(t *testing.T) {
 				&object{
 					name:      "backend",
 					namespace: "default",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Namespace: "default", Name: "common"},
 					},
 				},
 				&object{
 					name:      "frontend",
 					namespace: "default",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Namespace: "default", Name: "infra"},
 					},
 				},
@@ -161,7 +161,7 @@ func TestSort(t *testing.T) {
 				&object{
 					name:      "frontend",
 					namespace: "default",
-					dependsOn: []meta.NamespacedObjectReference{
+					dependsOn: []meta.DependencyReference{
 						{Namespace: "linkerd", Name: "linkerd"},
 						{Namespace: "default", Name: "backend"},
 					},
