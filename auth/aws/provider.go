@@ -194,6 +194,8 @@ var registryRegex = regexp.MustCompile(registryPattern)
 // ParseArtifactRepository implements auth.Provider.
 // ParseArtifactRepository returns the ECR region, unless the registry
 // is public.ecr.aws, in which case it returns public.ecr.aws.
+// When skip validation is enabled and the registry doesn't match,
+// it returns the provider name.
 func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
 	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
 	if err != nil {
@@ -206,6 +208,10 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 
 	parts := registryRegex.FindAllStringSubmatch(registry, -1)
 	if len(parts) < 1 || len(parts[0]) < 3 {
+		// Skip validation if configured (allows custom registry proxies)
+		if auth.GetOCISkipRegistryValidation() {
+			return ProviderName, nil
+		}
 		return "", fmt.Errorf("invalid AWS registry: '%s'. must match %s",
 			registry, registryPattern)
 	}
@@ -218,6 +224,14 @@ func getECRRegionFromRegistryInput(registryInput string) string {
 	if registryInput == publicECR {
 		// Region is required to be us-east-1 for public ECR:
 		// https://docs.aws.amazon.com/AmazonECR/latest/public/public-registry-auth.html#public-registry-auth-token
+		return "us-east-1"
+	}
+	if registryInput == ProviderName {
+		// When using a proxy with skip validation, fall back to AWS_REGION.
+		// If AWS_REGION is not set, use us-east-1 as a default.
+		if region := os.Getenv("AWS_REGION"); region != "" {
+			return region
+		}
 		return "us-east-1"
 	}
 	return registryInput

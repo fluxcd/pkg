@@ -174,6 +174,11 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 		return "", err
 	}
 
+	// Skip registry validation if configured (allows custom registry proxies)
+	if auth.GetOCISkipRegistryValidation() {
+		return ProviderName, nil
+	}
+
 	if !registryRegex.MatchString(registry) {
 		return "", fmt.Errorf("invalid GCP registry: '%s'. must match %s",
 			registry, registryPattern)
