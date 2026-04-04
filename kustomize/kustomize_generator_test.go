@@ -373,7 +373,7 @@ resources: []
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Generate kustomization in the overlay directory
-			_, err = kustomize.NewGenerator(overlayDir, ks).WriteFile(overlayDir)
+			_, err = kustomize.NewGenerator(baseDir, ks).WriteFile(overlayDir)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Read generated kustomization.yaml

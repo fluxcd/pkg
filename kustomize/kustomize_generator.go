@@ -75,6 +75,7 @@ type Generator struct {
 	root          string
 	ignore        string
 	filter        bool
+	fs            filesys.FileSystem
 	kustomization unstructured.Unstructured
 }
 
@@ -93,7 +94,7 @@ func NewGenerator(root string, kustomization unstructured.Unstructured) *Generat
 
 // NewGeneratorWithIgnore creates a new kustomize generator
 // It takes a root directory, a kustomization object and a string of files to ignore
-// The generator will combine the ignore files with the default ignore files i.e. .sourceignoreÒ
+// The generator will combine the ignore files with the default ignore files i.e. .sourceignore
 func NewGeneratorWithIgnore(root, ignore string, kustomization unstructured.Unstructured) *Generator {
 	return &Generator{
 		root:          root,
@@ -129,6 +130,11 @@ func WithSaveOriginalKustomization() SavingOptions {
 //		log.Fatal(err)
 //	}
 func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, error) {
+	fs, err := g.getFS()
+	if err != nil {
+		return UnchangedAction, err
+	}
+
 	manifest, kfile, action, err := g.GenerateManifest(dirPath)
 	if err != nil {
 		return action, err
@@ -140,7 +146,7 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 		}
 	}
 
-	err = os.WriteFile(kfile, manifest, os.ModePerm)
+	err = fs.WriteFile(kfile, manifest)
 	if err != nil {
 		errf := CleanDirectory(dirPath, action)
 		return action, fmt.Errorf("%v %v", err, errf)
@@ -152,6 +158,11 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 // GenerateManifest returns the kustomization.yaml content, the full path to the
 // kustomization file, and the action taken, without writing to disk.
 func (g *Generator) GenerateManifest(dirPath string) ([]byte, string, Action, error) {
+	fs, err := g.getFS()
+	if err != nil {
+		return nil, "", UnchangedAction, err
+	}
+
 	var ignorePatterns []gitignore.Pattern
 	var ignoreDomain []string
 
@@ -174,7 +185,7 @@ func (g *Generator) GenerateManifest(dirPath string) ([]byte, string, Action, er
 		}
 	}
 
-	data, kfile, action, err := g.findOrGenerateKustomization(dirPath, ignorePatterns, ignoreDomain)
+	data, kfile, action, err := g.findOrGenerateKustomization(fs, dirPath, ignorePatterns, ignoreDomain)
 	if err != nil {
 		return nil, "", action, err
 	}
@@ -249,7 +260,7 @@ func (g *Generator) GenerateManifest(dirPath string) ([]byte, string, Action, er
 		if !IsLocalRelativePath(component) {
 			return nil, "", action, fmt.Errorf("component path '%s' must be local and relative", component)
 		}
-		if _, err := os.Stat(filepath.Join(dirPath, component)); errors.Is(err, os.ErrNotExist) && ignoreMissing {
+		if !fs.Exists(filepath.Join(dirPath, component)) && ignoreMissing {
 			continue
 		}
 		kus.Components = append(kus.Components, component)
@@ -465,30 +476,32 @@ func (g *Generator) getNestedSlice(fields ...string) ([]interface{}, bool, error
 	return val, ok, nil
 }
 
-// findOrGenerateKustomization reads an existing kustomization file or generates
-// content for a new one without writing to disk.
-func (g *Generator) findOrGenerateKustomization(dirPath string, ignorePatterns []gitignore.Pattern, ignoreDomain []string) ([]byte, string, Action, error) {
-	var (
-		err error
-		fs  filesys.FileSystem
-	)
-	// use securefs only if the path is specified
-	// otherwise, use the default filesystem.
+// getFS returns the generator's filesystem. If a custom FS was provided via
+// WithFS, it is returned directly. Otherwise a secure filesystem rooted at
+// g.root is created (or a plain on-disk filesystem when no root is
+// configured) and cached for subsequent calls.
+func (g *Generator) getFS() (filesys.FileSystem, error) {
+	if g.fs != nil {
+		return g.fs, nil
+	}
+	var err error
 	if g.root != "" {
-		fs, err = securefs.MakeFsOnDiskSecure(g.root)
+		g.fs, err = securefs.MakeFsOnDiskSecure(g.root)
 	} else {
-		fs = filesys.MakeFsOnDisk()
+		g.fs = filesys.MakeFsOnDisk()
 	}
-	if err != nil {
-		return nil, "", UnchangedAction, err
-	}
+	return g.fs, err
+}
+
+// findOrGenerateKustomization returns existing kustomization content or generates new content.
+func (g *Generator) findOrGenerateKustomization(fs filesys.FileSystem, dirPath string, ignorePatterns []gitignore.Pattern, ignoreDomain []string) ([]byte, string, Action, error) {
 
 	// Determine if there already is a Kustomization file at the root,
 	// as this means we do not have to generate one.
 	for _, kfilename := range konfig.RecognizedKustomizationFileNames() {
 		kpath := filepath.Join(dirPath, kfilename)
 		if fs.Exists(kpath) && !fs.IsDir(kpath) {
-			data, err := os.ReadFile(kpath)
+			data, err := fs.ReadFile(kpath)
 			return data, kpath, UnchangedAction, err
 		}
 	}
