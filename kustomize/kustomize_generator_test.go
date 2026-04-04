@@ -373,7 +373,7 @@ resources: []
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Generate kustomization in the overlay directory
-			_, err = kustomize.NewGenerator(overlayDir, ks).WriteFile(overlayDir)
+			_, err = kustomize.NewGenerator(baseDir, ks).WriteFile(overlayDir)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Read generated kustomization.yaml
@@ -400,6 +400,104 @@ resources: []
 			}
 		})
 	}
+}
+
+func TestGenerateManifest(t *testing.T) {
+	tests := []struct {
+		name           string
+		sourceDir      string
+		ksFile         string
+		expectedAction kustomize.Action
+		checkManifest  func(g Gomega, manifest []byte)
+	}{
+		{
+			name:           "existing kustomization returns unchanged action and file content",
+			sourceDir:      "./testdata/resources",
+			ksFile:         "./testdata/kustomization.yaml",
+			expectedAction: kustomize.UnchangedAction,
+			checkManifest: func(g Gomega, manifest []byte) {
+				var kus kustypes.Kustomization
+				g.Expect(yaml.Unmarshal(manifest, &kus)).To(Succeed())
+				g.Expect(kus.Resources).To(ContainElement("./deployment.yaml"))
+				g.Expect(kus.Resources).To(ContainElement("./config.yaml"))
+				g.Expect(kus.Namespace).To(Equal("apps"))
+			},
+		},
+		{
+			name:           "empty dir returns created action with placeholder",
+			sourceDir:      "",
+			ksFile:         "./testdata/empty/ks.yaml",
+			expectedAction: kustomize.CreatedAction,
+			checkManifest: func(g Gomega, manifest []byte) {
+				g.Expect(string(manifest)).To(ContainSubstring("_placeholder"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			dataKS, err := os.ReadFile(tt.ksFile)
+			g.Expect(err).NotTo(HaveOccurred())
+			ks, err := readYamlObjects(strings.NewReader(string(dataKS)))
+			g.Expect(err).NotTo(HaveOccurred())
+
+			var dirPath string
+			if tt.sourceDir != "" {
+				tmpDir, err := testTempDir(t)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(copy.Copy(tt.sourceDir, tmpDir)).To(Succeed())
+				dirPath = tmpDir
+			} else {
+				tmpDir, err := testTempDir(t)
+				g.Expect(err).NotTo(HaveOccurred())
+				dirPath = tmpDir
+			}
+
+			beforeEntries := snapshotDir(g, dirPath)
+
+			gen := kustomize.NewGenerator(dirPath, ks[0])
+			manifest, kfile, action, err := gen.GenerateManifest(dirPath)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(action).To(Equal(tt.expectedAction))
+			g.Expect(manifest).NotTo(BeEmpty())
+
+			// full path, resolvable relative to dirPath
+			g.Expect(kfile).To(HavePrefix(dirPath))
+			g.Expect(filepath.Base(kfile)).To(HavePrefix("kustomization"))
+
+			tt.checkManifest(g, manifest)
+
+			// no disk writes
+			afterEntries := snapshotDir(g, dirPath)
+			g.Expect(afterEntries).To(Equal(beforeEntries))
+		})
+	}
+}
+
+func snapshotDir(g Gomega, dir string) map[string]string {
+	entries := map[string]string{}
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		entries[rel] = string(data)
+		return nil
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	return entries
 }
 
 func testTempDir(t *testing.T) (string, error) {
