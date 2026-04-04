@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
-// MakeFsMemoryOverlay returns a filesystem that reads from disk and writes to
+// MakeFsInMemory returns a filesystem that reads from disk and writes to
 // memory. Read operations check the memory layer first, then fall back to the
 // disk layer. Write operations only go to the memory layer, so the on-disk
 // files are never modified.
