@@ -56,6 +56,7 @@ const (
 	imagesField           = "images"
 	namePrefixField       = "namePrefix"
 	nameSuffixField       = "nameSuffix"
+	buildMetadataField    = "buildMetadata"
 )
 
 // Action is the action that was taken on the kustomization file
@@ -294,6 +295,15 @@ func (g *Generator) WriteFile(dirPath string, opts ...SavingOptions) (Action, er
 		} else {
 			kus.Images = append(kus.Images, newImage)
 		}
+	}
+
+	buildMetadata, _, err := g.getNestedStringSlice(specField, buildMetadataField)
+	if err != nil {
+		errf := CleanDirectory(dirPath, action)
+		return action, fmt.Errorf("unable to get buildMetadata: %w", fmt.Errorf("%v %v", err, errf))
+	}
+	if len(buildMetadata) > 0 {
+		kus.BuildMetadata = buildMetadata
 	}
 
 	manifest, err := yaml.Marshal(kus)
