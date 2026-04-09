@@ -243,6 +243,81 @@ func Test_Components(t *testing.T) {
 	}
 }
 
+func TestGenerator_BuildMetadata(t *testing.T) {
+	g := NewWithT(t)
+	dataKS, err := os.ReadFile("./testdata/buildMetadata/ks.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	ks, err := readYamlObjects(strings.NewReader(string(dataKS)))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(copy.Copy("testdata/buildMetadata", tmpDir)).To(Succeed())
+	_, err = kustomize.NewGenerator(tmpDir, ks[0]).WriteFile(tmpDir)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Read the generated kustomization.yaml and verify buildMetadata is set
+	kfileYAML, err := os.ReadFile(filepath.Join(tmpDir, "kustomization.yaml"))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	var kus kustypes.Kustomization
+	g.Expect(yaml.Unmarshal(kfileYAML, &kus)).To(Succeed())
+	g.Expect(kus.BuildMetadata).To(Equal([]string{"originAnnotations", "transformerAnnotations"}))
+
+	// Verify that the build succeeds with buildMetadata set
+	resMap, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(resMap.Resources()).To(HaveLen(1))
+}
+
+func TestGenerator_BuildMetadata_EmptySpec(t *testing.T) {
+	g := NewWithT(t)
+
+	// Flux Kustomization with no buildMetadata should not override defaults
+	ks := unstructured.Unstructured{Object: map[string]any{}}
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(copy.Copy("testdata/buildMetadata", tmpDir)).To(Succeed())
+	_, err = kustomize.NewGenerator(tmpDir, ks).WriteFile(tmpDir)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	kfileYAML, err := os.ReadFile(filepath.Join(tmpDir, "kustomization.yaml"))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	var kus kustypes.Kustomization
+	g.Expect(yaml.Unmarshal(kfileYAML, &kus)).To(Succeed())
+	// The kustomization.yaml has no .resources field (only configMapGenerator),
+	// so the fallback "originAnnotations" is set to avoid empty build errors
+	g.Expect(kus.BuildMetadata).To(Equal([]string{"originAnnotations"}))
+}
+
+func TestGenerator_BuildMetadata_NoResources(t *testing.T) {
+	g := NewWithT(t)
+
+	// Flux Kustomization with buildMetadata but no resources in the kustomization.yaml
+	// The spec buildMetadata should override the fallback "originAnnotations"
+	ks := unstructured.Unstructured{Object: map[string]any{}}
+	err := unstructured.SetNestedStringSlice(ks.Object,
+		[]string{"transformerAnnotations"}, "spec", "buildMetadata")
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(copy.Copy("testdata/noResources", tmpDir)).To(Succeed())
+	_, err = kustomize.NewGenerator(tmpDir, ks).WriteFile(tmpDir)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	kfileYAML, err := os.ReadFile(filepath.Join(tmpDir, "kustomization.yaml"))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	var kus kustypes.Kustomization
+	g.Expect(yaml.Unmarshal(kfileYAML, &kus)).To(Succeed())
+	// User-specified buildMetadata should override the fallback
+	g.Expect(kus.BuildMetadata).To(Equal([]string{"transformerAnnotations"}))
+}
+
 func Test_IsLocalRelativePath(t *testing.T) {
 	tests := []struct {
 		path     string
