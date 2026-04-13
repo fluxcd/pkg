@@ -50,6 +50,18 @@ func GetGitCredentials(ctx context.Context, providerName string, opts ...auth.Op
 	case aws.ProviderName:
 		provider := aws.Provider{}
 		awsOpts := slices.Clone(opts)
+
+		// Extract the region from the CodeCommit URL and inject it as STSRegion
+		// before calling GetAccessToken. This will ensure that it's possible to call AWS SDK
+		// even without AWS_REGION environment variable.
+		var o auth.Options
+		o.Apply(awsOpts...)
+		if o.STSRegion == "" && o.GitURL != nil {
+			if region, err := aws.GetRegionFromCodeCommitURL(o.GitURL); err == nil {
+				awsOpts = append(awsOpts, auth.WithSTSRegion(region))
+			}
+		}
+
 		token, err := auth.GetAccessToken(ctx, provider, awsOpts...)
 		if err != nil {
 			return nil, err

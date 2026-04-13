@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -410,29 +411,36 @@ func (signerHeaderHostOnly) IsSigned(h string) bool {
 	return h == "host"
 }
 
+// GetRegionFromCodeCommitURL extracts the AWS region from a CodeCommit HTTPS
+// git URL (e.g. https://git-codecommit.us-east-1.amazonaws.com/...).
+// Returns an error if the URL is nil, not HTTPS, or not a valid CodeCommit URL.
+// https://docs.aws.amazon.com/codecommit/latest/userguide/regions.html#regions-git
+func GetRegionFromCodeCommitURL(gitURL *url.URL) (string, error) {
+	if gitURL == nil {
+		return "", fmt.Errorf("Git URL must be specified for AWS CodeCommit authentication")
+	}
+	if !strings.EqualFold(gitURL.Scheme, "https") {
+		return "", fmt.Errorf("AWS CodeCommit authentication requires an HTTPS Git URL")
+	}
+	urlSplit := strings.Split(gitURL.Hostname(), ".")
+	if len(urlSplit) < 4 ||
+		!(strings.HasPrefix(gitURL.Hostname(), "git-codecommit.") || strings.HasPrefix(gitURL.Hostname(), "git-codecommit-fips.")) ||
+		!(strings.HasSuffix(gitURL.Hostname(), ".amazonaws.com") || strings.HasSuffix(gitURL.Hostname(), ".amazonaws.com.cn")) {
+		return "", fmt.Errorf("invalid AWS CodeCommit Git URL: %s", gitURL.Host)
+	}
+	return urlSplit[1], nil
+}
+
 // NewCodeCommitGitToken returns HTTPS Git credentials for AWS CodeCommit.
 func (Provider) NewCodeCommitGitCredentials(_ context.Context, accessTokens []auth.Token, opts ...auth.Option) (string, string, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
 	gitURL := o.GitURL
-	if gitURL == nil {
-		return "", "", fmt.Errorf("Git URL must be specified for AWS CodeCommit authentication")
+	region, err := GetRegionFromCodeCommitURL(gitURL)
+	if err != nil {
+		return "", "", err
 	}
-	if !strings.EqualFold(gitURL.Scheme, "https") {
-		return "", "", fmt.Errorf("AWS CodeCommit authentication requires an HTTPS Git URL")
-	}
-
-	urlSplit := strings.Split(gitURL.Hostname(), ".")
-
-	// https://docs.aws.amazon.com/codecommit/latest/userguide/regions.html#regions-git
-	if len(urlSplit) < 4 ||
-		!(strings.HasPrefix(gitURL.Hostname(), "git-codecommit.") || strings.HasPrefix(gitURL.Hostname(), "git-codecommit-fips.")) ||
-		!(strings.HasSuffix(gitURL.Hostname(), ".amazonaws.com") || strings.HasSuffix(gitURL.Hostname(), ".amazonaws.com.cn")) {
-		return "", "", fmt.Errorf("invalid AWS CodeCommit Git URL: %s", gitURL.Host)
-	}
-
-	region := urlSplit[1]
 	if len(accessTokens) == 0 {
 		return "", "", fmt.Errorf("AWS access token is required for region %q", region)
 	}

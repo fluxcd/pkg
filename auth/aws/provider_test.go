@@ -83,7 +83,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			token, err := provider.NewControllerToken(context.Background(), opts...)
+			token, err := provider.NewControllerToken(t.Context(), opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -538,6 +538,63 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	g.Expect(o.STSRegion).To(Equal("us-west-2"))
 }
 
+func TestGetRegionFromCodeCommitURL(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		gitURL         string
+		expectedRegion string
+		err            string
+	}{
+		{
+			name:           "valid CodeCommit URL",
+			gitURL:         "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			expectedRegion: "us-east-1",
+		},
+		{
+			name:           "valid CodeCommit FIPS URL",
+			gitURL:         "https://git-codecommit-fips.us-west-2.amazonaws.com/v1/repos/test-repo",
+			expectedRegion: "us-west-2",
+		},
+		{
+			name:           "valid CodeCommit China URL",
+			gitURL:         "https://git-codecommit.cn-north-1.amazonaws.com.cn/v1/repos/test-repo",
+			expectedRegion: "cn-north-1",
+		},
+		{
+			name: "nil URL",
+			err:  "Git URL must be specified for AWS CodeCommit authentication",
+		},
+		{
+			name:   "non-HTTPS URL",
+			gitURL: "http://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			err:    "AWS CodeCommit authentication requires an HTTPS Git URL",
+		},
+		{
+			name:   "invalid CodeCommit URL",
+			gitURL: "https://github.com/org/repo",
+			err:    "invalid AWS CodeCommit Git URL: github.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			var parsedURL *url.URL
+			if tt.gitURL != "" {
+				var err error
+				parsedURL, err = url.Parse(tt.gitURL)
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			region, err := aws.GetRegionFromCodeCommitURL(parsedURL)
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(Equal(tt.err))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(region).To(Equal(tt.expectedRegion))
+			}
+		})
+	}
+}
+
 func TestProvider_NewCodeCommitGitCredentials(t *testing.T) {
 	invalidToken := &generic.Token{Token: "invalid", ExpiresAt: time.Now().Add(time.Hour)}
 	proxyUrl := url.URL{Scheme: "http", Host: "proxy.example.com"}
@@ -620,7 +677,7 @@ func TestProvider_NewCodeCommitGitCredentials(t *testing.T) {
 			provider := aws.Provider{Implementation: impl}
 			accessTokens := tt.accessTokens
 			if tt.getAccessToken {
-				accessToken, err := auth.GetAccessToken(context.Background(), provider,
+				accessToken, err := auth.GetAccessToken(t.Context(), provider,
 					auth.WithSTSRegion(awsRegion),
 					auth.WithProxyURL(proxyUrl),
 				)
@@ -628,7 +685,7 @@ func TestProvider_NewCodeCommitGitCredentials(t *testing.T) {
 				accessTokens = []auth.Token{accessToken}
 			}
 
-			username, password, err := provider.NewCodeCommitGitCredentials(context.Background(), accessTokens, opts...)
+			username, password, err := provider.NewCodeCommitGitCredentials(t.Context(), accessTokens, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
