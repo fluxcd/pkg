@@ -292,6 +292,28 @@ func TestExpandStrict(t *testing.T) {
 			output:  "default",
 			wantErr: nil,
 		},
+		// missing with a transformation operator should still error.
+		// Regression coverage for fluxcd/flux2#5836.
+		{params: map[string]string{}, input: "${#missing}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing^}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing^^}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing,}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing,,}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing:0}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing:0:10}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing/pattern/replacement}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing//pattern/replacement}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing/#pattern/replacement}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing/%pattern/replacement}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing#pattern}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing##pattern}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing%pattern}", wantErr: errVarNotSet},
+		{params: map[string]string{}, input: "${missing%%pattern}", wantErr: errVarNotSet},
+		// Default-providing operators must still succeed when the var is
+		// missing — exclusion must not regress these cases.
+		{params: map[string]string{}, input: "${missing:-fallback}", output: "fallback"},
+		{params: map[string]string{}, input: "${missing:=assigned}", output: "assigned"},
+		{params: map[string]string{}, input: "${missing=assigned}", output: "assigned"},
 	}
 
 	for _, expr := range expressions {
