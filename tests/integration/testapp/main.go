@@ -238,7 +238,7 @@ func checkGit(ctx context.Context) {
 		panic(err)
 	}
 	if !*gitSSH {
-		creds, err := authutils.GetGitCredentials(ctx, *provider, authOpts...)
+		creds, err := authutils.GetGitCredentials(ctx, *provider, append(authOpts, auth.WithGitURL(*u))...)
 		if err != nil {
 			panic(err)
 		}

@@ -21,6 +21,9 @@ test:
 test-aws:
 	$(MAKE) test PROVIDER_ARG="-provider aws"
 
+test-aws-git:
+	$(MAKE) test PROVIDER_ARG="-provider aws" GO_TEST_PREFIX="TestGit"
+
 test-azure:
 	$(MAKE) test PROVIDER_ARG="-provider azure"
 

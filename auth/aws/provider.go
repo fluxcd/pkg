@@ -21,6 +21,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -32,6 +34,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/aws-http-auth/credentials"
+	"github.com/aws/smithy-go/aws-http-auth/sigv4"
+	v4 "github.com/aws/smithy-go/aws-http-auth/v4"
 	"github.com/google/go-containerregistry/pkg/authn"
 	corev1 "k8s.io/api/core/v1"
 
@@ -39,7 +44,10 @@ import (
 )
 
 // ProviderName is the name of the AWS authentication provider.
-const ProviderName = "aws"
+const (
+	ProviderName                       = "aws"
+	codeCommitCanonicalTimestampFormat = "20060102T150405"
+)
 
 // Provider implements the auth.Provider interface for AWS authentication.
 type Provider struct{ Implementation }
@@ -395,4 +403,89 @@ func (p Provider) impl() Implementation {
 		return implementation{}
 	}
 	return p.Implementation
+}
+
+type signerHeaderHostOnly struct{}
+
+func (signerHeaderHostOnly) IsSigned(h string) bool {
+	return h == "host"
+}
+
+// GetRegionFromCodeCommitURL extracts the AWS region from a CodeCommit HTTPS
+// git URL (e.g. https://git-codecommit.us-east-1.amazonaws.com/...).
+// Returns an error if the URL is nil, not HTTPS, or not a valid CodeCommit URL.
+// https://docs.aws.amazon.com/codecommit/latest/userguide/regions.html#regions-git
+func GetRegionFromCodeCommitURL(gitURL *url.URL) (string, error) {
+	if gitURL == nil {
+		return "", fmt.Errorf("Git URL must be specified for AWS CodeCommit authentication")
+	}
+	if !strings.EqualFold(gitURL.Scheme, "https") {
+		return "", fmt.Errorf("AWS CodeCommit authentication requires an HTTPS Git URL")
+	}
+	urlSplit := strings.Split(gitURL.Hostname(), ".")
+	if len(urlSplit) < 4 ||
+		!(strings.HasPrefix(gitURL.Hostname(), "git-codecommit.") || strings.HasPrefix(gitURL.Hostname(), "git-codecommit-fips.")) ||
+		!(strings.HasSuffix(gitURL.Hostname(), ".amazonaws.com") || strings.HasSuffix(gitURL.Hostname(), ".amazonaws.com.cn")) {
+		return "", fmt.Errorf("invalid AWS CodeCommit Git URL: %s", gitURL.Host)
+	}
+	return urlSplit[1], nil
+}
+
+// NewCodeCommitGitToken returns HTTPS Git credentials for AWS CodeCommit.
+func (Provider) NewCodeCommitGitCredentials(_ context.Context, accessTokens []auth.Token, opts ...auth.Option) (string, string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+
+	gitURL := o.GitURL
+	region, err := GetRegionFromCodeCommitURL(gitURL)
+	if err != nil {
+		return "", "", err
+	}
+	if len(accessTokens) == 0 {
+		return "", "", fmt.Errorf("AWS access token is required for region %q", region)
+	}
+
+	creds, ok := accessTokens[0].(*Credentials)
+	if !ok {
+		return "", "", fmt.Errorf("failed to cast token to AWS token: %T", accessTokens[0])
+	}
+
+	req, err := http.NewRequest("GIT", gitURL.String(), nil)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to build CodeCommit signing request: %w", err)
+	}
+	req.Host = gitURL.Host
+
+	signingTime := time.Now().UTC()
+
+	signer := sigv4.New(func(o *v4.SignerOptions) {
+		o.HeaderRules = signerHeaderHostOnly{}
+		o.DisableUnsignedPayloadSentinel = true
+		o.CanonicalTimeFormat = codeCommitCanonicalTimestampFormat
+	})
+	signInput := &sigv4.SignRequestInput{
+		Request: req,
+		Service: "codecommit",
+		Region:  region,
+		Credentials: credentials.Credentials{
+			AccessKeyID:     *creds.AccessKeyId,
+			SecretAccessKey: *creds.SecretAccessKey,
+			SessionToken:    *creds.SessionToken,
+			Expires:         *creds.Expiration,
+		},
+		Time: signingTime,
+	}
+
+	if err := signer.SignRequest(signInput); err != nil {
+		return "", "", fmt.Errorf("failed to sign request: %w", err)
+	}
+
+	authHeader := req.Header.Get("Authorization")
+	sigStart := strings.Index(authHeader, "Signature=")
+	signature := authHeader[sigStart+10:]
+
+	username := strings.Join([]string{*creds.AccessKeyId, *creds.SessionToken}, "%")
+	password := signingTime.Format(codeCommitCanonicalTimestampFormat) + "Z" + signature
+
+	return username, password, nil
 }
