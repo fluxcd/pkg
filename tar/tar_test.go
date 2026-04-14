@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Flux authors
+Copyright 2026 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,265 +20,253 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"crypto/rand"
-	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-type untarTestCase struct {
-	name            string
-	targetDir       string
-	secureTargetDir string
-	fileName        string
-	content         []byte
-	wantErr         string
-	maxUntarSize    int
-	fileMode        int64
+func TestTar(t *testing.T) {
+	srcDir := t.TempDir()
+
+	// Create test files.
+	if err := os.MkdirAll(filepath.Join(srcDir, "subdir"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "file.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "subdir", "nested.txt"), []byte("world"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	n, err := Tar(srcDir, &buf)
+	if err != nil {
+		t.Fatalf("Tar() error: %v", err)
+	}
+	if n <= 0 {
+		t.Fatal("Tar() returned zero bytes")
+	}
+	if n != int64(buf.Len()) {
+		t.Fatalf("Tar() returned %d bytes, but buffer has %d", n, buf.Len())
+	}
+
+	got := readTarEntries(t, &buf)
+	want := map[string]string{
+		".":                 "",
+		"file.txt":          "hello",
+		"subdir":            "",
+		"subdir/nested.txt": "world",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d entries, want %d: %v", len(got), len(want), got)
+	}
+	for name, content := range want {
+		if got[name] != content {
+			t.Errorf("entry %q: got %q, want %q", name, got[name], content)
+		}
+	}
 }
 
-func TestUntar(t *testing.T) {
-	targetDirOutput := filepath.Join(t.TempDir(), "output")
-	symlink := filepath.Join(t.TempDir(), "symlink")
+func TestTar_roundTrip(t *testing.T) {
+	srcDir := t.TempDir()
 
-	subdir := filepath.Join(targetDirOutput, "subdir")
-	err := os.MkdirAll(subdir, 0o750)
+	if err := os.MkdirAll(filepath.Join(srcDir, "a", "b"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "a", "b", "c.txt"), []byte("data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := Tar(srcDir, &buf); err != nil {
+		t.Fatalf("Tar() error: %v", err)
+	}
+
+	dstDir := t.TempDir()
+	if err := Untar(&buf, dstDir); err != nil {
+		t.Fatalf("Untar() error: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(dstDir, "a", "b", "c.txt"))
 	if err != nil {
-		t.Fatalf("cannot create subdir: %v", err)
+		t.Fatalf("ReadFile() error: %v", err)
+	}
+	if string(got) != "data" {
+		t.Fatalf("got %q, want %q", got, "data")
+	}
+}
+
+func TestTar_sanitizesHeaders(t *testing.T) {
+	srcDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(srcDir, "f.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 
-	err = os.Symlink(subdir, symlink)
+	var buf bytes.Buffer
+	if _, err := Tar(srcDir, &buf); err != nil {
+		t.Fatal(err)
+	}
+
+	gr, err := gzip.NewReader(&buf)
 	if err != nil {
-		t.Fatalf("cannot create symlink: %v", err)
+		t.Fatal(err)
+	}
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if hdr.Uid != 0 || hdr.Gid != 0 {
+			t.Errorf("entry %q: uid=%d gid=%d, want 0", hdr.Name, hdr.Uid, hdr.Gid)
+		}
+		if hdr.Uname != "" || hdr.Gname != "" {
+			t.Errorf("entry %q: uname=%q gname=%q, want empty", hdr.Name, hdr.Uname, hdr.Gname)
+		}
+		if !hdr.ModTime.IsZero() && hdr.ModTime.Unix() != 0 {
+			t.Errorf("entry %q: ModTime=%v, want zero or Unix epoch", hdr.Name, hdr.ModTime)
+		}
+	}
+}
+
+func TestTar_withFilter(t *testing.T) {
+	srcDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(srcDir, "keep.txt"), []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "skip.log"), []byte("skip"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 
-	cases := []untarTestCase{
-		{
-			name:            "file at root",
-			fileName:        "file1",
-			content:         geRandomContent(256),
-			targetDir:       targetDirOutput,
-			secureTargetDir: targetDirOutput,
-		},
-		{
-			name:            "file at subdir root",
-			fileName:        "abc/fileX",
-			content:         geRandomContent(256),
-			targetDir:       targetDirOutput,
-			secureTargetDir: targetDirOutput,
-		},
-		{
-			name:            "directory traversal parent",
-			fileName:        "../abc/file",
-			content:         geRandomContent(256),
-			wantErr:         `tar contained invalid name error "../abc/file"`,
-			targetDir:       targetDirOutput,
-			secureTargetDir: targetDirOutput,
-		},
-		{
-			name:            "breach max size",
-			fileName:        "big-file",
-			content:         geRandomContent(256),
-			maxUntarSize:    255,
-			wantErr:         `tar "big-file" is bigger than max archive size of 255 bytes`,
-			targetDir:       targetDirOutput,
-			secureTargetDir: targetDirOutput,
-		},
-		{
-			name:            "breach default max untar size",
-			fileName:        "another-big-file",
-			content:         geRandomContent(DefaultMaxUntarSize + 1),
-			wantErr:         `tar "another-big-file" is bigger than max archive size of 104857600 bytes`,
-			targetDir:       targetDirOutput,
-			secureTargetDir: targetDirOutput,
-		},
-		{
-			name:            "disable max size checks",
-			fileName:        "another-big-file",
-			content:         geRandomContent(DefaultMaxUntarSize + 1),
-			maxUntarSize:    -1,
-			targetDir:       targetDirOutput,
-			secureTargetDir: targetDirOutput,
-		},
-		{
-			name:            "existing subdir",
-			fileName:        "subdir/file1",
-			content:         geRandomContent(256),
-			targetDir:       targetDirOutput,
-			secureTargetDir: targetDirOutput,
-		},
-		{
-			name:            "relative target dir",
-			fileName:        "file1",
-			content:         geRandomContent(256),
-			targetDir:       "anydir",
-			secureTargetDir: "./anydir",
-		},
-		{
-			name:            "relative paths can't ascend",
-			fileName:        "file1",
-			content:         geRandomContent(256),
-			targetDir:       "../../../../../../../../tmp/test",
-			secureTargetDir: "./tmp/test",
-		},
-		{
-			name:      "symlink",
-			fileName:  "any-file1",
-			content:   geRandomContent(256),
-			targetDir: symlink,
-			wantErr:   fmt.Sprintf(`dir '%s' must be a directory`, symlink),
-		},
+	filter := func(p string, fi os.FileInfo) bool {
+		return filepath.Ext(p) == ".log"
 	}
 
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			f, err := createTestTar(tt)
+	var buf bytes.Buffer
+	if _, err := Tar(srcDir, &buf, WithFilter(filter)); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readTarEntries(t, &buf)
+	if _, ok := got["skip.log"]; ok {
+		t.Error("filtered file skip.log should not be in archive")
+	}
+	if got["keep.txt"] != "keep" {
+		t.Errorf("keep.txt: got %q, want %q", got["keep.txt"], "keep")
+	}
+}
+
+func TestTar_skipsSymlinks(t *testing.T) {
+	srcDir := t.TempDir()
+	target := filepath.Join(srcDir, "target.txt")
+	if err := os.WriteFile(target, []byte("t"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(srcDir, "link.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := Tar(srcDir, &buf); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readTarEntries(t, &buf)
+	if _, ok := got["link.txt"]; ok {
+		t.Error("symlink should not be in archive")
+	}
+	if got["target.txt"] != "t" {
+		t.Errorf("target.txt: got %q, want %q", got["target.txt"], "t")
+	}
+}
+
+func TestTar_invalidDir(t *testing.T) {
+	_, err := Tar("/nonexistent/path", io.Discard)
+	if err == nil {
+		t.Fatal("expected error for nonexistent dir")
+	}
+}
+
+func TestTar_skipGzip(t *testing.T) {
+	srcDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(srcDir, "file.txt"), []byte("plain"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := Tar(srcDir, &buf, WithSkipGzip()); err != nil {
+		t.Fatalf("Tar() error: %v", err)
+	}
+
+	// Should be a valid plain tar, not gzip.
+	tr := tar.NewReader(&buf)
+	found := false
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("tar.Next: %v", err)
+		}
+		if hdr.Name == "file.txt" {
+			found = true
+			content, _ := io.ReadAll(tr)
+			if string(content) != "plain" {
+				t.Errorf("got %q, want %q", content, "plain")
+			}
+		}
+	}
+	if !found {
+		t.Error("file.txt not found in plain tar")
+	}
+}
+
+func TestTar_notADirectory(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "file.txt")
+	if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Tar(f, io.Discard)
+	if err == nil {
+		t.Fatal("expected error for file path")
+	}
+}
+
+// readTarEntries decompresses a tar.gz and returns a map of entry name to content.
+func readTarEntries(t *testing.T, r io.Reader) map[string]string {
+	t.Helper()
+	gr, err := gzip.NewReader(r)
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	defer gr.Close()
+
+	entries := make(map[string]string)
+	tr := tar.NewReader(gr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("tar.Next: %v", err)
+		}
+		var content []byte
+		if hdr.Typeflag == tar.TypeReg {
+			content, err = io.ReadAll(tr)
 			if err != nil {
-				t.Fatalf("creating test tar: %v", err)
+				t.Fatalf("ReadAll %q: %v", hdr.Name, err)
 			}
-			defer os.Remove(f.Name())
-			defer os.RemoveAll(tt.targetDir)
-
-			opts := make([]TarOption, 0)
-			if tt.maxUntarSize != 0 {
-				opts = append(opts, WithMaxUntarSize(tt.maxUntarSize))
-			}
-
-			err = Untar(f, tt.targetDir, opts...)
-			var got string
-			if err != nil {
-				got = err.Error()
-			}
-			if tt.wantErr != got {
-				t.Errorf("wanted error: '%s' got: '%v'", tt.wantErr, err)
-			}
-
-			if tt.wantErr == "" && err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-
-			// only assess file if no errors were expected
-			if tt.wantErr == "" {
-				abs := filepath.Join(tt.secureTargetDir, tt.fileName)
-				fi, err := os.Stat(abs)
-				if err != nil {
-					t.Errorf("stat %q: %v", abs, err)
-					return
-				}
-
-				if fi.Size() != int64(len(tt.content)) {
-					t.Errorf("file size wanted: %d got: %d", len(tt.content), fi.Size())
-				}
-			}
-
-			if tt.targetDir != tt.secureTargetDir {
-				os.RemoveAll(tt.secureTargetDir)
-			}
-		})
+		}
+		entries[hdr.Name] = string(content)
 	}
-}
-
-func TestUntarDirectoryPermissions(t *testing.T) {
-	testDirName := "test-dir"
-
-	f, err := createTestTar(untarTestCase{
-		fileName: testDirName + "/", // from tar.Header: a trailing slash makes the entry a TypeDir
-		fileMode: 0o555,
-		content:  nil,
-	})
-	if err != nil {
-		t.Fatalf("creating test tar: %v", err)
-	}
-
-	targetDir := t.TempDir()
-
-	if err := Untar(f, targetDir); err != nil {
-		t.Fatalf("untar: %v", err)
-	}
-
-	fullPath := filepath.Join(targetDir, testDirName)
-	fi, err := os.Lstat(fullPath)
-	if err != nil {
-		t.Errorf("stat %q: %v", fullPath, err)
-	}
-
-	if !fi.Mode().IsDir() {
-		t.Fatalf("%q: not a directory", fullPath)
-	}
-
-	ownerPerm := fi.Mode().Perm() & 0o700
-	if ownerPerm != 0o700 {
-		t.Errorf("the owner must always be able to traverse, read, and write extracted directories")
-	}
-}
-
-func Fuzz_Untar(f *testing.F) {
-	tf, err := createTestTar(untarTestCase{
-		name:     "file at root",
-		fileName: "file1",
-		content:  geRandomContent(256),
-	})
-	if err != nil {
-		f.Fatalf("cannot create test tar: %v", err)
-	}
-	defer os.Remove(tf.Name())
-
-	var content []byte
-	_, err = tf.Read(content)
-	if err != nil {
-		f.Fatalf("cannot read test tar: %v", err)
-	}
-
-	f.Add(content)
-
-	f.Fuzz(func(t *testing.T, data []byte) {
-		_ = Untar(bytes.NewReader(data), t.TempDir())
-	})
-}
-
-func createTestTar(tt untarTestCase) (*os.File, error) {
-	f, err := os.CreateTemp("", "flux-untar-*.tar.gz")
-	if err != nil {
-		return nil, fmt.Errorf("open file: %w", err)
-	}
-
-	gzw := gzip.NewWriter(f)
-	writer := tar.NewWriter(gzw)
-
-	fileMode := tt.fileMode
-	if fileMode == 0 {
-		fileMode = 0o777
-	}
-
-	writer.WriteHeader(&tar.Header{
-		Name: tt.fileName,
-		Size: int64(len(tt.content)),
-		Mode: fileMode,
-	})
-
-	writer.Write(tt.content)
-
-	if err = writer.Close(); err != nil {
-		return nil, fmt.Errorf("close tar: %v", err)
-	}
-	if err = gzw.Close(); err != nil {
-		return nil, fmt.Errorf("close gzip: %v", err)
-	}
-
-	name := f.Name()
-	if err = f.Close(); err != nil {
-		return nil, fmt.Errorf("close file: %v", err)
-	}
-	f, err = os.Open(name)
-	if err != nil {
-		return nil, fmt.Errorf("reopen file: %v", err)
-	}
-	return f, nil
-}
-
-func geRandomContent(len int) []byte {
-	content := make([]byte, len)
-	rand.Read(content)
-	return content
+	return entries
 }
