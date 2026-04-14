@@ -131,13 +131,32 @@ func (t *Template) evalFunc(s *state, node *parse.FuncNode) error {
 
 	v, exists := s.mapper(node.Param)
 
-	if node.Name == "" && !exists {
+	// A variable is missing in strict mode (mapper returns exists=false) when
+	// it is referenced bare (${var}) or with a transformation operator that
+	// reads the value (e.g. ${#var}, ${var^^}, ${var/foo/bar}). Default-
+	// providing operators (-, :-, +, :+, =, :=, ?, :?) intentionally handle
+	// the unset case, so leave them alone.
+	if !exists && !isDefaultOp(node.Name) {
 		return fmt.Errorf("%w: %q", errVarNotSet, node.Param)
 	}
 	fn := lookupFunc(node.Name, len(args))
 
 	_, err := io.WriteString(s.writer, fn(v, args...))
 	return err
+}
+
+// isDefaultOp reports whether name is a POSIX-style parameter expansion
+// operator that tolerates an unset variable and supplies its own fallback
+// value (e.g. ${var:-default}, ${var:+set}, ${var:=assign}, ${var:?err}).
+// These operators are excluded from the strict-mode "variable not set"
+// check because the unset case is part of their contract.
+func isDefaultOp(name string) bool {
+	switch name {
+	case "-", "+", "=", "?",
+		":-", ":+", ":=", ":?":
+		return true
+	}
+	return false
 }
 
 // lookupFunc returns the parameters substitution function by name. If the
