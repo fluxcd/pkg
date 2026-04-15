@@ -60,8 +60,7 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 			return err
 		}
 
-		dir, err = securejoin.SecureJoin(cwd, dir)
-		if err != nil {
+		if dir, err = securejoin.SecureJoin(cwd, dir); err != nil {
 			return err
 		}
 	}
@@ -77,19 +76,18 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 	}
 
 	madeDir := map[string]bool{}
-	var tr *tar.Reader
-	if opts.skipGzip {
-		tr = tar.NewReader(r)
-	} else {
-		zr, err := gzip.NewReader(r)
+
+	var rc = io.NopCloser(r)
+	if !opts.skipGzip {
+		var err error
+		rc, err = gzip.NewReader(r)
 		if err != nil {
 			return fmt.Errorf("requires gzip-compressed body: %w", err)
 		}
-
-		tr = tar.NewReader(zr)
 	}
+	tr := tar.NewReader(rc)
 
-	processedBytes := 0
+	var processedBytes int64
 	t0 := time.Now()
 
 	// For improved concurrency, this could be optimised by sourcing
@@ -103,9 +101,9 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 		if err != nil {
 			return fmt.Errorf("tar error: %w", err)
 		}
-		processedBytes += int(f.Size)
+		processedBytes += f.Size
 		if opts.maxUntarSize > UnlimitedUntarSize &&
-			processedBytes > opts.maxUntarSize {
+			processedBytes > int64(opts.maxUntarSize) {
 			return fmt.Errorf("tar %q is bigger than max archive size of %d bytes", f.Name, opts.maxUntarSize)
 		}
 		if !validRelPath(f.Name) {
@@ -146,7 +144,7 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 					return err
 				}
 			}
-			wf, err := os.OpenFile(abs, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode.Perm())
+			wf, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode.Perm())
 			if err != nil {
 				return err
 			}
@@ -194,7 +192,7 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 			return fmt.Errorf("tar file entry %s contained unsupported file type %v", f.Name, mode)
 		}
 	}
-	return nil
+	return rc.Close()
 }
 
 // Uses a variant of io.CopyBuffer which ensures that a buffer is being used.
