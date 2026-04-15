@@ -56,11 +56,11 @@ func ResolveSymlinks(srcDir, dstDir string) error {
 		return fmt.Errorf("srcDir %s is not a directory", absSrc)
 	}
 
-	if err := checkDstDir(dstDir); err != nil {
+	if err = checkDstDir(dstDir); err != nil {
 		return err
 	}
 
-	return copyResolvedDir(realSrc, dstDir, make(map[string]bool))
+	return copyDir("", realSrc, dstDir, make(map[string]bool))
 }
 
 // ResolveSymlinksRoot is the confined variant of ResolveSymlinks: every
@@ -109,11 +109,11 @@ func ResolveSymlinksRoot(rootDir, srcDir, dstDir string) error {
 		return fmt.Errorf("srcDir %s is not a directory", absSrc)
 	}
 
-	if err := checkDstDir(dstDir); err != nil {
+	if err = checkDstDir(dstDir); err != nil {
 		return err
 	}
 
-	return copyConfinedDir(realRoot, realSrc, dstDir, make(map[string]bool))
+	return copyDir(realRoot, realSrc, dstDir, make(map[string]bool))
 }
 
 // checkDstDir verifies that dstDir exists and is a directory.
@@ -128,13 +128,16 @@ func checkDstDir(dstDir string) error {
 	return nil
 }
 
-// copyResolvedDir recursively copies srcDir (already resolved via
-// EvalSymlinks) into dstDir. visited tracks resolved directory paths
-// currently on the call stack so that a re-entry via a symlink does
-// not loop. Entries are removed when the call returns, so the same
-// directory may be copied again through a different symlink — this is
-// intentional (both link sites need the content).
-func copyResolvedDir(srcDir, dstDir string, visited map[string]bool) error {
+// copyDir recursively copies srcDir into dstDir, resolving all
+// symlinks. srcDir must already be fully resolved (no symlink
+// components). If confineRoot is non-empty, every symlink target must
+// resolve within confineRoot; a violation fails the call. visited is a
+// stack-based cycle breaker: directories currently on the call stack
+// are skipped to prevent infinite loops from symlink cycles. Entries
+// are removed when the call returns, so the same directory may be
+// copied again through a different symlink — this is intentional
+// (both link sites need the content).
+func copyDir(confineRoot, srcDir, dstDir string, visited map[string]bool) error {
 	if visited[srcDir] {
 		return nil
 	}
@@ -150,74 +153,36 @@ func copyResolvedDir(srcDir, dstDir string, visited map[string]bool) error {
 		srcPath := filepath.Join(srcDir, entry.Name())
 		dstPath := filepath.Join(dstDir, entry.Name())
 
-		realPath, err := filepath.EvalSymlinks(srcPath)
-		if err != nil {
-			return fmt.Errorf("resolving symlink %s: %w", srcPath, err)
-		}
-		realInfo, err := os.Stat(realPath)
-		if err != nil {
-			return fmt.Errorf("stat resolved path %s: %w", realPath, err)
-		}
+		isLink := entry.Type()&os.ModeSymlink != 0
 
-		if realInfo.IsDir() {
-			if err := os.MkdirAll(dstPath, realInfo.Mode()); err != nil {
-				return err
+		realPath := srcPath
+		if isLink {
+			realPath, err = filepath.EvalSymlinks(srcPath)
+			if err != nil {
+				return fmt.Errorf("resolving symlink %s: %w", srcPath, err)
 			}
-			if err := copyResolvedDir(realPath, dstPath, visited); err != nil {
-				return err
+			// Report the logical path, not the resolved target,
+			// to avoid leaking filesystem layout.
+			if confineRoot != "" && !isWithin(confineRoot, realPath) {
+				return fmt.Errorf("symlink %s resolves outside rootDir", srcPath)
 			}
-			continue
 		}
 
-		if !realInfo.Mode().IsRegular() {
-			continue
+		var realInfo os.FileInfo
+		if isLink {
+			realInfo, err = os.Stat(realPath)
+		} else {
+			realInfo, err = entry.Info()
 		}
-
-		if err := copyResolvedFile(realPath, dstPath, realInfo.Mode()); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// copyConfinedDir is the root-confined equivalent of copyResolvedDir.
-// srcDir is assumed already resolved and already verified as within
-// realRoot. visited is a stack-based cycle breaker (see copyResolvedDir).
-func copyConfinedDir(realRoot, srcDir, dstDir string, visited map[string]bool) error {
-	if visited[srcDir] {
-		return nil
-	}
-	visited[srcDir] = true
-	defer delete(visited, srcDir)
-
-	entries, err := os.ReadDir(srcDir)
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		srcPath := filepath.Join(srcDir, entry.Name())
-		dstPath := filepath.Join(dstDir, entry.Name())
-
-		realPath, err := filepath.EvalSymlinks(srcPath)
-		if err != nil {
-			return fmt.Errorf("resolving %s: %w", srcPath, err)
-		}
-		// Report the logical path of the offending symlink, not the
-		// resolved target, to avoid leaking filesystem layout.
-		if !isWithin(realRoot, realPath) {
-			return fmt.Errorf("symlink %s resolves outside rootDir", srcPath)
-		}
-		realInfo, err := os.Stat(realPath)
 		if err != nil {
 			return fmt.Errorf("stat %s: %w", realPath, err)
 		}
 
 		if realInfo.IsDir() {
-			if err := os.MkdirAll(dstPath, realInfo.Mode()); err != nil {
+			if err = os.MkdirAll(dstPath, realInfo.Mode()); err != nil {
 				return err
 			}
-			if err := copyConfinedDir(realRoot, realPath, dstPath, visited); err != nil {
+			if err = copyDir(confineRoot, realPath, dstPath, visited); err != nil {
 				return err
 			}
 			continue
@@ -227,7 +192,7 @@ func copyConfinedDir(realRoot, srcDir, dstDir string, visited map[string]bool) e
 			continue
 		}
 
-		if err := copyResolvedFile(realPath, dstPath, realInfo.Mode()); err != nil {
+		if err = copyResolvedFile(realPath, dstPath, realInfo.Mode()); err != nil {
 			return err
 		}
 	}
