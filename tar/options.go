@@ -34,8 +34,8 @@ type tarOpts struct {
 	// and Untar reads one.
 	skipGzip bool
 
-	// filter is called for each file or directory during archiving.
-	// If it returns true, the entry is excluded from the archive.
+	// filter is called for each entry during archiving or extraction.
+	// If it returns true, the entry is excluded.
 	filter func(path string, fi os.FileInfo) bool
 }
 
@@ -63,9 +63,10 @@ func WithSkipGzip() Option {
 	}
 }
 
-// WithFilter sets a predicate called for each file or directory during
-// archiving. Entries for which fn returns true are excluded from the
-// archive. Passing this option to Untar has no effect.
+// WithFilter sets a predicate called for each entry during archiving
+// or extraction. Entries for which fn returns true are excluded. During
+// Tar the path is the absolute filesystem path; during Untar it is the
+// slash-separated name from the tar header.
 func WithFilter(fn func(path string, fi os.FileInfo) bool) Option {
 	return func(t *tarOpts) {
 		t.filter = fn

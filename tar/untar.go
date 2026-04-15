@@ -39,6 +39,7 @@ const (
 // By default, r is expected to be gzip-compressed; use WithSkipGzip to
 // read a plain tar stream. Extraction is capped at DefaultMaxUntarSize
 // bytes; use WithMaxUntarSize to raise, lower, or disable the limit.
+// Use WithFilter to skip entries by name or FileInfo during extraction.
 // Entries with paths that escape dir are rejected. Symlinks fail
 // extraction unless WithSkipSymlinks is set, in which case they are
 // silently dropped.
@@ -115,6 +116,10 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 
 		fi := f.FileInfo()
 		mode := fi.Mode()
+
+		if opts.filter != nil && opts.filter(f.Name, fi) {
+			continue
+		}
 
 		switch {
 		case mode.IsRegular():

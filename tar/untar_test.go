@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -379,4 +380,72 @@ func tgzWithSymlinks(src string, buf io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+func TestUntar_withFilter(t *testing.T) {
+	// Build a gzipped tar with two files.
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	for name, data := range map[string]string{"keep.txt": "keep", "skip.log": "skip"} {
+		tw.WriteHeader(&tar.Header{Name: name, Size: int64(len(data)), Mode: 0o644})
+		tw.Write([]byte(data))
+	}
+	tw.Close()
+	gw.Close()
+
+	dst := t.TempDir()
+	filter := func(p string, _ os.FileInfo) bool {
+		return filepath.Ext(p) == ".log"
+	}
+	if err := Untar(&buf, dst, WithMaxUntarSize(-1), WithFilter(filter)); err != nil {
+		t.Fatalf("Untar: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dst, "skip.log")); err == nil {
+		t.Error("filtered file skip.log should not have been extracted")
+	}
+	got, err := os.ReadFile(filepath.Join(dst, "keep.txt"))
+	if err != nil {
+		t.Fatalf("read keep.txt: %v", err)
+	}
+	if string(got) != "keep" {
+		t.Errorf("keep.txt: got %q, want %q", string(got), "keep")
+	}
+}
+
+func TestUntar_withFilterDirectory(t *testing.T) {
+	// Build a gzipped tar with entries under two directories.
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	tw.WriteHeader(&tar.Header{Name: "skip/", Mode: 0o755, Typeflag: tar.TypeDir})
+	s := "secret"
+	tw.WriteHeader(&tar.Header{Name: "skip/secret.txt", Size: int64(len(s)), Mode: 0o644})
+	tw.Write([]byte(s))
+	tw.WriteHeader(&tar.Header{Name: "keep/", Mode: 0o755, Typeflag: tar.TypeDir})
+	k := "public"
+	tw.WriteHeader(&tar.Header{Name: "keep/data.txt", Size: int64(len(k)), Mode: 0o644})
+	tw.Write([]byte(k))
+	tw.Close()
+	gw.Close()
+
+	dst := t.TempDir()
+	filter := func(p string, _ os.FileInfo) bool {
+		return strings.HasPrefix(p, "skip/")
+	}
+	if err := Untar(&buf, dst, WithMaxUntarSize(-1), WithFilter(filter)); err != nil {
+		t.Fatalf("Untar: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dst, "skip", "secret.txt")); err == nil {
+		t.Error("skip/secret.txt should not have been extracted")
+	}
+	got, err := os.ReadFile(filepath.Join(dst, "keep", "data.txt"))
+	if err != nil {
+		t.Fatalf("read keep/data.txt: %v", err)
+	}
+	if string(got) != "public" {
+		t.Errorf("keep/data.txt: got %q, want %q", string(got), "public")
+	}
 }
