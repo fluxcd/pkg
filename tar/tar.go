@@ -21,6 +21,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -44,32 +45,41 @@ func Tar(dir string, w io.Writer, opts ...Option) (int64, error) {
 		return 0, err
 	}
 
-	if fi, err := os.Stat(absDir); err != nil {
+	fi, err := os.Stat(absDir)
+	if err != nil {
 		return 0, fmt.Errorf("invalid dir path %s: %w", absDir, err)
-	} else if !fi.IsDir() {
+	}
+	if !fi.IsDir() {
 		return 0, fmt.Errorf("not a directory: %s", absDir)
 	}
 
 	cw := &countWriter{w: w}
 
-	var gw *gzip.Writer
 	var tw *tar.Writer
+	var closers []io.Closer
 	if o.skipGzip {
 		tw = tar.NewWriter(cw)
+		closers = []io.Closer{tw}
 	} else {
-		gw = gzip.NewWriter(cw)
+		gw := gzip.NewWriter(cw)
 		tw = tar.NewWriter(gw)
+		closers = []io.Closer{tw, gw}
 	}
 
 	buf := make([]byte, bufferSize)
-	if err := filepath.Walk(absDir, func(p string, fi os.FileInfo, err error) error {
+	walkErr := filepath.WalkDir(absDir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip symlinks and other non-regular, non-directory entries.
-		if m := fi.Mode(); !(m.IsRegular() || m.IsDir()) {
+		if t := d.Type(); !t.IsRegular() && !t.IsDir() {
 			return nil
+		}
+
+		fi, err := d.Info()
+		if err != nil {
+			return err
 		}
 
 		if o.filter != nil && o.filter(p, fi) {
@@ -96,7 +106,7 @@ func Tar(dir string, w io.Writer, opts ...Option) (int64, error) {
 		header.AccessTime = time.Time{}
 		header.ChangeTime = time.Time{}
 
-		if err := tw.WriteHeader(header); err != nil {
+		if err = tw.WriteHeader(header); err != nil {
 			return err
 		}
 
@@ -113,27 +123,14 @@ func Tar(dir string, w io.Writer, opts ...Option) (int64, error) {
 			err = closeErr
 		}
 		return err
-	}); err != nil {
-		_ = tw.Close()
-		if gw != nil {
-			_ = gw.Close()
-		}
-		return cw.n, err
-	}
+	})
 
-	if err := tw.Close(); err != nil {
-		if gw != nil {
-			_ = gw.Close()
-		}
-		return cw.n, err
-	}
-	if gw != nil {
-		if err := gw.Close(); err != nil {
-			return cw.n, err
+	for _, c := range closers {
+		if closeErr := c.Close(); closeErr != nil && walkErr == nil {
+			walkErr = closeErr
 		}
 	}
-
-	return cw.n, nil
+	return cw.n, walkErr
 }
 
 // countWriter wraps an io.Writer and counts the bytes written.

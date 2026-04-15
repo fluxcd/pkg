@@ -47,7 +47,7 @@ const (
 // If dir is a relative path, it cannot ascend from the current working
 // directory. If dir exists, it must be a directory; otherwise it is
 // created.
-func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
+func Untar(r io.Reader, dir string, inOpts ...Option) error {
 	opts := tarOpts{
 		maxUntarSize: DefaultMaxUntarSize,
 	}
@@ -60,8 +60,7 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 			return err
 		}
 
-		dir, err = securejoin.SecureJoin(cwd, dir)
-		if err != nil {
+		if dir, err = securejoin.SecureJoin(cwd, dir); err != nil {
 			return err
 		}
 	}
@@ -77,35 +76,33 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 	}
 
 	madeDir := map[string]bool{}
-	var tr *tar.Reader
-	if opts.skipGzip {
-		tr = tar.NewReader(r)
-	} else {
-		zr, err := gzip.NewReader(r)
+
+	var rc = io.NopCloser(r)
+	if !opts.skipGzip {
+		var err error
+		rc, err = gzip.NewReader(r)
 		if err != nil {
 			return fmt.Errorf("requires gzip-compressed body: %w", err)
 		}
-
-		tr = tar.NewReader(zr)
 	}
+	tr := tar.NewReader(rc)
 
-	processedBytes := 0
+	var processedBytes int64
 	t0 := time.Now()
 
-	// For improved concurrency, this could be optimised by sourcing
-	// the buffer from a sync.Pool.
+	// Reuse a single buffer for all file copies.
 	buf := make([]byte, bufferSize)
 	for {
 		f, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			return fmt.Errorf("tar error: %w", err)
 		}
-		processedBytes += int(f.Size)
+		processedBytes += f.Size
 		if opts.maxUntarSize > UnlimitedUntarSize &&
-			processedBytes > opts.maxUntarSize {
+			processedBytes > int64(opts.maxUntarSize) {
 			return fmt.Errorf("tar %q is bigger than max archive size of %d bytes", f.Name, opts.maxUntarSize)
 		}
 		if !validRelPath(f.Name) {
@@ -127,12 +124,12 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 			// already be made by a directory entry in the tar
 			// beforehand. Thus, don't check for errors; the next
 			// write will fail with the same error.
-			dir := filepath.Dir(abs)
-			if !madeDir[dir] {
-				if err := os.MkdirAll(filepath.Dir(abs), 0o750); err != nil {
+			parentDir := filepath.Dir(abs)
+			if !madeDir[parentDir] {
+				if err := os.MkdirAll(parentDir, 0o750); err != nil {
 					return err
 				}
-				madeDir[dir] = true
+				madeDir[parentDir] = true
 			}
 			if runtime.GOOS == "darwin" && mode&0111 != 0 {
 				// The darwin kernel caches binary signatures
@@ -146,13 +143,13 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 					return err
 				}
 			}
-			wf, err := os.OpenFile(abs, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode.Perm())
+			wf, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode.Perm())
 			if err != nil {
 				return err
 			}
 
 			n, err := copyBuffer(wf, tr, buf)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return fmt.Errorf("error copying buffer: %w", err)
 			}
 
@@ -194,7 +191,7 @@ func Untar(r io.Reader, dir string, inOpts ...Option) (err error) {
 			return fmt.Errorf("tar file entry %s contained unsupported file type %v", f.Name, mode)
 		}
 	}
-	return nil
+	return rc.Close()
 }
 
 // Uses a variant of io.CopyBuffer which ensures that a buffer is being used.
@@ -211,11 +208,13 @@ func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err er
 	for {
 		nr, er := src.Read(buf)
 		if nr > 0 {
-			nw, ew := dst.Write(buf[0:nr])
+			nw, ew := dst.Write(buf[:nr])
+			// Guard against a broken Writer: negative byte count
+			// or claiming more bytes written than provided.
 			if nw < 0 || nr < nw {
 				nw = 0
 				if ew == nil {
-					ew = fmt.Errorf("errInvalidWrite")
+					ew = errors.New("invalid write result")
 				}
 			}
 			written += int64(nw)
@@ -229,7 +228,7 @@ func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err er
 			}
 		}
 		if er != nil {
-			if er != io.EOF {
+			if !errors.Is(er, io.EOF) {
 				err = er
 			}
 			break
