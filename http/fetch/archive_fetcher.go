@@ -46,7 +46,7 @@ type ArchiveFetcher struct {
 	retries           int
 	maxDownloadSize   int
 	fileMode          fs.FileMode
-	untarOpts         []tar.TarOption
+	untarOpts         []tar.Option
 	hostnameOverwrite string
 	filename          string
 	logger            any
@@ -75,9 +75,9 @@ func WithMaxDownloadSize(maxDownloadSize int) Option {
 }
 
 // WithUntar tells the ArchiveFetcher to untar the archive expecting it to be a tarball.
-func WithUntar(opts ...tar.TarOption) Option {
+func WithUntar(opts ...tar.Option) Option {
 	return func(a *ArchiveFetcher) {
-		a.untarOpts = append([]tar.TarOption{}, opts...) // to make sure a.untarOpts won't be nil
+		a.untarOpts = append([]tar.Option{}, opts...) // to make sure a.untarOpts won't be nil
 	}
 }
 
