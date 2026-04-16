@@ -68,6 +68,16 @@ type ApplyOptions struct {
 	// CustomStageKinds defines a set of Kubernetes resource types that should be applied
 	// in a separate stage after CRDs and before namespaced objects.
 	CustomStageKinds map[schema.GroupKind]struct{} `json:"customStageKinds,omitempty"`
+
+	// MigrateAPIVersion, when enabled, rewrites every managed fields entry
+	// on the existing object to match the API version of the applied object
+	// before each apply.
+	//
+	// This is needed after a CRD adds a new version that introduces fields
+	// with default values: without migration, any managed fields entry still
+	// tagged with the old API version causes the API server to fail the
+	// apply with "field not declared in schema" for the new defaulted field.
+	MigrateAPIVersion bool `json:"migrateAPIVersion,omitempty"`
 }
 
 // ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
@@ -108,6 +118,15 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return m.changeSetEntry(object, SkippedAction), nil
 	}
 
+	var patched bool
+	if opts.MigrateAPIVersion && getError == nil {
+		var err error
+		patched, err = m.migrateAPIVersion(ctx, existingObject, object.GetAPIVersion())
+		if err != nil {
+			return nil, fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(existingObject), err)
+		}
+	}
+
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
@@ -121,11 +140,12 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return nil, ssaerrors.NewDryRunErr(err, dryRunObject)
 	}
 
-	patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
+	patchedCleanupMetadata, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
 	if err != nil {
 		return nil, fmt.Errorf("%s metadata.managedFields cleanup failed: %w",
 			utils.FmtUnstructured(existingObject), err)
 	}
+	patched = patched || patchedCleanupMetadata
 
 	// do not apply objects that have not drifted to avoid bumping the resource version
 	if !patched && !m.hasDrifted(existingObject, dryRunObject) {
@@ -172,6 +192,15 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					return nil
 				}
 
+				var patched bool
+				if opts.MigrateAPIVersion && getError == nil {
+					var err error
+					patched, err = m.migrateAPIVersion(ctx, existingObject, object.GetAPIVersion())
+					if err != nil {
+						return fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(existingObject), err)
+					}
+				}
+
 				dryRunObject := object.DeepCopy()
 				if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 					// We cannot have an immutable error (and therefore shouldn't force-apply) if the resource doesn't
@@ -207,11 +236,12 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					}
 				}
 
-				patched, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
+				patchedCleanupMetadata, err := m.cleanupMetadata(ctx, object, existingObject, opts.Cleanup)
 				if err != nil {
 					return fmt.Errorf("%s metadata.managedFields cleanup failed: %w",
 						utils.FmtUnstructured(existingObject), err)
 				}
+				patched = patched || patchedCleanupMetadata
 
 				if patched || m.hasDrifted(existingObject, dryRunObject) {
 					toApply[i] = object
@@ -343,6 +373,40 @@ func (m *ResourceManager) apply(ctx context.Context, object *unstructured.Unstru
 		client.FieldOwner(m.owner.Field),
 	}
 	return m.client.Patch(ctx, object, client.Apply, opts...)
+}
+
+// migrateAPIVersion rewrites every managed fields entry on existingObject
+// to desiredAPIVersion via a JSON patch. See ApplyOptions.MigrateAPIVersion
+// for the motivation. Every entry is rewritten, regardless of the field
+// manager that owns it or whether it sits on a subresource: any entry
+// left at an older API version can make the next apply fail with "field
+// not declared in schema". On success existingObject is updated in-place
+// with the server's response. Returns whether a patch was actually
+// applied (false means there was nothing to migrate).
+func (m *ResourceManager) migrateAPIVersion(ctx context.Context,
+	existingObject *unstructured.Unstructured,
+	desiredAPIVersion string) (bool, error) {
+
+	// Build patch.
+	patch, err := PatchMigrateToVersion(existingObject, desiredAPIVersion)
+	if err != nil {
+		return false, fmt.Errorf("failed to create patch for migrating managed fields API version: %w", err)
+	}
+	if len(patch) == 0 {
+		return false, nil
+	}
+
+	// Apply patch.
+	patchBytes, err := json.Marshal(patch)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal patch for migrating managed fields API version: %w", err)
+	}
+	rawPatch := client.RawPatch(types.JSONPatchType, patchBytes)
+	if err := m.client.Patch(ctx, existingObject, rawPatch, client.FieldOwner(m.owner.Field)); err != nil {
+		return false, fmt.Errorf("failed to migrate managed fields API version to %s: %w", desiredAPIVersion, err)
+	}
+
+	return true, nil
 }
 
 // cleanupMetadata performs an HTTP PATCH request to remove entries from metadata annotations, labels and managedFields.

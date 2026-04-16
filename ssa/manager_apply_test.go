@@ -31,9 +31,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -1659,4 +1662,453 @@ func TestApplyAllStaged_AppliesRoleAndRoleBinding(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Tests for the ApplyOptions.MigrateAPIVersion feature.
+//
+// The feature rewrites the apiVersion label on every managed fields entry
+// of an object before applying, so the API server doesn't try to validate
+// a stale entry against an older version's schema. This is needed after a
+// CRD introduces a new version that adds fields with default values: if
+// any entry is still tagged with the old apiVersion, the server will try
+// to locate those defaulted fields in the old schema and fail with
+// "field not declared in schema".
+//
+// The scenario these tests build, at a high level:
+//
+//  1. Create a CRD with only v1beta1 (served, storage).
+//  2. Create a CR at v1beta1. Our field manager now owns a v1beta1 entry.
+//  3. Update the CRD to add v1 as the served/storage version.
+//  4. Re-apply the CR at v1. This is a no-op, so our managed fields entry
+//     stays tagged v1beta1 even though the object is applied at v1.
+//  5. Update the CRD again to add a new field in the v1 schema with a
+//     default value. This field does not exist in v1beta1.
+//  6. Try to re-apply at v1. Without migration, the dry-run fails with
+//     "field not declared in schema" because our entry is still at
+//     v1beta1. With migration, it succeeds.
+//
+// The "real-world external-secrets" test layers one extra twist on top:
+// a different field manager (external-secrets itself) owns a status
+// subresource entry at v1beta1, and our own entry is already at v1. In
+// that state, migrating only our own entries is not enough — we also
+// need to rewrite the third-party entry, otherwise the server still fails
+// the same way.
+
+type applyFunc func(ctx context.Context, object *unstructured.Unstructured, opts ApplyOptions) (*ChangeSetEntry, error)
+
+func applyOneViaApply(ctx context.Context, object *unstructured.Unstructured, opts ApplyOptions) (*ChangeSetEntry, error) {
+	return manager.Apply(ctx, object, opts)
+}
+
+func applyOneViaApplyAll(ctx context.Context, object *unstructured.Unstructured, opts ApplyOptions) (*ChangeSetEntry, error) {
+	changeSet, err := manager.ApplyAll(ctx, []*unstructured.Unstructured{object}, opts)
+	if err != nil {
+		return nil, err
+	}
+	if changeSet == nil || len(changeSet.Entries) != 1 {
+		return nil, fmt.Errorf("expected 1 change set entry, got %d", len(changeSet.Entries))
+	}
+	return &changeSet.Entries[0], nil
+}
+
+// migrateScenarioOpts tweaks setupMigrateAPIVersionEnv for the real-world
+// ExternalSecret reproduction. Both options default to false and are only
+// set by TestApply_MigrateAPIVersion_RealWorldExternalSecrets.
+type migrateScenarioOpts struct {
+	// injectStaleThirdPartyStatus writes the CR's status subresource at
+	// v1beta1 under a different field manager via a non-SSA Update.
+	// This mirrors how external-secrets writes status: client-go's
+	// UpdateStatus sends a PUT /status which records a managed fields
+	// entry pinned to whatever apiVersion was used for the Update.
+	injectStaleThirdPartyStatus bool
+	// promoteOwnEntryToV1 triggers an extra drift-inducing SSA apply at
+	// v1 after v1 becomes served but BEFORE the v1 schema gains the new
+	// defaulted field. This moves our own field manager's entry from
+	// v1beta1 to v1, matching the state of the real-world user object
+	// where kustomize-controller had already re-applied at v1.
+	promoteOwnEntryToV1 bool
+}
+
+const secondManagerName = "other-controller"
+
+// setupMigrateAPIVersionEnv runs steps 1-5 of the scenario described at
+// the top of this block and returns the CR ready to be re-applied in
+// step 6. All apply operations go through the provided applyFunc so the
+// caller can exercise ResourceManager.Apply or ResourceManager.ApplyAll.
+func setupMigrateAPIVersionEnv(t *testing.T, ctx context.Context, id string, apply applyFunc, scenarioOpts migrateScenarioOpts) *unstructured.Unstructured {
+	t.Helper()
+
+	group := fmt.Sprintf("%s.example.com", id)
+	crdName := fmt.Sprintf("widgets.%s", group)
+
+	// Schema mirrors the ExternalSecret CRD shape that reproduces the
+	// external-secrets 2.3 upgrade failure: spec.dataFrom is a list of
+	// objects whose nested extract object gains a defaulted field in v1.
+	specSchema := func(includeDefault bool) map[string]any {
+		extractProps := map[string]any{
+			"key": map[string]any{"type": "string"},
+		}
+		statusProps := map[string]any{
+			"phase": map[string]any{"type": "string"},
+		}
+		if includeDefault {
+			extractProps["nullBytePolicy"] = map[string]any{
+				"type":    "string",
+				"default": "Ignore",
+			}
+		}
+		return map[string]any{
+			"openAPIV3Schema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"spec": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"refreshInterval": map[string]any{"type": "string"},
+							"dataFrom": map[string]any{
+								"type": "array",
+								"items": map[string]any{
+									"type": "object",
+									"properties": map[string]any{
+										"extract": map[string]any{
+											"type":       "object",
+											"properties": extractProps,
+										},
+									},
+								},
+							},
+						},
+					},
+					"status": map[string]any{
+						"type":       "object",
+						"properties": statusProps,
+					},
+				},
+			},
+		}
+	}
+
+	v1beta1Schema := specSchema(false)
+	v1Schema := specSchema(false)
+	v1SchemaWithDefault := specSchema(true)
+
+	makeCRD := func(versions []any) *unstructured.Unstructured {
+		if scenarioOpts.injectStaleThirdPartyStatus {
+			for _, v := range versions {
+				v.(map[string]any)["subresources"] = map[string]any{
+					"status": map[string]any{},
+				}
+			}
+		}
+		return &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "apiextensions.k8s.io/v1",
+				"kind":       "CustomResourceDefinition",
+				"metadata": map[string]any{
+					"name": crdName,
+				},
+				"spec": map[string]any{
+					"group": group,
+					"names": map[string]any{
+						"kind":     "Widget",
+						"listKind": "WidgetList",
+						"plural":   "widgets",
+						"singular": "widget",
+					},
+					"scope":    "Namespaced",
+					"versions": versions,
+				},
+			},
+		}
+	}
+
+	waitForGVK := func(gvk schema.GroupVersionKind) error {
+		return wait.PollUntilContextCancel(ctx, 200*time.Millisecond, true, func(ctx context.Context) (bool, error) {
+			probe := &unstructured.Unstructured{}
+			probe.SetGroupVersionKind(gvk)
+			err := manager.client.List(ctx, probe, client.InNamespace("default"), client.Limit(1))
+			if err == nil {
+				return true, nil
+			}
+			if meta.IsNoMatchError(err) {
+				return false, nil
+			}
+			return false, err
+		})
+	}
+
+	opts := DefaultApplyOptions()
+	opts.MigrateAPIVersion = true
+
+	// Step 1: create the CRD with only v1beta1.
+	crd := makeCRD([]any{
+		map[string]any{
+			"name":    "v1beta1",
+			"served":  true,
+			"storage": true,
+			"schema":  v1beta1Schema,
+		},
+	})
+	entry, err := apply(ctx, crd, opts)
+	if err != nil {
+		t.Fatalf("failed to create CRD: %v", err)
+	}
+	if entry.Action != CreatedAction {
+		t.Errorf("expected CRD CreatedAction, got %s", entry.Action)
+	}
+	t.Cleanup(func() {
+		_ = manager.client.Delete(context.Background(), crd)
+	})
+	gvkV1beta1 := schema.GroupVersionKind{Group: group, Version: "v1beta1", Kind: "Widget"}
+	if err := waitForGVK(gvkV1beta1); err != nil {
+		t.Fatalf("v1beta1 not available: %v", err)
+	}
+
+	// Step 2: create the CR at v1beta1.
+	cr := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": fmt.Sprintf("%s/v1beta1", group),
+			"kind":       "Widget",
+			"metadata": map[string]any{
+				"name":      "test-widget",
+				"namespace": "default",
+			},
+			"spec": map[string]any{
+				"dataFrom": []any{
+					map[string]any{
+						"extract": map[string]any{
+							"key": "bar",
+						},
+					},
+				},
+			},
+		},
+	}
+	entry, err = apply(ctx, cr, opts)
+	if err != nil {
+		t.Fatalf("failed to create CR at v1beta1: %v", err)
+	}
+	if entry.Action != CreatedAction {
+		t.Errorf("expected CR CreatedAction, got %s", entry.Action)
+	}
+
+	// Inject the third-party status entry at v1beta1, using a non-SSA
+	// Update so the resulting managed fields entry has operation=Update,
+	// matching how external-secrets writes its status.
+	if scenarioOpts.injectStaleThirdPartyStatus {
+		current := &unstructured.Unstructured{}
+		current.SetGroupVersionKind(gvkV1beta1)
+		if err := manager.client.Get(ctx, client.ObjectKeyFromObject(cr), current); err != nil {
+			t.Fatalf("failed to get CR before status update: %v", err)
+		}
+		if err := unstructured.SetNestedField(current.Object, "Ready", "status", "phase"); err != nil {
+			t.Fatalf("failed to set status.phase: %v", err)
+		}
+		if err := manager.client.Status().Update(ctx, current, client.FieldOwner(secondManagerName)); err != nil {
+			t.Fatalf("failed to write third-party status at v1beta1: %v", err)
+		}
+	}
+
+	// Step 3: add v1 as the served/storage version. When a third-party
+	// entry is present we keep v1beta1 served so the API server doesn't
+	// drop that entry on the next apply, and we can observe the stale
+	// entry surviving into step 6.
+	crdV1 := makeCRD([]any{
+		map[string]any{
+			"name":    "v1beta1",
+			"served":  scenarioOpts.injectStaleThirdPartyStatus,
+			"storage": false,
+			"schema":  v1beta1Schema,
+		},
+		map[string]any{
+			"name":    "v1",
+			"served":  true,
+			"storage": true,
+			"schema":  v1Schema,
+		},
+	})
+	if _, err := apply(ctx, crdV1, opts); err != nil {
+		t.Fatalf("failed to add v1 to CRD: %v", err)
+	}
+	gvkV1 := schema.GroupVersionKind{Group: group, Version: "v1", Kind: "Widget"}
+	if err := waitForGVK(gvkV1); err != nil {
+		t.Fatalf("v1 not available: %v", err)
+	}
+
+	// Step 4: re-apply the CR at v1. Since there's no drift and migration
+	// is disabled, this is a no-op and our managed fields entry stays
+	// tagged v1beta1. We also use this as an implicit assertion that the
+	// object's apiVersion is reported as v1 while the managed entry is
+	// still v1beta1 — that's the whole setup for step 5.
+	crV1 := cr.DeepCopy()
+	crV1.SetAPIVersion(fmt.Sprintf("%s/v1", group))
+	entry, err = apply(ctx, crV1, DefaultApplyOptions())
+	if err != nil {
+		t.Fatalf("failed to apply CR at v1: %v", err)
+	}
+	if entry.Action != UnchangedAction {
+		t.Errorf("expected UnchangedAction, got %s", entry.Action)
+	}
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(gvkV1)
+	if err := manager.client.Get(ctx, client.ObjectKeyFromObject(crV1), got); err != nil {
+		t.Fatalf("failed to get CR: %v", err)
+	}
+	if expected := fmt.Sprintf("%s/v1", group); got.GetAPIVersion() != expected {
+		t.Errorf("expected object apiVersion %s, got %s", expected, got.GetAPIVersion())
+	}
+	for _, mf := range got.GetManagedFields() {
+		if mf.Manager != manager.owner.Field {
+			continue
+		}
+		if expected := fmt.Sprintf("%s/v1beta1", group); mf.APIVersion != expected {
+			t.Errorf("expected our managed field apiVersion %s, got %s", expected, mf.APIVersion)
+		}
+	}
+
+	// Force the CR to be re-stored at v1 under a different field manager.
+	// envtest doesn't run the storage-version migrator, so without this
+	// the object would still be physically stored at v1beta1 and v1
+	// defaulting wouldn't actually run on subsequent GETs. Using a
+	// different manager means our own managed fields entry isn't touched
+	// and stays at v1beta1.
+	migratePatch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"annotations":{"test/rewritten":"true"}}}`))
+	if err := manager.client.Patch(ctx, crV1.DeepCopy(), migratePatch, client.FieldOwner("storage-migrator")); err != nil {
+		t.Fatalf("failed to re-store CR at v1: %v", err)
+	}
+
+	// Optionally promote our own entry from v1beta1 to v1 via a
+	// drift-inducing SSA apply BEFORE the defaulted field lands in the
+	// v1 schema. This matches the real-world user state.
+	if scenarioOpts.promoteOwnEntryToV1 {
+		promote := crV1.DeepCopy()
+		labels := promote.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels["test/promoted"] = "true"
+		promote.SetLabels(labels)
+		if err := manager.client.Patch(ctx, promote, client.Apply,
+			client.FieldOwner(manager.owner.Field),
+			client.ForceOwnership); err != nil {
+			t.Fatalf("failed to promote own entry to v1: %v", err)
+		}
+	}
+
+	// Step 5: add a new field with a default value to the v1 schema.
+	crdV1WithDefault := makeCRD([]any{
+		map[string]any{
+			"name":    "v1beta1",
+			"served":  scenarioOpts.injectStaleThirdPartyStatus,
+			"storage": false,
+			"schema":  v1beta1Schema,
+		},
+		map[string]any{
+			"name":    "v1",
+			"served":  true,
+			"storage": true,
+			"schema":  v1SchemaWithDefault,
+		},
+	})
+	if _, err := apply(ctx, crdV1WithDefault, opts); err != nil {
+		t.Fatalf("failed to add defaulted field to CRD v1: %v", err)
+	}
+
+	return crV1
+}
+
+func runMigrateAPIVersionScenario(t *testing.T, id string, apply applyFunc) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	crV1 := setupMigrateAPIVersionEnv(t, ctx, id, apply, migrateScenarioOpts{})
+
+	// With MigrateAPIVersion disabled, apply should fail with the
+	// "field not declared in schema" dry-run error.
+	_, err := apply(ctx, crV1.DeepCopy(), DefaultApplyOptions())
+	if err == nil {
+		t.Fatalf("expected apply to fail without MigrateAPIVersion, got nil")
+	}
+	var dryRunErr *ssaerrors.DryRunErr
+	if !errors.As(err, &dryRunErr) {
+		t.Errorf("expected *ssaerrors.DryRunErr, got %T: %v", err, err)
+	} else if !strings.Contains(dryRunErr.Error(), "field not declared in schema") {
+		t.Errorf("expected %q in error, got: %v", "field not declared in schema", dryRunErr)
+	}
+
+	// With MigrateAPIVersion enabled, apply should succeed and report
+	// the object as configured.
+	opts := DefaultApplyOptions()
+	opts.MigrateAPIVersion = true
+	entry, err := apply(ctx, crV1.DeepCopy(), opts)
+	if err != nil {
+		t.Fatalf("failed to apply CR with MigrateAPIVersion=true: %v", err)
+	}
+	if entry.Action != ConfiguredAction {
+		t.Errorf("expected ConfiguredAction, got %s", entry.Action)
+	}
+}
+
+func TestApply_MigrateAPIVersion(t *testing.T) {
+	runMigrateAPIVersionScenario(t, generateName("migrate-api-version"), applyOneViaApply)
+}
+
+func TestApplyAll_MigrateAPIVersion(t *testing.T) {
+	runMigrateAPIVersionScenario(t, generateName("migrate-api-version-all"), applyOneViaApplyAll)
+}
+
+// TestApply_MigrateAPIVersion_RealWorldExternalSecrets reproduces the
+// exact shape of the external-secrets failure observed on a real cluster.
+//
+// The CR's managed fields on the user's object looked like this:
+//
+//   - kustomize-controller, apiVersion v1, Apply — owns spec fields.
+//   - external-secrets, apiVersion v1beta1, Update, subresource=status —
+//     owns status fields.
+//   - external-secrets, apiVersion v1, Update — owns the finalizer.
+//
+// i.e. kustomize-controller's own entry was already at v1 (so migrating
+// only our own entries is a no-op), but external-secrets still had a
+// status entry pinned to v1beta1. That one stale entry is enough to make
+// the next SSA apply at v1 fail with
+// ".spec.dataFrom[0].extract.nullBytePolicy: field not declared in
+// schema" once the CRD adds that defaulted field in v1.
+//
+// This test asserts two things:
+//
+//  1. Without migration, a plain SSA dry-run apply at v1 reproduces the
+//     production error message. This confirms the reproduction is
+//     correct and the setup matches the user's object.
+//  2. With MigrateAPIVersion=true, ResourceManager.Apply fixes it by
+//     rewriting every stale managed fields entry to v1 — including the
+//     third-party status entry. If the fix regresses to only migrating
+//     our own entries, this assertion fails.
+func TestApply_MigrateAPIVersion_RealWorldExternalSecrets(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	id := generateName("migrate-api-version-real-world-eso")
+	crV1 := setupMigrateAPIVersionEnv(t, ctx, id, applyOneViaApply,
+		migrateScenarioOpts{
+			injectStaleThirdPartyStatus: true,
+			promoteOwnEntryToV1:         true,
+		})
+
+	bareErr := manager.client.Patch(ctx, crV1.DeepCopy(), client.Apply,
+		client.DryRunAll,
+		client.FieldOwner(manager.owner.Field),
+		client.ForceOwnership)
+	if bareErr == nil {
+		t.Fatalf("expected bare dry-run apply to fail, got nil")
+	}
+	if !strings.Contains(bareErr.Error(), ".spec.dataFrom[0].extract.nullBytePolicy: field not declared in schema") {
+		t.Errorf("expected the real-world external-secrets error, got: %v", bareErr)
+	}
+
+	opts := DefaultApplyOptions()
+	opts.MigrateAPIVersion = true
+	if _, err := manager.Apply(ctx, crV1.DeepCopy(), opts); err != nil {
+		t.Errorf("expected Apply with MigrateAPIVersion=true to fix the real-world scenario, got: %v", err)
+	}
 }

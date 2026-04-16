@@ -170,8 +170,19 @@ each_entry:
 	return append(patches, NewPatchReplace(managedFieldsPath, entries)), nil
 }
 
-// PatchMigrateToVersion returns a JSONPatch array for replacing the existing apiVersion in the
-// managed fields with the specified apiVersion.
+// PatchMigrateToVersion returns a JSONPatch array that rewrites every
+// managed fields entry on the object to the given apiVersion — across
+// all field managers and both the main resource and its subresources.
+// It returns nil if the object has no managed fields or if every entry
+// already matches the given apiVersion.
+//
+// This is intended to be used before applying an object at a newer API
+// version of a CRD whose newer version adds fields with default values.
+// When any managed fields entry is still tagged with an older apiVersion
+// (regardless of which field manager owns it, or whether the entry
+// belongs to a subresource) the API server can reject the apply with
+// "field not declared in schema" for the newly-defaulted fields.
+// Rewriting every entry first avoids that.
 func PatchMigrateToVersion(object *unstructured.Unstructured, apiVersion string) ([]JSONPatch, error) {
 	objEntries := object.GetManagedFields()
 
