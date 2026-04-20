@@ -390,6 +390,19 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("Failed to get the terraform state output: %v", err))
 	}
 
+	// AWS-specific pre-destroy cleanup: delete cluster, ELBs, and sweep ENIs
+	// to avoid DependencyViolation on security group deletion during
+	// terraform destroy. Runs before testEnv.Stop (defers are LIFO).
+	if *targetProvider == "aws" && !*retain {
+		defer func() {
+			clusterName, _ := output["eks_cluster_name"].Value.(string)
+			region, _ := output["region"].Value.(string)
+			if clusterName != "" && region != "" {
+				preDestroyCleanupAWS(ctx, clusterName, region)
+			}
+		}()
+	}
+
 	// Cleanup infra that depends on terraform output before exit
 	defer func() {
 		if !*retain {
