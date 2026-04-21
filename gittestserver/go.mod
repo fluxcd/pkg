@@ -5,8 +5,8 @@ go 1.25.0
 require (
 	github.com/cyphar/filepath-securejoin v0.6.1
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/go-git/go-billy/v5 v5.7.0
-	github.com/go-git/go-git/v5 v5.16.5
+	github.com/go-git/go-billy/v5 v5.8.0
+	github.com/go-git/go-git/v5 v5.18.0
 	golang.org/x/crypto v0.47.0
 )
 
