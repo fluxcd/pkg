@@ -45,6 +45,9 @@ func NewStatusReader(healthchecks []kustomize.CustomHealthCheck) (func(meta.REST
 	evaluators := make(map[schema.GroupKind]*StatusEvaluator, len(healthchecks))
 	for i, hc := range healthchecks {
 		gk := schema.FromAPIVersionAndKind(hc.APIVersion, hc.Kind).GroupKind()
+		if hc.Kind == "" {
+			gk = schema.GroupKind{Group: gk.Group}
+		}
 		if _, ok := evaluators[gk]; ok {
 			return nil, fmt.Errorf(
 				"duplicate custom health check for GroupKind %s at healthchecks[%d]", gk.String(), i)
@@ -67,8 +70,9 @@ func NewStatusReader(healthchecks []kustomize.CustomHealthCheck) (func(meta.REST
 
 // Supports returns true if the StatusReader supports the given GroupKind.
 func (g *StatusReader) Supports(gk schema.GroupKind) bool {
-	_, ok := g.evaluators[gk]
-	return ok
+	_, supportsGroup := g.evaluators[schema.GroupKind{Group: gk.Group}]
+	_, supportsKind := g.evaluators[gk]
+	return supportsGroup || supportsKind
 }
 
 // ReadStatus reads the status of the resource with the given metadata.
@@ -104,9 +108,16 @@ func (g *StatusReader) ReadStatusForObject(ctx context.Context, reader engine.Cl
 }
 
 // genericStatusReader returns the underlying generic status reader.
+// Callers must ensure Supports(gk) is true before invoking this; the lookup
+// below assumes an evaluator exists and would panic otherwise. Gating is done
+// in the callers (ReadStatus, ReadStatusForObject) so they can return errors.
 func (g *StatusReader) genericStatusReader(ctx context.Context, gk schema.GroupKind) engine.StatusReader {
 	statusFunc := func(u *unstructured.Unstructured) (*status.Result, error) {
-		return g.evaluators[gk].Evaluate(ctx, u)
+		e, ok := g.evaluators[gk]
+		if !ok {
+			e, ok = g.evaluators[schema.GroupKind{Group: gk.Group}]
+		}
+		return e.Evaluate(ctx, u)
 	}
 	return kstatusreaders.NewGenericStatusReader(g.mapper, statusFunc)
 }

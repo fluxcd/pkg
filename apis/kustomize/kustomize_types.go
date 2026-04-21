@@ -139,8 +139,8 @@ type CustomHealthCheck struct {
 	// +required
 	APIVersion string `json:"apiVersion"`
 	// Kind of the custom resource under evaluation.
-	// +required
-	Kind string `json:"kind"`
+	// +optional
+	Kind string `json:"kind,omitempty"`
 
 	HealthCheckExpressions `json:",inline"`
 }

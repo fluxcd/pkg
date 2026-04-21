@@ -69,6 +69,38 @@ func TestStatusReader_Supports(t *testing.T) {
 			},
 			result: false,
 		},
+		{
+			name: "group-only healthcheck supports any kind in that group",
+			supportedGK: schema.GroupKind{
+				Group: "test",
+			},
+			gk: schema.GroupKind{
+				Group: "test",
+				Kind:  "AnyKind",
+			},
+			result: true,
+		},
+		{
+			name: "group-only healthcheck does not support other groups",
+			supportedGK: schema.GroupKind{
+				Group: "test",
+			},
+			gk: schema.GroupKind{
+				Group: "other",
+				Kind:  "AnyKind",
+			},
+			result: false,
+		},
+		{
+			name: "group-only healthcheck supports GK with empty Kind in that group",
+			supportedGK: schema.GroupKind{
+				Group: "test",
+			},
+			gk: schema.GroupKind{
+				Group: "test",
+			},
+			result: true,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -239,6 +271,93 @@ func TestStatusReader_ReadStatusForObject(t *testing.T) {
 	}
 }
 
+func TestStatusReader_ReadStatusForObject_GroupOnlyHealthCheck(t *testing.T) {
+	g := NewWithT(t)
+
+	// Register a single group-only healthcheck (empty Kind) for group "bitnami.com".
+	// It should apply to any Kind in that group.
+	ctor, err := cel.NewStatusReader([]kustomize.CustomHealthCheck{{
+		APIVersion: "bitnami.com/v1alpha1",
+		HealthCheckExpressions: kustomize.HealthCheckExpressions{
+			Current: "data.current",
+		},
+	}})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	sr := ctor(nil)
+
+	for _, kind := range []string{"SealedSecret", "AnotherKind"} {
+		result, err := sr.ReadStatusForObject(context.Background(), nil, &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "bitnami.com/v1alpha1",
+				"kind":       kind,
+				"data": map[string]any{
+					"current": true,
+				},
+			},
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result.Status).To(Equal(status.CurrentStatus))
+	}
+
+	// A resource from a different group must not be supported.
+	_, err = sr.ReadStatusForObject(context.Background(), nil, &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "other.com/v1",
+			"kind":       "Foo",
+			"data":       map[string]any{"current": true},
+		},
+	})
+	g.Expect(err).To(MatchError(ContainSubstring("the GroupKind Foo.other.com is not supported")))
+}
+
+func TestStatusReader_ReadStatusForObject_SpecificKindOverridesGroupOnly(t *testing.T) {
+	g := NewWithT(t)
+
+	// Register a group-only healthcheck that would always return Failed,
+	// plus a specific-kind healthcheck that returns Current. The specific
+	// one must take precedence for its Kind.
+	ctor, err := cel.NewStatusReader([]kustomize.CustomHealthCheck{
+		{
+			APIVersion: "bitnami.com/v1alpha1",
+			HealthCheckExpressions: kustomize.HealthCheckExpressions{
+				Failed:  "true",
+				Current: "false",
+			},
+		},
+		{
+			APIVersion: "bitnami.com/v1alpha1",
+			Kind:       "SealedSecret",
+			HealthCheckExpressions: kustomize.HealthCheckExpressions{
+				Current: "true",
+			},
+		},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	sr := ctor(nil)
+
+	// SealedSecret hits the specific-kind evaluator -> Current.
+	result, err := sr.ReadStatusForObject(context.Background(), nil, &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "bitnami.com/v1alpha1",
+			"kind":       "SealedSecret",
+		},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(result.Status).To(Equal(status.CurrentStatus))
+
+	// A different Kind in the same group falls back to the group-only evaluator -> Failed.
+	result, err = sr.ReadStatusForObject(context.Background(), nil, &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "bitnami.com/v1alpha1",
+			"kind":       "OtherKind",
+		},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(result.Status).To(Equal(status.FailedStatus))
+}
+
 func TestNewStatusReader_DuplicateGroupKindError(t *testing.T) {
 	g := NewWithT(t)
 
@@ -255,6 +374,30 @@ func TestNewStatusReader_DuplicateGroupKindError(t *testing.T) {
 			Kind:       "ConfigMap",
 			HealthCheckExpressions: kustomize.HealthCheckExpressions{
 				Current: "something",
+			},
+		},
+	})
+
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("duplicate custom health check for GroupKind"))
+	g.Expect(err.Error()).To(ContainSubstring("healthchecks[1]"))
+	g.Expect(result).To(BeNil())
+}
+
+func TestNewStatusReader_DuplicateGroupOnlyError(t *testing.T) {
+	g := NewWithT(t)
+
+	result, err := cel.NewStatusReader([]kustomize.CustomHealthCheck{
+		{
+			APIVersion: "bitnami.com/v1alpha1",
+			HealthCheckExpressions: kustomize.HealthCheckExpressions{
+				Current: "true",
+			},
+		},
+		{
+			APIVersion: "bitnami.com/v1alpha1",
+			HealthCheckExpressions: kustomize.HealthCheckExpressions{
+				Current: "true",
 			},
 		},
 	})
