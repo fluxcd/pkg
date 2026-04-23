@@ -21,7 +21,6 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	hpav2 "k8s.io/api/autoscaling/v2"
-	hpav2beta2 "k8s.io/api/autoscaling/v2beta2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -180,21 +179,6 @@ func DryRunUnstructured(object *unstructured.Unstructured) error {
 		}
 
 		switch o := typedObject.(type) {
-		case *hpav2beta2.HorizontalPodAutoscaler:
-			var metrics []hpav2beta2.MetricSpec
-			for _, metric := range o.Spec.Metrics {
-				found := false
-				for _, existing := range metrics {
-					if apiequality.Semantic.DeepEqual(metric, existing) {
-						found = true
-						break
-					}
-				}
-				if !found && metric.Type != "" {
-					metrics = append(metrics, metric)
-				}
-			}
-			o.Spec.Metrics = metrics
 		case *hpav2.HorizontalPodAutoscaler:
 			var metrics []hpav2.MetricSpec
 			for _, metric := range o.Spec.Metrics {
