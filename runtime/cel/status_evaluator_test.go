@@ -314,6 +314,36 @@ func TestStatusEvaluator_Evaluate(t *testing.T) {
 			},
 			result: status.Result{Status: status.InProgressStatus},
 		},
+		{
+			name: "object with non-int64 status.observedGeneration is tolerated and delegated to CEL expressions",
+			exprs: kustomize.HealthCheckExpressions{
+				Current: "status.observedGeneration == '2'",
+			},
+			obj: map[string]any{
+				"metadata": map[string]any{
+					"generation": int64(2),
+				},
+				"status": map[string]any{
+					"observedGeneration": "2",
+				},
+			},
+			result: status.Result{Status: status.CurrentStatus},
+		},
+		{
+			name: "object with non-int64 metadata.generation is tolerated and delegated to CEL expressions",
+			exprs: kustomize.HealthCheckExpressions{
+				Current: "metadata.generation == '2'",
+			},
+			obj: map[string]any{
+				"metadata": map[string]any{
+					"generation": "2",
+				},
+				"status": map[string]any{
+					"observedGeneration": int64(2),
+				},
+			},
+			result: status.Result{Status: status.CurrentStatus},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

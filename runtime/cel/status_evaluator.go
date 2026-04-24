@@ -88,18 +88,14 @@ func (s *StatusEvaluator) Evaluate(ctx context.Context, u *unstructured.Unstruct
 	unsObj := u.UnstructuredContent()
 
 	// Check if the object has the field status.observedGeneration
-	// and if it differs from metadata.generation, in which case we
-	// return status InProgress.
+	// as an int64 and if it differs from metadata.generation, in which
+	// case we return status InProgress. If the field is not an int64
+	// (e.g. some CRDs type it as a string), we skip this built-in check
+	// and rely solely on the user-provided CEL expressions.
 	observedGeneration, ok, err := unstructured.NestedInt64(unsObj, "status", "observedGeneration")
-	if err != nil {
-		return nil, err
-	}
-	if ok {
+	if err == nil && ok {
 		generation, ok, err := unstructured.NestedInt64(unsObj, "metadata", "generation")
-		if err != nil {
-			return nil, err
-		}
-		if ok && observedGeneration != generation {
+		if err == nil && ok && observedGeneration != generation {
 			return &status.Result{Status: status.InProgressStatus}, nil
 		}
 	}
