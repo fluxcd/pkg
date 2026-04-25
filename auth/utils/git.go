@@ -19,63 +19,19 @@ package utils
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/fluxcd/pkg/auth"
-	"github.com/fluxcd/pkg/auth/aws"
-	"github.com/fluxcd/pkg/auth/azure"
 )
 
-// GitCredentials contains authentication data needed in order to access a Git
-// repository.
-type GitCredentials struct {
-	BearerToken string
-	Username    string
-	Password    string
-}
+// GetGitCredentials looks up the implemented providers that support Git
+// and returns the credentials for the specified provider.
+func GetGitCredentials(ctx context.Context, providerName string,
+	opts ...auth.Option) (*auth.GitCredentials, error) {
 
-// GetGitCredentials looks up by the implemented providers that support Git
-// and returns the credentials for the provider.
-func GetGitCredentials(ctx context.Context, providerName string, opts ...auth.Option) (*GitCredentials, error) {
-	switch providerName {
-	case azure.ProviderName:
-		opts = append(slices.Clone(opts), auth.WithScopes(azure.ScopeDevOps))
-		token, err := auth.GetAccessToken(ctx, azure.Provider{}, opts...)
-		if err != nil {
-			return nil, err
-		}
-		return &GitCredentials{
-			BearerToken: token.(*azure.Token).Token,
-		}, nil
-	case aws.ProviderName:
-		provider := aws.Provider{}
-		awsOpts := slices.Clone(opts)
-
-		// Extract the region from the CodeCommit URL and inject it as STSRegion
-		// before calling GetAccessToken. This will ensure that it's possible to call AWS SDK
-		// even without AWS_REGION environment variable.
-		var o auth.Options
-		o.Apply(awsOpts...)
-		if o.STSRegion == "" && o.GitURL != nil {
-			if region, err := aws.GetRegionFromCodeCommitURL(o.GitURL); err == nil {
-				awsOpts = append(awsOpts, auth.WithSTSRegion(region))
-			}
-		}
-
-		token, err := auth.GetAccessToken(ctx, provider, awsOpts...)
-		if err != nil {
-			return nil, err
-		}
-
-		username, password, err := provider.NewCodeCommitGitCredentials(ctx, []auth.Token{token}, awsOpts...)
-		if err != nil {
-			return nil, err
-		}
-		return &GitCredentials{
-			Username: username,
-			Password: password,
-		}, nil
-	default:
+	provider, err := ProviderByName[auth.GitCredentialsProvider](providerName)
+	if err != nil {
 		return nil, fmt.Errorf("provider '%s' does not support Git credentials", providerName)
 	}
+
+	return auth.GetGitCredentials(ctx, provider, opts...)
 }

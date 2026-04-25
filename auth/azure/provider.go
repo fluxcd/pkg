@@ -19,6 +19,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -391,6 +392,34 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		BearerToken: aksToken.Token,
 		CAData:      caData,
 		ExpiresAt:   aksToken.ExpiresOn,
+	}, nil
+}
+
+// GetAccessTokenOptionsForGitRepository implements auth.GitCredentialsProvider.
+// Azure DevOps requires the DevOps scope for obtaining an access token that
+// can be used as a bearer token against Azure Repos.
+func (Provider) GetAccessTokenOptionsForGitRepository(*url.URL) ([]auth.Option, error) {
+	return []auth.Option{auth.WithScopes(ScopeDevOps)}, nil
+}
+
+// ParseGitRepository implements auth.GitCredentialsProvider.
+// Azure DevOps access tokens are not bound to the Git repository URL,
+// so this returns a constant input that does not affect the cache key.
+func (Provider) ParseGitRepository(*url.URL) (string, error) {
+	return "azure-devops", nil
+}
+
+// NewGitCredentials implements auth.GitCredentialsProvider.
+func (Provider) NewGitCredentials(_ context.Context, _ string,
+	accessToken auth.Token, _ ...auth.Option) (*auth.GitCredentials, error) {
+
+	token, ok := accessToken.(*Token)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast token to Azure token: %T", accessToken)
+	}
+	return &auth.GitCredentials{
+		BearerToken: token.Token,
+		ExpiresAt:   token.ExpiresOn,
 	}, nil
 }
 

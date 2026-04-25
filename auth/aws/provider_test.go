@@ -538,7 +538,7 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	g.Expect(o.STSRegion).To(Equal("us-west-2"))
 }
 
-func TestGetRegionFromCodeCommitURL(t *testing.T) {
+func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		gitURL         string
@@ -583,19 +583,80 @@ func TestGetRegionFromCodeCommitURL(t *testing.T) {
 				parsedURL, err = url.Parse(tt.gitURL)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
-			region, err := aws.GetRegionFromCodeCommitURL(parsedURL)
+			atOpts, err := aws.Provider{}.GetAccessTokenOptionsForGitRepository(parsedURL)
 			if tt.err != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
+				g.Expect(atOpts).To(BeNil())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(region).To(Equal(tt.expectedRegion))
+				var o auth.Options
+				o.Apply(atOpts...)
+				g.Expect(o.STSRegion).To(Equal(tt.expectedRegion))
 			}
 		})
 	}
 }
 
-func TestProvider_NewCodeCommitGitCredentials(t *testing.T) {
+func TestProvider_ParseGitRepository(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		gitURL         string
+		expectedRegion string
+		err            string
+	}{
+		{
+			name:           "valid CodeCommit URL",
+			gitURL:         "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			expectedRegion: "us-east-1",
+		},
+		{
+			name:           "valid CodeCommit FIPS URL",
+			gitURL:         "https://git-codecommit-fips.us-west-2.amazonaws.com/v1/repos/test-repo",
+			expectedRegion: "us-west-2",
+		},
+		{
+			name:           "valid CodeCommit China URL",
+			gitURL:         "https://git-codecommit.cn-north-1.amazonaws.com.cn/v1/repos/test-repo",
+			expectedRegion: "cn-north-1",
+		},
+		{
+			name: "nil URL",
+			err:  "Git URL must be specified for AWS CodeCommit authentication",
+		},
+		{
+			name:   "non-HTTPS URL",
+			gitURL: "http://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			err:    "AWS CodeCommit authentication requires an HTTPS Git URL",
+		},
+		{
+			name:   "invalid CodeCommit URL",
+			gitURL: "https://github.com/org/repo",
+			err:    "invalid AWS CodeCommit Git URL: github.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			var parsedURL *url.URL
+			if tt.gitURL != "" {
+				var err error
+				parsedURL, err = url.Parse(tt.gitURL)
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			gitInput, err := aws.Provider{}.ParseGitRepository(parsedURL)
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(Equal(tt.err))
+				g.Expect(gitInput).To(BeEmpty())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(gitInput).To(Equal(tt.gitURL))
+			}
+		})
+	}
+}
+
+func TestProvider_NewGitCredentials(t *testing.T) {
 	invalidToken := &generic.Token{Token: "invalid", ExpiresAt: time.Now().Add(time.Hour)}
 	proxyUrl := url.URL{Scheme: "http", Host: "proxy.example.com"}
 	awsRegion := "us-east-1"
@@ -603,7 +664,7 @@ func TestProvider_NewCodeCommitGitCredentials(t *testing.T) {
 		name             string
 		gitURL           string
 		getAccessToken   bool
-		accessTokens     []auth.Token
+		accessToken      auth.Token
 		expectedUsername string
 		err              string
 	}{
@@ -626,34 +687,10 @@ func TestProvider_NewCodeCommitGitCredentials(t *testing.T) {
 			expectedUsername: "access-key-id%session-token",
 		},
 		{
-			name:           "missing Git URL",
-			getAccessToken: true,
-			err:            "Git URL must be specified for AWS CodeCommit authentication",
-		},
-		{
-			name:           "non HTTPS URL",
-			gitURL:         "http://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
-			getAccessToken: true,
-			err:            "AWS CodeCommit authentication requires an HTTPS Git URL",
-		},
-		{
-			name:           "invalid CodeCommit URL",
-			gitURL:         "https://github.com/org/repo",
-			getAccessToken: true,
-			err:            "invalid AWS CodeCommit Git URL: github.com",
-		},
-		{
-			name:           "missing access token",
-			gitURL:         "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
-			getAccessToken: false,
-			accessTokens:   []auth.Token{},
-			err:            `AWS access token is required for region "us-east-1"`,
-		},
-		{
 			name:           "invalid access token type",
 			gitURL:         "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
 			getAccessToken: false,
-			accessTokens:   []auth.Token{invalidToken},
+			accessToken:    invalidToken,
 			err:            "failed to cast token to AWS token: *generic.Token",
 		},
 	} {
@@ -667,35 +704,27 @@ func TestProvider_NewCodeCommitGitCredentials(t *testing.T) {
 				returnCreds: awssdk.Credentials{AccessKeyID: "access-key-id", SecretAccessKey: "secret-access-key", SessionToken: "session-token"},
 			}
 
-			opts := []auth.Option{}
-			if tt.gitURL != "" {
-				gitURL, err := url.Parse(tt.gitURL)
-				g.Expect(err).NotTo(HaveOccurred())
-				opts = append(opts, auth.WithGitURL(*gitURL))
-			}
-
 			provider := aws.Provider{Implementation: impl}
-			accessTokens := tt.accessTokens
+			accessToken := tt.accessToken
 			if tt.getAccessToken {
-				accessToken, err := auth.GetAccessToken(t.Context(), provider,
+				var err error
+				accessToken, err = auth.GetAccessToken(t.Context(), provider,
 					auth.WithSTSRegion(awsRegion),
 					auth.WithProxyURL(proxyUrl),
 				)
 				g.Expect(err).NotTo(HaveOccurred())
-				accessTokens = []auth.Token{accessToken}
 			}
 
-			username, password, err := provider.NewCodeCommitGitCredentials(t.Context(), accessTokens, opts...)
+			creds, err := provider.NewGitCredentials(t.Context(), tt.gitURL, accessToken)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(username).To(Equal(tt.expectedUsername))
-				g.Expect(password).To(MatchRegexp(`^[0-9]{8}T[0-9]{6}Z[0-9a-f]{64}$`))
+				g.Expect(creds.Username).To(Equal(tt.expectedUsername))
+				g.Expect(creds.Password).To(MatchRegexp(`^[0-9]{8}T[0-9]{6}Z[0-9a-f]{64}$`))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
-				g.Expect(username).To(BeEmpty())
-				g.Expect(password).To(BeEmpty())
+				g.Expect(creds).To(BeNil())
 			}
 		})
 	}
