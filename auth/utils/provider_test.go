@@ -96,6 +96,39 @@ func TestProviderByName(t *testing.T) {
 		})
 	})
 
+	t.Run("git providers", func(t *testing.T) {
+		for _, tt := range []struct {
+			name     string
+			provider any
+		}{
+			{
+				name:     azure.ProviderName,
+				provider: azure.Provider{},
+			},
+			{
+				name:     aws.ProviderName,
+				provider: aws.Provider{},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				g := NewWithT(t)
+				p, err := authutils.ProviderByName[auth.GitCredentialsProvider](tt.name)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(p).To(Equal(tt.provider))
+			})
+		}
+
+		for _, name := range []string{gcp.ProviderName, generic.ProviderName} {
+			t.Run(name, func(t *testing.T) {
+				g := NewWithT(t)
+				p, err := authutils.ProviderByName[auth.GitCredentialsProvider](name)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("does not implement the expected interface"))
+				g.Expect(p).To(BeNil())
+			})
+		}
+	})
+
 	t.Run("restconfig providers", func(t *testing.T) {
 		for _, tt := range []struct {
 			name     string

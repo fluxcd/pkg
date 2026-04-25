@@ -39,6 +39,10 @@ type mockProvider struct {
 	returnIdentityErr       string
 	returnRegistryErr       string
 	returnRegistryInput     string
+	returnGitErr            string
+	returnGitInput          string
+	returnGitOptions        []auth.Option
+	returnGitCredentials    *auth.GitCredentials
 	returnRESTConfig        *auth.RESTConfig
 	returnRESTConfigOptsErr string
 	returnControllerToken   auth.Token
@@ -49,6 +53,7 @@ type mockProvider struct {
 	paramServiceAccount     corev1.ServiceAccount
 	paramOIDCTokenClient    *http.Client
 	paramArtifactRepository string
+	paramGitURL             *url.URL
 	paramCluster            string
 	paramClusterAddress     string
 	paramAccessToken        auth.Token
@@ -145,6 +150,33 @@ func (m *mockProvider) NewArtifactRegistryCredentials(ctx context.Context, regis
 	g.Expect(accessToken).To(Equal(m.paramAccessToken))
 	m.checkOptions(opts...)
 	return m.returnRegistryToken, nil
+}
+
+func (m *mockProvider) ParseGitRepository(gitURL *url.URL) (string, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(gitURL).To(Equal(m.paramGitURL))
+	if m.returnGitErr != "" {
+		return "", errors.New(m.returnGitErr)
+	}
+	return m.returnGitInput, nil
+}
+
+func (m *mockProvider) GetAccessTokenOptionsForGitRepository(gitURL *url.URL) ([]auth.Option, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(gitURL).To(Equal(m.paramGitURL))
+	return m.returnGitOptions, nil
+}
+
+func (m *mockProvider) NewGitCredentials(ctx context.Context, gitInput string,
+	accessToken auth.Token, opts ...auth.Option) (*auth.GitCredentials, error) {
+	m.t.Helper()
+	g := NewWithT(m.t)
+	g.Expect(gitInput).To(Equal(m.returnGitInput))
+	g.Expect(accessToken).To(Equal(m.paramAccessToken))
+	m.checkOptions(opts...)
+	return m.returnGitCredentials, nil
 }
 
 func (m *mockProvider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {

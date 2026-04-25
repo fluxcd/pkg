@@ -685,6 +685,101 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	})
 }
 
+func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
+	g := NewWithT(t)
+
+	gitURL, err := url.Parse("https://dev.azure.com/myorg/myproject/_git/myrepo")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	opts, err := azure.Provider{}.GetAccessTokenOptionsForGitRepository(gitURL)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(opts).To(HaveLen(1))
+
+	var o auth.Options
+	o.Apply(opts...)
+	g.Expect(o.Scopes).To(Equal([]string{azure.ScopeDevOps}))
+
+	// The URL is not used to compute the scope, so a nil URL must also work.
+	opts, err = azure.Provider{}.GetAccessTokenOptionsForGitRepository(nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(opts).To(HaveLen(1))
+	o = auth.Options{}
+	o.Apply(opts...)
+	g.Expect(o.Scopes).To(Equal([]string{azure.ScopeDevOps}))
+}
+
+func TestProvider_ParseGitRepository(t *testing.T) {
+	g := NewWithT(t)
+
+	// Azure DevOps access tokens are not bound to the repository URL, so
+	// ParseGitRepository must return a stable input regardless of the URL.
+	for _, raw := range []string{
+		"https://dev.azure.com/myorg/myproject/_git/myrepo",
+		"https://myorg.visualstudio.com/myproject/_git/myrepo",
+		"https://other.example.com/whatever",
+	} {
+		u, err := url.Parse(raw)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		gitInput, err := azure.Provider{}.ParseGitRepository(u)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(gitInput).To(Equal("azure-devops"))
+	}
+
+	// nil URL must also be accepted: the URL is not parsed/validated.
+	gitInput, err := azure.Provider{}.ParseGitRepository(nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(gitInput).To(Equal("azure-devops"))
+}
+
+func TestProvider_NewGitCredentials(t *testing.T) {
+	expiresOn := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+
+	for _, tt := range []struct {
+		name        string
+		accessToken auth.Token
+		expected    *auth.GitCredentials
+		err         string
+	}{
+		{
+			name: "valid Azure access token is returned as bearer token",
+			accessToken: &azure.Token{AccessToken: azcore.AccessToken{
+				Token:     "aad-token",
+				ExpiresOn: expiresOn,
+			}},
+			expected: &auth.GitCredentials{
+				BearerToken: "aad-token",
+				ExpiresAt:   expiresOn,
+			},
+		},
+		{
+			name:        "wrong token type is rejected",
+			accessToken: &mockNonAzureToken{},
+			err:         "failed to cast token to Azure token: *azure_test.mockNonAzureToken",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			creds, err := azure.Provider{}.NewGitCredentials(
+				context.Background(), "azure-devops", tt.accessToken)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(Equal(tt.err))
+				g.Expect(creds).To(BeNil())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(creds).To(Equal(tt.expected))
+			}
+		})
+	}
+}
+
+type mockNonAzureToken struct{}
+
+func (*mockNonAzureToken) GetDuration() time.Duration { return 0 }
+
 func createKubeconfig(clusterName, serverURL string) []byte {
 	return []byte(fmt.Sprintf(`apiVersion: v1
 clusters:

@@ -45,8 +45,20 @@ import (
 
 // ProviderName is the name of the AWS authentication provider.
 const (
-	ProviderName                       = "aws"
+	ProviderName = "aws"
+
+	// codeCommitCanonicalTimestampFormat is the SigV4 canonical timestamp
+	// format (ISO 8601 basic, no separators, no fractional seconds) embedded
+	// in the CodeCommit Git password and used as the canonical request time
+	// during signing. The trailing 'Z' is appended separately by the caller.
 	codeCommitCanonicalTimestampFormat = "20060102T150405"
+
+	// codeCommitSignatureValidity is the server-side replay window for
+	// SigV4-signed CodeCommit Git requests. AWS documents that the password
+	// generated for HTTPS access to a CodeCommit repository stops working
+	// after about 15 minutes:
+	// https://docs.aws.amazon.com/codecommit/latest/userguide/troubleshooting-ch.html
+	codeCommitSignatureValidity = 15 * time.Minute
 )
 
 // Provider implements the auth.Provider interface for AWS authentication.
@@ -398,24 +410,11 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	}, nil
 }
 
-func (p Provider) impl() Implementation {
-	if p.Implementation == nil {
-		return implementation{}
-	}
-	return p.Implementation
-}
-
-type signerHeaderHostOnly struct{}
-
-func (signerHeaderHostOnly) IsSigned(h string) bool {
-	return h == "host"
-}
-
-// GetRegionFromCodeCommitURL extracts the AWS region from a CodeCommit HTTPS
+// getRegionFromCodeCommitURL extracts the AWS region from a CodeCommit HTTPS
 // git URL (e.g. https://git-codecommit.us-east-1.amazonaws.com/...).
 // Returns an error if the URL is nil, not HTTPS, or not a valid CodeCommit URL.
 // https://docs.aws.amazon.com/codecommit/latest/userguide/regions.html#regions-git
-func GetRegionFromCodeCommitURL(gitURL *url.URL) (string, error) {
+func getRegionFromCodeCommitURL(gitURL *url.URL) (string, error) {
 	if gitURL == nil {
 		return "", fmt.Errorf("Git URL must be specified for AWS CodeCommit authentication")
 	}
@@ -431,28 +430,51 @@ func GetRegionFromCodeCommitURL(gitURL *url.URL) (string, error) {
 	return urlSplit[1], nil
 }
 
-// NewCodeCommitGitToken returns HTTPS Git credentials for AWS CodeCommit.
-func (Provider) NewCodeCommitGitCredentials(_ context.Context, accessTokens []auth.Token, opts ...auth.Option) (string, string, error) {
-	var o auth.Options
-	o.Apply(opts...)
-
-	gitURL := o.GitURL
-	region, err := GetRegionFromCodeCommitURL(gitURL)
+// GetAccessTokenOptionsForGitRepository implements auth.GitCredentialsProvider.
+// AWS requires a region for obtaining access credentials. To avoid requiring
+// callers to pass a region in addition to the CodeCommit URL, we extract the
+// region from the URL and inject it as STSRegion so that object-level workload
+// identity (which requires an explicit region) works without extra config.
+func (Provider) GetAccessTokenOptionsForGitRepository(gitURL *url.URL) ([]auth.Option, error) {
+	region, err := getRegionFromCodeCommitURL(gitURL)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
-	if len(accessTokens) == 0 {
-		return "", "", fmt.Errorf("AWS access token is required for region %q", region)
+	return []auth.Option{auth.WithSTSRegion(region)}, nil
+}
+
+// ParseGitRepository implements auth.GitCredentialsProvider.
+// It validates the URL is a CodeCommit URL and returns the URL string so that
+// it is included in the cache key: CodeCommit credentials are a SigV4 signature
+// over the request URL, so distinct URLs must map to distinct cache entries.
+func (Provider) ParseGitRepository(gitURL *url.URL) (string, error) {
+	if _, err := getRegionFromCodeCommitURL(gitURL); err != nil {
+		return "", err
+	}
+	return gitURL.String(), nil
+}
+
+// NewGitCredentials implements auth.GitCredentialsProvider.
+func (Provider) NewGitCredentials(_ context.Context, gitInput string,
+	accessToken auth.Token, _ ...auth.Option) (*auth.GitCredentials, error) {
+
+	gitURL, err := url.Parse(gitInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CodeCommit URL: %w", err)
+	}
+	region, err := getRegionFromCodeCommitURL(gitURL)
+	if err != nil {
+		return nil, err
 	}
 
-	creds, ok := accessTokens[0].(*Credentials)
+	creds, ok := accessToken.(*Credentials)
 	if !ok {
-		return "", "", fmt.Errorf("failed to cast token to AWS token: %T", accessTokens[0])
+		return nil, fmt.Errorf("failed to cast token to AWS token: %T", accessToken)
 	}
 
 	req, err := http.NewRequest("GIT", gitURL.String(), nil)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to build CodeCommit signing request: %w", err)
+		return nil, fmt.Errorf("failed to build CodeCommit signing request: %w", err)
 	}
 	req.Host = gitURL.Host
 
@@ -477,15 +499,39 @@ func (Provider) NewCodeCommitGitCredentials(_ context.Context, accessTokens []au
 	}
 
 	if err := signer.SignRequest(signInput); err != nil {
-		return "", "", fmt.Errorf("failed to sign request: %w", err)
+		return nil, fmt.Errorf("failed to sign request: %w", err)
 	}
 
 	authHeader := req.Header.Get("Authorization")
-	sigStart := strings.Index(authHeader, "Signature=")
-	signature := authHeader[sigStart+10:]
+	_, after, _ := strings.Cut(authHeader, "Signature=")
+	signature := after
 
 	username := strings.Join([]string{*creds.AccessKeyId, *creds.SessionToken}, "%")
 	password := signingTime.Format(codeCommitCanonicalTimestampFormat) + "Z" + signature
 
-	return username, password, nil
+	// The signed password is invalid once either the server's replay window
+	// elapses or the underlying credentials expire, whichever comes first.
+	expiresAt := signingTime.Add(codeCommitSignatureValidity)
+	if creds.Expiration.Before(expiresAt) {
+		expiresAt = *creds.Expiration
+	}
+
+	return &auth.GitCredentials{
+		Username:  username,
+		Password:  password,
+		ExpiresAt: expiresAt,
+	}, nil
+}
+
+func (p Provider) impl() Implementation {
+	if p.Implementation == nil {
+		return implementation{}
+	}
+	return p.Implementation
+}
+
+type signerHeaderHostOnly struct{}
+
+func (signerHeaderHostOnly) IsSigned(h string) bool {
+	return h == "host"
 }
