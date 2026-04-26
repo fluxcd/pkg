@@ -33,11 +33,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	kuberecorder "k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	eventv1 "github.com/fluxcd/pkg/apis/event/v1beta1"
+	eventv1 "github.com/fluxcd/pkg/apis/event/v1"
 	"github.com/fluxcd/pkg/runtime/logger"
 )
 
@@ -48,70 +48,65 @@ import (
 //
 //	import (
 //		...
-//		kuberecorder "k8s.io/client-go/tools/record"
+//		"k8s.io/client-go/tools/events"
 //		...
 //	)
 //
 //	type MyTypeReconciler {
 //	 	client.Client
 //		// ... etc.
-//		kuberecorder.EventRecorder
+//		events.EventRecorder
 //	}
 //
 // Use NewRecorder to create a working Recorder.
-type Recorder struct {
+type EventRecorder interface {
+	// Eventf records an event with a given/formatted message.
+	Eventf(object runtime.Object, related runtime.Object, eventtype, reason, action, messageFmt string, args ...interface{})
+
+	// AnnotatedEventf records an event with annotations and a formatted message.
+	AnnotatedEventf(object runtime.Object, related runtime.Object, annotations map[string]string, eventtype, reason, action, messageFmt string, args ...interface{})
+}
+
+type recorder struct {
 	// URL address of the events endpoint.
-	Webhook string
+	webhook string
 
 	// Name of the controller that emits events.
-	ReportingController string
+	reportingController string
 
 	// Retryable HTTP client.
-	Client *retryablehttp.Client
+	client *retryablehttp.Client
 
 	// EventRecorder is the Kubernetes event recorder.
-	EventRecorder kuberecorder.EventRecorder
+	events.EventRecorder
 
 	// Scheme to look up the recorded objects.
-	Scheme *runtime.Scheme
+	scheme *runtime.Scheme
 
 	// Log is the recorder logger.
-	Log logr.Logger
+	log logr.Logger
 }
 
-var _ kuberecorder.EventRecorder = &Recorder{}
+var _ events.EventRecorder = &recorder{}
 
-// NewRecorder creates an event Recorder with a Kubernetes event recorder and an external event recorder based on the
-// given webhook. The recorder performs automatic retries for connection errors and 500-range response codes from the
-// external recorder.
-func NewRecorder(mgr ctrl.Manager, log logr.Logger, webhook, reportingController string) (*Recorder, error) {
-	if webhook != "" {
-		if _, err := url.Parse(webhook); err != nil {
-			return nil, err
-		}
-	}
+// RecorderOption configures a recorder.
+type RecorderOption func(*recorder)
 
-	httpClient := retryablehttp.NewClient()
-	httpClient.HTTPClient.Timeout = 5 * time.Second
-	httpClient.CheckRetry = checkRetry
-	httpClient.Logger = nil
-
-	return &Recorder{
-		Scheme:              mgr.GetScheme(),
-		Webhook:             webhook,
-		ReportingController: reportingController,
-		Client:              httpClient,
-		EventRecorder:       mgr.GetEventRecorderFor(reportingController),
-		Log:                 log,
-	}, nil
+// NewRecorder creates an events.EventRecorder with a Kubernetes event recorder
+// and an external event recorder based on the given webhook. The recorder
+// performs automatic retries for connection errors and 500-range response codes
+// from the external recorder.
+func NewRecorder(mgr ctrl.Manager, log logr.Logger, webhook, reportingController string, opts ...RecorderOption) (EventRecorder, error) {
+	return NewRecorderForScheme(mgr.GetScheme(), mgr.GetEventRecorder(reportingController), log, webhook, reportingController, opts...)
 }
 
-// NewRecorderForScheme creates an event Recorder with a Kubernetes event recorder and an external event recorder based on the
-// given webhook. The recorder performs automatic retries for connection errors and 500-range response codes from the
-// external recorder.
+// NewRecorderForScheme creates an events.EventRecorder with a Kubernetes event
+// recorder and an external event recorder based on the given webhook. The
+// recorder performs automatic retries for connection errors and 500-range
+// response codes from the external recorder.
 func NewRecorderForScheme(scheme *runtime.Scheme,
-	eventRecorder kuberecorder.EventRecorder,
-	log logr.Logger, webhook, reportingController string) (*Recorder, error) {
+	eventRecorder events.EventRecorder,
+	log logr.Logger, webhook, reportingController string, opts ...RecorderOption) (EventRecorder, error) {
 	if webhook != "" {
 		if _, err := url.Parse(webhook); err != nil {
 			return nil, err
@@ -123,14 +118,24 @@ func NewRecorderForScheme(scheme *runtime.Scheme,
 	httpClient.CheckRetry = checkRetry
 	httpClient.Logger = nil
 
-	return &Recorder{
-		Scheme:              scheme,
-		Webhook:             webhook,
-		ReportingController: reportingController,
-		Client:              httpClient,
+	r := &recorder{
+		scheme:              scheme,
+		webhook:             webhook,
+		reportingController: reportingController,
+		client:              httpClient,
 		EventRecorder:       eventRecorder,
-		Log:                 log,
-	}, nil
+		log:                 log,
+	}
+	for _, o := range opts {
+		o(r)
+	}
+	return r, nil
+}
+
+func WithRetryMax(n int) RecorderOption {
+	return func(r *recorder) {
+		r.client.RetryMax = n
+	}
 }
 
 func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
@@ -148,26 +153,23 @@ func responseIsEventDuplicated(resp *http.Response) bool {
 }
 
 // Event records an event in the webhook address.
-func (r *Recorder) Event(object runtime.Object, eventtype, reason, message string) {
-	r.AnnotatedEventf(object, nil, eventtype, reason, "%s", message)
-}
-
-// Event records an event in the webhook address.
-func (r *Recorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
-	r.AnnotatedEventf(object, nil, eventtype, reason, messageFmt, args...)
+func (r *recorder) Eventf(object runtime.Object, related runtime.Object, eventtype, reason string, action string, messageFmt string, args ...interface{}) {
+	r.AnnotatedEventf(object, related, nil, eventtype, reason, action, messageFmt, args...)
 }
 
 // AnnotatedEventf constructs an event from the given information and performs a HTTP POST to the webhook address.
 // It also logs the event if debug logs are enabled in the logger.
-func (r *Recorder) AnnotatedEventf(
+func (r *recorder) AnnotatedEventf(
 	object runtime.Object,
+	related runtime.Object,
 	inputAnnotations map[string]string,
 	eventtype, reason string,
+	action string,
 	messageFmt string, args ...interface{}) {
 
-	ref, err := reference.GetReference(r.Scheme, object)
+	ref, err := reference.GetReference(r.scheme, object)
 	if err != nil {
-		r.Log.Error(err, "failed to get object reference")
+		r.log.Error(err, "failed to get object reference")
 	}
 
 	// Add object annotations to the annotations.
@@ -184,7 +186,7 @@ func (r *Recorder) AnnotatedEventf(
 	}
 
 	// Add object info in the logger.
-	log := r.Log.WithValues("name", ref.Name, "namespace", ref.Namespace, "reconciler kind", ref.Kind)
+	log := r.log.WithValues("name", ref.Name, "namespace", ref.Namespace, "reconciler kind", ref.Kind)
 
 	// Log the event if in trace mode.
 	if log.GetSink().Enabled(logger.TraceLevel) {
@@ -202,20 +204,20 @@ func (r *Recorder) AnnotatedEventf(
 	// Do not send trace events to notification controller,
 	// traces are persisted as Kubernetes events only as normal events.
 	if severity == eventv1.EventSeverityTrace {
-		r.EventRecorder.AnnotatedEventf(object, annotations, corev1.EventTypeNormal, reason, messageFmt, args...)
+		r.EventRecorder.Eventf(object, related, corev1.EventTypeNormal, reason, action, messageFmt, args...)
 		return
 	}
 
 	// Forward the event to the Kubernetes recorder.
-	r.EventRecorder.AnnotatedEventf(object, annotations, eventtype, reason, messageFmt, args...)
+	r.EventRecorder.Eventf(object, related, eventtype, reason, action, messageFmt, args...)
 
 	// If no webhook address is provided, skip posting to event recorder
 	// endpoint.
-	if r.Webhook == "" {
+	if r.webhook == "" {
 		return
 	}
 
-	if r.Client == nil {
+	if r.client == nil {
 		err := fmt.Errorf("retryable HTTP client has not been initialized")
 		log.Error(err, "unable to record event")
 		return
@@ -253,9 +255,16 @@ func (r *Recorder) AnnotatedEventf(
 		Timestamp:           metav1.Now(),
 		Message:             message,
 		Reason:              reason,
+		Action:              action,
 		Metadata:            annotations,
-		ReportingController: r.ReportingController,
+		ReportingController: r.reportingController,
 		ReportingInstance:   hostname,
+	}
+
+	// Add related object reference if provided (optional).
+	relatedRef, err := reference.GetReference(r.scheme, related)
+	if err == nil {
+		event.RelatedObject = *relatedRef
 	}
 
 	body, err := json.Marshal(event)
@@ -264,7 +273,7 @@ func (r *Recorder) AnnotatedEventf(
 		return
 	}
 
-	if _, err := r.Client.Post(r.Webhook, "application/json", body); err != nil {
+	if _, err := r.client.Post(r.webhook, "application/json", body); err != nil {
 		log.Error(err, "unable to record event")
 		return
 	}
