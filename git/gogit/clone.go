@@ -136,7 +136,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 	}
 	g.repository = repo
 	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
-	return buildCommitWithRef(cc, nil, ref)
+	return BuildCommitWithRef(cc, nil, ref)
 }
 
 func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -236,7 +236,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 
 	g.repository = repo
 	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
-	return buildCommitWithRef(cc, tagObj, ref)
+	return BuildCommitWithRef(cc, tagObj, ref)
 }
 
 func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -305,7 +305,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 
 	g.repository = repo
 	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
-	return buildCommitWithRef(cc, nil, cloneOpts.ReferenceName)
+	return BuildCommitWithRef(cc, nil, cloneOpts.ReferenceName)
 }
 
 func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -439,7 +439,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 
 	g.repository = repo
 	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
-	return buildCommitWithRef(cc, tagObj, tagRef.Name())
+	return BuildCommitWithRef(cc, tagObj, tagRef.Name())
 }
 
 func (g *Client) cloneRefName(ctx context.Context, url string, refName string, cloneOpts repository.CloneConfig) (*git.Commit, error) {
@@ -582,7 +582,7 @@ func buildSignature(s object.Signature) git.Signature {
 	}
 }
 
-func buildTag(t *object.Tag, ref plumbing.ReferenceName) (*git.Tag, error) {
+func BuildTag(t *object.Tag, ref plumbing.ReferenceName) (*git.Tag, error) {
 	if t == nil {
 		return &git.Tag{
 			Name: ref.Short(),
@@ -612,7 +612,7 @@ func buildTag(t *object.Tag, ref plumbing.ReferenceName) (*git.Tag, error) {
 	}, nil
 }
 
-func buildCommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceName) (*git.Commit, error) {
+func BuildCommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceName) (*git.Commit, error) {
 	if c == nil {
 		return nil, fmt.Errorf("unable to construct commit: no object")
 	}
@@ -641,7 +641,7 @@ func buildCommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceN
 	}
 
 	if ref.IsTag() {
-		tt, err := buildTag(t, ref)
+		tt, err := BuildTag(t, ref)
 		if err != nil {
 			return nil, err
 		}

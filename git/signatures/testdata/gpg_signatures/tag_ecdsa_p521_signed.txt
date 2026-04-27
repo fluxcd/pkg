@@ -1,0 +1,14 @@
+object 08dadb22fa537a9efa99d565ff01fc5d5854e802
+type commit
+tag test-tag-ecdsa_p521
+tagger Test User <sign-user@example.com> 1772188969 +0100
+
+Test tag signed with ecdsa_p521
+-----BEGIN PGP SIGNATURE-----
+
+iLkEABMKAB0WIQTsiCaQTNePc9nPIlaMg3KiIK8bzwUCaaF1KQAKCRCMg3KiIK8b
+z+HcAgkB8d27ZgMvPQ0ueTNeVnUtxJwu1zyXfVnoC9/cdeAU+D5yE/nEugwysds+
+/9aKjsLMV5v7gxTa6lg1dvGN2CdGEf4CCQEgnjuQkSgfaLmRmpsKPbGJoUDA1RJT
+0zrv56m//eCOHFYJtcKFy95mNn5+9IiBWXrY3Ilz48jaQSg9CntzaITmCA==
+=w0Ur
+-----END PGP SIGNATURE-----

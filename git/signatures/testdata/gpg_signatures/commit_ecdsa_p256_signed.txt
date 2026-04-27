@@ -1,0 +1,12 @@
+tree 2f0fa5393a2120151c5446eb34b99d1f3713ff12
+author Test User <sign-user@example.com> 1772188965 +0100
+committer Test User <sign-user@example.com> 1772188965 +0100
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iHUEABMIAB0WIQQZYVspROx35dYcOV/9NQRFrxVHiwUCaaF1JQAKCRD9NQRFrxVH
+ i7V+AQCBE5nzpuGEjw8dTsdQ7o53ec1fN/O8IoRreC98vr2/9AD9E6Yu6b0t+ahp
+ j90zFJCPdc+cAxk4mVXh4piVbJ8tPvQ=
+ =dI7Q
+ -----END PGP SIGNATURE-----
+
+Test commit signed with ecdsa_p256

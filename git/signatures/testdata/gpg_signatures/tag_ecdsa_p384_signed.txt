@@ -1,0 +1,14 @@
+object c87dc41b03d89ae26c1ebcc5ae34b816e915d76c
+type commit
+tag test-tag-ecdsa_p384
+tagger Test User <sign-user@example.com> 1772188969 +0100
+
+Test tag signed with ecdsa_p384
+-----BEGIN PGP SIGNATURE-----
+
+iJUEABMJAB0WIQScyLxivLVGKonynyhueVMDKL7ECgUCaaF1KQAKCRBueVMDKL7E
+ClbhAYCKIE4pMka3pHBjX4XmSvsq0El0DctONYNZgE15uRyIF/P+Oeonm3t9tF51
+XAkMS98BgMO27cmy6TMl1cnYBW34yrBmpLeHpctSk5pkxSddfhKAxj1aOLJHp6eu
+/nFMr2HSow==
+=l/X+
+-----END PGP SIGNATURE-----
