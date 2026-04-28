@@ -114,8 +114,8 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	existingObject.SetGroupVersionKind(object.GroupVersionKind())
 	getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-	if m.shouldSkipApply(object, existingObject, opts) {
-		return m.changeSetEntry(object, SkippedAction), nil
+	if shouldSkip, skippedEntry := m.shouldSkipApply(object, existingObject, opts); shouldSkip {
+		return skippedEntry, nil
 	}
 
 	var patched bool
@@ -187,8 +187,8 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				existingObject.SetGroupVersionKind(object.GroupVersionKind())
 				getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-				if m.shouldSkipApply(object, existingObject, opts) {
-					changes[i] = *m.changeSetEntry(object, SkippedAction)
+				if shouldSkip, skippedEntry := m.shouldSkipApply(object, existingObject, opts); shouldSkip {
+					changes[i] = *skippedEntry
 					return nil
 				}
 
@@ -473,18 +473,27 @@ func (m *ResourceManager) shouldForceApply(desiredObject *unstructured.Unstructu
 // shouldSkipApply determines based on the object metadata and ApplyOptions if the object should be skipped.
 // An object is not applied if it contains a label or annotation
 // which matches the ApplyOptions.ExclusionSelector or ApplyOptions.IfNotPresentSelector.
+// When the object is skipped, a ChangeSetEntry built from the existing in-cluster object
+// is returned if the object exists (UID is set), otherwise from the desired object.
+// Preferring the existing object keeps the entry metadata stable across reconciliations,
+// e.g. for cluster-scoped resources whose desired metadata may carry a namespace
+// injected by upstream tooling that the API server strips on apply.
 func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructured,
-	existingObject *unstructured.Unstructured, opts ApplyOptions) bool {
+	existingObject *unstructured.Unstructured, opts ApplyOptions) (bool, *ChangeSetEntry) {
+	source := desiredObject
+	if existingObject.GetUID() != "" {
+		source = existingObject
+	}
+
 	if utils.AnyInMetadata(desiredObject, opts.ExclusionSelector) ||
-		(existingObject != nil && utils.AnyInMetadata(existingObject, opts.ExclusionSelector)) {
-		return true
+		utils.AnyInMetadata(existingObject, opts.ExclusionSelector) {
+		return true, m.changeSetEntry(source, SkippedAction)
 	}
 
-	if existingObject != nil &&
-		existingObject.GetUID() != "" &&
+	if existingObject.GetUID() != "" &&
 		utils.AnyInMetadata(desiredObject, opts.IfNotPresentSelector) {
-		return true
+		return true, m.changeSetEntry(source, SkippedAction)
 	}
 
-	return false
+	return false, nil
 }
