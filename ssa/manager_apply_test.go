@@ -840,6 +840,95 @@ func TestApply_IfNotPresent(t *testing.T) {
 	})
 }
 
+// TestApply_IfNotPresent_ClusterScopedNamespaceInjection verifies that when a
+// cluster-scoped object is annotated with IfNotPresent and the desired object
+// carries a spurious metadata.namespace (e.g. injected by upstream tooling like
+// the kustomize namespace transformer or a Flux Kustomization spec.targetNamespace),
+// the SkippedAction changeset entry uses the in-cluster object's metadata
+// (empty namespace) rather than the desired object's. This keeps the
+// ObjMetadata key stable across reconciliations so callers tracking inventory
+// by ObjMetadata don't mistake the entry for a stale resource.
+//
+// Regression test for fluxcd/flux2#5871.
+func TestApply_IfNotPresent_ClusterScopedNamespaceInjection(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	meta := map[string]string{
+		"fluxcd.io/ssa": "IfNotPresent",
+	}
+
+	id := generateName("ifnotpresent-cluster-ns")
+	objects, err := readManifest("testdata/test1.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, clusterRole := getFirstObject(objects, "ClusterRole", id)
+	if clusterRole == nil {
+		t.Fatal("ClusterRole not found in testdata")
+	}
+	clusterRole.SetAnnotations(meta)
+
+	opts := DefaultApplyOptions()
+	opts.IfNotPresentSelector = meta
+
+	t.Run("creates cluster-scoped object", func(t *testing.T) {
+		entry, err := manager.Apply(ctx, clusterRole.DeepCopy(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Action != CreatedAction {
+			t.Errorf("Expected %s, got %s for %s", CreatedAction, entry.Action, entry.Subject)
+		}
+		if entry.ObjMetadata.Namespace != "" {
+			t.Errorf("Expected empty namespace on created entry, got %q", entry.ObjMetadata.Namespace)
+		}
+	})
+
+	t.Run("skipped entry ignores injected namespace on desired", func(t *testing.T) {
+		// Simulate upstream tooling (e.g. kustomize namespace transformer)
+		// stamping a namespace onto the cluster-scoped desired object.
+		desired := clusterRole.DeepCopy()
+		desired.SetNamespace("injected-ns")
+
+		entry, err := manager.Apply(ctx, desired, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Action != SkippedAction {
+			t.Errorf("Expected %s, got %s for %s", SkippedAction, entry.Action, entry.Subject)
+		}
+		if entry.ObjMetadata.Namespace != "" {
+			t.Errorf("Expected skipped entry to use existing object metadata (empty namespace), got %q", entry.ObjMetadata.Namespace)
+		}
+		if entry.ObjMetadata.Name != id {
+			t.Errorf("Expected name %q, got %q", id, entry.ObjMetadata.Name)
+		}
+	})
+
+	t.Run("ApplyAll skipped entry ignores injected namespace on desired", func(t *testing.T) {
+		desired := clusterRole.DeepCopy()
+		desired.SetNamespace("injected-ns")
+
+		changeSet, err := manager.ApplyAll(ctx, []*unstructured.Unstructured{desired}, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(changeSet.Entries) != 1 {
+			t.Fatalf("Expected 1 entry, got %d", len(changeSet.Entries))
+		}
+		entry := changeSet.Entries[0]
+		if entry.Action != SkippedAction {
+			t.Errorf("Expected %s, got %s for %s", SkippedAction, entry.Action, entry.Subject)
+		}
+		if entry.ObjMetadata.Namespace != "" {
+			t.Errorf("Expected skipped entry to use existing object metadata (empty namespace), got %q", entry.ObjMetadata.Namespace)
+		}
+	})
+}
+
 func TestApply_Cleanup_ExactMatch(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
