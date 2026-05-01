@@ -929,6 +929,97 @@ func TestApply_IfNotPresent_ClusterScopedNamespaceInjection(t *testing.T) {
 	})
 }
 
+// TestApply_Excluded_ClusterScopedNamespaceInjection verifies that when an
+// excluded object does not yet exist in-cluster (so the changeset entry must
+// be derived from the desired object), a spurious metadata.namespace stamped
+// onto a cluster-scoped resource is removed from the SkippedAction entry.
+// Otherwise the entry would carry an invalid namespace that mismatches what
+// the API server would record on a real apply, breaking inventory keys.
+// The namespaced equivalent must keep its namespace untouched.
+func TestApply_Excluded_ClusterScopedNamespaceInjection(t *testing.T) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	exclude := map[string]string{
+		"fluxcd.io/ssa": "Ignore",
+	}
+
+	t.Run("clears injected namespace from cluster-scoped skipped entry", func(t *testing.T) {
+		id := generateName("excluded-cluster-ns")
+		objects, err := readManifest("testdata/test1.yaml", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, clusterRole := getFirstObject(objects, "ClusterRole", id)
+		if clusterRole == nil {
+			t.Fatal("ClusterRole not found in testdata")
+		}
+		// The object is annotated as excluded and stamped with a spurious
+		// namespace, mirroring upstream tooling (e.g. kustomize) that injects
+		// metadata.namespace on every object.
+		clusterRole.SetAnnotations(exclude)
+		clusterRole.SetNamespace("injected-ns")
+
+		opts := DefaultApplyOptions()
+		opts.ExclusionSelector = exclude
+
+		entry, err := manager.Apply(ctx, clusterRole.DeepCopy(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Action != SkippedAction {
+			t.Errorf("Expected %s, got %s for %s", SkippedAction, entry.Action, entry.Subject)
+		}
+		if entry.ObjMetadata.Namespace != "" {
+			t.Errorf("Expected empty namespace on cluster-scoped skipped entry, got %q", entry.ObjMetadata.Namespace)
+		}
+		if entry.ObjMetadata.Name != id {
+			t.Errorf("Expected name %q, got %q", id, entry.ObjMetadata.Name)
+		}
+	})
+
+	t.Run("preserves legitimate namespace on namespaced skipped entry", func(t *testing.T) {
+		id := generateName("excluded-namespaced")
+		objects, err := readManifest("testdata/test1.yaml", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, ns := getFirstObject(objects, "Namespace", id)
+		if ns == nil {
+			t.Fatal("Namespace not found in testdata")
+		}
+		if err := manager.client.Create(ctx, ns); err != nil {
+			t.Fatal(err)
+		}
+
+		_, configMap := getFirstObject(objects, "ConfigMap", id)
+		if configMap == nil {
+			t.Fatal("ConfigMap not found in testdata")
+		}
+		configMap.SetAnnotations(exclude)
+
+		opts := DefaultApplyOptions()
+		opts.ExclusionSelector = exclude
+
+		entry, err := manager.Apply(ctx, configMap.DeepCopy(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Action != SkippedAction {
+			t.Errorf("Expected %s, got %s for %s", SkippedAction, entry.Action, entry.Subject)
+		}
+		if entry.ObjMetadata.Namespace != id {
+			t.Errorf("Expected namespace %q on namespaced skipped entry, got %q", id, entry.ObjMetadata.Namespace)
+		}
+		if entry.ObjMetadata.Name != id {
+			t.Errorf("Expected name %q, got %q", id, entry.ObjMetadata.Name)
+		}
+	})
+}
+
 func TestApply_Cleanup_ExactMatch(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

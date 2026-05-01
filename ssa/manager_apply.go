@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
 	"github.com/fluxcd/pkg/ssa/utils"
@@ -114,7 +115,11 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	existingObject.SetGroupVersionKind(object.GroupVersionKind())
 	getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-	if shouldSkip, skippedEntry := m.shouldSkipApply(object, existingObject, opts); shouldSkip {
+	shouldSkip, skippedEntry, err := m.shouldSkipApply(object, existingObject, opts)
+	if err != nil {
+		return nil, err
+	}
+	if shouldSkip {
 		return skippedEntry, nil
 	}
 
@@ -187,7 +192,11 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				existingObject.SetGroupVersionKind(object.GroupVersionKind())
 				getError := m.client.Get(ctx, client.ObjectKeyFromObject(object), existingObject)
 
-				if shouldSkip, skippedEntry := m.shouldSkipApply(object, existingObject, opts); shouldSkip {
+				shouldSkip, skippedEntry, err := m.shouldSkipApply(object, existingObject, opts)
+				if err != nil {
+					return err
+				}
+				if shouldSkip {
 					changes[i] = *skippedEntry
 					return nil
 				}
@@ -470,30 +479,45 @@ func (m *ResourceManager) shouldForceApply(desiredObject *unstructured.Unstructu
 	return false
 }
 
-// shouldSkipApply determines based on the object metadata and ApplyOptions if the object should be skipped.
-// An object is not applied if it contains a label or annotation
+// shouldSkipApply determines based on the object metadata and ApplyOptions if the object
+// should be skipped. An object is not applied if it contains a label or annotation
 // which matches the ApplyOptions.ExclusionSelector or ApplyOptions.IfNotPresentSelector.
 // When the object is skipped, a ChangeSetEntry built from the existing in-cluster object
-// is returned if the object exists (UID is set), otherwise from the desired object.
-// Preferring the existing object keeps the entry metadata stable across reconciliations,
-// e.g. for cluster-scoped resources whose desired metadata may carry a namespace
-// injected by upstream tooling that the API server strips on apply.
-func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructured,
-	existingObject *unstructured.Unstructured, opts ApplyOptions) (bool, *ChangeSetEntry) {
-	source := desiredObject
-	if existingObject.GetUID() != "" {
-		source = existingObject
+// is returned if the object exists (UID is set), otherwise from the desired object. In the
+// latter case, we use the RESTMapper to determine if the resource is cluster-scoped, and if
+// so, we clear the namespace from the ChangeSetEntry to avoid returning an invalid entry.
+// This is needed because we rely on the updated object after an apply to have a consistent
+// namespace field (done by the API server for cluster-scoped resources), and when skipping
+// the apply of a new object, we need to make sure the returned ChangeSetEntry reflects that.
+func (m *ResourceManager) shouldSkipApply(
+	desiredObject, existingObject *unstructured.Unstructured,
+	opts ApplyOptions) (bool, *ChangeSetEntry, error) {
+
+	skippedChangeSetEntry := func() (bool, *ChangeSetEntry, error) {
+		return true, m.changeSetEntry(existingObject, SkippedAction), nil
+	}
+	if existingObject.GetUID() == "" {
+		skippedChangeSetEntry = func() (bool, *ChangeSetEntry, error) {
+			namespaced, err := apiutil.IsGVKNamespaced(desiredObject.GroupVersionKind(), m.client.RESTMapper())
+			if err != nil {
+				return false, nil, fmt.Errorf("failed to determine if object is namespaced: %w", err)
+			}
+			if !namespaced {
+				desiredObject.SetNamespace("")
+			}
+			return true, m.changeSetEntry(desiredObject, SkippedAction), nil
+		}
 	}
 
 	if utils.AnyInMetadata(desiredObject, opts.ExclusionSelector) ||
 		utils.AnyInMetadata(existingObject, opts.ExclusionSelector) {
-		return true, m.changeSetEntry(source, SkippedAction)
+		return skippedChangeSetEntry()
 	}
 
 	if existingObject.GetUID() != "" &&
 		utils.AnyInMetadata(desiredObject, opts.IfNotPresentSelector) {
-		return true, m.changeSetEntry(source, SkippedAction)
+		return skippedChangeSetEntry()
 	}
 
-	return false, nil
+	return false, nil, nil
 }
