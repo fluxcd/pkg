@@ -38,6 +38,26 @@ func GenerateRemovePatch(paths ...string) jsondiff.Patch {
 	return patch
 }
 
+// ReplaceOp describes a single JSON Patch replace operation.
+type ReplaceOp struct {
+	Path  string
+	Value any
+}
+
+// GenerateReplacePatch generates a JSON patch that replaces the values at the
+// given JSON pointer paths.
+func GenerateReplacePatch(ops ...ReplaceOp) jsondiff.Patch {
+	var patch jsondiff.Patch
+	for _, op := range ops {
+		patch = append(patch, jsondiff.Operation{
+			Type:  jsondiff.OperationReplace,
+			Path:  op.Path,
+			Value: op.Value,
+		})
+	}
+	return patch
+}
+
 // ApplyPatchToUnstructured applies the given JSON patch to the given
 // unstructured object. The patch is applied in-place.
 // It permits the patch to contain "remove" operations that target non-existing

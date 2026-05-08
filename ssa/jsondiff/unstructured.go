@@ -44,6 +44,23 @@ type IgnoreRule struct {
 	Selector *Selector
 }
 
+// CompiledIgnoreRules is a set of IgnoreRule with compiled selectors.
+type CompiledIgnoreRules map[*SelectorRegex][]string
+
+// CompileIgnoreRules compiles the selectors in the given IgnoreRule slice
+// and returns a CompiledIgnoreRules.
+func CompileIgnoreRules(rules []IgnoreRule) (CompiledIgnoreRules, error) {
+	compiled := make(CompiledIgnoreRules, len(rules))
+	for _, rule := range rules {
+		sr, err := NewSelectorRegex(rule.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create ignore rule selector: %w", err)
+		}
+		compiled[sr] = rule.Paths
+	}
+	return compiled, nil
+}
+
 // UnstructuredList runs a dry-run patch for a list of Kubernetes resources
 // against a Kubernetes cluster and compares the result against the original
 // objects. It returns a DiffSet, which contains differences between the
@@ -59,13 +76,9 @@ func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured
 	o := &ListOptions{}
 	o.ApplyOptions(opts)
 
-	var sm = make(map[*SelectorRegex][]string, len(o.IgnoreRules))
-	for _, ips := range o.IgnoreRules {
-		sr, err := NewSelectorRegex(ips.Selector)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create ignore rule selector: %w", err)
-		}
-		sm[sr] = ips.Paths
+	sm, err := CompileIgnoreRules(o.IgnoreRules)
+	if err != nil {
+		return nil, err
 	}
 
 	var resOpts []ResourceOption

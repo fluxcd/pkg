@@ -22,9 +22,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/go-openapi/jsonpointer"
 	"golang.org/x/sync/errgroup"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
+	"github.com/fluxcd/pkg/ssa/jsondiff"
 	"github.com/fluxcd/pkg/ssa/utils"
 )
 
@@ -78,6 +83,12 @@ type ApplyOptions struct {
 	// tagged with the old API version causes the API server to fail the
 	// apply with "field not declared in schema" for the new defaulted field.
 	MigrateAPIVersion bool `json:"migrateAPIVersion,omitempty"`
+
+	// DriftIgnoreRules defines a list of JSON pointer ignore rules that are used to
+	// remove specific fields from objects before applying them.
+	// This is useful for ignoring fields that are managed by other controllers
+	// (e.g. VPA, HPA) and would otherwise cause drift.
+	DriftIgnoreRules []jsondiff.IgnoreRule `json:"driftIgnoreRules,omitempty"`
 }
 
 // ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
@@ -147,12 +158,38 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	}
 	patched = patched || patchedCleanupMetadata
 
-	// do not apply objects that have not drifted to avoid bumping the resource version
-	if !patched && !m.hasDrifted(existingObject, dryRunObject) {
+	// Compile ignore rules once for both drift detection and conditional field stripping.
+	var compiled jsondiff.CompiledIgnoreRules
+	if existingObject.GetResourceVersion() != "" && len(opts.DriftIgnoreRules) > 0 {
+		compiled, err = jsondiff.CompileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Do not apply objects that have not drifted to avoid bumping the resource version.
+	// Ignored fields are excluded from the comparison so that differences in fields
+	// managed by other controllers (e.g. VPA, HPA) do not trigger unnecessary applies.
+	drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, compiled)
+	if err != nil {
+		return nil, err
+	}
+	if !patched && !drifted {
 		return m.changeSetEntry(object, UnchangedAction), nil
 	}
 
 	appliedObject := object.DeepCopy()
+
+	// For each drifted ignored field, either strip it from the payload (when
+	// another Apply manager owns it) or adopt the in-cluster value (when Flux
+	// is the sole owner) to avoid API errors and silent value corruption.
+	if compiled != nil {
+		dr := computeDriftedPaths(existingObject, dryRunObject, compiled, m.owner.Field)
+		if err := applyDriftResult(appliedObject, dr); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := m.apply(ctx, appliedObject); err != nil {
 		return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 	}
@@ -174,6 +211,17 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 	// is an object to apply
 	toApply := make([]*unstructured.Unstructured, len(objects))
 	changes := make([]ChangeSetEntry, len(objects))
+	driftResults := make([]driftResult, len(objects))
+
+	// Compile ignore rules once for drift detection and conditional field stripping.
+	var compiled jsondiff.CompiledIgnoreRules
+	if len(opts.DriftIgnoreRules) > 0 {
+		var err error
+		compiled, err = jsondiff.CompileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	{
 		g, ctx := errgroup.WithContext(ctx)
@@ -243,8 +291,16 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				}
 				patched = patched || patchedCleanupMetadata
 
-				if patched || m.hasDrifted(existingObject, dryRunObject) {
+				drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, compiled)
+				if err != nil {
+					return err
+				}
+				if patched || drifted {
 					toApply[i] = object
+					// Compute drifted paths while existingObject and dryRunObject are available.
+					if compiled != nil && existingObject.GetResourceVersion() != "" {
+						driftResults[i] = computeDriftedPaths(existingObject, dryRunObject, compiled, m.owner.Field)
+					}
 					if dryRunObject.GetResourceVersion() == "" {
 						changes[i] = *m.changeSetEntry(dryRunObject, CreatedAction)
 					} else {
@@ -262,9 +318,14 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		}
 	}
 
-	for _, object := range toApply {
+	for i, object := range toApply {
 		if object != nil {
 			appliedObject := object.DeepCopy()
+			if changes[i].Action != CreatedAction && len(driftResults[i].entries) > 0 {
+				if err := applyDriftResult(appliedObject, driftResults[i]); err != nil {
+					return nil, err
+				}
+			}
 			if err := m.apply(ctx, appliedObject); err != nil {
 				return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 			}
@@ -409,7 +470,9 @@ func (m *ResourceManager) migrateAPIVersion(ctx context.Context,
 	return true, nil
 }
 
-// cleanupMetadata performs an HTTP PATCH request to remove entries from metadata annotations, labels and managedFields.
+// cleanupMetadata performs an HTTP PATCH request to remove entries
+// from metadata annotations, labels and managedFields. It updates
+// object in-place with the server's response.
 func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 	desiredObject *unstructured.Unstructured,
 	object *unstructured.Unstructured,
@@ -421,19 +484,18 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 	if object == nil {
 		return false, nil
 	}
-	existingObject := object.DeepCopy()
 	var patches []JSONPatch
 
 	if len(opts.Annotations) > 0 {
-		patches = append(patches, PatchRemoveAnnotations(existingObject, opts.Annotations)...)
+		patches = append(patches, PatchRemoveAnnotations(object, opts.Annotations)...)
 	}
 
 	if len(opts.Labels) > 0 {
-		patches = append(patches, PatchRemoveLabels(existingObject, opts.Labels)...)
+		patches = append(patches, PatchRemoveLabels(object, opts.Labels)...)
 	}
 
 	if len(opts.FieldManagers) > 0 {
-		managedFieldPatch, err := PatchReplaceFieldsManagers(existingObject, opts.FieldManagers, m.owner.Field)
+		managedFieldPatch, err := PatchReplaceFieldsManagers(object, opts.FieldManagers, m.owner.Field)
 		if err != nil {
 			return false, err
 		}
@@ -451,7 +513,7 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 	}
 	patch := client.RawPatch(types.JSONPatchType, rawPatch)
 
-	return true, m.client.Patch(ctx, existingObject, patch, client.FieldOwner(m.owner.Field))
+	return true, m.client.Patch(ctx, object, patch, client.FieldOwner(m.owner.Field))
 }
 
 // shouldForceApply determines based on the apply error and ApplyOptions if the object should be recreated.
@@ -496,4 +558,384 @@ func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructur
 	}
 
 	return false, nil
+}
+
+// removeIgnoredFields removes the fields matched by the given pre-compiled
+// ignore rules from obj. Selectors are evaluated against matchObj so that
+// existing and dry-run copies are stripped based on the same decision.
+func removeIgnoredFields(matchObj, obj *unstructured.Unstructured, rules jsondiff.CompiledIgnoreRules) error {
+	var ignorePaths jsondiff.IgnorePaths
+	for sr, paths := range rules {
+		if sr.MatchUnstructured(matchObj) {
+			ignorePaths = append(ignorePaths, paths...)
+		}
+	}
+
+	if len(ignorePaths) > 0 {
+		patch := jsondiff.GenerateRemovePatch(ignorePaths...)
+		if err := jsondiff.ApplyPatchToUnstructured(obj, patch); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// lookupJSONPointer resolves an RFC 6901 JSON pointer against the unstructured
+// object's content. A missing path is reported as (nil, false, nil).
+func lookupJSONPointer(obj *unstructured.Unstructured, pointer string) (any, bool, error) {
+	ptr, err := jsonpointer.New(pointer)
+	if err != nil {
+		return nil, false, err
+	}
+	val, _, err := ptr.Get(obj.Object)
+	if err != nil {
+		// jsonpointer returns an error when any segment of the pointer cannot
+		// be resolved; treat that as "not present" rather than a hard failure.
+		return nil, false, nil
+	}
+	return val, true, nil
+}
+
+// driftAction describes what to do with a drifted ignored path.
+type driftAction int
+
+const (
+	// driftStrip removes the field from the payload. Used when another
+	// Apply manager owns the field.
+	driftStrip driftAction = iota
+	// driftAdopt replaces the field in the payload with the in-cluster
+	// value. Used when Flux is the sole owner.
+	driftAdopt
+)
+
+// driftEntry holds the resolution for a single drifted ignored path.
+type driftEntry struct {
+	path   string
+	action driftAction
+	value  any // in-cluster value; set only when action == driftAdopt
+}
+
+// driftResult holds all drift resolutions for a single object.
+type driftResult struct {
+	entries []driftEntry
+}
+
+// applyDriftResult applies strip and adopt operations to the payload.
+func applyDriftResult(target *unstructured.Unstructured, dr driftResult) error {
+	var stripPaths jsondiff.IgnorePaths
+	var adoptOps []jsondiff.ReplaceOp
+	for _, e := range dr.entries {
+		switch e.action {
+		case driftStrip:
+			stripPaths = append(stripPaths, e.path)
+		case driftAdopt:
+			adoptOps = append(adoptOps, jsondiff.ReplaceOp{
+				Path:  e.path,
+				Value: e.value,
+			})
+		}
+	}
+	if len(stripPaths) > 0 {
+		patch := jsondiff.GenerateRemovePatch(stripPaths...)
+		if err := jsondiff.ApplyPatchToUnstructured(target, patch); err != nil {
+			return err
+		}
+	}
+	if len(adoptOps) > 0 {
+		patch := jsondiff.GenerateReplacePatch(adoptOps...)
+		if err := jsondiff.ApplyPatchToUnstructured(target, patch); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// computeDriftedPaths returns the drift resolution for each ignored path whose
+// values differ between existingObject and dryRunObject. For paths owned by
+// another Apply manager, the action is driftStrip (remove from payload). For
+// paths where Flux is the sole owner, the action is driftAdopt (copy in-cluster
+// value into the payload).
+func computeDriftedPaths(
+	existingObject, dryRunObject *unstructured.Unstructured,
+	rules jsondiff.CompiledIgnoreRules,
+	fluxManager string,
+) driftResult {
+	var result driftResult
+	parsed := parseManagedFieldsApply(existingObject)
+
+	for sr, paths := range rules {
+		if sr.MatchUnstructured(dryRunObject) {
+			for _, path := range paths {
+				existingVal, ef, eerr := lookupJSONPointer(existingObject, path)
+				dryRunVal, df, derr := lookupJSONPointer(dryRunObject, path)
+				if eerr != nil || derr != nil || ef != df ||
+					!apiequality.Semantic.DeepEqual(existingVal, dryRunVal) {
+					if isFieldOwnedByOtherApplyManager(existingObject, path, fluxManager, parsed) {
+						result.entries = append(result.entries, driftEntry{
+							path:   path,
+							action: driftStrip,
+						})
+					} else {
+						result.entries = append(result.entries, driftEntry{
+							path:   path,
+							action: driftAdopt,
+							value:  existingVal,
+						})
+					}
+				}
+			}
+		}
+	}
+	return result
+}
+
+// parsedManagedField holds a pre-parsed Apply managed fields entry.
+type parsedManagedField struct {
+	manager string
+	fields  map[string]any
+}
+
+// parseManagedFieldsApply returns all non-subresource Apply entries with their
+// fieldsV1 pre-parsed into maps. Entries with missing or corrupt fieldsV1 are
+// skipped.
+func parseManagedFieldsApply(obj *unstructured.Unstructured) []parsedManagedField {
+	var result []parsedManagedField
+	for _, mf := range obj.GetManagedFields() {
+		if mf.Subresource != "" || mf.Operation != metav1.ManagedFieldsOperationApply {
+			continue
+		}
+		if mf.FieldsV1 == nil || len(mf.FieldsV1.Raw) == 0 {
+			continue
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(mf.FieldsV1.Raw, &fields); err != nil {
+			continue
+		}
+		result = append(result, parsedManagedField{
+			manager: mf.Manager,
+			fields:  fields,
+		})
+	}
+	return result
+}
+
+// isFieldOwnedByOtherApplyManager checks whether any Apply field manager other
+// than fluxManager owns the given JSON pointer path on the object.
+func isFieldOwnedByOtherApplyManager(
+	obj *unstructured.Unstructured,
+	pointer string,
+	fluxManager string,
+	parsed []parsedManagedField,
+) bool {
+	segments, err := pointerToFieldsV1Segments(obj, pointer, parsed)
+	if err != nil {
+		// Cannot resolve path in fieldsV1 — treat as sole owner (adopt).
+		return false
+	}
+	for _, entry := range parsed {
+		if entry.manager == fluxManager {
+			continue
+		}
+		if fieldsV1Contains(entry.fields, segments) {
+			return true
+		}
+	}
+	return false
+}
+
+// pointerToFieldsV1Segments converts a JSON pointer (e.g., "/spec/replicas")
+// into fieldsV1 traversal segments (e.g., ["f:spec", "f:replicas"]).
+// For array-indexed segments, it resolves the k:{...} key by matching the item
+// at the given index against k: entries in the parsed managed fields.
+func pointerToFieldsV1Segments(
+	obj *unstructured.Unstructured,
+	pointer string,
+	parsed []parsedManagedField,
+) ([]string, error) {
+	raw := strings.TrimPrefix(pointer, "/")
+	if raw == "" {
+		return nil, fmt.Errorf("empty pointer")
+	}
+
+	// Split and unescape RFC 6901 segments.
+	rawSegments := strings.Split(raw, "/")
+	for i, s := range rawSegments {
+		s = strings.ReplaceAll(s, "~1", "/")
+		s = strings.ReplaceAll(s, "~0", "~")
+		rawSegments[i] = s
+	}
+
+	var segments []string
+	// objPath tracks the raw field names for lookups into obj.Object.
+	var objPath []string
+
+	for i, seg := range rawSegments {
+		idx, err := strconv.Atoi(seg)
+		if err != nil {
+			// Regular field — prefix with f:
+			segments = append(segments, "f:"+seg)
+			objPath = append(objPath, seg)
+			continue
+		}
+
+		// Numeric index — resolve k:{...} from fieldsV1.
+		kKey, err := resolveArrayMergeKey(obj, objPath, idx, segments, parsed)
+		if err != nil {
+			return nil, fmt.Errorf("cannot resolve array key for %s[%d]: %w",
+				strings.Join(rawSegments[:i], "/"), idx, err)
+		}
+		segments = append(segments, kKey)
+		// Advance objPath with the numeric index for subsequent lookups.
+		objPath = append(objPath, seg)
+	}
+	return segments, nil
+}
+
+// resolveArrayMergeKey finds the k:{...} fieldsV1 key that matches the array
+// item at the given index. It inspects k: entries from the parsed managed
+// fields at the given parent path, then matches each against the item's fields
+// in the actual object.
+func resolveArrayMergeKey(
+	obj *unstructured.Unstructured,
+	objPath []string,
+	index int,
+	fieldsV1ParentSegments []string,
+	parsed []parsedManagedField,
+) (string, error) {
+	// Get the array and item from the actual object.
+	arr, found, _ := unstructured.NestedSlice(obj.Object, objPath...)
+	if !found || index >= len(arr) {
+		return "", fmt.Errorf("array not found or index %d out of bounds", index)
+	}
+	item, ok := arr[index].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("array item at index %d is not a map", index)
+	}
+
+	// Collect all k:{...} keys from every managed fields entry at the parent.
+	kKeys := collectKKeys(fieldsV1ParentSegments, parsed)
+	if len(kKeys) == 0 {
+		return "", fmt.Errorf("no k: entries found at parent path")
+	}
+
+	// Find the k:{...} key whose key-value pairs all match the item.
+	for _, kKey := range kKeys {
+		kv, err := parseKKey(kKey)
+		if err != nil {
+			continue
+		}
+		if matchesKKey(item, kv) {
+			return kKey, nil
+		}
+	}
+	return "", fmt.Errorf("no matching k: entry for item at index %d", index)
+}
+
+// collectKKeys walks all parsed managed field entries to the given parent
+// segments and returns all unique k:{...} keys found at that level.
+func collectKKeys(parentSegments []string, parsed []parsedManagedField) []string {
+	seen := map[string]struct{}{}
+	for _, entry := range parsed {
+		node := walkFieldsV1(entry.fields, parentSegments)
+		if node == nil {
+			continue
+		}
+		for key := range node {
+			if strings.HasPrefix(key, "k:") {
+				if _, ok := seen[key]; !ok {
+					seen[key] = struct{}{}
+				}
+			}
+		}
+	}
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// parseKKey parses a k:{...} fieldsV1 key into its key-value pairs.
+func parseKKey(kKey string) (map[string]any, error) {
+	var kv map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimPrefix(kKey, "k:")), &kv); err != nil {
+		return nil, err
+	}
+	return kv, nil
+}
+
+// matchesKKey checks if all key-value pairs in kv exist with equal values in item.
+func matchesKKey(item, kv map[string]any) bool {
+	for k, v := range kv {
+		if !apiequality.Semantic.DeepEqual(item[k], v) {
+			return false
+		}
+	}
+	return true
+}
+
+// walkFieldsV1 traverses a parsed fieldsV1 map following the given segments.
+// Returns the node at the end of the path, or nil if any segment is missing.
+func walkFieldsV1(fields map[string]any, segments []string) map[string]any {
+	current := fields
+	for _, seg := range segments {
+		child, ok := current[seg]
+		if !ok {
+			return nil
+		}
+		childMap, ok := child.(map[string]any)
+		if !ok {
+			return nil
+		}
+		current = childMap
+	}
+	return current
+}
+
+// fieldsV1Contains walks a parsed fieldsV1 map to check if the given segments
+// path exists.
+func fieldsV1Contains(fields map[string]any, segments []string) bool {
+	if len(segments) == 0 {
+		return false
+	}
+	current := fields
+	for i, seg := range segments {
+		child, ok := current[seg]
+		if !ok {
+			return false
+		}
+		// Last segment: existence is enough (leaf may be empty map).
+		if i == len(segments)-1 {
+			return true
+		}
+		childMap, ok := child.(map[string]any)
+		if !ok {
+			return false
+		}
+		current = childMap
+	}
+	return true
+}
+
+// hasDriftedWithIgnore is like hasDrifted but strips ignored fields from deep
+// copies before comparing. If compiled is nil, it falls back to hasDrifted.
+// Selector matching is done against dryRunObject so both copies are stripped
+// on the same decision, matching computeDriftedPaths.
+func (m *ResourceManager) hasDriftedWithIgnore(
+	existingObject, dryRunObject *unstructured.Unstructured,
+	compiled jsondiff.CompiledIgnoreRules,
+) (bool, error) {
+	if compiled == nil {
+		return m.hasDrifted(existingObject, dryRunObject), nil
+	}
+	existingCopy := existingObject.DeepCopy()
+	dryRunCopy := dryRunObject.DeepCopy()
+	if err := removeIgnoredFields(dryRunObject, existingCopy, compiled); err != nil {
+		return false, err
+	}
+	if err := removeIgnoredFields(dryRunObject, dryRunCopy, compiled); err != nil {
+		return false, err
+	}
+	return m.hasDrifted(existingCopy, dryRunCopy), nil
 }
