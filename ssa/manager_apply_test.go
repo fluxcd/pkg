@@ -2103,6 +2103,32 @@ func setupMigrateAPIVersionEnv(t *testing.T, ctx context.Context, id string, app
 		t.Fatalf("failed to add defaulted field to CRD v1: %v", err)
 	}
 
+	// Wait for the new v1 schema to take effect on the API server. CRD
+	// schema updates propagate asynchronously, so a subsequent apply can
+	// race the schema cache and fail to reproduce the "field not declared
+	// in schema" error this scenario is built around. We probe by GET-ing
+	// the existing CR at v1: once defaulting fills in nullBytePolicy, the
+	// new schema is live.
+	if err := wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (bool, error) {
+		got := &unstructured.Unstructured{}
+		got.SetGroupVersionKind(gvkV1)
+		if err := manager.client.Get(ctx, client.ObjectKeyFromObject(crV1), got); err != nil {
+			return false, err
+		}
+		dataFrom, found, err := unstructured.NestedSlice(got.Object, "spec", "dataFrom")
+		if err != nil || !found || len(dataFrom) == 0 {
+			return false, err
+		}
+		extract, _, err := unstructured.NestedMap(dataFrom[0].(map[string]any), "extract")
+		if err != nil || extract == nil {
+			return false, err
+		}
+		_, has := extract["nullBytePolicy"]
+		return has, nil
+	}); err != nil {
+		t.Fatalf("v1 schema with defaulted field not active: %v", err)
+	}
+
 	return crV1
 }
 
