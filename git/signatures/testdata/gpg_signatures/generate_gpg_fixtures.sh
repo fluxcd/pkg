@@ -142,7 +142,7 @@ create_signed_object() {
 }
 
 # Function to create unsigned commit
-create_unsigned_commit() {
+create_unsigned_commit_and_tag() {
     echo "Creating unsigned commit..."
 
     # Create temporary Git repository
@@ -161,6 +161,10 @@ create_unsigned_commit() {
 
     # Export commit object
     git cat-file commit HEAD > "$SCRIPT_DIR/commit_unsigned.txt"
+
+    # Create and export tag object
+    git tag -a test-tag -m "Test tag"
+    git cat-file tag test-tag > "$SCRIPT_DIR/tag_unsigned.txt"
 
     cd "$SCRIPT_DIR"
     echo "  ✓ commit_unsigned.txt created"
@@ -226,7 +230,7 @@ main() {
     echo "Step 5: Create unsigned commit..."
     echo "------------------------------------------"
 
-    create_unsigned_commit
+    create_unsigned_commit_and_tag
 
     echo ""
     echo "=== Cleanup ==="
@@ -238,7 +242,7 @@ main() {
     echo "All test fixtures have been successfully created."
     echo ""
     echo "Created files:"
-    find "$SCRIPT_DIR" -maxdepth 1 \( -name "*.txt" -o -name "key_*.pub" \) -exec ls -lh {} \; 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
+    find "$SCRIPT_DIR" -maxdepth 1 \( -name "*.txt" -o -name "key_*.pub" \) -exec ls -lh {} \; 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}' | sort
 }
 
 main
