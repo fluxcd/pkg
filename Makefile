@@ -19,7 +19,7 @@ CONTROLLER_GEN_VERSION ?= v0.19.0
 ENVTEST_ARCH ?= amd64
 
 # Kubernetes versions to use envtest with
-ENVTEST_KUBERNETES_VERSION?=1.33
+ENVTEST_KUBERNETES_VERSION?=1.36
 
 all: tidy generate fmt vet
 
