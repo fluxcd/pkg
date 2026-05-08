@@ -15,7 +15,7 @@ require (
 	github.com/fluxcd/pkg/tar v1.1.0
 	github.com/fluxcd/pkg/version v0.14.0
 	github.com/google/go-containerregistry v0.20.7
-	github.com/onsi/gomega v1.39.0
+	github.com/onsi/gomega v1.40.0
 	github.com/sirupsen/logrus v1.9.4
 )
 
