@@ -677,7 +677,7 @@ func TestTag_VerifyGPG(t *testing.T) {
 		},
 		{
 			name:    "missing signature",
-			sigFile: "commit_unsigned.txt",
+			sigFile: "tag_unsigned.txt",
 			keyFile: "key_rsa_2048.pub",
 			wantErr: "unable to verify Git tag: unable to verify payload as the provided signature is empty",
 		},
@@ -844,7 +844,7 @@ func TestTag_VerifySSH(t *testing.T) {
 		},
 		{
 			name:           "missing signature",
-			sigFile:        "commit_unsigned.txt",
+			sigFile:        "tag_unsigned.txt",
 			authorizedKeys: "key_rsa.pub",
 			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload as the provided signature is empty",
 		},

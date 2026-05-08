@@ -1,0 +1,6 @@
+object 44e81f94b13509da0a0c9ad89b590c786b383a28
+type commit
+tag test-tag
+tagger Test User <sign-user@example.com> 1772153090 +0200
+
+Test tag
