@@ -23,9 +23,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.1
 	github.com/aws/smithy-go/aws-http-auth v1.1.3
 	github.com/coreos/go-oidc/v3 v3.17.0
-	github.com/fluxcd/pkg/apis/meta v1.26.0
-	github.com/fluxcd/pkg/cache v0.13.0
-	github.com/fluxcd/pkg/ssh v0.24.0
+	github.com/fluxcd/pkg/apis/meta v1.27.0
+	github.com/fluxcd/pkg/cache v0.14.0
+	github.com/fluxcd/pkg/ssh v0.25.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-containerregistry v0.21.5
