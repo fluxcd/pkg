@@ -14,12 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package signatures
+package signature
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -38,7 +36,7 @@ var SSHSignaturePrefix = []string{"-----BEGIN SSH SIGNATURE-----"}
 func ParseAuthorizedKeys(authorizedKeys string) ([]gossh.PublicKey, error) {
 	var publicKeys []gossh.PublicKey
 
-	for _, line := range strings.Split(authorizedKeys, "\n") {
+	for line := range strings.Lines(authorizedKeys) {
 		line = strings.TrimSpace(line)
 
 		// Skip empty lines and comments
@@ -93,17 +91,10 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 			err := sshsig.Verify(bytes.NewReader(payload), sig, pubKey, sig.HashAlgorithm, SSHSignatureNamespace)
 			if err == nil {
 				// Signature verified successfully
-				return getPublicKeyFingerprint(pubKey), nil
+				return gossh.FingerprintSHA256(pubKey), nil
 			}
 		}
 	}
 
 	return "", fmt.Errorf("unable to verify payload with any of the given authorized keys")
-}
-
-// getPublicKeyFingerprint returns the SHA256 fingerprint of the public key
-// in the format used by SSH (e.g., "SHA256:abc123...").
-func getPublicKeyFingerprint(pubKey gossh.PublicKey) string {
-	hash := sha256.Sum256(pubKey.Marshal())
-	return "SHA256:" + base64.RawStdEncoding.EncodeToString(hash[:])
 }

@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package signatures
+package signature
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -40,30 +41,20 @@ const (
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L65
 var X509SignaturePrefix = []string{"-----BEGIN SIGNED MESSAGE-----"}
 
-func startsWithStrings(signature string, prefixList []string) bool {
-	if signature == "" {
-		return false
-	}
-
-	for _, prefix := range prefixList {
-		if strings.HasPrefix(strings.TrimSpace(signature), prefix) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // IsPGPSignature tests if the given signature is of type PGP.
 // It returns true if the signature starts with the PGP signature prefix.
 func IsPGPSignature(signature string) bool {
-	return startsWithStrings(signature, PGPSignaturePrefix)
+	return slices.ContainsFunc(PGPSignaturePrefix, func(prefix string) bool {
+		return strings.HasPrefix(strings.TrimSpace(signature), prefix)
+	})
 }
 
 // IsSSHSignature tests if the given signature is of type SSH.
 // It returns true if the signature starts with the SSH signature prefix.
 func IsSSHSignature(signature string) bool {
-	return startsWithStrings(signature, SSHSignaturePrefix)
+	return slices.ContainsFunc(SSHSignaturePrefix, func(prefix string) bool {
+		return strings.HasPrefix(strings.TrimSpace(signature), prefix)
+	})
 }
 
 // IsX509Signature tests if the given signature is of type x509.
@@ -71,7 +62,9 @@ func IsSSHSignature(signature string) bool {
 // This is a place holder / compatibility implementation to embed the signature
 // type into the error message to inform the user about the wrong type of signature
 func IsX509Signature(signature string) bool {
-	return startsWithStrings(signature, X509SignaturePrefix)
+	return slices.ContainsFunc(X509SignaturePrefix, func(prefix string) bool {
+		return strings.HasPrefix(strings.TrimSpace(signature), prefix)
+	})
 }
 
 // IsEmptySignature tests if the given signature string is empty.
@@ -81,7 +74,7 @@ func IsEmptySignature(signature string) bool {
 }
 
 // GetSignatureType returns the type of the signature as a string.
-// It returns "pgp" for PGP signatures, "ssh" for SSH signatures,
+// It returns "openpgp" for PGP signatures, "ssh" for SSH signatures,
 // "x509" for S/MIME signatures, "empty" for an empty signature
 // and "unknown" for unrecognized signatures.
 func GetSignatureType(signature string) string {
