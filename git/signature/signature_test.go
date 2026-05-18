@@ -14,12 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package signature_test
+package signature
 
 import (
 	"testing"
-
-	. "github.com/fluxcd/pkg/git/signature"
 )
 
 func TestIsPGPSignature(t *testing.T) {
@@ -187,47 +185,47 @@ func TestGetSignatureType(t *testing.T) {
 		{
 			name:      "PGP signature",
 			signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
-			want:      string(SignatureTypePGP),
+			want:      string(signatureTypePGP),
 		},
 		{
 			name:      "PGP signature with leading whitespace",
 			signature: "  -----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
-			want:      string(SignatureTypePGP),
+			want:      string(signatureTypePGP),
 		},
 		{
 			name:      "SSH signature",
 			signature: "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
-			want:      string(SignatureTypeSSH),
+			want:      string(signatureTypeSSH),
 		},
 		{
 			name:      "SSH signature with leading whitespace",
 			signature: "  -----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
-			want:      string(SignatureTypeSSH),
+			want:      string(signatureTypeSSH),
 		},
 		{
 			name:      "x509 signature",
 			signature: "-----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
-			want:      string(SignatureTypeX509),
+			want:      string(signatureTypeX509),
 		},
 		{
 			name:      "x509 signature with leading whitespace",
 			signature: "  -----BEGIN SIGNED MESSAGE-----\n-----END SIGNED MESSAGE-----",
-			want:      string(SignatureTypeX509),
+			want:      string(signatureTypeX509),
 		},
 		{
 			name:      "empty signature",
 			signature: "",
-			want:      string(SignatureTypeEmpty),
+			want:      string(signatureTypeEmpty),
 		},
 		{
 			name:      "unknown signature",
 			signature: "-----BEGIN UNKNOWN SIGNATURE-----\n-----END UNKNOWN SIGNATURE-----",
-			want:      string(SignatureTypeUnknown),
+			want:      string(signatureTypeUnknown),
 		},
 		{
 			name:      "whitespace only",
 			signature: "   \n\t  ",
-			want:      string(SignatureTypeUnknown),
+			want:      string(signatureTypeUnknown),
 		},
 	}
 
