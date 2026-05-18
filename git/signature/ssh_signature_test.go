@@ -22,14 +22,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fluxcd/pkg/git/gogit"
+	"github.com/fluxcd/pkg/git/internal/build"
 	"github.com/fluxcd/pkg/git/signature"
 	"github.com/fluxcd/pkg/git/testutils"
 	"github.com/go-git/go-git/v5/plumbing"
 	gossh "golang.org/x/crypto/ssh"
 )
 
-// these tests are in a different package to avoid circular dependencies with gogit.BuildCommitWithRef and gogit.BuildTag
+// these tests are in a different package to avoid circular dependencies with build.CommitWithRef and build.Tag
 
 func TestVerifySSHSignature(t *testing.T) {
 	testDataDir := filepath.Join("testdata", "ssh_signatures")
@@ -93,8 +93,8 @@ func TestVerifySSHSignature(t *testing.T) {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
 
-			// Build a git.Commit using BuildCommitWithRef
-			gitCommit, err := gogit.BuildCommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
+			// Build a git.Commit using build.CommitWithRef
+			gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
 			if err != nil {
 				t.Fatalf("Failed to build commit: %v", err)
 			}
@@ -105,8 +105,8 @@ func TestVerifySSHSignature(t *testing.T) {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
 
-			// Build a git.Commit using BuildCommitWithRef
-			gitTag, err := gogit.BuildTag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
+			// Build a git.Commit using build.CommitWithRef
+			gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
 			if err != nil {
 				t.Fatalf("Failed to build commit: %v", err)
 			}
@@ -197,14 +197,14 @@ func TestSSHSignatureValidationCases(t *testing.T) {
 		t.Fatalf("Failed to parse tag from fixture: %v", err)
 	}
 
-	// Build a git.Commit using BuildCommitWithRef
-	gitCommit, err := gogit.BuildCommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
+	// Build a git.Commit using build.CommitWithRef
+	gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
 	if err != nil {
 		t.Fatalf("Failed to build commit: %v", err)
 	}
 
-	// Build a git.Tag using BuildTag
-	gitTag, err := gogit.BuildTag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
+	// Build a git.Tag using build.Tag
+	gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
 	if err != nil {
 		t.Fatalf("Failed to build tag: %v", err)
 	}
