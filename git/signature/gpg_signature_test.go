@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fluxcd/pkg/git/gogit"
+	"github.com/fluxcd/pkg/git/internal/build"
 	"github.com/fluxcd/pkg/git/signature"
 	"github.com/fluxcd/pkg/git/testutils"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -236,8 +236,8 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.tagFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
-			// Build a git.Tag using BuildTag
-			gitTag, err := gogit.BuildTag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
+			// Build a git.Tag using build.Tag
+			gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Read the public key
@@ -277,8 +277,8 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.commitFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
-			// Build a git.Commit using BuildCommitWithRef
-			gitCommit, err := gogit.BuildCommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
+			// Build a git.Commit using build.CommitWithRef
+			gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Read the public key
@@ -318,8 +318,8 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Build a git.Commit using BuildCommitWithRef
-		gitCommit, err := gogit.BuildCommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
+		// Build a git.Commit using build.CommitWithRef
+		gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Read a public key
