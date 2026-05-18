@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package signatures_test
+package signature_test
 
 import (
 	"testing"
 
-	. "github.com/fluxcd/pkg/git/signatures"
+	. "github.com/fluxcd/pkg/git/signature"
 )
 
 func TestIsPGPSignature(t *testing.T) {

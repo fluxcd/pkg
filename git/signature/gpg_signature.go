@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package signatures
+package signature
 
 import (
 	"bytes"
@@ -32,7 +32,7 @@ var PGPSignaturePrefix = []string{
 }
 
 // VerifyPGPSignature verifies the PGP signature against the payload using
-// the provided key rings. It returns the fingerprint of the key that
+// the provided key rings. It returns the key ID of the key that
 // successfully verified the signature, or an error.
 func VerifyPGPSignature(signature string, payload []byte, keyRings ...string) (string, error) {
 	if signature == "" {
@@ -53,7 +53,7 @@ func VerifyPGPSignature(signature string, payload []byte, keyRings ...string) (s
 		if err != nil {
 			return "", fmt.Errorf("unable to read armored key ring: %w", err)
 		}
-		signer, err := openpgp.CheckArmoredDetachedSignature(keyring, bytes.NewBuffer(payload), bytes.NewBufferString(signature), nil)
+		signer, err := openpgp.CheckArmoredDetachedSignature(keyring, bytes.NewReader(payload), strings.NewReader(signature), nil)
 		if err == nil {
 			return signer.PrimaryKey.KeyIdString(), nil
 		}

@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fluxcd/pkg/git/signatures"
+	"github.com/fluxcd/pkg/git/signature"
 )
 
 const (
@@ -124,7 +124,7 @@ func (c *Commit) Verify(keyRings ...string) (string, error) {
 // tag (if present). Users are expected to explicitly verify the referencing
 // tag's signature using `c.ReferencingTag.Verify()`
 func (c *Commit) VerifyGPG(keyRings ...string) (string, error) {
-	fingerprint, err := signatures.VerifyPGPSignature(c.Signature, c.Encoded, keyRings...)
+	fingerprint, err := signature.VerifyPGPSignature(c.Signature, c.Encoded, keyRings...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git commit: %w", err)
 	}
@@ -136,7 +136,7 @@ func (c *Commit) VerifyGPG(keyRings ...string) (string, error) {
 // It does not verify the signature of the referencing tag (if present). Users are
 // expected to explicitly verify the referencing tag's signature using `c.ReferencingTag.VerifySSH()`
 func (c *Commit) VerifySSH(authorizedKeys ...string) (string, error) {
-	fingerprint, err := signatures.VerifySSHSignature(c.Signature, c.Encoded, authorizedKeys...)
+	fingerprint, err := signature.VerifySSHSignature(c.Signature, c.Encoded, authorizedKeys...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git commit SSH signature: %w", err)
 	}
@@ -179,7 +179,7 @@ func (t *Tag) Verify(keyRings ...string) (string, error) {
 // It returns the fingerprint of the key the signature was verified
 // with, or an error.
 func (t *Tag) VerifyGPG(keyRings ...string) (string, error) {
-	fingerprint, err := signatures.VerifyPGPSignature(t.Signature, t.Encoded, keyRings...)
+	fingerprint, err := signature.VerifyPGPSignature(t.Signature, t.Encoded, keyRings...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git tag: %w", err)
 	}
@@ -189,7 +189,7 @@ func (t *Tag) VerifyGPG(keyRings ...string) (string, error) {
 // VerifySSH verifies the SSH signature of the tag with the given authorized keys.
 // It returns the fingerprint of the key the signature was verified with, or an error.
 func (t *Tag) VerifySSH(authorizedKeys ...string) (string, error) {
-	fingerprint, err := signatures.VerifySSHSignature(t.Signature, t.Encoded, authorizedKeys...)
+	fingerprint, err := signature.VerifySSHSignature(t.Signature, t.Encoded, authorizedKeys...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git tag SSH signature: %w", err)
 	}
@@ -245,34 +245,34 @@ func IsSignedTag(t Tag) bool {
 
 // IsPGPSigned returns true if the commit has a PGP signature.
 func (c *Commit) IsPGPSigned() bool {
-	return signatures.IsPGPSignature(c.Signature)
+	return signature.IsPGPSignature(c.Signature)
 }
 
 // IsSSHSigned returns true if the commit has an SSH signature.
 func (c *Commit) IsSSHSigned() bool {
-	return signatures.IsSSHSignature(c.Signature)
+	return signature.IsSSHSignature(c.Signature)
 }
 
 // SignatureType returns the type of the commit signature as a string.
-// It returns "pgp" for PGP signatures, "ssh" for SSH signatures,
+// It returns "openpgp" for PGP signatures, "ssh" for SSH signatures,
 // and "unknown" for unrecognized or empty signatures.
 func (c *Commit) SignatureType() string {
-	return signatures.GetSignatureType(c.Signature)
+	return signature.GetSignatureType(c.Signature)
 }
 
 // IsPGPSigned returns true if the tag has a PGP signature.
 func (t *Tag) IsPGPSigned() bool {
-	return signatures.IsPGPSignature(t.Signature)
+	return signature.IsPGPSignature(t.Signature)
 }
 
 // IsSSHSigned returns true if the tag has an SSH signature.
 func (t *Tag) IsSSHSigned() bool {
-	return signatures.IsSSHSignature(t.Signature)
+	return signature.IsSSHSignature(t.Signature)
 }
 
 // SignatureType returns the type of the tag signature as a string.
-// It returns "pgp" for PGP signatures, "ssh" for SSH signatures,
+// It returns "openpgp" for PGP signatures, "ssh" for SSH signatures,
 // and "unknown" for unrecognized or empty signatures.
 func (t *Tag) SignatureType() string {
-	return signatures.GetSignatureType(t.Signature)
+	return signature.GetSignatureType(t.Signature)
 }

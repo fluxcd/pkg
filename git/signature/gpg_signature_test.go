@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package signatures_test
+package signature_test
 
 import (
 	"os"
@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/fluxcd/pkg/git/gogit"
-	"github.com/fluxcd/pkg/git/signatures"
+	"github.com/fluxcd/pkg/git/signature"
 	"github.com/fluxcd/pkg/git/testutils"
 	"github.com/go-git/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
@@ -177,7 +177,7 @@ func TestVerifyPGPSignature(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			got, err := signatures.VerifyPGPSignature(tt.sig, tt.payload, tt.keyRings...)
+			got, err := signature.VerifyPGPSignature(tt.sig, tt.payload, tt.keyRings...)
 			if tt.wantErr != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
@@ -245,7 +245,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Verify the signature using the git.Tag's Signature and Encoded fields
-			fingerprint, err := signatures.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, string(publicKey))
+			fingerprint, err := signature.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, string(publicKey))
 			if kt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(fingerprint).To(BeEmpty())
@@ -256,7 +256,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 			g.Expect(fingerprint).ToNot(BeEmpty())
 
 			// Verify the signature using the multi-key keyring
-			fingerprint, err = signatures.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, allKeysRing...)
+			fingerprint, err = signature.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, allKeysRing...)
 			if kt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(fingerprint).To(BeEmpty())
@@ -286,7 +286,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Verify the signature using the git.Commit's Signature and Encoded fields
-			fingerprint, err := signatures.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, string(publicKey))
+			fingerprint, err := signature.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, string(publicKey))
 			if kt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(fingerprint).To(BeEmpty())
@@ -297,7 +297,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 			g.Expect(fingerprint).ToNot(BeEmpty())
 
 			// Verify the signature using the multi-key keyring
-			fingerprint, err = signatures.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, allKeysRing...)
+			fingerprint, err = signature.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, allKeysRing...)
 			if kt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(fingerprint).To(BeEmpty())
@@ -327,7 +327,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Verify the signature - should fail as the commit is unsigned
-		fingerprint, err := signatures.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, string(publicKey))
+		fingerprint, err := signature.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, string(publicKey))
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(fingerprint).To(BeEmpty())
 	})

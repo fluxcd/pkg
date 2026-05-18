@@ -573,7 +573,7 @@ func TestSignatureType(t *testing.T) {
 }
 
 func TestCommit_VerifyGPG(t *testing.T) {
-	testDataDir := filepath.Join("signatures", "testdata", "gpg_signatures")
+	testDataDir := filepath.Join("signature", "testdata", "gpg_signatures")
 
 	tests := []struct {
 		name    string
@@ -662,7 +662,7 @@ func TestCommit_VerifyGPG(t *testing.T) {
 }
 
 func TestTag_VerifyGPG(t *testing.T) {
-	testDataDir := filepath.Join("signatures", "testdata", "gpg_signatures")
+	testDataDir := filepath.Join("signature", "testdata", "gpg_signatures")
 
 	tests := []struct {
 		name    string
@@ -751,7 +751,7 @@ func TestTag_VerifyGPG(t *testing.T) {
 }
 
 func TestCommit_VerifySSH(t *testing.T) {
-	testDataDir := filepath.Join("signatures", "testdata", "ssh_signatures")
+	testDataDir := filepath.Join("signature", "testdata", "ssh_signatures")
 
 	tests := []struct {
 		name           string
@@ -829,7 +829,7 @@ func TestCommit_VerifySSH(t *testing.T) {
 }
 
 func TestTag_VerifySSH(t *testing.T) {
-	testDataDir := filepath.Join("signatures", "testdata", "ssh_signatures")
+	testDataDir := filepath.Join("signature", "testdata", "ssh_signatures")
 
 	tests := []struct {
 		name           string
