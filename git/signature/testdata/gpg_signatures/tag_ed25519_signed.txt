@@ -1,13 +1,14 @@
-object 35e58b202d6ba7a15f33b4e893b6da021c7132b7
+object b01ca16de562c561f62427eb0a30cb775d1c1dab
 type commit
 tag test-tag-ed25519
-tagger Test User <sign-user@example.com> 1772188970 +0100
+tagger Test User <sign-user@example.com> 1767225600 +0000
 
 Test tag signed with ed25519
 -----BEGIN PGP SIGNATURE-----
 
-iHUEABYKAB0WIQRnYqhdVzl5MeAXXPFaeBMjEbdVcgUCaaF1KgAKCRBaeBMjEbdV
-cgc0AQDdONxRMTofNPtHP+BDEWsGFcDdyBGb9xxp5D5Xa3rYyQD/VLvlPmxl3jk5
-JUczWsHgXxcLWXP6e/N42Mf6ddU4lwg=
-=Dt+S
+iJEEABYKADkWIQRxLmKjJPnrrVipKXm4uLZD9k5L5AUCagyJ/hsUgAAAAAAEAA5t
+YW51MiwyLjUrMS4xMiwwLDMACgkQuLi2Q/ZOS+SDJQEAqqdgow+zK3rCLSmkd1ms
+GFgpHWgOorNAD0by5LI5Hj4BAJev0pBf61utMzpZT6B3/1sYqgqh9uOdifFAn8h+
+q14J
+=Hps8
 -----END PGP SIGNATURE-----

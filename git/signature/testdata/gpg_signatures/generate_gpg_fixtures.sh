@@ -2,15 +2,40 @@
 # generate_gpg_fixtures.sh - Script to generate GPG signature test fixtures
 # Generates GPG keys in all variants and signed Git objects
 
-set -e
+set -euo pipefail
 
 # Configuration variables
 TEST_USER_NAME="Test User"
 TEST_USER_EMAIL="sign-user@example.com"
+FIXTURE_DATE="2026-01-01T00:00:00+0000"
+
+# Isolate Git from user and system configuration for deterministic output
+export TZ=UTC
+export GIT_AUTHOR_DATE="$FIXTURE_DATE"
+export GIT_COMMITTER_DATE="$FIXTURE_DATE"
+export GIT_AUTHOR_NAME="$TEST_USER_NAME"
+export GIT_AUTHOR_EMAIL="$TEST_USER_EMAIL"
+export GIT_COMMITTER_NAME="$TEST_USER_NAME"
+export GIT_COMMITTER_EMAIL="$TEST_USER_EMAIL"
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_GLOBAL=/dev/null
 
 # Directory for temporary files
 TEMP_DIR=$(mktemp -d)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# define script dependencies
+DEPENDENCY=(
+    gpg
+    cat
+    grep
+    head
+    cut
+    awk
+    git
+    find
+    sort
+)
 
 echo "=== GPG Signature Test Fixtures Generator ==="
 echo "Temporary directory: $TEMP_DIR"
@@ -25,6 +50,33 @@ chmod 700 "$GNUPGHOME"
 # Configure GPG for batch mode (no interaction)
 echo "pinentry-mode loopback" > "$GNUPGHOME/gpg.conf"
 echo "no-tty" >> "$GNUPGHOME/gpg.conf"
+
+
+# cleanup on exit
+cleanup() {
+    if [[ -d "${TEMP_DIR}" ]]; then
+        echo "=== Cleanup ==="
+        rm -rf "${TEMP_DIR}"
+        echo "Temporary directory removed"
+    fi
+}
+
+# check necessary commands
+check_dependencies() {
+    local exit_state=0
+
+    # check presence of dependencies
+    for COMMAND in "${DEPENDENCY[@]}"; do
+        if ! command -v "${COMMAND}" >/dev/null 2>&1; then
+            echo "command '${COMMAND}' not found, needs to be installed first."
+            exit_state=1
+        fi
+    done
+
+    if [[ ${exit_state} -ne 0 ]]; then
+        exit 1
+    fi
+}
 
 # Function to generate GPG key pair
 generate_key() {
@@ -97,9 +149,7 @@ create_signed_object() {
     mkdir -p "$repo_dir"
     cd "$repo_dir"
 
-    git init
-    git config user.name "$TEST_USER_NAME"
-    git config user.email "$TEST_USER_EMAIL"
+    git init -b main
     git config gpg.program gpg
     git config user.signingkey "$key_id"
 
@@ -150,9 +200,7 @@ create_unsigned_commit_and_tag() {
     mkdir -p "$repo_dir"
     cd "$repo_dir"
 
-    git init
-    git config user.name "$TEST_USER_NAME"
-    git config user.email "$TEST_USER_EMAIL"
+    git init -b main
 
     # Create file and commit (without signature)
     echo "Test content unsigned" > test.txt
@@ -172,6 +220,9 @@ create_unsigned_commit_and_tag() {
 
 # Main program
 main() {
+
+    check_dependencies
+
     echo "Step 1: Generate RSA keys..."
     echo "-----------------------------------"
 
@@ -230,16 +281,13 @@ main() {
     create_unsigned_commit_and_tag
 
     echo ""
-    echo "=== Cleanup ==="
-    rm -rf "$TEMP_DIR"
-    echo "Temporary directory removed"
-
-    echo ""
     echo "=== Done! ==="
     echo "All test fixtures have been successfully created."
     echo ""
     echo "Created files:"
     find "$SCRIPT_DIR" -maxdepth 1 \( -name "*.txt" -o -name "key_*.pub" \) -exec ls -lh {} \; 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}' | sort
 }
+
+trap cleanup EXIT
 
 main

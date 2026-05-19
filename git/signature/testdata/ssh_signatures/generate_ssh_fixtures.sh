@@ -2,20 +2,68 @@
 # generate_fixtures.sh - Script to generate SSH signature test fixtures
 # Generates SSH keys in all variants and signed Git objects
 
-set -e
+set -euo pipefail
 
 # Configuration variables
 TEST_USER_NAME="Test User"
 TEST_USER_EMAIL="sign-user@example.com"
+FIXTURE_DATE="2026-01-01T00:00:00+0000"
+
+# Isolate Git from user and system configuration for deterministic output
+export TZ=UTC
+export GIT_AUTHOR_DATE="$FIXTURE_DATE"
+export GIT_COMMITTER_DATE="$FIXTURE_DATE"
+export GIT_AUTHOR_NAME="$TEST_USER_NAME"
+export GIT_AUTHOR_EMAIL="$TEST_USER_EMAIL"
+export GIT_COMMITTER_NAME="$TEST_USER_NAME"
+export GIT_COMMITTER_EMAIL="$TEST_USER_EMAIL"
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_GLOBAL=/dev/null
 
 # Directory for temporary files
 TEMP_DIR=$(mktemp -d)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# define script dependencies
+DEPENDENCY=(
+    ssh-keygen
+    cat
+    awk
+    git
+    find
+    sort
+)
+
 echo "=== SSH Signature Test Fixtures Generator ==="
 echo "Temporary directory: $TEMP_DIR"
 echo "Output directory: $SCRIPT_DIR"
 echo ""
+
+# cleanup on exit
+cleanup() {
+    if [[ -d "${TEMP_DIR}" ]]; then
+        echo "=== Cleanup ==="
+        rm -rf "${TEMP_DIR}"
+        echo "Temporary directory removed"
+    fi
+}
+
+# check necessary commands
+check_dependencies() {
+    local exit_state=0
+
+    # check presence of dependencies
+    for COMMAND in "${DEPENDENCY[@]}"; do
+        if ! command -v "${COMMAND}" >/dev/null 2>&1; then
+            echo "command '${COMMAND}' not found, needs to be installed first."
+            exit_state=1
+        fi
+    done
+
+    if [[ ${exit_state} -ne 0 ]]; then
+        exit 1
+    fi
+}
 
 # Function to generate SSH keys
 generate_ssh_key() {
@@ -81,7 +129,6 @@ create_combined_pub_keys() {
 create_signed_object() {
     local object_type=$1
     local key_name=$2
-    local key_type=$3
     local verified_signers_file="$TEMP_DIR/verified_signers_${key_name}"
 
     echo "Creating signed $object_type for $key_name..."
@@ -91,9 +138,7 @@ create_signed_object() {
     mkdir -p "$repo_dir"
     cd "$repo_dir"
 
-    git init
-    git config user.name "$TEST_USER_NAME"
-    git config user.email "$TEST_USER_EMAIL"
+    git init -b main
     git config gpg.format ssh
     git config user.signingkey "$TEMP_DIR/${key_name}.pub"
     git config gpg.ssh.allowedSignersFile "$verified_signers_file"
@@ -157,9 +202,7 @@ create_unsigned_commit_and_tag() {
     mkdir -p "$repo_dir"
     cd "$repo_dir"
 
-    git init
-    git config user.name "$TEST_USER_NAME"
-    git config user.email "$TEST_USER_EMAIL"
+    git init -b main
 
     # Create file and commit (without signature)
     echo "Test content unsigned" > test.txt
@@ -179,6 +222,9 @@ create_unsigned_commit_and_tag() {
 
 # Main program
 main() {
+
+    check_dependencies
+
     echo "Step 1: Generate SSH keys..."
     echo "-----------------------------------"
 
@@ -216,33 +262,28 @@ main() {
     echo "----------------------------------------"
 
     # Signed commits for each key type
-    create_signed_object "commit" "rsa" "rsa"
-    create_signed_object "commit" "ecdsa_p256" "ecdsa"
-    create_signed_object "commit" "ecdsa_p384" "ecdsa"
-    create_signed_object "commit" "ecdsa_p521" "ecdsa"
-    create_signed_object "commit" "ed25519" "ed25519"
+    create_signed_object "commit" "rsa"
+    create_signed_object "commit" "ecdsa_p256"
+    create_signed_object "commit" "ecdsa_p384"
+    create_signed_object "commit" "ecdsa_p521"
+    create_signed_object "commit" "ed25519"
 
     echo ""
     echo "Step 5: Create signed tags..."
     echo "-------------------------------------"
 
     # Signed tags for each key type
-    create_signed_object "tag" "rsa" "rsa"
-    create_signed_object "tag" "ecdsa_p256" "ecdsa"
-    create_signed_object "tag" "ecdsa_p384" "ecdsa"
-    create_signed_object "tag" "ecdsa_p521" "ecdsa"
-    create_signed_object "tag" "ed25519" "ed25519"
+    create_signed_object "tag" "rsa"
+    create_signed_object "tag" "ecdsa_p256"
+    create_signed_object "tag" "ecdsa_p384"
+    create_signed_object "tag" "ecdsa_p521"
+    create_signed_object "tag" "ed25519"
 
     echo ""
     echo "Step 6: Create unsigned commit..."
     echo "------------------------------------------"
 
     create_unsigned_commit_and_tag
-
-    echo ""
-    echo "=== Cleanup ==="
-    rm -rf "$TEMP_DIR"
-    echo "Temporary directory removed"
 
     echo ""
     echo "=== Done! ==="
@@ -252,5 +293,7 @@ main() {
     find "$SCRIPT_DIR" -maxdepth 1 \( -name "*.txt" -o -name "key_*.pub" -o -name "authorized_keys*" -o -name "verified_signers*" \) -exec ls -lh {} \; 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}' | sort
 }
 
+trap cleanup EXIT
+
 # Run script
-main "$@"
+main
