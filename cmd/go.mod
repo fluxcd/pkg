@@ -7,7 +7,7 @@ replace github.com/fluxcd/pkg/version => ../version
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/fluxcd/pkg/version v0.12.0
-	github.com/go-git/go-git/v5 v5.19.0
+	github.com/go-git/go-git/v5 v5.19.1
 	github.com/spf13/cobra v1.10.2
 )
 
