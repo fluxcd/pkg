@@ -172,6 +172,27 @@ func TestVerifyPGPSignature(t *testing.T) {
 			keyRings: []string{armoredKeyRingFixture},
 			wantErr:  "unable to verify openPGP signature, detected signature format: ssh",
 		},
+		{
+			name:     "Malformed key ring followed by valid key ring",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture, armoredKeyRingFixture},
+			want:     keyRingFingerprintFixture,
+		},
+		{
+			name:     "Valid key ring followed by malformed key ring",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{armoredKeyRingFixture, malformedKeyRingFixture},
+			want:     keyRingFingerprintFixture,
+		},
+		{
+			name:     "Multiple malformed key rings",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture, malformedKeyRingFixture},
+			wantErr:  "unable to read armored key ring: unexpected EOF",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
