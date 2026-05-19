@@ -66,6 +66,16 @@ func TestIsPGPSignature(t *testing.T) {
 			signature: "   \n\t  ",
 			want:      false,
 		},
+		{
+			name:      "PGP SIGNATURE without END marker",
+			signature: "-----BEGIN PGP SIGNATURE-----",
+			want:      true,
+		},
+		{
+			name:      "PGP MESSAGE without END marker",
+			signature: "-----BEGIN PGP MESSAGE-----",
+			want:      true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -112,6 +122,11 @@ func TestIsSSHSignature(t *testing.T) {
 			name:      "whitespace only",
 			signature: "   \n\t  ",
 			want:      false,
+		},
+		{
+			name:      "SSH signature without END marker",
+			signature: "-----BEGIN SSH SIGNATURE-----",
+			want:      true,
 		},
 	}
 
@@ -226,6 +241,21 @@ func TestGetSignatureType(t *testing.T) {
 			name:      "whitespace only",
 			signature: "   \n\t  ",
 			want:      string(signatureTypeUnknown),
+		},
+		{
+			name:      "PGP SIGNATURE without END marker",
+			signature: "-----BEGIN PGP SIGNATURE-----",
+			want:      string(signatureTypePGP),
+		},
+		{
+			name:      "PGP MESSAGE without END marker",
+			signature: "-----BEGIN PGP MESSAGE-----",
+			want:      string(signatureTypePGP),
+		},
+		{
+			name:      "SSH signature without END marker",
+			signature: "-----BEGIN SSH SIGNATURE-----",
+			want:      string(signatureTypeSSH),
 		},
 	}
 

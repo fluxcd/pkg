@@ -317,6 +317,41 @@ func TestSSHSignatureValidationCases(t *testing.T) {
 			authorizedKeys: []string{invalidAuthKeys, invalidAuthKeys},
 			wantErr:        "unable to parse authorized key",
 		},
+		{
+			name:           "Missing END SSH SIGNATURE marker",
+			sig:            "-----BEGIN SSH SIGNATURE-----\nAAAA",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			wantErr:        "unable to unarmor SSH signature",
+		},
+		{
+			name:           "Empty body between markers",
+			sig:            "-----BEGIN SSH SIGNATURE-----\n\n-----END SSH SIGNATURE-----",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			wantErr:        "unable to unarmor SSH signature",
+		},
+		{
+			name:           "Truncated signature mid-base64",
+			sig:            "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAABYAAAhlZDI1NTE5AAAAIM",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			wantErr:        "unable to unarmor SSH signature",
+		},
+		{
+			name:           "Corrupted base64 body",
+			sig:            "-----BEGIN SSH SIGNATURE-----\n!!!!!!\n-----END SSH SIGNATURE-----",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			wantErr:        "unable to unarmor SSH signature",
+		},
+		{
+			name:           "Extra data after END marker",
+			sig:            gitCommit.Signature + "\ngarbage-data-after-end",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			want:           expectedFingerprint,
+		},
 	}
 
 	for _, tt := range tests {

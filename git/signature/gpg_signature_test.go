@@ -193,6 +193,55 @@ func TestVerifyPGPSignature(t *testing.T) {
 			keyRings: []string{malformedKeyRingFixture, malformedKeyRingFixture},
 			wantErr:  "unable to read armored key ring: unexpected EOF",
 		},
+		{
+			name:     "Missing END PGP SIGNATURE marker",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Missing END PGP MESSAGE marker",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP MESSAGE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Corrupted base64 body",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\n!!!!!!\n-----END PGP SIGNATURE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Empty body between markers",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\n-----END PGP SIGNATURE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Truncated signature mid-base64",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYy",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Mismatched BEGIN/END markers",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb\nr7nJAQCQU4zEJu04/Q0ac/UaL6htjhq/wTDNMeUM+aWG/LcBogEAqFUea1oR2BJQ\nJCJmEtERFh39zNWSazQmxPAFhEE0kbc=\n=+Wlj\n-----END PGP MESSAGE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			want:     keyRingFingerprintFixture,
+		},
+		{
+			name:     "Extra data after END marker",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture + "\ngarbage-data-after-end",
+			keyRings: []string{armoredKeyRingFixture},
+			want:     keyRingFingerprintFixture,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
