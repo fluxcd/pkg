@@ -22,9 +22,9 @@ The [`generate_gpg_fixtures.sh`](generate_gpg_fixtures.sh) script automates the 
    - RSA (2048 and 4096 bits)
    - ECC/ECDSA (NIST P-256, P-384, P-521)
    - Brainpool curves (P-256, P-384, P-512)
-   - EdDSA (Ed25519, Ed448)
+   - EdDSA (Ed25519)
 
-   **Note:** Some key types (like Ed448) require GnuPG 2.3 or higher. The script will report any failures and continue with successfully generated keys.
+   **Note:** currently it is not possible to use gnupg generate ed448 keys to validate signed commits with backends which implemented RFC9580: https://github.com/ProtonMail/go-crypto/issues/300
 
 2. **Public Keys**:
    - Individual public key files for each key type
@@ -164,18 +164,6 @@ Expire-Date: 0
 EOF
 gpg --batch --generate-key batch_ed25519.txt
 
-# Ed448 key
-cat > batch_ed448.txt <<EOF
-%no-protection
-Key-Type: ECC
-Key-Curve: Ed448
-Name-Real: Test User
-Name-Email: test-ed448@example.com
-Expire-Date: 0
-%commit
-EOF
-gpg --batch --generate-key batch_ed448.txt
-
 # Export public keys
 gpg --armor --export test-rsa-2048@example.com > key_rsa_2048.pub
 gpg --armor --export test-rsa-4096@example.com > key_rsa_4096.pub
@@ -186,7 +174,6 @@ gpg --armor --export test-brainpool-p256@example.com > key_brainpool_p256.pub
 gpg --armor --export test-brainpool-p384@example.com > key_brainpool_p384.pub
 gpg --armor --export test-brainpool-p512@example.com > key_brainpool_p512.pub
 gpg --armor --export test-ed25519@example.com > key_ed25519.pub
-gpg --armor --export test-ed448@example.com > key_ed448.pub
 ```
 
 #### 2. Create a Test Git Repository
@@ -277,7 +264,6 @@ The script generates the following files:
 - `key_brainpool_p384.pub` - Brainpool P-384 public key
 - `key_brainpool_p512.pub` - Brainpool P-512 public key
 - `key_ed25519.pub` - Ed25519 public key
-- `key_ed448.pub` - Ed448 public key
 
 ### Signed Commits
 - `commit_rsa_2048_signed.txt` - RSA 2048-bit signed commit
@@ -289,7 +275,6 @@ The script generates the following files:
 - `commit_brainpool_p384_signed.txt` - Brainpool P-384 signed commit
 - `commit_brainpool_p512_signed.txt` - Brainpool P-512 signed commit
 - `commit_ed25519_signed.txt` - Ed25519 signed commit
-- `commit_ed448_signed.txt` - Ed448 signed commit
 
 ### Signed Tags
 - `tag_rsa_2048_signed.txt` - RSA 2048-bit signed tag
@@ -301,7 +286,6 @@ The script generates the following files:
 - `tag_brainpool_p384_signed.txt` - Brainpool P-384 signed tag
 - `tag_brainpool_p512_signed.txt` - Brainpool P-512 signed tag
 - `tag_ed25519_signed.txt` - Ed25519 signed tag
-- `tag_ed448_signed.txt` - Ed448 signed tag
 
 ### Unsigned Commit
 - `commit_unsigned.txt` - Unsigned commit for testing negative cases
@@ -327,7 +311,6 @@ The script generates the following files:
 
 ### EdDSA (Edwards-curve Digital Signature Algorithm)
 - **Ed25519**: Modern, fast, and secure curve
-- **Ed448**: Higher security variant
 - Recommended for new applications
 
 ## Security Note
@@ -343,7 +326,6 @@ These test fixtures use generated test keys and should NOT be used in production
 ## Troubleshooting
 
 ### GPG version compatibility
-Some key types (like Ed448) require GnuPG 2.3 or higher. If you encounter errors, check your GPG version:
 
 ```bash
 gpg --version

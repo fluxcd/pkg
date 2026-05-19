@@ -232,12 +232,6 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 		{"brainpool_p256 valid signature", "commit_brainpool_p256_signed.txt", "tag_brainpool_p256_signed.txt", "key_brainpool_p256.pub", false},
 		{"brainpool_p384 valid signature", "commit_brainpool_p384_signed.txt", "tag_brainpool_p384_signed.txt", "key_brainpool_p384.pub", false},
 		{"brainpool_p512 valid signature", "commit_brainpool_p512_signed.txt", "tag_brainpool_p512_signed.txt", "key_brainpool_p512.pub", false},
-
-		// ed448 test fails because the key was created with OpenPGP version 5,
-		// which is not supported by github.com/ProtonMail/go-crypto (only version 4 is supported).
-		// The error occurs when trying to read the armored key ring:
-		// "unable to read armored key ring: openpgp: invalid data: first packet was not a public/private key"
-		{"ed448 valid signature", "commit_ed448_signed.txt", "tag_ed448_signed.txt", "key_ed448.pub", true},
 	}
 
 	var allKeysRing []string
