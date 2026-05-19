@@ -47,16 +47,25 @@ func VerifyPGPSignature(signature string, payload []byte, keyRings ...string) (s
 		return "", fmt.Errorf("unable to verify openPGP signature, detected signature format: %s", GetSignatureType(signature))
 	}
 
+	// record reading of armored key error. This error will be returned of no valid key was found.
+	var readKeyRingError error
+
 	for _, r := range keyRings {
 		reader := strings.NewReader(r)
 		keyring, err := openpgp.ReadArmoredKeyRing(reader)
-		if err != nil {
-			return "", fmt.Errorf("unable to read armored key ring: %w", err)
+		if err != nil && readKeyRingError == nil {
+			readKeyRingError = fmt.Errorf("unable to read armored key ring: %w", err)
+			continue
 		}
 		signer, err := openpgp.CheckArmoredDetachedSignature(keyring, bytes.NewReader(payload), strings.NewReader(signature), nil)
 		if err == nil {
 			return signer.PrimaryKey.KeyIdString(), nil
 		}
 	}
+
+	if readKeyRingError != nil {
+		return "", readKeyRingError
+	}
+
 	return "", fmt.Errorf("unable to verify payload with any of the given key rings")
 }

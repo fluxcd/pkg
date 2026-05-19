@@ -26,6 +26,7 @@ import (
 	"github.com/fluxcd/pkg/git/signature"
 	"github.com/fluxcd/pkg/git/testutils"
 	"github.com/go-git/go-git/v5/plumbing"
+	. "github.com/onsi/gomega"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -185,219 +186,120 @@ func TestSSHSignatureValidationCases(t *testing.T) {
 		t.Fatalf("Failed to read authorized keys: %v", err)
 	}
 
-	// Parse the commit from the fixture file
+	expectedFingerprintBytes, err := os.ReadFile(filepath.Join(testDataDir, "key_ed25519.pub_fingerprint"))
+	if err != nil {
+		t.Fatalf("Failed to read fingerprint file: %v", err)
+	}
+	expectedFingerprint := strings.TrimSpace(string(expectedFingerprintBytes))
+
 	commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_"+keyType+"_signed.txt"))
 	if err != nil {
 		t.Fatalf("Failed to parse commit from fixture: %v", err)
 	}
 
-	// Parse the tag from the fixture file
-	tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_"+keyType+"_signed.txt"))
-	if err != nil {
-		t.Fatalf("Failed to parse tag from fixture: %v", err)
-	}
-
-	// Build a git.Commit using build.CommitWithRef
 	gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
 	if err != nil {
 		t.Fatalf("Failed to build commit: %v", err)
 	}
 
-	// Build a git.Tag using build.Tag
-	gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
-	if err != nil {
-		t.Fatalf("Failed to build tag: %v", err)
+	const invalidAuthKeys = "invalid-key-data"
+
+	tests := []struct {
+		name           string
+		sig            string
+		payload        []byte
+		authorizedKeys []string
+		want           string
+		wantErr        string
+	}{
+		{
+			name:           "Empty signature",
+			sig:            "",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			wantErr:        "unable to verify payload as the provided signature is empty",
+		},
+		{
+			name:           "Empty payload",
+			sig:            gitCommit.Signature,
+			payload:        []byte{},
+			authorizedKeys: []string{string(pubKey)},
+			wantErr:        "unable to verify payload as the provided payload is empty",
+		},
+		{
+			name:           "Wrong authorized keys",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEyM97VxLgOCuB9Eg5cDtTc8ogkdM1xAyJhzODB9cK1 wrong@example.com"},
+			wantErr:        "unable to parse authorized key",
+		},
+		{
+			name:           "Empty authorized keys",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{""},
+			wantErr:        "unable to verify payload with any of the given authorized keys",
+		},
+		{
+			name:           "Invalid signature",
+			sig:            "-----BEGIN SSH SIGNATURE-----\n invalid\n -----END SSH SIGNATURE-----",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			wantErr:        "unable to unarmor SSH signature",
+		},
+		{
+			name:           "Non-SSH signature",
+			sig:            "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{""},
+			wantErr:        "unable to verify SSH signature, detected signature format: openpgp",
+		},
+		{
+			name:           "Invalid authorized keys",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{invalidAuthKeys},
+			wantErr:        "unable to parse authorized key",
+		},
+		{
+			name:           "Invalid keys followed by valid keys",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{invalidAuthKeys, string(pubKey)},
+			want:           expectedFingerprint,
+		},
+		{
+			name:           "Valid keys followed by invalid keys",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey), invalidAuthKeys},
+			want:           expectedFingerprint,
+		},
+		{
+			name:           "Multiple invalid authorized keys",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{invalidAuthKeys, invalidAuthKeys},
+			wantErr:        "unable to parse authorized key",
+		},
 	}
 
-	// Test error cases
-	t.Run("empty signature", func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-		fingerprint, err := signature.VerifySSHSignature("", gitCommit.Encoded, string(pubKey))
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for empty signature, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for empty signature: %s", fingerprint)
-		}
-		if err != nil && err.Error() != "unable to verify payload as the provided signature is empty" {
-			t.Errorf("VerifySSHSignature() error = %v, want 'unable to verify payload as the provided signature is empty'", err)
-		}
+			got, err := signature.VerifySSHSignature(tt.sig, tt.payload, tt.authorizedKeys...)
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(got).To(BeEmpty())
+				return
+			}
 
-		fingerprint, err = signature.VerifySSHSignature("", gitCommit.Encoded, string(pubKey))
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for empty signature, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for empty signature: %s", fingerprint)
-		}
-		if err != nil && err.Error() != "unable to verify payload as the provided signature is empty" {
-			t.Errorf("VerifySSHSignature() error = %v, want 'unable to verify payload as the provided signature is empty'", err)
-		}
-
-	})
-
-	t.Run("empty payload", func(t *testing.T) {
-
-		fingerprint, err := signature.VerifySSHSignature(gitCommit.Signature, []byte{}, string(pubKey))
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for empty payload, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for empty payload: %s", fingerprint)
-		}
-		if err != nil && err.Error() != "unable to verify payload as the provided payload is empty" {
-			t.Errorf("VerifySSHSignature() error = %v, want 'unable to verify payload as the provided payload is empty'", err)
-		}
-
-		fingerprint, err = signature.VerifySSHSignature(gitTag.Signature, []byte{}, string(pubKey))
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for empty payload, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for empty payload: %s", fingerprint)
-		}
-		if err != nil && err.Error() != "unable to verify payload as the provided payload is empty" {
-			t.Errorf("VerifySSHSignature() error = %v, want 'unable to verify payload as the provided payload is empty'", err)
-		}
-
-	})
-
-	t.Run("wrong authorized keys", func(t *testing.T) {
-		// Use a different key that won't match
-		wrongKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEyM97VxLgOCuB9Eg5cDtTc8ogkdM1xAyJhzODB9cK1 wrong@example.com"
-
-		fingerprint, err := signature.VerifySSHSignature(gitCommit.Signature, gitCommit.Encoded, wrongKey)
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for wrong authorized keys, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for wrong authorized keys: %s", fingerprint)
-		}
-		// The error can be either a parsing error or a verification error
-		if err != nil && !strings.Contains(err.Error(), "unable to verify payload with any of the given authorized keys") && !strings.Contains(err.Error(), "unable to parse authorized key") {
-			t.Errorf("VerifySSHSignature() error = %v, want error containing 'unable to verify payload with any of the given authorized keys' or 'unable to parse authorized key'", err)
-		}
-
-		fingerprint, err = signature.VerifySSHSignature(gitTag.Signature, gitTag.Encoded, wrongKey)
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for wrong authorized keys, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for wrong authorized keys: %s", fingerprint)
-		}
-		// The error can be either a parsing error or a verification error
-		if err != nil && !strings.Contains(err.Error(), "unable to verify payload with any of the given authorized keys") && !strings.Contains(err.Error(), "unable to parse authorized key") {
-			t.Errorf("VerifySSHSignature() error = %v, want error containing 'unable to verify payload with any of the given authorized keys' or 'unable to parse authorized key'", err)
-		}
-	})
-
-	t.Run("empty authorized keys", func(t *testing.T) {
-		// Use empty authorized keys
-		emptyAuthKeys := ""
-
-		fingerprint, err := signature.VerifySSHSignature(gitCommit.Signature, gitCommit.Encoded, emptyAuthKeys)
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for empty authorized keys, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for empty authorized keys: %s", fingerprint)
-		}
-		if err != nil && err.Error() != "unable to verify payload with any of the given authorized keys" {
-			t.Errorf("VerifySSHSignature() error = %v, want 'unable to verify payload with any of the given authorized keys'", err)
-		}
-
-		fingerprint, err = signature.VerifySSHSignature(gitTag.Signature, gitTag.Encoded, emptyAuthKeys)
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for empty authorized keys, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for empty authorized keys: %s", fingerprint)
-		}
-		if err != nil && err.Error() != "unable to verify payload with any of the given authorized keys" {
-			t.Errorf("VerifySSHSignature() error = %v, want 'unable to verify payload with any of the given authorized keys'", err)
-		}
-	})
-
-	t.Run("invalid signature", func(t *testing.T) {
-		invalidSig := "-----BEGIN SSH SIGNATURE-----\n invalid\n -----END SSH SIGNATURE-----"
-
-		fingerprint, err := signature.VerifySSHSignature(invalidSig, gitCommit.Encoded, string(pubKey))
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for invalid signature, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for invalid signature: %s", fingerprint)
-		}
-		if err != nil && !strings.Contains(err.Error(), "unable to unarmor SSH signature") {
-			t.Errorf("VerifySSHSignature() error = %v, want error containing 'unable to unarmor SSH signature'", err)
-		}
-
-		fingerprint, err = signature.VerifySSHSignature(invalidSig, gitTag.Encoded, string(pubKey))
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for invalid signature, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for invalid signature: %s", fingerprint)
-		}
-		if err != nil && !strings.Contains(err.Error(), "unable to unarmor SSH signature") {
-			t.Errorf("VerifySSHSignature() error = %v, want error containing 'unable to unarmor SSH signature'", err)
-		}
-
-	})
-
-	t.Run("non-SSH signature", func(t *testing.T) {
-		// Use a PGP signature instead of SSH signature
-		pgpSig := "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----"
-
-		fingerprint, err := signature.VerifySSHSignature(pgpSig, gitCommit.Encoded, "")
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for non-SSH signature, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for non-SSH signature: %s", fingerprint)
-		}
-		if err != nil && err.Error() != "unable to verify SSH signature, detected signature format: openpgp" {
-			t.Errorf("VerifySSHSignature() error = %v, want 'unable to verify SSH signature, detected signature format: openpgp'", err)
-		}
-
-		fingerprint, err = signature.VerifySSHSignature(pgpSig, gitTag.Encoded, "")
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for non-SSH signature, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for non-SSH signature: %s", fingerprint)
-		}
-		if err != nil && err.Error() != "unable to verify SSH signature, detected signature format: openpgp" {
-			t.Errorf("VerifySSHSignature() error = %v, want 'unable to verify SSH signature, detected signature format: openpgp'", err)
-		}
-	})
-
-	t.Run("invalid authorized keys", func(t *testing.T) {
-		// Use invalid authorized keys
-		invalidAuthKeys := "invalid-key-data"
-
-		fingerprint, err := signature.VerifySSHSignature(gitCommit.Signature, gitCommit.Encoded, invalidAuthKeys)
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for invalid authorized keys, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for invalid authorized keys: %s", fingerprint)
-		}
-		if err != nil && !strings.Contains(err.Error(), "unable to parse authorized key") {
-			t.Errorf("VerifySSHSignature() error = %v, want error containing 'unable to parse authorized key'", err)
-		}
-
-		fingerprint, err = signature.VerifySSHSignature(gitTag.Signature, gitTag.Encoded, invalidAuthKeys)
-		if err == nil {
-			t.Errorf("VerifySSHSignature() expected error for invalid authorized keys, got nil")
-		}
-		if fingerprint != "" {
-			t.Errorf("VerifySSHSignature() returned fingerprint for invalid authorized keys: %s", fingerprint)
-		}
-		if err != nil && !strings.Contains(err.Error(), "unable to parse authorized key") {
-			t.Errorf("VerifySSHSignature() error = %v, want error containing 'unable to parse authorized key'", err)
-		}
-	})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(got).To(Equal(tt.want))
+		})
+	}
 }
 
 func TestParseAuthorizedKeysAndPublicFingerprint(t *testing.T) {
