@@ -163,7 +163,7 @@ func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Optio
 	return nil, nil
 }
 
-const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev))$`
+const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev)|(.+-docker\.s3nsregistry\.fr))$`
 
 var registryRegex = regexp.MustCompile(registryPattern)
 

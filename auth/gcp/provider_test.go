@@ -314,6 +314,26 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com",
 			expectValid:        false,
 		},
+		{
+			artifactRepository: "u-france-east1-docker.s3nsregistry.fr/s3ns/dsna-shared-registry-0/shared-registry",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "u-france-east1-docker.s3nsregistry.fr",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "docker.s3nsregistry.fr",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "-docker.s3nsregistry.fr",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "a.docker.s3nsregistry.fr",
+			expectValid:        false,
+		},
 	} {
 		t.Run(tt.artifactRepository, func(t *testing.T) {
 			g := NewWithT(t)
