@@ -49,7 +49,7 @@ generate_ssh_key() {
 # Function to create verified signers files with git namespace
 create_verified_signers() {
     local key_name=$1
-    local output_file="$SCRIPT_DIR/verified_signers_${key_name}"
+    local output_file="$TEMP_DIR/verified_signers_${key_name}"
 
     echo "Creating verified signers file for $key_name..."
 
@@ -76,30 +76,13 @@ create_combined_pub_keys() {
     echo "  ✓ $output_file created"
 }
 
-# Function to create combined verified signers file
-create_combined_verified_signers() {
-    local output_file="$SCRIPT_DIR/verified_signers_all"
-
-    echo "Creating combined verified signers..."
-
-    # Combine all public keys with git namespace
-    {
-        echo "$TEST_USER_EMAIL namespaces=\"git\" $(cat "$TEMP_DIR/rsa.pub")"
-        echo "$TEST_USER_EMAIL namespaces=\"git\" $(cat "$TEMP_DIR/ecdsa_p256.pub")"
-        echo "$TEST_USER_EMAIL namespaces=\"git\" $(cat "$TEMP_DIR/ecdsa_p384.pub")"
-        echo "$TEST_USER_EMAIL namespaces=\"git\" $(cat "$TEMP_DIR/ecdsa_p521.pub")"
-        echo "$TEST_USER_EMAIL namespaces=\"git\" $(cat "$TEMP_DIR/ed25519.pub")"
-    } > "$output_file"
-
-    echo "  ✓ $output_file created"
-}
 
 # Function to create signed Git objects (commits and tags)
 create_signed_object() {
     local object_type=$1
     local key_name=$2
     local key_type=$3
-    local verified_signers_file="$SCRIPT_DIR/verified_signers_${key_name}"
+    local verified_signers_file="$TEMP_DIR/verified_signers_${key_name}"
 
     echo "Creating signed $object_type for $key_name..."
 
@@ -227,9 +210,6 @@ main() {
     create_verified_signers "ecdsa_p384"
     create_verified_signers "ecdsa_p521"
     create_verified_signers "ed25519"
-
-    # Combined verified signers file
-    create_combined_verified_signers
 
     echo ""
     echo "Step 4: Create signed commits..."
