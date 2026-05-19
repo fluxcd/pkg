@@ -10,7 +10,7 @@ To generate all test fixtures at once, simply run:
 ./generate_ssh_fixtures.sh
 ```
 
-This script will automatically create all SSH keys, authorized_keys files, verified signers files, signed commits, and signed tags.
+This script will automatically create all SSH keys, authorized_keys files, signed commits, and signed tags.
 
 ## How to Generate Test Fixtures
 
@@ -27,19 +27,15 @@ The [`generate_ssh_fixtures.sh`](generate_ssh_fixtures.sh) script automates the 
    - Individual files for each key type
    - Combined file with all keys
 
-3. **Verified Signers Files** (with git namespace):
-   - Individual files for each key type
-   - Combined file with all keys
-
-4. **Signed Git Commits**:
+3. **Signed Git Commits**:
    - One signed commit for each key type
    - All commits are verified using `git verify-commit`
 
-5. **Signed Git Tags**:
+4. **Signed Git Tags**:
    - One signed tag for each key type
    - All tags are verified using `git verify-tag`
 
-6. **Unsigned Commit**:
+5. **Unsigned Commit**:
    - One unsigned commit for testing negative cases
 
 ### Manual Generation
@@ -164,14 +160,6 @@ The script generates the following files:
 - `key_ecdsa_p521.pub` - ECDSA P-521 public key
 - `key_ed25519.pub` - ED25519 public key
 - `keys_all.pub` - All public keys
-
-### Verified Signers Files
-- `verified_signers_rsa` - RSA public key with git namespace
-- `verified_signers_ecdsa_p256` - ECDSA P-256 public key with git namespace
-- `verified_signers_ecdsa_p384` - ECDSA P-384 public key with git namespace
-- `verified_signers_ecdsa_p521` - ECDSA P-521 public key with git namespace
-- `verified_signers_ed25519` - ED25519 public key with git namespace
-- `verified_signers_all` - All public keys with git namespace
 
 ### Signed Commits
 - `commit_rsa_signed.txt` - RSA-signed commit
