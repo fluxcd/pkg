@@ -196,9 +196,6 @@ main() {
     # Ed25519 (modern elliptic curve)
     generate_key "eddsa" "Ed25519" "ed25519"
 
-    # Ed448 (less common)
-    generate_key "eddsa" "Ed448" "ed448"
-
     echo ""
     echo "Step 3: Create signed commits..."
     echo "----------------------------------------"
