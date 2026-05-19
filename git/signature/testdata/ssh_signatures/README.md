@@ -10,7 +10,7 @@ To generate all test fixtures at once, simply run:
 ./generate_ssh_fixtures.sh
 ```
 
-This script will automatically create all SSH keys, authorized_keys files, signed commits, and signed tags.
+This script will automatically create all SSH keys, public key files, fingerprint files, signed commits, and signed tags.
 
 ## How to Generate Test Fixtures
 
@@ -23,9 +23,10 @@ The [`generate_ssh_fixtures.sh`](generate_ssh_fixtures.sh) script automates the 
    - ECDSA (p256, p384, p521)
    - ED25519
 
-2. **Authorized Keys Files**:
-   - Individual files for each key type
-   - Combined file with all keys
+2. **Public Keys**:
+   - Individual public key files for each key type
+   - Fingerprint files for each public key
+   - Combined file with all public keys
 
 3. **Signed Git Commits**:
    - One signed commit for each key type
@@ -35,8 +36,8 @@ The [`generate_ssh_fixtures.sh`](generate_ssh_fixtures.sh) script automates the 
    - One signed tag for each key type
    - All tags are verified using `git verify-tag`
 
-5. **Unsigned Commit**:
-   - One unsigned commit for testing negative cases
+5. **Unsigned Objects**:
+   - One unsigned commit and one unsigned tag for testing negative cases
 
 ### Manual Generation
 
@@ -159,7 +160,14 @@ The script generates the following files:
 - `key_ecdsa_p384.pub` - ECDSA P-384 public key
 - `key_ecdsa_p521.pub` - ECDSA P-521 public key
 - `key_ed25519.pub` - ED25519 public key
-- `keys_all.pub` - All public keys
+- `keys_all.pub` - All public keys combined
+
+### Public Key Fingerprints
+- `key_rsa.pub_fingerprint` - SHA256 fingerprint of RSA public key
+- `key_ecdsa_p256.pub_fingerprint` - SHA256 fingerprint of ECDSA P-256 public key
+- `key_ecdsa_p384.pub_fingerprint` - SHA256 fingerprint of ECDSA P-384 public key
+- `key_ecdsa_p521.pub_fingerprint` - SHA256 fingerprint of ECDSA P-521 public key
+- `key_ed25519.pub_fingerprint` - SHA256 fingerprint of ED25519 public key
 
 ### Signed Commits
 - `commit_rsa_signed.txt` - RSA-signed commit
@@ -175,8 +183,9 @@ The script generates the following files:
 - `tag_ecdsa_p521_signed.txt` - ECDSA P-521 signed tag
 - `tag_ed25519_signed.txt` - ED25519 signed tag
 
-### Unsigned Commit
+### Unsigned Objects
 - `commit_unsigned.txt` - Unsigned commit for testing negative cases
+- `tag_unsigned.txt` - Unsigned tag for testing negative cases
 
 ## Security Note
 

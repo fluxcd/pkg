@@ -329,20 +329,33 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 	t.Run("unsigned commit", func(t *testing.T) {
 		g := NewWithT(t)
 
-		// Parse the unsigned commit from the fixture file
 		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Build a git.Commit using build.CommitWithRef
 		gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Read a public key
 		publicKey, err := os.ReadFile(filepath.Join(testDataDir, "key_rsa_2048.pub"))
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Verify the signature - should fail as the commit is unsigned
 		fingerprint, err := signature.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, string(publicKey))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(fingerprint).To(BeEmpty())
+	})
+
+	t.Run("unsigned tag", func(t *testing.T) {
+		g := NewWithT(t)
+
+		tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_unsigned.txt"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		publicKey, err := os.ReadFile(filepath.Join(testDataDir, "key_rsa_2048.pub"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		fingerprint, err := signature.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, string(publicKey))
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(fingerprint).To(BeEmpty())
 	})

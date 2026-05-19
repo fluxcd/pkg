@@ -174,6 +174,41 @@ func TestVerifySSHSignature(t *testing.T) {
 
 		})
 	}
+
+	// Test error cases
+	t.Run("unsigned commit", func(t *testing.T) {
+		g := NewWithT(t)
+
+		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		pubKey, err := os.ReadFile(filepath.Join(testDataDir, "key_ed25519.pub"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		fingerprint, err := signature.VerifySSHSignature(gitCommit.Signature, gitCommit.Encoded, string(pubKey))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(fingerprint).To(BeEmpty())
+	})
+
+	t.Run("unsigned tag", func(t *testing.T) {
+		g := NewWithT(t)
+
+		tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_unsigned.txt"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		pubKey, err := os.ReadFile(filepath.Join(testDataDir, "key_ed25519.pub"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		fingerprint, err := signature.VerifySSHSignature(gitTag.Signature, gitTag.Encoded, string(pubKey))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(fingerprint).To(BeEmpty())
+	})
 }
 
 func TestSSHSignatureValidationCases(t *testing.T) {
