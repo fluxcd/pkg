@@ -37,8 +37,8 @@ The [`generate_gpg_fixtures.sh`](generate_gpg_fixtures.sh) script automates the 
    - One signed tag for each key type
    - All tags are verified using `git verify-tag`
 
-5. **Unsigned Commit**:
-   - One unsigned commit for testing negative cases
+5. **Unsigned Objects**:
+   - One unsigned commit and one unsigned tag for testing negative cases
 
 ### Manual Generation
 
@@ -83,7 +83,7 @@ gpg --batch --generate-key batch_rsa_4096.txt
 # ECDSA P-256 key
 cat > batch_ecdsa_p256.txt <<EOF
 %no-protection
-Key-Type: ECC
+Key-Type: ecdsa
 Key-Curve: NIST P-256
 Name-Real: Test User
 Name-Email: test-ecdsa-p256@example.com
@@ -95,7 +95,7 @@ gpg --batch --generate-key batch_ecdsa_p256.txt
 # ECDSA P-384 key
 cat > batch_ecdsa_p384.txt <<EOF
 %no-protection
-Key-Type: ECC
+Key-Type: ecdsa
 Key-Curve: NIST P-384
 Name-Real: Test User
 Name-Email: test-ecdsa-p384@example.com
@@ -107,7 +107,7 @@ gpg --batch --generate-key batch_ecdsa_p384.txt
 # ECDSA P-521 key
 cat > batch_ecdsa_p521.txt <<EOF
 %no-protection
-Key-Type: ECC
+Key-Type: ecdsa
 Key-Curve: NIST P-521
 Name-Real: Test User
 Name-Email: test-ecdsa-p521@example.com
@@ -119,7 +119,7 @@ gpg --batch --generate-key batch_ecdsa_p521.txt
 # Brainpool P-256 key
 cat > batch_brainpool_p256.txt <<EOF
 %no-protection
-Key-Type: ECC
+Key-Type: ecdsa
 Key-Curve: brainpoolP256r1
 Name-Real: Test User
 Name-Email: test-brainpool-p256@example.com
@@ -131,7 +131,7 @@ gpg --batch --generate-key batch_brainpool_p256.txt
 # Brainpool P-384 key
 cat > batch_brainpool_p384.txt <<EOF
 %no-protection
-Key-Type: ECC
+Key-Type: ecdsa
 Key-Curve: brainpoolP384r1
 Name-Real: Test User
 Name-Email: test-brainpool-p384@example.com
@@ -143,7 +143,7 @@ gpg --batch --generate-key batch_brainpool_p384.txt
 # Brainpool P-512 key
 cat > batch_brainpool_p512.txt <<EOF
 %no-protection
-Key-Type: ECC
+Key-Type: ecdsa
 Key-Curve: brainpoolP512r1
 Name-Real: Test User
 Name-Email: test-brainpool-p512@example.com
@@ -155,7 +155,7 @@ gpg --batch --generate-key batch_brainpool_p512.txt
 # Ed25519 key
 cat > batch_ed25519.txt <<EOF
 %no-protection
-Key-Type: ECC
+Key-Type: eddsa
 Key-Curve: Ed25519
 Name-Real: Test User
 Name-Email: test-ed25519@example.com
@@ -287,8 +287,9 @@ The script generates the following files:
 - `tag_brainpool_p512_signed.txt` - Brainpool P-512 signed tag
 - `tag_ed25519_signed.txt` - Ed25519 signed tag
 
-### Unsigned Commit
+### Unsigned Objects
 - `commit_unsigned.txt` - Unsigned commit for testing negative cases
+- `tag_unsigned.txt` - Unsigned tag for testing negative cases
 
 ## Key Types Explained
 
@@ -332,11 +333,7 @@ gpg --version
 ```
 
 ### Key generation failures
-The script now includes comprehensive error handling:
-- Each key generation attempt is logged
-- Failed keys are reported with detailed error messages
-- The script continues with successfully generated keys
-- An error log is created in the temporary directory
+The script uses `set -euo pipefail` and will abort on any error.
 
 If key generation fails, ensure that:
 1. You have sufficient entropy on your system
@@ -345,13 +342,10 @@ If key generation fails, ensure that:
 4. Your GPG version supports the requested key type
 
 ### Script structure
-The script uses separate functions for different key types:
-- `generate_rsa_dsa_key()` - For RSA keys with key length validation
-- `generate_ecc_key()` - For ECC/ECDSA/EdDSA keys with curve validation
+The script uses separate functions for different operations:
+- `generate_key()` - For generating key pairs (RSA, ECDSA, EdDSA) with type-specific parameters
 - `create_signed_object()` - For creating signed commits and tags
-- `create_unsigned_commit()` - For creating unsigned test commits
-
-Each function includes parameter validation and proper error handling.
+- `create_unsigned_commit_and_tag()` - For creating unsigned test commits and tags
 
 ### Signature verification failures
 If signature verification fails, ensure that:

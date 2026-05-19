@@ -190,12 +190,12 @@ create_signed_object() {
     fi
 }
 
-# Function to create unsigned commit
+# Function to create unsigned commit and tag
 create_unsigned_commit_and_tag() {
     local commit_file="$SCRIPT_DIR/commit_unsigned.txt"
     local tag_file="$SCRIPT_DIR/tag_unsigned.txt"
 
-    echo "Creating unsigned commit..."
+    echo "Creating unsigned commit and tag..."
 
     # Create temporary Git repository
     local repo_dir="$TEMP_DIR/repo_unsigned"
@@ -217,7 +217,7 @@ create_unsigned_commit_and_tag() {
     git cat-file tag test-tag > "$tag_file"
 
     cd "$SCRIPT_DIR"
-    echo "  ✓ $commit_file created"
+    echo "  ✓ $commit_file and $tag_file created"
 }
 
 # Main program
@@ -280,7 +280,7 @@ main() {
     create_signed_object "tag" "ed25519"
 
     echo ""
-    echo "Step 6: Create unsigned commit..."
+    echo "Step 6: Create unsigned commit and tag..."
     echo "------------------------------------------"
 
     create_unsigned_commit_and_tag
