@@ -16,6 +16,8 @@ limitations under the License.
 
 package meta
 
+import "strconv"
+
 // LocalObjectReference contains enough information to locate the referenced Kubernetes resource object.
 type LocalObjectReference struct {
 	// Name of the referent.
@@ -35,6 +37,26 @@ type NamespacedObjectReference struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
+// TypedNamespacedObjectReference contains enough information to locate the typed referenced Kubernetes resource object
+// in any namespace.
+type TypedNamespacedObjectReference struct {
+	// APIVersion of the referent.
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Kind of the referent.
+	// +required
+	Kind string `json:"kind"`
+
+	// Name of the referent.
+	// +required
+	Name string `json:"name"`
+
+	// Namespace of the referent, when not specified it acts as TypedLocalObjectReference.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // String implements the fmt.Stringer interface for NamespacedObjectReference.
 func (in NamespacedObjectReference) String() string {
 	if in.Namespace != "" {
@@ -43,17 +65,49 @@ func (in NamespacedObjectReference) String() string {
 	return in.Name
 }
 
+// String implements the fmt.Stringer interface for TypedNamespacedObjectReference.
+func (in TypedNamespacedObjectReference) String() string {
+	s := in.Name
+	if in.Namespace != "" {
+		s = in.Namespace + "/" + s
+	}
+	if in.Kind != "" {
+		s = in.Kind + "/" + s
+	}
+	if in.APIVersion != "" {
+		s = in.APIVersion + "/" + s
+	}
+	return s
+}
+
 // DependencyReference contains enough information to locate the referenced Kubernetes resource object
-// and optional CEL expression to assess its readiness.
+// with optional built-in or CEL expression readiness check. When the dependency is a Flux Applier API
+// resource (Kustomization or HelmRelease), defaults are applied during reconciliation.
 type DependencyReference struct {
-	// Name of the referent.
+	// APIVersion of the resource to depend on, defaults to the API group version of the
+	// Flux Applier API resource (Kustomization or HelmRelease) that contains the reference
+	// when the dependency is of the same kind.
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Kind of the resource to depend on, defaults to the kind of the
+	// Flux Applier API resource (Kustomization or HelmRelease) that contains the reference.
+	// +optional
+	Kind string `json:"kind,omitempty"`
+
+	// Name of the resource to depend on.
 	// +required
 	Name string `json:"name"`
 
-	// Namespace of the referent, defaults to the namespace of the resource
-	// object that contains the reference.
+	// Namespace of the resource to depend on, defaults to the namespace of the Flux
+	// Applier API resource (Kustomization or HelmRelease) that contains the reference.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
+
+	// Ready checks if the resource Ready status condition is true, defaults to
+	// true when the dependency is a Flux Applier API resource (Kustomization or HelmRelease).
+	// +optional
+	Ready *bool `json:"ready,omitempty"`
 
 	// ReadyExpr is a CEL expression that can be used to assess the readiness
 	// of a dependency. When specified, the built-in readiness check
@@ -65,12 +119,24 @@ type DependencyReference struct {
 }
 
 // String implements the fmt.Stringer interface for DependencyReference.
-// Returns the dependency reference in the format: [namespace/]name[@readyExpr]
-// Examples: "app", "ns/app", "app@ready", "ns/app@obj.status.ready"
+// Returns the dependency reference in the format: [apiVersion/][kind/][namespace/]name[:ready][@readyExpr].
+// Examples: "app", "ns/app", "app@ready", "ns/app@obj.status.ready",
+// "v1/Secret/ns/secret", "Pod/app-abc:false", "Pod/ns/app-abc:true", "Pod/ns/app-abc:true@obj.status.phase",
+// "HelmRelease/app", "Kustomization/ns/app", "helmreleases.helm.toolkit.fluxcd.io/v2/HelmRelease/ns/app",
+// "apiextensions.k8s.io/v1/CustomResourceDefinition/kustomizations.kustomize.toolkit.fluxcd.io:true".
 func (in DependencyReference) String() string {
 	s := in.Name
 	if in.Namespace != "" {
 		s = in.Namespace + "/" + s
+	}
+	if in.Kind != "" {
+		s = in.Kind + "/" + s
+	}
+	if in.APIVersion != "" {
+		s = in.APIVersion + "/" + s
+	}
+	if in.Ready != nil {
+		s = s + ":" + strconv.FormatBool(*in.Ready)
 	}
 	if in.ReadyExpr != "" {
 		s = s + "@" + in.ReadyExpr
