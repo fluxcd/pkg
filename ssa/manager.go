@@ -65,15 +65,8 @@ func (m *ResourceManager) SetConcurrency(c int) {
 //	<owner.group>/namespace: <namespace>
 func (m *ResourceManager) SetOwnerLabels(objects []*unstructured.Unstructured, name, namespace string) {
 	for _, object := range objects {
-		labels := object.GetLabels()
-		if labels == nil {
-			labels = make(map[string]string)
-		}
-
-		labels[m.owner.Group+"/name"] = name
-		labels[m.owner.Group+"/namespace"] = namespace
-
-		object.SetLabels(labels)
+		_ = unstructured.SetNestedField(object.Object, name, "metadata", "labels", m.owner.Group+"/name")
+		_ = unstructured.SetNestedField(object.Object, namespace, "metadata", "labels", m.owner.Group+"/namespace")
 	}
 }
 
