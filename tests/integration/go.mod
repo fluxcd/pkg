@@ -24,7 +24,7 @@ require (
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fluxcd/cli-utils v1.2.0
 	github.com/fluxcd/pkg/apis/meta v1.27.0
-	github.com/fluxcd/pkg/auth v0.46.0
+	github.com/fluxcd/pkg/auth v0.47.0
 	github.com/fluxcd/pkg/cache v0.14.0
 	github.com/fluxcd/pkg/git v0.49.0
 	github.com/fluxcd/pkg/runtime v0.106.0
