@@ -14,21 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cioidc provides an http.RoundTripper that authenticates outbound
-// requests on a per-host basis with a JWT obtained from a CI/CD platform's OIDC
-// integration.
+// Package cijwt provides an http.RoundTripper that authenticates outbound
+// requests on a per-host basis with a JWT, sourcing the token from a CI/CD
+// platform's OIDC integration or signing it locally.
 //
-// Each configured host gets its token one of two ways:
+// Each configured host gets its token one of three ways:
 //   - WithHostAudience mints an OIDC ID token for the given audience from the
 //     GitHub/Forgejo Actions token endpoint (see the actionsoidc package),
 //     caching it for the first 50% of its lifetime and reminting on demand.
 //   - WithHostToken sends a static JWT as-is, e.g. a GitLab CI id_token injected
 //     into the job environment.
+//   - WithHostJWK signs a fresh, short-lived JWT with a private key from a JWK,
+//     issuing a new token for every request rather than caching it.
 //
 // Requests to hosts that were not configured are forwarded unchanged, so a
 // request to a registry the JWT is not meant for keeps its existing
 // authentication.
-package cioidc
+package cijwt
 
 import (
 	"context"
@@ -38,17 +40,32 @@ import (
 	"time"
 
 	"github.com/fluxcd/pkg/auth/actionsoidc"
+	"github.com/fluxcd/pkg/auth/jwt"
 )
+
+// jwkTokenTTL is the lifetime of the JWTs signed for WithHostJWK hosts. They are
+// minted fresh for every request, so the window only needs to cover a single
+// request's round trip plus clock skew between the issuer and the verifier.
+const jwkTokenTTL = 60 * time.Second
 
 type hostValue struct {
 	host  string
 	value string
 }
 
+type hostJWK struct {
+	host string
+	jwk  string
+	iss  string
+	aud  string
+	sub  string
+}
+
 type options struct {
 	inner     http.RoundTripper
 	tokens    []hostValue
 	audiences []hostValue
+	jwks      []hostJWK
 }
 
 // Option configures a Transport.
@@ -73,6 +90,16 @@ func WithHostAudience(host, audience string) Option {
 	return func(o *options) { o.audiences = append(o.audiences, hostValue{host, audience}) }
 }
 
+// WithHostJWK configures host to be authenticated with a JWT signed locally
+// using a private key parsed from jwk (a single JSON Web Key holding an Ed25519
+// or ECDSA private key; the signing algorithm is derived from the key type, see
+// the jwt package). Each request gets a freshly signed, 60-second-lived token
+// carrying iss, aud, and sub as given and the signing key's id in the "kid"
+// header. Unlike WithHostAudience, the token is never cached.
+func WithHostJWK(host, jwk, iss, aud, sub string) Option {
+	return func(o *options) { o.jwks = append(o.jwks, hostJWK{host, jwk, iss, aud, sub}) }
+}
+
 type cacheEntry struct {
 	token string
 	// exp is when the cached token must be reminted. A zero value means it
@@ -80,15 +107,25 @@ type cacheEntry struct {
 	exp time.Time
 }
 
+type jwkConfig struct {
+	key *jwt.SigningKey
+	iss string
+	aud string
+	sub string
+}
+
 // Transport is an http.RoundTripper that stamps Authorization: Bearer <jwt> on
-// requests whose URL host was configured with WithHostToken or WithHostAudience.
-// Any existing Authorization header on a configured host is overwritten;
-// requests to other hosts pass through untouched.
+// requests whose URL host was configured with WithHostToken, WithHostAudience,
+// or WithHostJWK. Any existing Authorization header on a configured host is
+// overwritten; requests to other hosts pass through untouched.
 type Transport struct {
 	inner http.RoundTripper
 	// audiences maps a host to the audience minted for it; the factory used on
 	// a cache miss.
 	audiences map[string]string
+	// jwk maps a host to the signing config used to mint a fresh token for
+	// every request. It is read-only after construction.
+	jwk map[string]jwkConfig
 
 	mu    sync.Mutex
 	cache map[string]cacheEntry
@@ -96,7 +133,8 @@ type Transport struct {
 
 // NewTransport returns a Transport configured by opts. At least one host must be
 // configured. It returns an error if the same host is configured more than once,
-// whether via WithHostToken, WithHostAudience, or a mix of the two.
+// whether via WithHostToken, WithHostAudience, WithHostJWK, or a mix of them, or
+// if a WithHostJWK key fails to parse.
 func NewTransport(opts ...Option) (*Transport, error) {
 	o := &options{inner: http.DefaultTransport}
 	for _, opt := range opts {
@@ -106,10 +144,11 @@ func NewTransport(opts ...Option) (*Transport, error) {
 	t := &Transport{
 		inner:     o.inner,
 		audiences: make(map[string]string, len(o.audiences)),
+		jwk:       make(map[string]jwkConfig, len(o.jwks)),
 		cache:     make(map[string]cacheEntry, len(o.tokens)),
 	}
 
-	seen := make(map[string]bool, len(o.tokens)+len(o.audiences))
+	seen := make(map[string]bool, len(o.tokens)+len(o.audiences)+len(o.jwks))
 	claim := func(host string) error {
 		if seen[host] {
 			return fmt.Errorf("host %q is configured more than once", host)
@@ -131,9 +170,19 @@ func NewTransport(opts ...Option) (*Transport, error) {
 		}
 		t.audiences[hv.host] = hv.value
 	}
+	for _, hj := range o.jwks {
+		if err := claim(hj.host); err != nil {
+			return nil, err
+		}
+		key, err := jwt.ParseJWK(hj.jwk)
+		if err != nil {
+			return nil, fmt.Errorf("host %q: %w", hj.host, err)
+		}
+		t.jwk[hj.host] = jwkConfig{key: key, iss: hj.iss, aud: hj.aud, sub: hj.sub}
+	}
 
 	if len(seen) == 0 {
-		return nil, fmt.Errorf("at least one host must be configured with WithHostToken or WithHostAudience")
+		return nil, fmt.Errorf("at least one host must be configured with WithHostToken, WithHostAudience, or WithHostJWK")
 	}
 
 	return t, nil
@@ -143,7 +192,7 @@ func NewTransport(opts ...Option) (*Transport, error) {
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	token, ok, err := t.tokenForHost(req.Context(), req.URL.Host)
 	if err != nil {
-		return nil, fmt.Errorf("failed to obtain CI OIDC token for host %q: %w", req.URL.Host, err)
+		return nil, fmt.Errorf("failed to obtain CI JWT for host %q: %w", req.URL.Host, err)
 	}
 	if !ok {
 		// Host not configured: forward unchanged, preserving existing auth.
@@ -156,9 +205,20 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.inner.RoundTrip(cloned)
 }
 
-// tokenForHost returns the bearer token for host, minting and caching it on a
-// miss. The boolean is false when host was not configured.
+// tokenForHost returns the bearer token for host. WithHostJWK hosts get a
+// freshly signed token on every call; WithHostAudience hosts are minted and
+// cached on a miss. The boolean is false when host was not configured.
 func (t *Transport) tokenForHost(ctx context.Context, host string) (string, bool, error) {
+	// JWK hosts sign a new token per request and never touch the cache, so they
+	// need no locking (t.jwk is read-only after construction).
+	if cfg, ok := t.jwk[host]; ok {
+		token, err := cfg.key.Issue(cfg.iss, cfg.sub, cfg.aud, jwkTokenTTL)
+		if err != nil {
+			return "", false, err
+		}
+		return token, true, nil
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
