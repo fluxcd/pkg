@@ -14,9 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cioidc_test
+package cijwt_test
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,10 +28,11 @@ import (
 	"testing"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/fluxcd/pkg/auth/actionsoidc"
-	"github.com/fluxcd/pkg/auth/utils/cioidc"
+	"github.com/fluxcd/pkg/auth/utils/cijwt"
 )
 
 // makeJWT mints an unsigned-but-parseable JWT carrying the given exp claim.
@@ -40,6 +44,25 @@ func makeJWT(t *testing.T, exp time.Time) string {
 		t.Fatalf("failed to mint test JWT: %v", err)
 	}
 	return signed
+}
+
+// makeEdDSAJWK generates a fresh Ed25519 key pair and returns it as a private
+// JWK (JSON) alongside the public key and key id for verifying issued tokens.
+func makeEdDSAJWK(t *testing.T, kid string) (jwk string, pub ed25519.PublicKey) {
+	t.Helper()
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate Ed25519 key: %v", err)
+	}
+	b, err := json.Marshal(jose.JSONWebKey{
+		Key:       priv,
+		KeyID:     kid,
+		Algorithm: "EdDSA",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal JWK: %v", err)
+	}
+	return string(b), pub
 }
 
 // tokenServer mints a fresh JWT with the configured TTL on each call, counting
@@ -76,9 +99,9 @@ func (r *recordingRT) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
 }
 
-func mustNewTransport(t *testing.T, inner http.RoundTripper, opts ...cioidc.Option) *cioidc.Transport {
+func mustNewTransport(t *testing.T, inner http.RoundTripper, opts ...cijwt.Option) *cijwt.Transport {
 	t.Helper()
-	tr, err := cioidc.NewTransport(append([]cioidc.Option{cioidc.WithInner(inner)}, opts...)...)
+	tr, err := cijwt.NewTransport(append([]cijwt.Option{cijwt.WithInner(inner)}, opts...)...)
 	if err != nil {
 		t.Fatalf("NewTransport: %v", err)
 	}
@@ -95,9 +118,10 @@ func get(t *testing.T, tr http.RoundTripper, host string) {
 }
 
 func TestNewTransport_Validation(t *testing.T) {
+	jwk, _ := makeEdDSAJWK(t, "key-1")
 	tests := []struct {
 		name    string
-		opts    []cioidc.Option
+		opts    []cijwt.Option
 		wantErr string
 	}{
 		{
@@ -107,39 +131,55 @@ func TestNewTransport_Validation(t *testing.T) {
 		},
 		{
 			name: "duplicate within tokens",
-			opts: []cioidc.Option{
-				cioidc.WithHostToken("a.example", "t1"),
-				cioidc.WithHostToken("a.example", "t2"),
+			opts: []cijwt.Option{
+				cijwt.WithHostToken("a.example", "t1"),
+				cijwt.WithHostToken("a.example", "t2"),
 			},
 			wantErr: `host "a.example" is configured more than once`,
 		},
 		{
 			name: "duplicate within audiences",
-			opts: []cioidc.Option{
-				cioidc.WithHostAudience("a.example", "aud1"),
-				cioidc.WithHostAudience("a.example", "aud2"),
+			opts: []cijwt.Option{
+				cijwt.WithHostAudience("a.example", "aud1"),
+				cijwt.WithHostAudience("a.example", "aud2"),
 			},
 			wantErr: `host "a.example" is configured more than once`,
 		},
 		{
 			name: "duplicate across token and audience",
-			opts: []cioidc.Option{
-				cioidc.WithHostToken("a.example", "t"),
-				cioidc.WithHostAudience("a.example", "aud"),
+			opts: []cijwt.Option{
+				cijwt.WithHostToken("a.example", "t"),
+				cijwt.WithHostAudience("a.example", "aud"),
 			},
 			wantErr: `host "a.example" is configured more than once`,
 		},
 		{
+			name: "duplicate across token and jwk",
+			opts: []cijwt.Option{
+				cijwt.WithHostToken("a.example", "t"),
+				cijwt.WithHostJWK("a.example", jwk, "iss", "aud", "sub"),
+			},
+			wantErr: `host "a.example" is configured more than once`,
+		},
+		{
+			name: "invalid jwk",
+			opts: []cijwt.Option{
+				cijwt.WithHostJWK("a.example", "not-json", "iss", "aud", "sub"),
+			},
+			wantErr: `host "a.example": failed to parse JWK`,
+		},
+		{
 			name: "valid mix of distinct hosts",
-			opts: []cioidc.Option{
-				cioidc.WithHostToken("static.example", "t"),
-				cioidc.WithHostAudience("mint.example", "aud"),
+			opts: []cijwt.Option{
+				cijwt.WithHostToken("static.example", "t"),
+				cijwt.WithHostAudience("mint.example", "aud"),
+				cijwt.WithHostJWK("jwk.example", jwk, "iss", "aud", "sub"),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := cioidc.NewTransport(tt.opts...)
+			_, err := cijwt.NewTransport(tt.opts...)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("expected no error, got: %v", err)
@@ -155,7 +195,7 @@ func TestNewTransport_Validation(t *testing.T) {
 
 func TestTransport_PassesThroughUnconfiguredHosts(t *testing.T) {
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cioidc.WithHostToken("configured.example", "tok"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostToken("configured.example", "tok"))
 
 	get(t, tr, "other.example")
 
@@ -166,7 +206,7 @@ func TestTransport_PassesThroughUnconfiguredHosts(t *testing.T) {
 
 func TestTransport_StaticTokenStampedAsIs(t *testing.T) {
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cioidc.WithHostToken("static.example", "static.jwt.value"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostToken("static.example", "static.jwt.value"))
 
 	get(t, tr, "static.example")
 	get(t, tr, "static.example")
@@ -180,7 +220,7 @@ func TestTransport_StaticTokenStampedAsIs(t *testing.T) {
 func TestTransport_MintsAndCachesPerHost(t *testing.T) {
 	ts := newTokenServer(t, time.Hour)
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cioidc.WithHostAudience("mint.example", "aud"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostAudience("mint.example", "aud"))
 
 	for range 5 {
 		get(t, tr, "mint.example")
@@ -202,7 +242,7 @@ func TestTransport_RemintsAfterHalfLife(t *testing.T) {
 	// next call must remint.
 	ts := newTokenServer(t, 4*time.Second)
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cioidc.WithHostAudience("mint.example", "aud"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostAudience("mint.example", "aud"))
 
 	get(t, tr, "mint.example")
 	if ts.calls.Load() != 1 {
@@ -220,7 +260,7 @@ func TestTransport_RemintsAfterHalfLife(t *testing.T) {
 func TestTransport_NearExpiredMintErrors(t *testing.T) {
 	newTokenServer(t, 500*time.Millisecond) // half-life 250ms < 1s guard
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cioidc.WithHostAudience("mint.example", "aud"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostAudience("mint.example", "aud"))
 
 	req, _ := http.NewRequest(http.MethodGet, "https://mint.example/v2/", nil)
 	_, err := tr.RoundTrip(req)
@@ -231,7 +271,7 @@ func TestTransport_NearExpiredMintErrors(t *testing.T) {
 
 func TestTransport_DoesNotMutateCallerRequest(t *testing.T) {
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cioidc.WithHostToken("static.example", "static.jwt"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostToken("static.example", "static.jwt"))
 
 	req, _ := http.NewRequest(http.MethodGet, "https://static.example/v2/", nil)
 	req.Header.Set("Authorization", "Basic original")
@@ -245,14 +285,17 @@ func TestTransport_DoesNotMutateCallerRequest(t *testing.T) {
 
 func TestTransport_RoutesPerHost(t *testing.T) {
 	newTokenServer(t, time.Hour)
+	jwk, _ := makeEdDSAJWK(t, "key-1")
 	rec := &recordingRT{}
 	tr := mustNewTransport(t, rec,
-		cioidc.WithHostToken("static.example", "static-token"),
-		cioidc.WithHostAudience("mint.example", "aud"),
+		cijwt.WithHostToken("static.example", "static-token"),
+		cijwt.WithHostAudience("mint.example", "aud"),
+		cijwt.WithHostJWK("jwk.example", jwk, "https://issuer.example", "registry", "subject"),
 	)
 
 	get(t, tr, "static.example")
 	get(t, tr, "mint.example")
+	get(t, tr, "jwk.example")
 	get(t, tr, "other.example")
 
 	if rec.auths[0] != "Bearer static-token" {
@@ -261,7 +304,76 @@ func TestTransport_RoutesPerHost(t *testing.T) {
 	if !strings.HasPrefix(rec.auths[1], "Bearer ") || rec.auths[1] == "Bearer static-token" {
 		t.Errorf("mint host auth = %q, want a distinct minted Bearer token", rec.auths[1])
 	}
-	if rec.auths[2] != "Basic should-be-overwritten" {
-		t.Errorf("unconfigured host auth = %q, want untouched", rec.auths[2])
+	if !strings.HasPrefix(rec.auths[2], "Bearer ") {
+		t.Errorf("jwk host auth = %q, want a signed Bearer token", rec.auths[2])
+	}
+	if rec.auths[3] != "Basic should-be-overwritten" {
+		t.Errorf("unconfigured host auth = %q, want untouched", rec.auths[3])
+	}
+}
+
+func TestTransport_JWKSignsFreshTokenPerRequest(t *testing.T) {
+	const kid = "signing-key"
+	jwk, pub := makeEdDSAJWK(t, kid)
+	rec := &recordingRT{}
+	tr := mustNewTransport(t, rec,
+		cijwt.WithHostJWK("jwk.example", jwk, "https://issuer.example", "registry", "the-subject"))
+
+	get(t, tr, "jwk.example")
+	get(t, tr, "jwk.example")
+
+	if len(rec.auths) != 2 {
+		t.Fatalf("got %d requests, want 2", len(rec.auths))
+	}
+
+	var jtis []string
+	for i, auth := range rec.auths {
+		raw, ok := strings.CutPrefix(auth, "Bearer ")
+		if !ok {
+			t.Fatalf("request %d Authorization = %q, want Bearer prefix", i, auth)
+		}
+
+		claims := jwt.MapClaims{}
+		tok, err := jwt.NewParser().ParseWithClaims(raw, claims, func(*jwt.Token) (any, error) {
+			return pub, nil
+		})
+		if err != nil {
+			t.Fatalf("request %d: token failed to verify: %v", i, err)
+		}
+		if tok.Method.Alg() != "EdDSA" {
+			t.Errorf("request %d alg = %q, want EdDSA", i, tok.Method.Alg())
+		}
+		if got := tok.Header["kid"]; got != kid {
+			t.Errorf("request %d kid header = %v, want %q", i, got, kid)
+		}
+
+		// All seven registered claims must be present and well-formed.
+		if got, _ := claims.GetIssuer(); got != "https://issuer.example" {
+			t.Errorf("request %d iss = %q", i, got)
+		}
+		if got, _ := claims.GetSubject(); got != "the-subject" {
+			t.Errorf("request %d sub = %q", i, got)
+		}
+		if got, _ := claims.GetAudience(); len(got) != 1 || got[0] != "registry" {
+			t.Errorf("request %d aud = %v", i, got)
+		}
+		iat, _ := claims.GetIssuedAt()
+		nbf, _ := claims.GetNotBefore()
+		exp, _ := claims.GetExpirationTime()
+		if iat == nil || nbf == nil || exp == nil {
+			t.Fatalf("request %d missing time claims: iat=%v nbf=%v exp=%v", i, iat, nbf, exp)
+		}
+		if d := exp.Sub(iat.Time); d != 60*time.Second {
+			t.Errorf("request %d lifetime = %s, want 60s", i, d)
+		}
+		jti, ok := claims["jti"].(string)
+		if !ok || jti == "" {
+			t.Errorf("request %d jti = %v, want non-empty string", i, claims["jti"])
+		}
+		jtis = append(jtis, jti)
+	}
+
+	if jtis[0] == jtis[1] {
+		t.Errorf("jti reused across requests (%q); each request must get a fresh token", jtis[0])
 	}
 }
