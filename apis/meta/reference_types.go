@@ -43,6 +43,41 @@ func (in NamespacedObjectReference) String() string {
 	return in.Name
 }
 
+// DependencyReference contains enough information to locate the referenced Kubernetes resource object
+// and optional CEL expression to assess its readiness.
+type DependencyReference struct {
+	// Name of the referent.
+	// +required
+	Name string `json:"name"`
+
+	// Namespace of the referent, defaults to the namespace of the resource
+	// object that contains the reference.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// ReadyExpr is a CEL expression that can be used to assess the readiness
+	// of a dependency. When specified, the built-in readiness check
+	// is replaced by the logic defined in the CEL expression.
+	// To make the CEL expression additive to the built-in readiness check,
+	// the feature gate `AdditiveCELDependencyCheck` must be set to `true`.
+	// +optional
+	ReadyExpr string `json:"readyExpr,omitempty"`
+}
+
+// String implements the fmt.Stringer interface for DependencyReference.
+// Returns the dependency reference in the format: [namespace/]name[@readyExpr]
+// Examples: "app", "ns/app", "app@ready", "ns/app@obj.status.ready"
+func (in DependencyReference) String() string {
+	s := in.Name
+	if in.Namespace != "" {
+		s = in.Namespace + "/" + s
+	}
+	if in.ReadyExpr != "" {
+		s = s + "@" + in.ReadyExpr
+	}
+	return s
+}
+
 // NamespacedObjectKindReference contains enough information to locate the typed referenced Kubernetes resource object
 // in any namespace.
 type NamespacedObjectKindReference struct {
