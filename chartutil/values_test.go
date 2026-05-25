@@ -279,6 +279,143 @@ invalid`,
 			},
 			wantErr: true,
 		},
+		{
+			// Documents the bug that Literal exists to work around: a value
+			// containing helm-set metacharacters (here: a comma inside a YAML
+			// flow sequence) is interpreted by strvals.ParseInto and corrupts
+			// the merged value. Same input passes through cleanly in the
+			// "literal mode" test cases below.
+			name: "non-literal target path mangles value with commas",
+			resources: []runtime.Object{
+				mockConfigMap("values", map[string]string{
+					"application.yml": `endpoints: [a,b,c]`,
+				}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:       kindConfigMap,
+					Name:       "values",
+					ValuesKey:  "application.yml",
+					TargetPath: `externalConfig.application\.yml.content`,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "literal target path preserves helm-set metacharacters",
+			resources: []runtime.Object{
+				mockConfigMap("values", map[string]string{
+					"application.yml": "server:\n  port: 8080\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: [ \"prometheus\", \"health\" ]\n",
+				}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:       kindConfigMap,
+					Name:       "values",
+					ValuesKey:  "application.yml",
+					TargetPath: `externalConfig.application\.yml.content`,
+					Literal:    true,
+				},
+			},
+			want: common.Values{
+				"externalConfig": map[string]interface{}{
+					"application.yml": map[string]interface{}{
+						"content": "server:\n  port: 8080\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: [ \"prometheus\", \"health\" ]\n",
+					},
+				},
+			},
+		},
+		{
+			name: "literal target path preserves multi-line HOCON with equals and braces",
+			resources: []runtime.Object{
+				mockSecret("values", map[string][]byte{
+					"application.conf": []byte("kafka {\n  bootstrap = \"b-1:9098,b-2:9098\"\n  group = \"my.service\"\n}\n"),
+				}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:       kindSecret,
+					Name:       "values",
+					ValuesKey:  "application.conf",
+					TargetPath: `externalConfig.application\.conf.content`,
+					Literal:    true,
+				},
+			},
+			want: common.Values{
+				"externalConfig": map[string]interface{}{
+					"application.conf": map[string]interface{}{
+						"content": "kafka {\n  bootstrap = \"b-1:9098,b-2:9098\"\n  group = \"my.service\"\n}\n",
+					},
+				},
+			},
+		},
+		{
+			name: "literal flag without targetPath is ignored (root YAML merge)",
+			resources: []runtime.Object{
+				mockConfigMap("values", map[string]string{
+					"values.yaml": "flat: value\n",
+				}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:    kindConfigMap,
+					Name:    "values",
+					Literal: true,
+				},
+			},
+			want: common.Values{
+				"flat": "value",
+			},
+		},
+		{
+			// Regression test for fluxcd/flux2#2625: a Secret carrying a
+			// comma-separated list of Kafka brokers fails to merge via
+			// targetPath because strvals interprets the commas as list
+			// separators and the colons inside `host:port` as key/value
+			// dividers, yielding `key "net:9092" has no value (cannot
+			// end with ,)`. Pinned here to document the bug that Literal
+			// mode resolves.
+			name: "flux2#2625 non-literal: comma-separated brokers fail to merge",
+			resources: []runtime.Object{
+				mockSecret("kafka", map[string][]byte{
+					"brokers": []byte("kafka01.net:9092,kafka02.net:9092,kafka03.net:9092"),
+				}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:       kindSecret,
+					Name:       "kafka",
+					ValuesKey:  "brokers",
+					TargetPath: "kafka.brokers",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			// fluxcd/flux2#2625 resolved: with Literal: true the same
+			// comma-separated broker list is preserved verbatim at the
+			// target path.
+			name: "flux2#2625 literal: comma-separated brokers preserved verbatim",
+			resources: []runtime.Object{
+				mockSecret("kafka", map[string][]byte{
+					"brokers": []byte("kafka01.net:9092,kafka02.net:9092,kafka03.net:9092"),
+				}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:       kindSecret,
+					Name:       "kafka",
+					ValuesKey:  "brokers",
+					TargetPath: "kafka.brokers",
+					Literal:    true,
+				},
+			},
+			want: common.Values{
+				"kafka": map[string]interface{}{
+					"brokers": "kafka01.net:9092,kafka02.net:9092,kafka03.net:9092",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -398,6 +535,139 @@ func TestReplacePathValue(t *testing.T) {
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(values).To(BeNil())
+				return
+			}
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(values).To(Equal(tt.want))
+		})
+	}
+}
+
+// TestReplacePathLiteralValue covers the helm `--set-literal` equivalent:
+// the value is consumed verbatim, with metacharacters preserved.
+func TestReplacePathLiteralValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   []byte
+		path    string
+		want    map[string]interface{}
+		wantErr bool
+	}{
+		{
+			name:  "simple string",
+			value: []byte("value"),
+			path:  "outer.inner",
+			want: map[string]interface{}{
+				"outer": map[string]interface{}{
+					"inner": "value",
+				},
+			},
+		},
+		{
+			name:  "value with commas is preserved",
+			value: []byte("a,b,c"),
+			path:  "name",
+			want: map[string]interface{}{
+				"name": "a,b,c",
+			},
+		},
+		{
+			name:  "value with braces is preserved (not parsed as inline list)",
+			value: []byte("{a,b,c}"),
+			path:  "name",
+			want: map[string]interface{}{
+				"name": "{a,b,c}",
+			},
+		},
+		{
+			name:  "value with equals signs is preserved",
+			value: []byte("foo=bar=baz"),
+			path:  "name",
+			want: map[string]interface{}{
+				"name": "foo=bar=baz",
+			},
+		},
+		{
+			name:  "value with brackets is preserved (not parsed as array index)",
+			value: []byte("endpoints: [a, b, c]"),
+			path:  "config",
+			want: map[string]interface{}{
+				"config": "endpoints: [a, b, c]",
+			},
+		},
+		{
+			name:  "multi-line YAML content is preserved verbatim",
+			value: []byte("server:\n  port: 8080\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: [ \"prometheus\", \"health\" ]\n"),
+			path:  `externalConfig.application\.yml.content`,
+			want: map[string]interface{}{
+				"externalConfig": map[string]interface{}{
+					"application.yml": map[string]interface{}{
+						"content": "server:\n  port: 8080\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: [ \"prometheus\", \"health\" ]\n",
+					},
+				},
+			},
+		},
+		{
+			name:  "HOCON content with equals and quoted strings is preserved",
+			value: []byte("kafka {\n  bootstrap = \"b-1:9098,b-2:9098\"\n  group = \"svc.consumer\"\n}\n"),
+			path:  `externalConfig.application\.conf.content`,
+			want: map[string]interface{}{
+				"externalConfig": map[string]interface{}{
+					"application.conf": map[string]interface{}{
+						"content": "kafka {\n  bootstrap = \"b-1:9098,b-2:9098\"\n  group = \"svc.consumer\"\n}\n",
+					},
+				},
+			},
+		},
+		{
+			name:  "JSON string is preserved verbatim (no escape needed)",
+			value: []byte(`["a","b","c"]`),
+			path:  "subnet_ids",
+			want: map[string]interface{}{
+				"subnet_ids": `["a","b","c"]`,
+			},
+		},
+		{
+			name:  "boolean-like string stays a string",
+			value: []byte("true"),
+			path:  "feature.enabled",
+			want: map[string]interface{}{
+				"feature": map[string]interface{}{
+					"enabled": "true",
+				},
+			},
+		},
+		{
+			name:  "dot escape in path still works",
+			value: []byte("master"),
+			path:  `nodeSelector.kubernetes\.io/role`,
+			want: map[string]interface{}{
+				"nodeSelector": map[string]interface{}{
+					"kubernetes.io/role": "master",
+				},
+			},
+		},
+		{
+			// fluxcd/flux2#2625: comma-separated host:port list. Without
+			// Literal mode strvals parses this as a malformed inline list
+			// and errors with `key "net:9092" has no value`.
+			name:  "flux2#2625 kafka broker list with host:port and commas",
+			value: []byte("kafka01.net:9092,kafka02.net:9092,kafka03.net:9092"),
+			path:  "kafka.brokers",
+			want: map[string]interface{}{
+				"kafka": map[string]interface{}{
+					"brokers": "kafka01.net:9092,kafka02.net:9092,kafka03.net:9092",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			values := map[string]interface{}{}
+			err := ReplacePathLiteralValue(values, tt.path, string(tt.value))
+			if tt.wantErr {
+				g.Expect(err).To(HaveOccurred())
 				return
 			}
 			g.Expect(err).ToNot(HaveOccurred())

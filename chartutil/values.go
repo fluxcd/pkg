@@ -236,7 +236,11 @@ func ChartValuesFromReferences(ctx context.Context, log logr.Logger, client kube
 			// TODO(hidde): this is a bit of hack, as it mimics the way the option string is passed
 			// 	to Helm from a CLI perspective. Given the parser is however not publicly accessible
 			// 	while it contains all logic around parsing the target path, it is a fair trade-off.
-			if err := ReplacePathValue(result, ref.TargetPath, string(valuesData)); err != nil {
+			merger := ReplacePathValue
+			if ref.Literal {
+				merger = ReplacePathLiteralValue
+			}
+			if err := merger(result, ref.TargetPath, string(valuesData)); err != nil {
 				return nil, NewErrValuesReference(namespacedName, ref, ErrValueMerge, err)
 			}
 			continue
@@ -268,4 +272,30 @@ func ReplacePathValue(values common.Values, path string, value string) error {
 	}
 	value = path + "=" + value
 	return strvals.ParseInto(value, values)
+}
+
+// ReplacePathLiteralValue replaces the value at the dot notation path with the
+// given value, treating the value as a literal string. The value is consumed
+// verbatim: commas, brackets, braces, equal signs and backslashes that `--set`
+// would interpret as syntax are preserved as part of the value. This is the
+// only safe way to inject arbitrary file content (config files, JSON blobs,
+// multi-line strings containing special characters) at a target path.
+//
+// Mirrors the behavior of `helm --set-literal` for the value, while keeping
+// `\.` escape support in the path (which `helm --set-literal` itself does
+// not). Implemented by pre-escaping strvals metacharacters in the value and
+// then delegating to strvals.ParseIntoString — that combination yields a
+// verbatim value AND escape-aware path parsing.
+func ReplacePathLiteralValue(values common.Values, path string, value string) error {
+	// Order matters: backslash must be escaped first so subsequent escapes
+	// don't get re-escaped.
+	escaper := strings.NewReplacer(
+		`\`, `\\`,
+		`,`, `\,`,
+		`[`, `\[`,
+		`]`, `\]`,
+		`{`, `\{`,
+		`}`, `\}`,
+	)
+	return strvals.ParseIntoString(path+"="+escaper.Replace(value), values)
 }
