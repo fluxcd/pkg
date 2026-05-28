@@ -21,23 +21,28 @@ import (
 	"strings"
 )
 
-// SignatureType represents the type of a signature.
+// signatureType is the canonical string returned by GetSignatureType for
+// each recognised signature category. The values are unexported on
+// purpose: callers should compare against the strings returned by
+// GetSignatureType, not against typed constants.
 type signatureType string
 
 const (
-	// SignatureTypePGP represents a openPGP signature.
+	// signatureTypePGP is returned for openPGP-armored signatures.
 	signatureTypePGP signatureType = "openpgp"
-	// SignatureTypeSSH represents an SSH signature.
+	// signatureTypeSSH is returned for SSH-armored signatures.
 	signatureTypeSSH signatureType = "ssh"
-	// SignatureTypeX509 represents an x509 signature.
+	// signatureTypeX509 is returned for X509/S-MIME-armored signatures.
 	signatureTypeX509 signatureType = "x509"
-	// SignatureTypeUnknown represents an unknown signature type.
+	// signatureTypeUnknown is returned for armor that matches none of the
+	// recognised prefixes.
 	signatureTypeUnknown signatureType = "unknown"
-	// SignatureTypeEmpty represents an empty signature.
+	// signatureTypeEmpty is returned for the zero-length string.
 	signatureTypeEmpty signatureType = "empty"
 )
 
-// IsX509Signature is the prefix used by Git to identify x509 signatures.
+// X509SignaturePrefix is the prefix used by Git to identify x509 (S-MIME)
+// signatures.
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L65
 var X509SignaturePrefix = []string{"-----BEGIN SIGNED MESSAGE-----"}
 
@@ -57,10 +62,14 @@ func IsSSHSignature(signature string) bool {
 	})
 }
 
-// IsX509Signature tests if the given signature is of type x509.
+// IsX509Signature tests if the given signature is of type x509 (S/MIME).
 // It returns true if the signature starts with the x509 signature prefix.
-// This is a place holder / compatibility implementation to embed the signature
-// type into the error message to inform the user about the wrong type of signature
+//
+// The signature package does not yet verify x509 signatures; this helper
+// exists so [GetSignatureType] and the verify functions can report
+// "x509" in their error messages, helping callers distinguish an x509
+// signature from a corrupt or truly unknown one. Tracked upstream at
+// https://github.com/fluxcd/source-controller/issues/1996.
 func IsX509Signature(signature string) bool {
 	return slices.ContainsFunc(X509SignaturePrefix, func(prefix string) bool {
 		return strings.HasPrefix(strings.TrimSpace(signature), prefix)

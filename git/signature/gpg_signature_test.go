@@ -110,7 +110,7 @@ Oomb3gD/TRf/nAdVED+k81GdLzciYdUGtI71/qI47G0nMBluLRE=
 =/4e+
 -----END PGP PUBLIC KEY BLOCK-----`
 
-	keyRingFingerprintFixture = "3299AEB0E4085BAF"
+	keyRingKeyIDFixture = "3299AEB0E4085BAF"
 
 	malformedKeyRingFixture = `
 -----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -151,7 +151,7 @@ func TestVerifyPGPSignature(t *testing.T) {
 			payload:  []byte(encodedCommitFixture),
 			sig:      signatureCommitFixture,
 			keyRings: []string{armoredKeyRingFixture},
-			want:     keyRingFingerprintFixture,
+			want:     keyRingKeyIDFixture,
 		},
 		{
 			name:     "Malformed encoded commit",
@@ -192,14 +192,14 @@ func TestVerifyPGPSignature(t *testing.T) {
 			payload:  []byte(encodedCommitFixture),
 			sig:      signatureCommitFixture,
 			keyRings: []string{malformedKeyRingFixture, armoredKeyRingFixture},
-			want:     keyRingFingerprintFixture,
+			want:     keyRingKeyIDFixture,
 		},
 		{
 			name:     "Valid key ring followed by malformed key ring",
 			payload:  []byte(encodedCommitFixture),
 			sig:      signatureCommitFixture,
 			keyRings: []string{armoredKeyRingFixture, malformedKeyRingFixture},
-			want:     keyRingFingerprintFixture,
+			want:     keyRingKeyIDFixture,
 		},
 		{
 			name:     "Multiple malformed key rings",
@@ -224,7 +224,7 @@ func TestVerifyPGPSignature(t *testing.T) {
 			payload:  []byte(encodedCommitFixture),
 			sig:      signatureCommitFixture,
 			keyRings: []string{malformedKeyRingFixture, malformedKeyRingFixture, armoredKeyRingFixture},
-			want:     keyRingFingerprintFixture,
+			want:     keyRingKeyIDFixture,
 		},
 		{
 			name:     "Missing END PGP SIGNATURE marker",
@@ -266,14 +266,14 @@ func TestVerifyPGPSignature(t *testing.T) {
 			payload:  []byte(encodedCommitFixture),
 			sig:      "-----BEGIN PGP SIGNATURE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb\nr7nJAQCQU4zEJu04/Q0ac/UaL6htjhq/wTDNMeUM+aWG/LcBogEAqFUea1oR2BJQ\nJCJmEtERFh39zNWSazQmxPAFhEE0kbc=\n=+Wlj\n-----END PGP MESSAGE-----",
 			keyRings: []string{armoredKeyRingFixture},
-			want:     keyRingFingerprintFixture,
+			want:     keyRingKeyIDFixture,
 		},
 		{
 			name:     "Extra data after END marker",
 			payload:  []byte(encodedCommitFixture),
 			sig:      signatureCommitFixture + "\ngarbage-data-after-end",
 			keyRings: []string{armoredKeyRingFixture},
-			want:     keyRingFingerprintFixture,
+			want:     keyRingKeyIDFixture,
 		},
 	}
 	for _, tt := range tests {

@@ -32,8 +32,16 @@ const SSHSignatureNamespace = "git"
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L71
 var SSHSignaturePrefix = []string{"-----BEGIN SSH SIGNATURE-----"}
 
-// ParseAuthorizedKeys parses the given authorized keys string and returns
-// a slice of public keys. It supports comments and empty lines.
+// ParseAuthorizedKeys parses the given authorized_keys-formatted string
+// and returns the public keys it contains. Empty lines and lines whose
+// first non-whitespace character is '#' are skipped.
+//
+// Parsing is fail-fast: if any non-comment line cannot be parsed as an
+// SSH public key the function returns (nil, err), discarding any keys
+// successfully parsed earlier in the input. This is intentional — a
+// malformed entry typically indicates user error and silently dropping
+// it would hide that. Callers that want best-effort behaviour should
+// split the input themselves and call ParseAuthorizedKeys per line.
 func ParseAuthorizedKeys(authorizedKeys string) ([]gossh.PublicKey, error) {
 	var publicKeys []gossh.PublicKey
 
