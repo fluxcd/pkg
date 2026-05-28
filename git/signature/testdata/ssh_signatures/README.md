@@ -65,11 +65,17 @@ ssh-keygen -t ed25519 -f test_ed25519 -N ""
 mv test_ed25519.pub key_ed25519.pub
 ```
 
-#### 2. Create Verified Signers File
+#### 2. Create an Allowed Signers File
+
+The allowed signers file is what `git verify-commit` consults when
+verifying SSH-signed commits. It is required at fixture generation time
+so the script can sanity-check its own output, but it is **not** shipped
+alongside the fixtures: the Go test suite verifies signatures via the
+`signature` package and does not need it.
 
 ```bash
-# Create verified signers file with git namespace
-echo "$(git config --get user.email) namespaces=\"git\" $(cat key_ed25519.pub)" > verified_signers_ed25519
+# Create a throwaway allowed_signers file with the git namespace
+echo "$(git config --get user.email) namespaces=\"git\" $(cat key_ed25519.pub)" > /tmp/allowed_signers_ed25519
 ```
 
 #### 3. Create a Test Git Repository
@@ -84,7 +90,7 @@ git config user.name "Test User"
 git config user.email "sign-user@example.com"
 git config gpg.format ssh
 git config user.signingkey ../key_ed25519.pub
-git config gpg.ssh.allowedSignersFile ../verified_signers_ed25519
+git config gpg.ssh.allowedSignersFile /tmp/allowed_signers_ed25519
 ```
 
 #### 4. Sign a Commit with SSH
@@ -142,12 +148,6 @@ tagger <name> <email> <timestamp> <timezone>
 -----BEGIN SSH SIGNATURE-----
  <signature data>
 -----END SSH SIGNATURE-----
-```
-
-### Verified Signers Format
-
-```
-<email> namespaces="git" <ssh-public-key>
 ```
 
 ## Generated Files

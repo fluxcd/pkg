@@ -20,26 +20,28 @@ export GIT_COMMITTER_EMAIL="$TEST_USER_EMAIL"
 export GIT_CONFIG_NOSYSTEM=1
 export GIT_CONFIG_GLOBAL=/dev/null
 
-# Directory for temporary files
-TEMP_DIR=$(mktemp -d)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Where the generated fixtures will ultimately land. Used only as the
+# target of the final atomic swap; nothing is written here directly.
+DEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# define script dependencies
+# Generation goes into a fresh staging directory ($SCRIPT_DIR). A failed
+# run therefore leaves the existing fixtures in $DEST_DIR untouched, and
+# a successful run swaps the whole new set into place in one step,
+# implicitly removing any fixtures whose name is no longer produced.
+TEMP_DIR=$(mktemp -d)
+SCRIPT_DIR=$(mktemp -d)
+
+# Load-bearing external tools. Other commands (mkdir, rm, cp, ...) are
+# assumed to be present as part of any sane POSIX environment.
 DEPENDENCY=(
     gpg
-    cat
-    grep
-    head
-    cut
-    awk
     git
-    find
-    sort
 )
 
 echo "=== GPG Signature Test Fixtures Generator ==="
+echo "Staging directory:  $SCRIPT_DIR"
 echo "Temporary directory: $TEMP_DIR"
-echo "Output directory: $SCRIPT_DIR"
+echo "Output directory:    $DEST_DIR"
 echo ""
 
 # GPG home directory for test keys
@@ -52,13 +54,27 @@ echo "pinentry-mode loopback" > "$GNUPGHOME/gpg.conf"
 echo "no-tty" >> "$GNUPGHOME/gpg.conf"
 
 
-# cleanup on exit
+# cleanup on exit, including on Ctrl-C or kill. Removes both the staging
+# and the gpg scratch directory regardless of whether the swap ran.
 cleanup() {
-    if [[ -d "${TEMP_DIR}" ]]; then
-        echo "=== Cleanup ==="
-        rm -rf "${TEMP_DIR}"
-        echo "Temporary directory removed"
-    fi
+    for d in "${SCRIPT_DIR}" "${TEMP_DIR}"; do
+        if [[ -d "$d" ]]; then
+            rm -rf "$d"
+        fi
+    done
+}
+
+# swap_into_dest atomically replaces the generated fixtures in $DEST_DIR
+# with the freshly generated set in $SCRIPT_DIR. Everything except the
+# script itself, the README, and any dotfile is removed; the new set is
+# then copied in from staging.
+swap_into_dest() {
+    find "$DEST_DIR" -mindepth 1 -maxdepth 1 -type f \
+        ! -name "$(basename "${BASH_SOURCE[0]}")" \
+        ! -name 'README.md' \
+        ! -name '.*' \
+        -delete
+    cp "$SCRIPT_DIR"/* "$DEST_DIR"/
 }
 
 # check necessary commands
@@ -281,13 +297,22 @@ main() {
     create_unsigned_commit_and_tag
 
     echo ""
+    echo "Step 6: Atomically swap staging into output directory..."
+    echo "----------------------------------------------------------"
+    swap_into_dest
+
+    echo ""
     echo "=== Done! ==="
-    echo "All test fixtures have been successfully created."
+    echo "All test fixtures have been successfully created in $DEST_DIR."
     echo ""
     echo "Created files:"
-    find "$SCRIPT_DIR" -maxdepth 1 \( -name "*.txt" -o -name "key_*.pub" \) -exec ls -lh {} \; 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}' | sort
+    find "$DEST_DIR" -mindepth 1 -maxdepth 1 -type f \
+        ! -name "$(basename "${BASH_SOURCE[0]}")" \
+        ! -name 'README.md' \
+        ! -name '.*' \
+        -exec ls -lh {} \; 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}' | sort
 }
 
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 main

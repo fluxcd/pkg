@@ -20,32 +20,54 @@ export GIT_COMMITTER_EMAIL="$TEST_USER_EMAIL"
 export GIT_CONFIG_NOSYSTEM=1
 export GIT_CONFIG_GLOBAL=/dev/null
 
-# Directory for temporary files
-TEMP_DIR=$(mktemp -d)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Where the generated fixtures will ultimately land. Used only as the
+# target of the final atomic swap; nothing is written here directly.
+DEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# define script dependencies
+# Generation goes into a fresh staging directory ($SCRIPT_DIR). A failed
+# run therefore leaves the existing fixtures in $DEST_DIR untouched, and
+# a successful run swaps the whole new set into place in one step,
+# implicitly removing any fixtures whose name is no longer produced.
+TEMP_DIR=$(mktemp -d)
+SCRIPT_DIR=$(mktemp -d)
+
+# Load-bearing external tools. Other commands (mkdir, rm, cp, ...) are
+# assumed to be present as part of any sane POSIX environment.
 DEPENDENCY=(
     ssh-keygen
-    cat
-    awk
     git
-    find
-    sort
 )
 
 echo "=== SSH Signature Test Fixtures Generator ==="
+echo "Staging directory:  $SCRIPT_DIR"
 echo "Temporary directory: $TEMP_DIR"
-echo "Output directory: $SCRIPT_DIR"
+echo "Output directory:    $DEST_DIR"
 echo ""
 
-# cleanup on exit
+# cleanup on exit, including on Ctrl-C or kill. Removes both the staging
+# and the gpg/ssh scratch directory regardless of whether the swap ran.
 cleanup() {
-    if [[ -d "${TEMP_DIR}" ]]; then
-        echo "=== Cleanup ==="
-        rm -rf "${TEMP_DIR}"
-        echo "Temporary directory removed"
-    fi
+    for d in "${SCRIPT_DIR}" "${TEMP_DIR}"; do
+        if [[ -d "$d" ]]; then
+            rm -rf "$d"
+        fi
+    done
+}
+
+# swap_into_dest atomically replaces the generated fixtures in $DEST_DIR
+# with the freshly generated set in $SCRIPT_DIR. Everything except the
+# script itself, the README, and any dotfile is removed; the new set is
+# then copied in from staging. This is intentionally driven by what was
+# *just produced* rather than by an explicit allow-list of artifact name
+# patterns, so adding a new key type to the script no longer requires
+# remembering to update a deletion list.
+swap_into_dest() {
+    find "$DEST_DIR" -mindepth 1 -maxdepth 1 -type f \
+        ! -name "$(basename "${BASH_SOURCE[0]}")" \
+        ! -name 'README.md' \
+        ! -name '.*' \
+        -delete
+    cp "$SCRIPT_DIR"/* "$DEST_DIR"/
 }
 
 # check necessary commands
@@ -94,14 +116,16 @@ generate_ssh_key() {
     echo "  ✓ key_${key_name}.pub_fingerprint created"
 }
 
-# Function to create verified signers files with git namespace
-create_verified_signers() {
+# Function to create the allowed signers file used by `git verify-commit`
+# during fixture generation. These files live in $TEMP_DIR only -- they
+# are not shipped alongside the test data because the Go test suite does
+# not consume them.
+create_temp_allowed_signers() {
     local key_name=$1
-    local output_file="$TEMP_DIR/verified_signers_${key_name}"
+    local output_file="$TEMP_DIR/allowed_signers_${key_name}"
 
-    echo "Creating verified signers file for $key_name..."
+    echo "Creating temporary allowed signers file for $key_name..."
 
-    # Create verified signers file with git namespace
     echo "$TEST_USER_EMAIL namespaces=\"git\" $(cat "$TEMP_DIR/${key_name}.pub")" > "$output_file"
     echo "  ✓ $output_file created"
 }
@@ -129,7 +153,7 @@ create_combined_pub_keys() {
 create_signed_object() {
     local object_type=$1
     local key_name=$2
-    local verified_signers_file="$TEMP_DIR/verified_signers_${key_name}"
+    local allowed_signers_file="$TEMP_DIR/allowed_signers_${key_name}"
 
     echo "Creating signed $object_type for $key_name..."
 
@@ -141,7 +165,7 @@ create_signed_object() {
     git init -b main
     git config gpg.format ssh
     git config user.signingkey "$TEMP_DIR/${key_name}.pub"
-    git config gpg.ssh.allowedSignersFile "$verified_signers_file"
+    git config gpg.ssh.allowedSignersFile "$allowed_signers_file"
 
     # Create file and commit
     echo "Test content for $key_name $object_type" > test.txt
@@ -247,15 +271,16 @@ main() {
     create_combined_pub_keys
 
     echo ""
-    echo "Step 3: Create verified signers files..."
+    echo "Step 3: Create temporary allowed signers files..."
     echo "-----------------------------------------------"
 
-    # Individual verified signers files with git namespace
-    create_verified_signers "rsa"
-    create_verified_signers "ecdsa_p256"
-    create_verified_signers "ecdsa_p384"
-    create_verified_signers "ecdsa_p521"
-    create_verified_signers "ed25519"
+    # Individual allowed_signers files with git namespace, written to
+    # $TEMP_DIR for `git verify-commit`'s use during fixture creation only.
+    create_temp_allowed_signers "rsa"
+    create_temp_allowed_signers "ecdsa_p256"
+    create_temp_allowed_signers "ecdsa_p384"
+    create_temp_allowed_signers "ecdsa_p521"
+    create_temp_allowed_signers "ed25519"
 
     echo ""
     echo "Step 4: Create signed commits..."
@@ -286,14 +311,23 @@ main() {
     create_unsigned_commit_and_tag
 
     echo ""
+    echo "Step 7: Atomically swap staging into output directory..."
+    echo "----------------------------------------------------------"
+    swap_into_dest
+
+    echo ""
     echo "=== Done! ==="
-    echo "All test fixtures have been successfully created."
+    echo "All test fixtures have been successfully created in $DEST_DIR."
     echo ""
     echo "Created files:"
-    find "$SCRIPT_DIR" -maxdepth 1 \( -name "*.txt" -o -name "key_*.pub" -o -name "authorized_keys*" -o -name "verified_signers*" \) -exec ls -lh {} \; 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}' | sort
+    find "$DEST_DIR" -mindepth 1 -maxdepth 1 -type f \
+        ! -name "$(basename "${BASH_SOURCE[0]}")" \
+        ! -name 'README.md' \
+        ! -name '.*' \
+        -exec ls -lh {} \; 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}' | sort
 }
 
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 # Run script
 main
