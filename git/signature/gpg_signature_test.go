@@ -23,8 +23,8 @@ import (
 	"testing"
 
 	"github.com/fluxcd/pkg/git/internal/build"
-	"github.com/fluxcd/pkg/git/signature"
 	"github.com/fluxcd/pkg/git/internal/testutil"
+	"github.com/fluxcd/pkg/git/signature"
 	"github.com/go-git/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
 )
