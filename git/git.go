@@ -80,7 +80,7 @@ type Commit struct {
 	// Committer is the one performing the commit, might be different from
 	// Author.
 	Committer Signature
-	// Signature is the PGP signature of the commit.
+	// Signature is the cryptographic signature of the commit (PGP or SSH).
 	Signature string
 	// Encoded is the encoded commit, without any signature.
 	Encoded []byte
@@ -112,29 +112,42 @@ func (c *Commit) AbsoluteReference() string {
 	return c.Hash.Digest()
 }
 
-// Deprecated: Verify is deprecated, use VerifySSH or VerifyPGP
-// wrapper function to ensure backwards compatibility
+// Verify the PGP signature of the commit with the given key rings. It
+// returns the key ID of the openPGP key the signature was verified with,
+// or an error. It does not verify the signature of the referencing tag
+// (if present); users are expected to explicitly verify the referencing
+// tag's signature using c.ReferencingTag.VerifyPGP.
+//
+// Verify only handles PGP signatures. If the commit is SSH-signed, the
+// call will fail with a signature.ErrSignatureFormat error wrapped in
+// the returned chain; callers should use [Commit.VerifySSH] for SSH
+// signatures.
+//
+// Deprecated: use [Commit.VerifyPGP] for PGP signatures, or
+// [Commit.VerifySSH] for SSH signatures.
 func (c *Commit) Verify(keyRings ...string) (string, error) {
 	return c.VerifyPGP(keyRings...)
 }
 
-// Verify the Signature of the commit with the given key rings.
-// It returns the fingerprint of the key the signature was verified
-// with, or an error. It does not verify the signature of the referencing
-// tag (if present). Users are expected to explicitly verify the referencing
-// tag's signature using `c.ReferencingTag.Verify()`
+// VerifyPGP verifies the PGP signature of the commit with the given key
+// rings. It returns the key ID of the openPGP key the signature was
+// verified with, or an error. It does not verify the signature of the
+// referencing tag (if present); users are expected to explicitly verify
+// the referencing tag's signature using c.ReferencingTag.VerifyPGP.
 func (c *Commit) VerifyPGP(keyRings ...string) (string, error) {
-	fingerprint, err := signature.VerifyPGPSignature(c.Signature, c.Encoded, keyRings...)
+	keyID, err := signature.VerifyPGPSignature(c.Signature, c.Encoded, keyRings...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git commit: %w", err)
 	}
-	return fingerprint, nil
+	return keyID, nil
 }
 
-// VerifySSH verifies the SSH signature of the commit with the given authorized keys.
-// It returns the fingerprint of the key the signature was verified with, or an error.
-// It does not verify the signature of the referencing tag (if present). Users are
-// expected to explicitly verify the referencing tag's signature using `c.ReferencingTag.VerifySSH()`
+// VerifySSH verifies the SSH signature of the commit with the given
+// authorized keys. It returns the SHA256 fingerprint of the SSH key the
+// signature was verified with, or an error. It does not verify the
+// signature of the referencing tag (if present); users are expected to
+// explicitly verify the referencing tag's signature using
+// c.ReferencingTag.VerifySSH.
 func (c *Commit) VerifySSH(authorizedKeys ...string) (string, error) {
 	fingerprint, err := signature.VerifySSHSignature(c.Signature, c.Encoded, authorizedKeys...)
 	if err != nil {
@@ -161,7 +174,7 @@ type Tag struct {
 	Name string
 	// Author is the original author of the tag.
 	Author Signature
-	// Signature is the PGP signature of the tag.
+	// Signature is the cryptographic signature of the tag (PGP or SSH).
 	Signature string
 	// Encoded is the encoded tag, without any signature.
 	Encoded []byte
@@ -169,25 +182,34 @@ type Tag struct {
 	Message string
 }
 
-// Deprecated: Verify is deprecated, use VerifySSH or VerifyPGP
-// wrapper function to ensure backwards compatibility
+// Verify the PGP signature of the tag with the given key rings. It
+// returns the key ID of the openPGP key the signature was verified with,
+// or an error.
+//
+// Verify only handles PGP signatures. If the tag is SSH-signed, the call
+// will fail with a signature.ErrSignatureFormat error wrapped in the
+// returned chain; callers should use [Tag.VerifySSH] for SSH signatures.
+//
+// Deprecated: use [Tag.VerifyPGP] for PGP signatures, or [Tag.VerifySSH]
+// for SSH signatures.
 func (t *Tag) Verify(keyRings ...string) (string, error) {
 	return t.VerifyPGP(keyRings...)
 }
 
-// Verify the Signature of the tag with the given key rings.
-// It returns the fingerprint of the key the signature was verified
-// with, or an error.
+// VerifyPGP verifies the PGP signature of the tag with the given key
+// rings. It returns the key ID of the openPGP key the signature was
+// verified with, or an error.
 func (t *Tag) VerifyPGP(keyRings ...string) (string, error) {
-	fingerprint, err := signature.VerifyPGPSignature(t.Signature, t.Encoded, keyRings...)
+	keyID, err := signature.VerifyPGPSignature(t.Signature, t.Encoded, keyRings...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git tag: %w", err)
 	}
-	return fingerprint, nil
+	return keyID, nil
 }
 
-// VerifySSH verifies the SSH signature of the tag with the given authorized keys.
-// It returns the fingerprint of the key the signature was verified with, or an error.
+// VerifySSH verifies the SSH signature of the tag with the given
+// authorized keys. It returns the SHA256 fingerprint of the SSH key the
+// signature was verified with, or an error.
 func (t *Tag) VerifySSH(authorizedKeys ...string) (string, error) {
 	fingerprint, err := signature.VerifySSHSignature(t.Signature, t.Encoded, authorizedKeys...)
 	if err != nil {
@@ -253,9 +275,10 @@ func (c *Commit) IsSSHSigned() bool {
 	return signature.IsSSHSignature(c.Signature)
 }
 
-// SignatureType returns the type of the commit signature as a string.
-// It returns "openpgp" for PGP signatures, "ssh" for SSH signatures,
-// and "unknown" for unrecognized or empty signatures.
+// SignatureType returns the type of the commit signature as a string:
+// "openpgp" for PGP signatures, "ssh" for SSH signatures, "x509" for
+// S/MIME signatures, "empty" for an absent signature, and "unknown"
+// for an unrecognised one.
 func (c *Commit) SignatureType() string {
 	return signature.GetSignatureType(c.Signature)
 }
@@ -270,9 +293,10 @@ func (t *Tag) IsSSHSigned() bool {
 	return signature.IsSSHSignature(t.Signature)
 }
 
-// SignatureType returns the type of the tag signature as a string.
-// It returns "openpgp" for PGP signatures, "ssh" for SSH signatures,
-// and "unknown" for unrecognized or empty signatures.
+// SignatureType returns the type of the tag signature as a string:
+// "openpgp" for PGP signatures, "ssh" for SSH signatures, "x509" for
+// S/MIME signatures, "empty" for an absent signature, and "unknown"
+// for an unrecognised one.
 func (t *Tag) SignatureType() string {
 	return signature.GetSignatureType(t.Signature)
 }

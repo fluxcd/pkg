@@ -26,7 +26,10 @@ import (
 	"github.com/fluxcd/pkg/git"
 )
 
-func signature(s object.Signature) git.Signature {
+// toGitSignature converts a go-git object.Signature to the
+// matching git.Signature value. Named to avoid shadowing the
+// signature package name in callers within this module.
+func toGitSignature(s object.Signature) git.Signature {
 	return git.Signature{
 		Name:  s.Name,
 		Email: s.Email,
@@ -57,7 +60,7 @@ func Tag(t *object.Tag, ref plumbing.ReferenceName) (*git.Tag, error) {
 	return &git.Tag{
 		Hash:      []byte(t.Hash.String()),
 		Name:      t.Name,
-		Author:    signature(t.Tagger),
+		Author:    toGitSignature(t.Tagger),
 		Signature: t.PGPSignature,
 		Encoded:   b,
 		Message:   t.Message,
@@ -84,8 +87,8 @@ func CommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceName) 
 	cc := &git.Commit{
 		Hash:      []byte(c.Hash.String()),
 		Reference: ref.String(),
-		Author:    signature(c.Author),
-		Committer: signature(c.Committer),
+		Author:    toGitSignature(c.Author),
+		Committer: toGitSignature(c.Committer),
 		Signature: c.PGPSignature,
 		Encoded:   b,
 		Message:   c.Message,
