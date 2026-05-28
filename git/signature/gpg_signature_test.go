@@ -24,7 +24,7 @@ import (
 
 	"github.com/fluxcd/pkg/git/internal/build"
 	"github.com/fluxcd/pkg/git/signature"
-	"github.com/fluxcd/pkg/git/testutils"
+	"github.com/fluxcd/pkg/git/internal/testutil"
 	"github.com/go-git/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
 )
@@ -373,7 +373,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the tag from the fixture file
-			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.tagFile))
+			tagObj, err := testutil.ParseTagFromFixture(filepath.Join(testDataDir, kt.tagFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Build a git.Tag using build.Tag
@@ -414,7 +414,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the commit from the fixture file
-			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.commitFile))
+			commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, kt.commitFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Build a git.Commit using build.CommitWithRef
@@ -454,7 +454,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 	t.Run("unsigned commit", func(t *testing.T) {
 		g := NewWithT(t)
 
-		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
+		commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
@@ -471,7 +471,7 @@ func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
 	t.Run("unsigned tag", func(t *testing.T) {
 		g := NewWithT(t)
 
-		tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_unsigned.txt"))
+		tagObj, err := testutil.ParseTagFromFixture(filepath.Join(testDataDir, "tag_unsigned.txt"))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))

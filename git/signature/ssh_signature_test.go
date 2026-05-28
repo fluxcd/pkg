@@ -25,7 +25,7 @@ import (
 
 	"github.com/fluxcd/pkg/git/internal/build"
 	"github.com/fluxcd/pkg/git/signature"
-	"github.com/fluxcd/pkg/git/testutils"
+	"github.com/fluxcd/pkg/git/internal/testutil"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/hiddeco/sshsig"
 	. "github.com/onsi/gomega"
@@ -91,7 +91,7 @@ func TestVerifySSHSignature(t *testing.T) {
 		t.Run(kt.name, func(t *testing.T) {
 
 			// Parse the commit from the fixture file
-			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, kt.signedCommitFile))
+			commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, kt.signedCommitFile))
 			if err != nil {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
@@ -103,7 +103,7 @@ func TestVerifySSHSignature(t *testing.T) {
 			}
 
 			// Parse the commit from the fixture file
-			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, kt.signedTagFile))
+			tagObj, err := testutil.ParseTagFromFixture(filepath.Join(testDataDir, kt.signedTagFile))
 			if err != nil {
 				t.Fatalf("Failed to parse commit from fixture: %v", err)
 			}
@@ -181,7 +181,7 @@ func TestVerifySSHSignature(t *testing.T) {
 	t.Run("unsigned commit", func(t *testing.T) {
 		g := NewWithT(t)
 
-		commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
+		commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
@@ -198,7 +198,7 @@ func TestVerifySSHSignature(t *testing.T) {
 	t.Run("unsigned tag", func(t *testing.T) {
 		g := NewWithT(t)
 
-		tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, "tag_unsigned.txt"))
+		tagObj, err := testutil.ParseTagFromFixture(filepath.Join(testDataDir, "tag_unsigned.txt"))
 		g.Expect(err).ToNot(HaveOccurred())
 
 		gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
@@ -229,7 +229,7 @@ func TestSSHSignatureValidationCases(t *testing.T) {
 	}
 	expectedFingerprint := strings.TrimSpace(string(expectedFingerprintBytes))
 
-	commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_"+keyType+"_signed.txt"))
+	commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_"+keyType+"_signed.txt"))
 	if err != nil {
 		t.Fatalf("Failed to parse commit from fixture: %v", err)
 	}
@@ -412,7 +412,7 @@ func TestVerifySSHSignatureSentinels(t *testing.T) {
 		t.Fatalf("Failed to read other public key: %v", err)
 	}
 
-	commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+	commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
 	if err != nil {
 		t.Fatalf("Failed to parse commit fixture: %v", err)
 	}

@@ -14,7 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package testutils
+// Package testutil provides helpers for parsing on-disk Git object
+// fixtures into go-git object values. It is intentionally module-internal
+// so the helpers stay reserved for tests within this module.
+package testutil
 
 import (
 	"os"
@@ -23,7 +26,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-// ParseCommitFromFixture parses a git commit object from a fixture file
+// ParseCommitFromFixture parses a Git commit object from the file at
+// fixturePath and returns it as an *object.Commit.
 func ParseCommitFromFixture(fixturePath string) (*object.Commit, error) {
 	data, err := os.ReadFile(fixturePath)
 	if err != nil {
@@ -46,7 +50,8 @@ func ParseCommitFromFixture(fixturePath string) (*object.Commit, error) {
 	return commit, nil
 }
 
-// ParseTagFromFixture parses a git tag object from a fixture file
+// ParseTagFromFixture parses a Git tag object from the file at
+// fixturePath and returns it as an *object.Tag.
 func ParseTagFromFixture(fixturePath string) (*object.Tag, error) {
 	data, err := os.ReadFile(fixturePath)
 	if err != nil {
