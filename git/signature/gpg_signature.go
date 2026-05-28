@@ -36,15 +36,15 @@ var PGPSignaturePrefix = []string{
 // successfully verified the signature, or an error.
 func VerifyPGPSignature(signature string, payload []byte, keyRings ...string) (string, error) {
 	if signature == "" {
-		return "", fmt.Errorf("unable to verify payload as the provided signature is empty")
+		return "", fmt.Errorf("unable to verify payload: %w", ErrSignatureEmpty)
 	}
 
 	if len(payload) == 0 {
-		return "", fmt.Errorf("unable to verify payload as the provided payload is empty")
+		return "", fmt.Errorf("unable to verify payload: %w", ErrPayloadEmpty)
 	}
 
 	if !IsPGPSignature(signature) {
-		return "", fmt.Errorf("unable to verify openPGP signature, detected signature format: %s", GetSignatureType(signature))
+		return "", fmt.Errorf("unable to verify openPGP signature, detected signature format: %s: %w", GetSignatureType(signature), ErrSignatureFormat)
 	}
 
 	// Track the first key ring parse error. Only surfaced if no key ring
@@ -76,5 +76,5 @@ func VerifyPGPSignature(signature string, payload []byte, keyRings ...string) (s
 		return "", readKeyRingError
 	}
 
-	return "", fmt.Errorf("unable to verify payload with any of the given key rings")
+	return "", fmt.Errorf("unable to verify payload with any of the given key rings: %w", ErrNoMatchingKey)
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package signature_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -170,14 +171,14 @@ func TestVerifyPGPSignature(t *testing.T) {
 			name:     "Missing signature",
 			payload:  []byte(encodedCommitFixture),
 			keyRings: []string{armoredKeyRingFixture},
-			wantErr:  "unable to verify payload as the provided signature is empty",
+			wantErr:  "signature is empty",
 		},
 		{
 			name:     "Empty payload",
 			payload:  []byte{},
 			sig:      signatureCommitFixture,
 			keyRings: []string{armoredKeyRingFixture},
-			wantErr:  "unable to verify payload as the provided payload is empty",
+			wantErr:  "payload is empty",
 		},
 		{
 			name:     "Non-PGP signature",
@@ -289,6 +290,49 @@ func TestVerifyPGPSignature(t *testing.T) {
 
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(got).To(Equal(tt.want))
+		})
+	}
+}
+
+func TestVerifyPGPSignatureSentinels(t *testing.T) {
+	tests := []struct {
+		name     string
+		sig      string
+		payload  []byte
+		keyRings []string
+		want     error
+	}{
+		{
+			name:    "empty signature",
+			payload: []byte(encodedCommitFixture),
+			want:    signature.ErrSignatureEmpty,
+		},
+		{
+			name: "empty payload",
+			sig:  signatureCommitFixture,
+			want: signature.ErrPayloadEmpty,
+		},
+		{
+			name:    "wrong signature format",
+			sig:     "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			payload: []byte(encodedCommitFixture),
+			want:    signature.ErrSignatureFormat,
+		},
+		{
+			name:     "no matching key",
+			sig:      signatureCommitFixture,
+			payload:  []byte(encodedCommitFixture),
+			keyRings: []string{otherKeyRingFixture},
+			want:     signature.ErrNoMatchingKey,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			_, err := signature.VerifyPGPSignature(tt.sig, tt.payload, tt.keyRings...)
+			g.Expect(err).To(HaveOccurred())
+			g.Expect(errors.Is(err, tt.want)).To(BeTrue(),
+				"expected error to wrap %v, got %v", tt.want, err)
 		})
 	}
 }

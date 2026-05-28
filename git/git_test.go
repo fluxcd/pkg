@@ -590,7 +590,7 @@ func TestCommit_VerifyPGP(t *testing.T) {
 			name:    "missing signature",
 			sigFile: "commit_unsigned.txt",
 			keyFile: "key_rsa_2048.pub",
-			wantErr: "unable to verify Git commit: unable to verify payload as the provided signature is empty",
+			wantErr: "unable to verify Git commit: unable to verify payload: signature is empty",
 		},
 		{
 			name:    "invalid signature",
@@ -679,7 +679,7 @@ func TestTag_VerifyPGP(t *testing.T) {
 			name:    "missing signature",
 			sigFile: "tag_unsigned.txt",
 			keyFile: "key_rsa_2048.pub",
-			wantErr: "unable to verify Git tag: unable to verify payload as the provided signature is empty",
+			wantErr: "unable to verify Git tag: unable to verify payload: signature is empty",
 		},
 		{
 			name:    "invalid signature",
@@ -768,7 +768,7 @@ func TestCommit_VerifySSH(t *testing.T) {
 			name:           "missing signature",
 			sigFile:        "commit_unsigned.txt",
 			authorizedKeys: "key_rsa.pub",
-			wantErr:        "unable to verify Git commit SSH signature: unable to verify payload as the provided signature is empty",
+			wantErr:        "unable to verify Git commit SSH signature: unable to verify payload: signature is empty",
 		},
 		{
 			name:           "invalid signature",
@@ -846,7 +846,7 @@ func TestTag_VerifySSH(t *testing.T) {
 			name:           "missing signature",
 			sigFile:        "tag_unsigned.txt",
 			authorizedKeys: "key_rsa.pub",
-			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload as the provided signature is empty",
+			wantErr:        "unable to verify Git tag SSH signature: unable to verify payload: signature is empty",
 		},
 		{
 			name:           "invalid signature",

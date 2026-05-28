@@ -18,6 +18,7 @@ package signature
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -61,15 +62,15 @@ func ParseAuthorizedKeys(authorizedKeys string) ([]gossh.PublicKey, error) {
 // successfully verified the signature, or an error.
 func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...string) (string, error) {
 	if signature == "" {
-		return "", fmt.Errorf("unable to verify payload as the provided signature is empty")
+		return "", fmt.Errorf("unable to verify payload: %w", ErrSignatureEmpty)
 	}
 
 	if len(payload) == 0 {
-		return "", fmt.Errorf("unable to verify payload as the provided payload is empty")
+		return "", fmt.Errorf("unable to verify payload: %w", ErrPayloadEmpty)
 	}
 
 	if !IsSSHSignature(signature) {
-		return "", fmt.Errorf("unable to verify SSH signature, detected signature format: %s", GetSignatureType(signature))
+		return "", fmt.Errorf("unable to verify SSH signature, detected signature format: %s: %w", GetSignatureType(signature), ErrSignatureFormat)
 	}
 
 	// Unarmor the signature (remove PEM-like armor)
@@ -85,6 +86,7 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 	var (
 		readAuthorizedKeysError error
 		verifyAttempted         bool
+		verifyErrors            []error
 	)
 
 	// Try to verify with each set of authorized keys
@@ -106,6 +108,7 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 				// Signature verified successfully
 				return gossh.FingerprintSHA256(pubKey), nil
 			}
+			verifyErrors = appendUniqueSentinel(verifyErrors, err)
 		}
 	}
 
@@ -113,5 +116,23 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 		return "", readAuthorizedKeysError
 	}
 
-	return "", fmt.Errorf("unable to verify payload with any of the given authorized keys")
+	// Preserve the underlying sshsig sentinel errors (e.g.
+	// sshsig.ErrPublicKeyMismatch, ErrNamespaceMismatch,
+	// ErrUnsupportedHashAlgorithm) in the chain so callers can branch on
+	// them via errors.Is.
+	return "", fmt.Errorf("unable to verify payload with any of the given authorized keys: %w",
+		errors.Join(append([]error{ErrNoMatchingKey}, verifyErrors...)...))
+}
+
+// appendUniqueSentinel appends err to dst only when no existing element of
+// dst matches err under errors.Is. This keeps the joined error chain from
+// growing linearly with the number of keys when every key fails with the
+// same sshsig sentinel.
+func appendUniqueSentinel(dst []error, err error) []error {
+	for _, existing := range dst {
+		if errors.Is(existing, err) {
+			return dst
+		}
+	}
+	return append(dst, err)
 }
