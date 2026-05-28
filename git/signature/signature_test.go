@@ -27,24 +27,24 @@ func TestIsPGPSignature(t *testing.T) {
 		want      bool
 	}{
 		{
-			name:      "valid PGP signature",
+			name:      "valid PGP SIGNATURE armor",
 			signature: "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
 			want:      true,
 		},
 		{
-			name:      "PGP signature with leading whitespace",
+			name:      "PGP SIGNATURE armor with leading whitespace",
 			signature: "  -----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
 			want:      true,
 		},
 		{
-			name:      "valid PGP signature",
+			name:      "PGP MESSAGE armor is not a detached signature",
 			signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
-			want:      true,
+			want:      false,
 		},
 		{
-			name:      "PGP signature with leading whitespace",
+			name:      "PGP MESSAGE armor with leading whitespace is not a detached signature",
 			signature: "  -----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
-			want:      true,
+			want:      false,
 		},
 		{
 			name:      "empty signature",
@@ -72,9 +72,9 @@ func TestIsPGPSignature(t *testing.T) {
 			want:      true,
 		},
 		{
-			name:      "PGP MESSAGE without END marker",
+			name:      "PGP MESSAGE without END marker is not a detached signature",
 			signature: "-----BEGIN PGP MESSAGE-----",
-			want:      true,
+			want:      false,
 		},
 	}
 
@@ -248,9 +248,9 @@ func TestGetSignatureType(t *testing.T) {
 			want:      string(signatureTypePGP),
 		},
 		{
-			name:      "PGP MESSAGE without END marker",
-			signature: "-----BEGIN PGP MESSAGE-----",
-			want:      string(signatureTypePGP),
+			name:      "PGP MESSAGE armor is reported as unknown",
+			signature: "-----BEGIN PGP MESSAGE-----\n-----END PGP MESSAGE-----",
+			want:      string(signatureTypeUnknown),
 		},
 		{
 			name:      "SSH signature without END marker",

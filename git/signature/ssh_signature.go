@@ -61,6 +61,11 @@ func ParseAuthorizedKeys(authorizedKeys string) ([]gossh.PublicKey, error) {
 // the provided authorized keys. It returns the fingerprint of the key that
 // successfully verified the signature, or an error.
 func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...string) (string, error) {
+	// Normalise leading/trailing whitespace once so the format-detection
+	// helpers (which TrimSpace internally) and sshsig.Unarmor operate on
+	// identical input.
+	signature = strings.TrimSpace(signature)
+
 	if signature == "" {
 		return "", fmt.Errorf("unable to verify payload: %w", ErrSignatureEmpty)
 	}
