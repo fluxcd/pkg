@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fluxcd/pkg/git/testutils"
+	"github.com/fluxcd/pkg/git/internal/testutil"
 	"github.com/go-git/go-git/v5/plumbing"
 	. "github.com/onsi/gomega"
 )
@@ -610,7 +610,7 @@ func TestCommit_VerifyPGP(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the commit from the fixture file
-			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, tt.sigFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Create a git.Commit from the parsed object
@@ -699,7 +699,7 @@ func TestTag_VerifyPGP(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the tag from the fixture file
-			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			tagObj, err := testutil.ParseTagFromFixture(filepath.Join(testDataDir, tt.sigFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Create a git.Tag from the parsed object
@@ -788,7 +788,7 @@ func TestCommit_VerifySSH(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the commit from the fixture file
-			commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, tt.sigFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Create a git.Commit from the parsed object
@@ -866,7 +866,7 @@ func TestTag_VerifySSH(t *testing.T) {
 			g := NewWithT(t)
 
 			// Parse the tag from the fixture file
-			tagObj, err := testutils.ParseTagFromFixture(filepath.Join(testDataDir, tt.sigFile))
+			tagObj, err := testutil.ParseTagFromFixture(filepath.Join(testDataDir, tt.sigFile))
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Create a git.Tag from the parsed object
