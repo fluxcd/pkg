@@ -325,6 +325,13 @@ func TestVerifyPGPSignatureSentinels(t *testing.T) {
 			keyRings: []string{otherKeyRingFixture},
 			want:     signature.ErrNoMatchingKey,
 		},
+		{
+			name:     "tampered payload",
+			sig:      signatureCommitFixture,
+			payload:  append([]byte{'X'}, []byte(encodedCommitFixture)...),
+			keyRings: []string{armoredKeyRingFixture},
+			want:     signature.ErrNoMatchingKey,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

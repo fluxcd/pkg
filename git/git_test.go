@@ -641,7 +641,7 @@ func TestCommit_VerifyPGP(t *testing.T) {
 			// Verify the signature using the git.Commit's VerifyPGP method
 			fingerprint, err := gitCommit.VerifyPGP(keyRings...)
 
-			g.Expect(fingerprint).To(ContainSubstring(depFingerprint))
+			g.Expect(fingerprint).To(Equal(depFingerprint))
 			if err == nil {
 				g.Expect(depErr).ToNot(HaveOccurred())
 			} else {
@@ -730,7 +730,7 @@ func TestTag_VerifyPGP(t *testing.T) {
 			// Verify the signature using the git.Tag's VerifyPGP method
 			fingerprint, err := gitTag.VerifyPGP(keyRings...)
 
-			g.Expect(fingerprint).To(ContainSubstring(depFingerprint))
+			g.Expect(fingerprint).To(Equal(depFingerprint))
 			if err == nil {
 				g.Expect(depErr).ToNot(HaveOccurred())
 			} else {
@@ -904,6 +904,102 @@ func TestTag_VerifySSH(t *testing.T) {
 			g.Expect(fingerprint).ToNot(BeEmpty())
 		})
 	}
+}
+
+func TestSignatureTypeFromFixtures(t *testing.T) {
+	pgpDir := filepath.Join("signature", "testdata", "gpg_signatures")
+	sshDir := filepath.Join("signature", "testdata", "ssh_signatures")
+
+	pgpFixtures := []string{
+		"commit_rsa_2048_signed.txt",
+		"commit_rsa_4096_signed.txt",
+		"commit_ed25519_signed.txt",
+		"commit_ecdsa_p256_signed.txt",
+		"commit_ecdsa_p384_signed.txt",
+		"commit_ecdsa_p521_signed.txt",
+		"commit_brainpool_p256_signed.txt",
+		"commit_brainpool_p384_signed.txt",
+		"commit_brainpool_p512_signed.txt",
+	}
+	sshFixtures := []string{
+		"commit_rsa_signed.txt",
+		"commit_ed25519_signed.txt",
+		"commit_ecdsa_p256_signed.txt",
+		"commit_ecdsa_p384_signed.txt",
+		"commit_ecdsa_p521_signed.txt",
+	}
+
+	for _, name := range pgpFixtures {
+		t.Run("PGP/"+name, func(t *testing.T) {
+			g := NewWithT(t)
+			c := loadCommitFixture(g, pgpDir, name)
+			g.Expect(c.SignatureType()).To(Equal("openpgp"))
+		})
+	}
+	for _, name := range sshFixtures {
+		t.Run("SSH/"+name, func(t *testing.T) {
+			g := NewWithT(t)
+			c := loadCommitFixture(g, sshDir, name)
+			g.Expect(c.SignatureType()).To(Equal("ssh"))
+		})
+	}
+	t.Run("unsigned PGP commit reports empty", func(t *testing.T) {
+		g := NewWithT(t)
+		c := loadCommitFixture(g, pgpDir, "commit_unsigned.txt")
+		g.Expect(c.SignatureType()).To(Equal("empty"))
+	})
+	t.Run("unsigned SSH commit reports empty", func(t *testing.T) {
+		g := NewWithT(t)
+		c := loadCommitFixture(g, sshDir, "commit_unsigned.txt")
+		g.Expect(c.SignatureType()).To(Equal("empty"))
+	})
+}
+
+// loadCommitFixture is a small helper that parses a commit fixture and
+// returns the assembled *Commit, failing the test on any error.
+func loadCommitFixture(g Gomega, dir, file string) *Commit {
+	commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(dir, file))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	encoded := &plumbing.MemoryObject{}
+	g.Expect(commitObj.EncodeWithoutSignature(encoded)).To(Succeed())
+	reader, err := encoded.Reader()
+	g.Expect(err).ToNot(HaveOccurred())
+	b, err := io.ReadAll(reader)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	return &Commit{
+		Signature: commitObj.PGPSignature,
+		Encoded:   b,
+	}
+}
+
+func TestCommit_DeprecatedVerify_RejectsSSH(t *testing.T) {
+	g := NewWithT(t)
+	c := loadCommitFixture(g, filepath.Join("signature", "testdata", "ssh_signatures"), "commit_ed25519_signed.txt")
+
+	_, err := c.Verify("ignored-key-ring")
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("detected signature format: ssh"))
+}
+
+func TestTag_DeprecatedVerify_RejectsSSH(t *testing.T) {
+	g := NewWithT(t)
+	tagObj, err := testutil.ParseTagFromFixture(filepath.Join("signature", "testdata", "ssh_signatures", "tag_ed25519_signed.txt"))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	encoded := &plumbing.MemoryObject{}
+	g.Expect(tagObj.EncodeWithoutSignature(encoded)).To(Succeed())
+	reader, err := encoded.Reader()
+	g.Expect(err).ToNot(HaveOccurred())
+	b, err := io.ReadAll(reader)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tag := &Tag{Signature: tagObj.PGPSignature, Encoded: b}
+
+	_, err = tag.Verify("ignored-key-ring")
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("detected signature format: ssh"))
 }
 
 func TestErrRepositoryNotFound_Error(t *testing.T) {

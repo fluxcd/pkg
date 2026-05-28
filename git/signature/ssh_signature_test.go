@@ -17,6 +17,9 @@ limitations under the License.
 package signature_test
 
 import (
+	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"os"
 	"path/filepath"
@@ -24,8 +27,8 @@ import (
 	"testing"
 
 	"github.com/fluxcd/pkg/git/internal/build"
-	"github.com/fluxcd/pkg/git/signature"
 	"github.com/fluxcd/pkg/git/internal/testutil"
+	"github.com/fluxcd/pkg/git/signature"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/hiddeco/sshsig"
 	. "github.com/onsi/gomega"
@@ -461,6 +464,13 @@ func TestVerifySSHSignatureSentinels(t *testing.T) {
 			authorizedKeys: []string{string(otherKey)},
 			want:           sshsig.ErrPublicKeyMismatch,
 		},
+		{
+			name:           "tampered payload",
+			sig:            gitCommit.Signature,
+			payload:        append([]byte{'X'}, gitCommit.Encoded...),
+			authorizedKeys: []string{string(pubKey)},
+			want:           signature.ErrNoMatchingKey,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -471,6 +481,30 @@ func TestVerifySSHSignatureSentinels(t *testing.T) {
 				"expected error to wrap %v, got %v", tt.want, err)
 		})
 	}
+
+	// Wrong-namespace coverage: a signature produced over the same payload
+	// but with namespace "file" must be rejected, and the underlying
+	// sshsig.ErrNamespaceMismatch must remain visible in the error chain.
+	t.Run("wrong namespace preserves sshsig.ErrNamespaceMismatch", func(t *testing.T) {
+		g := NewWithT(t)
+
+		_, priv, err := ed25519.GenerateKey(rand.Reader)
+		g.Expect(err).ToNot(HaveOccurred())
+		gosshSigner, err := gossh.NewSignerFromKey(priv)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		sig, err := sshsig.Sign(bytes.NewReader(gitCommit.Encoded), gosshSigner, sshsig.HashSHA512, "file")
+		g.Expect(err).ToNot(HaveOccurred())
+		armored := string(sshsig.Armor(sig))
+
+		authorizedKey := gossh.MarshalAuthorizedKey(gosshSigner.PublicKey())
+
+		_, err = signature.VerifySSHSignature(armored, gitCommit.Encoded, string(authorizedKey))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(errors.Is(err, signature.ErrNoMatchingKey)).To(BeTrue())
+		g.Expect(errors.Is(err, sshsig.ErrNamespaceMismatch)).To(BeTrue(),
+			"expected sshsig.ErrNamespaceMismatch in chain, got %v", err)
+	})
 }
 
 func TestParseAuthorizedKeysAndPublicFingerprint(t *testing.T) {
@@ -531,6 +565,18 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCpreiO+8XsB4xXGNmwuO48a7WPghb5ihCJNPyQZpna
 		{
 			name:             "invalid key",
 			authorizedKeys:   "invalid-key-data",
+			wantCount:        0,
+			wantErr:          true,
+			wantFingerprints: []string{},
+		},
+		{
+			// Locks in the documented fail-fast contract: a malformed
+			// line in the middle of an otherwise-valid authorized_keys
+			// input discards any keys parsed earlier in the file.
+			name: "valid then invalid then valid is fail-fast",
+			authorizedKeys: `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPbmoVMAS5Ttg77s9DLSAOf4gXCiQpgdRekFHlzbXHLH test1@example.com
+invalid-key-data
+ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBL7Xspf5BmRD7ipGo4SNCftjzeunry1znmU78RhcVOYwLNCR5MVm22N9c1aYacIxHmi/TxkNTdQdEB8dd4mfA4Q= test-ecdsa_p256@example.com`,
 			wantCount:        0,
 			wantErr:          true,
 			wantFingerprints: []string{},
