@@ -112,10 +112,10 @@ func (c *Commit) AbsoluteReference() string {
 	return c.Hash.Digest()
 }
 
-// Deprecated: Verify is deprecated, use VerifySSH or VerifyGPG
+// Deprecated: Verify is deprecated, use VerifySSH or VerifyPGP
 // wrapper function to ensure backwards compatibility
 func (c *Commit) Verify(keyRings ...string) (string, error) {
-	return c.VerifyGPG(keyRings...)
+	return c.VerifyPGP(keyRings...)
 }
 
 // Verify the Signature of the commit with the given key rings.
@@ -123,7 +123,7 @@ func (c *Commit) Verify(keyRings ...string) (string, error) {
 // with, or an error. It does not verify the signature of the referencing
 // tag (if present). Users are expected to explicitly verify the referencing
 // tag's signature using `c.ReferencingTag.Verify()`
-func (c *Commit) VerifyGPG(keyRings ...string) (string, error) {
+func (c *Commit) VerifyPGP(keyRings ...string) (string, error) {
 	fingerprint, err := signature.VerifyPGPSignature(c.Signature, c.Encoded, keyRings...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git commit: %w", err)
@@ -169,16 +169,16 @@ type Tag struct {
 	Message string
 }
 
-// Deprecated: Verify is deprecated, use VerifySSH or VerifyGPG
+// Deprecated: Verify is deprecated, use VerifySSH or VerifyPGP
 // wrapper function to ensure backwards compatibility
 func (t *Tag) Verify(keyRings ...string) (string, error) {
-	return t.VerifyGPG(keyRings...)
+	return t.VerifyPGP(keyRings...)
 }
 
 // Verify the Signature of the tag with the given key rings.
 // It returns the fingerprint of the key the signature was verified
 // with, or an error.
-func (t *Tag) VerifyGPG(keyRings ...string) (string, error) {
+func (t *Tag) VerifyPGP(keyRings ...string) (string, error) {
 	fingerprint, err := signature.VerifyPGPSignature(t.Signature, t.Encoded, keyRings...)
 	if err != nil {
 		return "", fmt.Errorf("unable to verify Git tag: %w", err)

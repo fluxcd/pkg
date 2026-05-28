@@ -572,7 +572,7 @@ func TestSignatureType(t *testing.T) {
 	}
 }
 
-func TestCommit_VerifyGPG(t *testing.T) {
+func TestCommit_VerifyPGP(t *testing.T) {
 	testDataDir := filepath.Join("signature", "testdata", "gpg_signatures")
 
 	tests := []struct {
@@ -638,8 +638,8 @@ func TestCommit_VerifyGPG(t *testing.T) {
 			// get result from deprecated function
 			depFingerprint, depErr := gitCommit.Verify(keyRings...)
 
-			// Verify the signature using the git.Commit's VerifyGPG method
-			fingerprint, err := gitCommit.VerifyGPG(keyRings...)
+			// Verify the signature using the git.Commit's VerifyPGP method
+			fingerprint, err := gitCommit.VerifyPGP(keyRings...)
 
 			g.Expect(fingerprint).To(ContainSubstring(depFingerprint))
 			if err == nil {
@@ -661,7 +661,7 @@ func TestCommit_VerifyGPG(t *testing.T) {
 	}
 }
 
-func TestTag_VerifyGPG(t *testing.T) {
+func TestTag_VerifyPGP(t *testing.T) {
 	testDataDir := filepath.Join("signature", "testdata", "gpg_signatures")
 
 	tests := []struct {
@@ -727,8 +727,8 @@ func TestTag_VerifyGPG(t *testing.T) {
 			// get result from deprecated function
 			depFingerprint, depErr := gitTag.Verify(keyRings...)
 
-			// Verify the signature using the git.Tag's VerifyGPG method
-			fingerprint, err := gitTag.VerifyGPG(keyRings...)
+			// Verify the signature using the git.Tag's VerifyPGP method
+			fingerprint, err := gitTag.VerifyPGP(keyRings...)
 
 			g.Expect(fingerprint).To(ContainSubstring(depFingerprint))
 			if err == nil {
