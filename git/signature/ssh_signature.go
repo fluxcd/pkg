@@ -78,16 +78,25 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 		return "", fmt.Errorf("unable to unarmor SSH signature: %w", err)
 	}
 
-	// record reading of authorized keys error. This error will be returned if no valid key was found.
-	var readAuthorizedKeysError error
+	// Track the first authorized_keys parse error. Only surfaced if no
+	// authorized_keys input could be parsed at all; otherwise the no-match
+	// error below takes precedence so that a malformed early entry does
+	// not mask a later parseable one whose keys did not match.
+	var (
+		readAuthorizedKeysError error
+		verifyAttempted         bool
+	)
 
 	// Try to verify with each set of authorized keys
 	for _, keys := range authorizedKeys {
 		publicKeys, err := ParseAuthorizedKeys(keys)
-		if err != nil && readAuthorizedKeysError == nil {
-			readAuthorizedKeysError = fmt.Errorf("unable to parse authorized keys: %w", err)
+		if err != nil {
+			if readAuthorizedKeysError == nil {
+				readAuthorizedKeysError = fmt.Errorf("unable to parse authorized keys: %w", err)
+			}
 			continue
 		}
+		verifyAttempted = true
 
 		// Try to verify with each public key
 		for _, pubKey := range publicKeys {
@@ -100,7 +109,7 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 		}
 	}
 
-	if readAuthorizedKeysError != nil {
+	if !verifyAttempted && readAuthorizedKeysError != nil {
 		return "", readAuthorizedKeysError
 	}
 

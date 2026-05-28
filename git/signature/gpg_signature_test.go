@@ -120,6 +120,20 @@ TEInBrgZv9t6xIVa4QngOEUd2D/aYni7M+75z7ntgj6eU1xLZ60upRFn05862OvJ
 rZFUvzjsZXMAO3enCu2VhG/2axCY/5uI8PgWjyiKV2TH4LBJgzlb0v6SyI+fYf5K
 Bg2WzDuLKvQBi9tFSwnUbQoFFlOeiGW8G/bdkoJDWeS1oYgSD3nkmvXvrVESCrbT
 -----END PGP PUBLIC KEY BLOCK-----`
+
+	// otherKeyRingFixture is a parseable PGP public key that does not match
+	// signatureCommitFixture; used to exercise multi-keyring fallback paths
+	// where verification fails for reasons other than a parse error.
+	otherKeyRingFixture = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEagyJ+hYJKwYBBAHaRw8BAQdADqQpCJt4Rp3sE87GpTrTRn/VWxyzTHvxW0w3
+HyxUzPi0JFRlc3QgVXNlciA8dGVzdC1lZDI1NTE5QGV4YW1wbGUuY29tPoivBBMW
+CgBXFiEEcS5ioyT5661YqSl5uLi2Q/ZOS+QFAmoMifobFIAAAAAABAAObWFudTIs
+Mi41KzEuMTIsMCwzAhsjBQsJCAcCAiICBhUKCQgLAgQWAgMBAh4HAheAAAoJELi4
+tkP2TkvkWCABAJUgD27HKFU/TGCr1060EeA6FKy63dhUz16tueOibgxsAQDaykTr
+J9s5fQDoy6Us7dP5UfrwuPxqpAAyTBrkuIJ4CQ==
+=8gTZ
+-----END PGP PUBLIC KEY BLOCK-----`
 )
 
 func TestVerifyPGPSignature(t *testing.T) {
@@ -192,6 +206,24 @@ func TestVerifyPGPSignature(t *testing.T) {
 			sig:      signatureCommitFixture,
 			keyRings: []string{malformedKeyRingFixture, malformedKeyRingFixture},
 			wantErr:  "unable to read armored key ring: unexpected EOF",
+		},
+		{
+			// Regression: when a malformed key ring precedes a parseable key
+			// ring whose keys do not match the signer, the error returned
+			// should describe the no-match condition rather than masking it
+			// with the earlier parse failure.
+			name:     "Malformed key ring followed by valid key ring with non-matching key",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture, otherKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Multiple malformed key rings followed by valid key ring",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture, malformedKeyRingFixture, armoredKeyRingFixture},
+			want:     keyRingFingerprintFixture,
 		},
 		{
 			name:     "Missing END PGP SIGNATURE marker",

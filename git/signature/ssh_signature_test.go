@@ -239,6 +239,14 @@ func TestSSHSignatureValidationCases(t *testing.T) {
 
 	const invalidAuthKeys = "invalid-key-data"
 
+	// otherAuthKey is a parseable SSH public key that did not sign the commit;
+	// used to exercise multi-keyring fallback paths where verification fails
+	// for reasons other than a parse error.
+	otherAuthKey, err := os.ReadFile(filepath.Join(testDataDir, "key_ecdsa_p256.pub"))
+	if err != nil {
+		t.Fatalf("Failed to read other authorized key: %v", err)
+	}
+
 	tests := []struct {
 		name           string
 		sig            string
@@ -316,6 +324,24 @@ func TestSSHSignatureValidationCases(t *testing.T) {
 			payload:        gitCommit.Encoded,
 			authorizedKeys: []string{invalidAuthKeys, invalidAuthKeys},
 			wantErr:        "unable to parse authorized key",
+		},
+		{
+			// Regression: when an unparseable authorized_keys input precedes
+			// a parseable one whose key does not match the signer, the
+			// returned error must describe the no-match condition rather
+			// than mask it with the earlier parse failure.
+			name:           "Invalid keys followed by valid non-matching key",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{invalidAuthKeys, string(otherAuthKey)},
+			wantErr:        "unable to verify payload with any of the given authorized keys",
+		},
+		{
+			name:           "Multiple invalid authorized keys followed by valid key",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{invalidAuthKeys, invalidAuthKeys, string(pubKey)},
+			want:           expectedFingerprint,
 		},
 		{
 			name:           "Missing END SSH SIGNATURE marker",
