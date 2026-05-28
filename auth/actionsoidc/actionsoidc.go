@@ -32,9 +32,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
@@ -52,22 +49,17 @@ const (
 // bearer token are read from the EnvRequestURL and EnvRequestToken environment
 // variables, which Actions injects into a job that has the 'id-token: write'
 // permission.
-//
-// It returns the ID token and its expiration time. The expiration is read from
-// the token's 'exp' claim without verifying the signature: the token was issued
-// by the trusted endpoint one HTTP call ago, and the expiry is only used by
-// callers to schedule re-minting.
-func FetchToken(ctx context.Context, audience string) (string, time.Time, error) {
+func FetchToken(ctx context.Context, audience string) (string, error) {
 	requestURL := os.Getenv(EnvRequestURL)
 	requestToken := os.Getenv(EnvRequestToken)
 	if requestURL == "" || requestToken == "" {
-		return "", time.Time{}, fmt.Errorf("%s and %s must be set in the environment; "+
+		return "", fmt.Errorf("%s and %s must be set in the environment; "+
 			"ensure the Actions job has the 'id-token: write' permission", EnvRequestURL, EnvRequestToken)
 	}
 
 	u, err := url.Parse(requestURL)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("invalid %s: %w", EnvRequestURL, err)
+		return "", fmt.Errorf("invalid %s: %w", EnvRequestURL, err)
 	}
 	q := u.Query()
 	q.Set("audience", audience)
@@ -75,19 +67,19 @@ func FetchToken(ctx context.Context, audience string) (string, time.Time, error)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to create OIDC token request: %w", err)
+		return "", fmt.Errorf("failed to create OIDC token request: %w", err)
 	}
 	req.Header.Set("Authorization", "bearer "+requestToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("OIDC token request failed: %w", err)
+		return "", fmt.Errorf("OIDC token request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return "", time.Time{}, fmt.Errorf("OIDC token request failed with status %s: %s",
+		return "", fmt.Errorf("OIDC token request failed with status %s: %s",
 			resp.Status, strings.TrimSpace(string(body)))
 	}
 
@@ -95,34 +87,11 @@ func FetchToken(ctx context.Context, audience string) (string, time.Time, error)
 		Value string `json:"value"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to decode OIDC token response: %w", err)
+		return "", fmt.Errorf("failed to decode OIDC token response: %w", err)
 	}
 	if result.Value == "" {
-		return "", time.Time{}, errors.New("the OIDC token response did not contain a token")
+		return "", errors.New("the OIDC token response did not contain a token")
 	}
 
-	exp, err := tokenExpiry(result.Value)
-	if err != nil {
-		return "", time.Time{}, err
-	}
-
-	return result.Value, exp, nil
-}
-
-// tokenExpiry extracts the 'exp' claim from a compact-serialized JWT without
-// verifying its signature, matching how auth/generic reads service account
-// token expirations.
-func tokenExpiry(token string) (time.Time, error) {
-	tok, _, err := jwt.NewParser().ParseUnverified(token, jwt.MapClaims{})
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to parse OIDC token: %w", err)
-	}
-	exp, err := tok.Claims.GetExpirationTime()
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to get expiration time from OIDC token: %w", err)
-	}
-	if exp == nil {
-		return time.Time{}, errors.New("OIDC token has no exp claim")
-	}
-	return exp.Time, nil
+	return result.Value, nil
 }

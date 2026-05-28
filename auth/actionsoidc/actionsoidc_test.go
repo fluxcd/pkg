@@ -41,9 +41,8 @@ func makeJWT(t *testing.T, exp time.Time) string {
 }
 
 func TestFetchToken(t *testing.T) {
-	t.Run("fetches token and exp", func(t *testing.T) {
-		exp := time.Now().Add(time.Hour).Truncate(time.Second)
-		idToken := makeJWT(t, exp)
+	t.Run("fetches token", func(t *testing.T) {
+		idToken := makeJWT(t, time.Now().Add(time.Hour))
 
 		var gotAudience, gotAuth, gotPath string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -58,15 +57,12 @@ func TestFetchToken(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, srv.URL+"/token?api-version=2.0")
 		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
 
-		token, gotExp, err := actionsoidc.FetchToken(context.Background(), "my-audience")
+		token, err := actionsoidc.FetchToken(context.Background(), "my-audience")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if token != idToken {
 			t.Errorf("token = %q, want %q", token, idToken)
-		}
-		if !gotExp.Equal(exp) {
-			t.Errorf("exp = %v, want %v", gotExp, exp)
 		}
 		if gotAudience != "my-audience" {
 			t.Errorf("audience query = %q, want my-audience", gotAudience)
@@ -82,7 +78,7 @@ func TestFetchToken(t *testing.T) {
 	t.Run("errors when env vars are unset", func(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, "")
 		t.Setenv(actionsoidc.EnvRequestToken, "")
-		_, _, err := actionsoidc.FetchToken(context.Background(), "aud")
+		_, err := actionsoidc.FetchToken(context.Background(), "aud")
 		if err == nil || !strings.Contains(err.Error(), actionsoidc.EnvRequestURL) {
 			t.Fatalf("expected error mentioning %s, got: %v", actionsoidc.EnvRequestURL, err)
 		}
@@ -97,7 +93,7 @@ func TestFetchToken(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
 		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
 
-		_, _, err := actionsoidc.FetchToken(context.Background(), "aud")
+		_, err := actionsoidc.FetchToken(context.Background(), "aud")
 		if err == nil || !strings.Contains(err.Error(), "denied") {
 			t.Fatalf("expected error containing response body, got: %v", err)
 		}
@@ -111,28 +107,9 @@ func TestFetchToken(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
 		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
 
-		_, _, err := actionsoidc.FetchToken(context.Background(), "aud")
+		_, err := actionsoidc.FetchToken(context.Background(), "aud")
 		if err == nil || !strings.Contains(err.Error(), "did not contain a token") {
 			t.Fatalf("expected empty-token error, got: %v", err)
-		}
-	})
-
-	t.Run("errors on token without exp", func(t *testing.T) {
-		tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{})
-		noExp, err := tok.SignedString([]byte("test-secret"))
-		if err != nil {
-			t.Fatalf("failed to mint test JWT: %v", err)
-		}
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, _ = w.Write([]byte(`{"value":"` + noExp + `"}`))
-		}))
-		defer srv.Close()
-		t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
-		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
-
-		_, _, err = actionsoidc.FetchToken(context.Background(), "aud")
-		if err == nil || !strings.Contains(err.Error(), "exp claim") {
-			t.Fatalf("expected missing-exp error, got: %v", err)
 		}
 	})
 }
