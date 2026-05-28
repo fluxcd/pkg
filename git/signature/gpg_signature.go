@@ -24,7 +24,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 )
 
-// PGPSignaturePrefix is the prefix used by Git to identify PGP signatures.
+// pgpSignaturePrefix is the prefix used by Git to identify PGP signatures.
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L56
 //
 // PGP MESSAGE armor is intentionally not included: Git's gpgsig field only
@@ -32,7 +32,7 @@ import (
 // the underlying openpgp.CheckArmoredDetachedSignature rejects MESSAGE armor.
 // Detecting it here would only produce a misleading "no matching key" error
 // downstream.
-var PGPSignaturePrefix = []string{
+var pgpSignaturePrefix = []string{
 	"-----BEGIN PGP SIGNATURE-----",
 }
 
