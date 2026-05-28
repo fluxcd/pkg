@@ -41,15 +41,15 @@ const (
 	signatureTypeEmpty signatureType = "empty"
 )
 
-// X509SignaturePrefix is the prefix used by Git to identify x509 (S-MIME)
+// x509SignaturePrefix is the prefix used by Git to identify x509 (S-MIME)
 // signatures.
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L65
-var X509SignaturePrefix = []string{"-----BEGIN SIGNED MESSAGE-----"}
+var x509SignaturePrefix = []string{"-----BEGIN SIGNED MESSAGE-----"}
 
 // IsPGPSignature tests if the given signature is of type PGP.
 // It returns true if the signature starts with the PGP signature prefix.
 func IsPGPSignature(signature string) bool {
-	return slices.ContainsFunc(PGPSignaturePrefix, func(prefix string) bool {
+	return slices.ContainsFunc(pgpSignaturePrefix, func(prefix string) bool {
 		return strings.HasPrefix(strings.TrimSpace(signature), prefix)
 	})
 }
@@ -57,7 +57,7 @@ func IsPGPSignature(signature string) bool {
 // IsSSHSignature tests if the given signature is of type SSH.
 // It returns true if the signature starts with the SSH signature prefix.
 func IsSSHSignature(signature string) bool {
-	return slices.ContainsFunc(SSHSignaturePrefix, func(prefix string) bool {
+	return slices.ContainsFunc(sshSignaturePrefix, func(prefix string) bool {
 		return strings.HasPrefix(strings.TrimSpace(signature), prefix)
 	})
 }
@@ -71,7 +71,7 @@ func IsSSHSignature(signature string) bool {
 // signature from a corrupt or truly unknown one. Tracked upstream at
 // https://github.com/fluxcd/source-controller/issues/1996.
 func IsX509Signature(signature string) bool {
-	return slices.ContainsFunc(X509SignaturePrefix, func(prefix string) bool {
+	return slices.ContainsFunc(x509SignaturePrefix, func(prefix string) bool {
 		return strings.HasPrefix(strings.TrimSpace(signature), prefix)
 	})
 }

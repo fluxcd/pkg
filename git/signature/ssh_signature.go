@@ -28,9 +28,9 @@ import (
 
 const SSHSignatureNamespace = "git"
 
-// SSHSignaturePrefix is the prefix used by Git to identify SSH signatures.
+// sshSignaturePrefix is the prefix used by Git to identify SSH signatures.
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L71
-var SSHSignaturePrefix = []string{"-----BEGIN SSH SIGNATURE-----"}
+var sshSignaturePrefix = []string{"-----BEGIN SSH SIGNATURE-----"}
 
 // ParseAuthorizedKeys parses the given authorized_keys-formatted string
 // and returns the public keys it contains. Empty lines and lines whose
