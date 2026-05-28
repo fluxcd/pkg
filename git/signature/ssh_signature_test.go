@@ -17,6 +17,7 @@ limitations under the License.
 package signature_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/fluxcd/pkg/git/signature"
 	"github.com/fluxcd/pkg/git/testutils"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/hiddeco/sshsig"
 	. "github.com/onsi/gomega"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -260,14 +262,14 @@ func TestSSHSignatureValidationCases(t *testing.T) {
 			sig:            "",
 			payload:        gitCommit.Encoded,
 			authorizedKeys: []string{string(pubKey)},
-			wantErr:        "unable to verify payload as the provided signature is empty",
+			wantErr:        "signature is empty",
 		},
 		{
 			name:           "Empty payload",
 			sig:            gitCommit.Signature,
 			payload:        []byte{},
 			authorizedKeys: []string{string(pubKey)},
-			wantErr:        "unable to verify payload as the provided payload is empty",
+			wantErr:        "payload is empty",
 		},
 		{
 			name:           "Wrong authorized keys",
@@ -394,6 +396,79 @@ func TestSSHSignatureValidationCases(t *testing.T) {
 
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(got).To(Equal(tt.want))
+		})
+	}
+}
+
+func TestVerifySSHSignatureSentinels(t *testing.T) {
+	testDataDir := filepath.Join("testdata", "ssh_signatures")
+
+	pubKey, err := os.ReadFile(filepath.Join(testDataDir, "key_ed25519.pub"))
+	if err != nil {
+		t.Fatalf("Failed to read public key: %v", err)
+	}
+	otherKey, err := os.ReadFile(filepath.Join(testDataDir, "key_ecdsa_p256.pub"))
+	if err != nil {
+		t.Fatalf("Failed to read other public key: %v", err)
+	}
+
+	commitObj, err := testutils.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_ed25519_signed.txt"))
+	if err != nil {
+		t.Fatalf("Failed to parse commit fixture: %v", err)
+	}
+	gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
+	if err != nil {
+		t.Fatalf("Failed to build commit: %v", err)
+	}
+
+	tests := []struct {
+		name           string
+		sig            string
+		payload        []byte
+		authorizedKeys []string
+		want           error
+	}{
+		{
+			name:           "empty signature",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			want:           signature.ErrSignatureEmpty,
+		},
+		{
+			name:           "empty payload",
+			sig:            gitCommit.Signature,
+			authorizedKeys: []string{string(pubKey)},
+			want:           signature.ErrPayloadEmpty,
+		},
+		{
+			name:           "wrong signature format",
+			sig:            "-----BEGIN PGP SIGNATURE-----\n-----END PGP SIGNATURE-----",
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(pubKey)},
+			want:           signature.ErrSignatureFormat,
+		},
+		{
+			name:           "no matching key wraps ErrNoMatchingKey",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(otherKey)},
+			want:           signature.ErrNoMatchingKey,
+		},
+		{
+			name:           "no matching key preserves sshsig.ErrPublicKeyMismatch",
+			sig:            gitCommit.Signature,
+			payload:        gitCommit.Encoded,
+			authorizedKeys: []string{string(otherKey)},
+			want:           sshsig.ErrPublicKeyMismatch,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			_, err := signature.VerifySSHSignature(tt.sig, tt.payload, tt.authorizedKeys...)
+			g.Expect(err).To(HaveOccurred())
+			g.Expect(errors.Is(err, tt.want)).To(BeTrue(),
+				"expected error to wrap %v, got %v", tt.want, err)
 		})
 	}
 }
