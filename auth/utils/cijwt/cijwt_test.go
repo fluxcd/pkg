@@ -23,6 +23,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -158,6 +160,14 @@ func TestNewTransport_Validation(t *testing.T) {
 			opts: []cijwt.Option{
 				cijwt.WithHostToken("a.example", "t"),
 				cijwt.WithHostJWK("a.example", jwk, "iss", "aud", "sub"),
+			},
+			wantErr: `host "a.example" is configured more than once`,
+		},
+		{
+			name: "duplicate across token and token file",
+			opts: []cijwt.Option{
+				cijwt.WithHostToken("a.example", "t"),
+				cijwt.WithHostTokenFile("a.example", "/path/token"),
 			},
 			wantErr: `host "a.example" is configured more than once`,
 		},
@@ -309,6 +319,52 @@ func TestTransport_RoutesPerHost(t *testing.T) {
 	}
 	if rec.auths[3] != "Basic should-be-overwritten" {
 		t.Errorf("unconfigured host auth = %q, want untouched", rec.auths[3])
+	}
+}
+
+func TestTransport_TokenFileReadPerRequest(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(path, []byte("first\n"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	rec := &recordingRT{}
+	tr := mustNewTransport(t, rec, cijwt.WithHostTokenFile("file.example", path))
+
+	get(t, tr, "file.example")
+	if err := os.WriteFile(path, []byte("  second  \n"), 0o600); err != nil {
+		t.Fatalf("rewrite token: %v", err)
+	}
+	get(t, tr, "file.example")
+
+	want := []string{"Bearer first", "Bearer second"}
+	if len(rec.auths) != 2 || rec.auths[0] != want[0] || rec.auths[1] != want[1] {
+		t.Errorf("Authorization = %v, want %v", rec.auths, want)
+	}
+}
+
+func TestTransport_TokenFileMissingErrors(t *testing.T) {
+	rec := &recordingRT{}
+	tr := mustNewTransport(t, rec, cijwt.WithHostTokenFile("file.example", filepath.Join(t.TempDir(), "missing")))
+
+	req, _ := http.NewRequest(http.MethodGet, "https://file.example/v2/", nil)
+	_, err := tr.RoundTrip(req)
+	if err == nil || !strings.Contains(err.Error(), "read token file") {
+		t.Fatalf("expected read error, got: %v", err)
+	}
+}
+
+func TestTransport_TokenFileEmptyErrors(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(path, []byte("   \n"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	rec := &recordingRT{}
+	tr := mustNewTransport(t, rec, cijwt.WithHostTokenFile("file.example", path))
+
+	req, _ := http.NewRequest(http.MethodGet, "https://file.example/v2/", nil)
+	_, err := tr.RoundTrip(req)
+	if err == nil || !strings.Contains(err.Error(), "is empty") {
+		t.Fatalf("expected empty error, got: %v", err)
 	}
 }
 
