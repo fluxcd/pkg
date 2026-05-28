@@ -414,16 +414,16 @@ func TestIsSigned(t *testing.T) {
 			wantSSHTag:    false,
 		},
 		{
-			name: "PGP signed with MESSAGE prefix",
+			name: "PGP MESSAGE armor is not a detached signature",
 			commit: &Commit{
 				Signature: signaturePGPMessage,
 			},
 			tag: &Tag{
 				Signature: signaturePGPMessage,
 			},
-			wantPGPCommit: true,
+			wantPGPCommit: false,
 			wantSSHCommit: false,
-			wantPGPTag:    true,
+			wantPGPTag:    false,
 			wantSSHTag:    false,
 		},
 		{
@@ -517,14 +517,14 @@ func TestSignatureType(t *testing.T) {
 			want: "openpgp",
 		},
 		{
-			name: "PGP signed with MESSAGE prefix",
+			name: "PGP MESSAGE armor is reported as unknown",
 			commit: &Commit{
 				Signature: signaturePGPMessage,
 			},
 			tag: &Tag{
 				Signature: signaturePGPMessage,
 			},
-			want: "openpgp",
+			want: "unknown",
 		},
 		{
 			name: "SSH signed",

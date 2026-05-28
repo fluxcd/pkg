@@ -26,15 +26,25 @@ import (
 
 // PGPSignaturePrefix is the prefix used by Git to identify PGP signatures.
 // https://github.com/git/git/blob/7b2bccb0d58d4f24705bf985de1f4612e4cf06e5/gpg-interface.c#L56
+//
+// PGP MESSAGE armor is intentionally not included: Git's gpgsig field only
+// carries detached signatures, which use the PGP SIGNATURE armor type, and
+// the underlying openpgp.CheckArmoredDetachedSignature rejects MESSAGE armor.
+// Detecting it here would only produce a misleading "no matching key" error
+// downstream.
 var PGPSignaturePrefix = []string{
 	"-----BEGIN PGP SIGNATURE-----",
-	"-----BEGIN PGP MESSAGE-----",
 }
 
 // VerifyPGPSignature verifies the PGP signature against the payload using
 // the provided key rings. It returns the key ID of the key that
 // successfully verified the signature, or an error.
 func VerifyPGPSignature(signature string, payload []byte, keyRings ...string) (string, error) {
+	// Normalise leading/trailing whitespace once so the format-detection
+	// helpers (which TrimSpace internally) and the underlying openpgp
+	// armor decoder operate on identical input.
+	signature = strings.TrimSpace(signature)
+
 	if signature == "" {
 		return "", fmt.Errorf("unable to verify payload: %w", ErrSignatureEmpty)
 	}

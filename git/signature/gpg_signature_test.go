@@ -234,11 +234,11 @@ func TestVerifyPGPSignature(t *testing.T) {
 			wantErr:  "unable to verify payload with any of the given key rings",
 		},
 		{
-			name:     "Missing END PGP MESSAGE marker",
+			name:     "PGP MESSAGE armor is not a detached signature",
 			payload:  []byte(encodedCommitFixture),
-			sig:      "-----BEGIN PGP MESSAGE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb",
+			sig:      "-----BEGIN PGP MESSAGE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb\n-----END PGP MESSAGE-----",
 			keyRings: []string{armoredKeyRingFixture},
-			wantErr:  "unable to verify payload with any of the given key rings",
+			wantErr:  "detected signature format: unknown",
 		},
 		{
 			name:     "Corrupted base64 body",
