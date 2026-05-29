@@ -19,7 +19,7 @@ package repository
 import (
 	"io"
 
-	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/fluxcd/pkg/git/signature"
 )
 
 const (
@@ -98,8 +98,10 @@ type CheckoutStrategy struct {
 
 // CommitOptions provides options to configure a Git commit operation.
 type CommitOptions struct {
-	// Signer can be used to sign a commit using OpenPGP.
-	Signer *openpgp.Entity
+	// Signer signs the resulting commit. May be nil for unsigned commits.
+	// Use [signature.NewOpenPGPSigner] or [signature.NewSSHSigner] to
+	// construct one.
+	Signer signature.Signer
 	// Files contains file names mapped to the file's content.
 	// Its used to write files which are then included in the commit.
 	Files map[string]io.Reader
@@ -109,10 +111,12 @@ type CommitOptions struct {
 type CommitOption func(*CommitOptions)
 
 // WithSigner allows for the commit to be signed using the provided
-// OpenPGP signer.
-func WithSigner(signer *openpgp.Entity) CommitOption {
+// [signature.Signer]. Passing a nil interface is a no-op; the commit will
+// be unsigned. See [signature.NewOpenPGPSigner] and
+// [signature.NewSSHSigner] for the supported constructors.
+func WithSigner(s signature.Signer) CommitOption {
 	return func(co *CommitOptions) {
-		co.Signer = signer
+		co.Signer = s
 	}
 }
 
