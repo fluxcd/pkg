@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/ssa/errors"
+	"github.com/fluxcd/pkg/ssa/jsondiff"
 	"github.com/fluxcd/pkg/ssa/normalize"
 	"github.com/fluxcd/pkg/ssa/utils"
 )
@@ -45,6 +46,11 @@ type DiffOptions struct {
 	// ForceSelector determines which in-cluster objects are Force applied
 	// based on the matching labels or annotations.
 	ForceSelector map[string]string `json:"forceSelector"`
+
+	// DriftIgnoreRules specifies field-level ignore rules for drift
+	// detection. When set, the specified JSON pointer paths are stripped
+	// from both the existing and dry-run objects before comparison.
+	DriftIgnoreRules []jsondiff.IgnoreRule `json:"driftIgnoreRules,omitempty"`
 }
 
 // DefaultDiffOptions returns the default dry-run apply options.
@@ -87,11 +93,37 @@ func (m *ResourceManager) Diff(ctx context.Context, object *unstructured.Unstruc
 		return m.changeSetEntry(dryRunObject, CreatedAction), nil, nil, nil
 	}
 
-	if m.hasDrifted(existingObject, dryRunObject) {
+	// Compile ignore rules once for drift detection.
+	var compiled jsondiff.CompiledIgnoreRules
+	if len(opts.DriftIgnoreRules) > 0 {
+		var err error
+		compiled, err = jsondiff.CompileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, compiled)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if drifted {
 		cse := m.changeSetEntry(object, ConfiguredAction)
 
 		unstructured.RemoveNestedField(dryRunObject.Object, "metadata", "managedFields")
 		unstructured.RemoveNestedField(existingObject.Object, "metadata", "managedFields")
+
+		// Strip ignored fields from the returned objects so the
+		// caller's diff output only shows non-ignored changes.
+		if compiled != nil {
+			if err := removeIgnoredFields(dryRunObject, existingObject, compiled); err != nil {
+				return nil, nil, nil, err
+			}
+			if err := removeIgnoredFields(dryRunObject, dryRunObject, compiled); err != nil {
+				return nil, nil, nil, err
+			}
+		}
 
 		if utils.IsSecret(dryRunObject) {
 			if err := SanitizeUnstructuredData(existingObject, dryRunObject); err != nil {
