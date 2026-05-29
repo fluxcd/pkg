@@ -1,0 +1,14 @@
+object 060daaa406f6124f553a000db3e5b0a7f65005f5
+type commit
+tag test-tag-brainpool_p256
+tagger Test User <sign-user@example.com> 1767225600 +0000
+
+Test tag signed with brainpool_p256
+-----BEGIN PGP SIGNATURE-----
+
+iJEEABMIADkWIQRlBCAxO+6ynqGKIEdbY0atdy3seQUCagyJ/RsUgAAAAAAEAA5t
+YW51MiwyLjUrMS4xMiwwLDMACgkQW2NGrXct7HkA6AD+O/esPf4KJss/Civ2/VzZ
+KmepNCursKGEzhDlSI2xCb0A/j2J/Y6l7J2+gWMkTOTPgMhFMb2omVABnzOgjQdm
+E8FI
+=gHvh
+-----END PGP SIGNATURE-----

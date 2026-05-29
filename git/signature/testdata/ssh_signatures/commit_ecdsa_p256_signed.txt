@@ -1,0 +1,12 @@
+tree 2f0fa5393a2120151c5446eb34b99d1f3713ff12
+author Test User <sign-user@example.com> 1767225600 +0000
+committer Test User <sign-user@example.com> 1767225600 +0000
+gpgsig -----BEGIN SSH SIGNATURE-----
+ U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAE
+ EE+VmrN/R3AA+VBW+s/32EXhHSFZrQMO42zR4BTGQau9KJWpSuqMs4s1yjl2JsMUJgabtU
+ GrokE3v2OPHptca7QAAAAANnaXQAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi
+ 1uaXN0cDI1NgAAAEkAAAAhAPeodf77MdlZNmkYbLeIDTwiQwdx/mS2NTuapK0RAKv7AAAA
+ IBtzmPK1xUu7BALEfqRfhScJ1glf+xcvziyxZ0NaWY9E
+ -----END SSH SIGNATURE-----
+
+Test commit signed with ecdsa_p256

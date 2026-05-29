@@ -1,0 +1,14 @@
+object 22d258d46f5bc50420db6a5e4c8d60f35a78fa8d
+type commit
+tag test-tag-ecdsa_p256
+tagger Test User <sign-user@example.com> 1767225600 +0000
+
+Test tag signed with ecdsa_p256
+-----BEGIN PGP SIGNATURE-----
+
+iJEEABMIADkWIQSra878nXqQhGlG0J5198+uMUSa1AUCagyJ/hsUgAAAAAAEAA5t
+YW51MiwyLjUrMS4xMiwwLDMACgkQdffPrjFEmtQp7QD5ARj4NkkgkNvNPYYj+f1s
+y1eiGEhv78qT9hAMVL8OHsUBAN8/NVpUkxZaZ///tJybwJW54TF//wse7ADe0kgG
+eIoe
+=N1G6
+-----END PGP SIGNATURE-----

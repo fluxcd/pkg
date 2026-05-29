@@ -1,0 +1,13 @@
+tree ff5f115ae071fc5b5984c3cf8a2e14fb86e54596
+author Test User <sign-user@example.com> 1767225600 +0000
+committer Test User <sign-user@example.com> 1767225600 +0000
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iLEEABMJADkWIQTNs8DDx+7VeXH5/sB3IHg7nCO39gUCagyJ+hsUgAAAAAAEAA5t
+ YW51MiwyLjUrMS4xMiwwLDMACgkQdyB4O5wjt/Z2rgGAheub5m+E+SDusCBJWvEo
+ kjuBFeZuzB94m8gjMCH3dSxiC7LtSsobbf99tcf4YYH6AX4th44TivpvLO9rh54C
+ qf0BiV7Exf+3i/rXhwC2eHCmA/SFZvcbpMwtmhgg7kswhpk=
+ =PNo6
+ -----END PGP SIGNATURE-----
+
+Test commit signed with brainpool_p384

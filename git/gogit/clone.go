@@ -19,7 +19,6 @@ package gogit
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strings"
@@ -29,11 +28,11 @@ import (
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/internal/build"
 	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/version"
 )
@@ -136,7 +135,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 	}
 	g.repository = repo
 	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
-	return buildCommitWithRef(cc, nil, ref)
+	return build.CommitWithRef(cc, nil, ref)
 }
 
 func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -236,7 +235,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 
 	g.repository = repo
 	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
-	return buildCommitWithRef(cc, tagObj, ref)
+	return build.CommitWithRef(cc, tagObj, ref)
 }
 
 func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -305,7 +304,7 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 
 	g.repository = repo
 	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
-	return buildCommitWithRef(cc, nil, cloneOpts.ReferenceName)
+	return build.CommitWithRef(cc, nil, cloneOpts.ReferenceName)
 }
 
 func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts repository.CloneConfig) (*git.Commit, error) {
@@ -439,7 +438,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 
 	g.repository = repo
 	g.sparseCheckoutDirectories = opts.SparseCheckoutDirectories
-	return buildCommitWithRef(cc, tagObj, tagRef.Name())
+	return build.CommitWithRef(cc, tagObj, tagRef.Name())
 }
 
 func (g *Client) cloneRefName(ctx context.Context, url string, refName string, cloneOpts repository.CloneConfig) (*git.Commit, error) {
@@ -572,83 +571,6 @@ func filterRefs(refs []*plumbing.Reference, currentRef plumbing.ReferenceName) s
 	}
 
 	return ""
-}
-
-func buildSignature(s object.Signature) git.Signature {
-	return git.Signature{
-		Name:  s.Name,
-		Email: s.Email,
-		When:  s.When,
-	}
-}
-
-func buildTag(t *object.Tag, ref plumbing.ReferenceName) (*git.Tag, error) {
-	if t == nil {
-		return &git.Tag{
-			Name: ref.Short(),
-		}, nil
-	}
-
-	encoded := &plumbing.MemoryObject{}
-	if err := t.EncodeWithoutSignature(encoded); err != nil {
-		return nil, fmt.Errorf("unable to encode tag '%s': %w", t.Name, err)
-	}
-	reader, err := encoded.Reader()
-	if err != nil {
-		return nil, fmt.Errorf("unable to encode tag '%s': %w", t.Name, err)
-	}
-	b, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read encoded tag '%s': %w", t.Name, err)
-	}
-
-	return &git.Tag{
-		Hash:      []byte(t.Hash.String()),
-		Name:      t.Name,
-		Author:    buildSignature(t.Tagger),
-		Signature: t.PGPSignature,
-		Encoded:   b,
-		Message:   t.Message,
-	}, nil
-}
-
-func buildCommitWithRef(c *object.Commit, t *object.Tag, ref plumbing.ReferenceName) (*git.Commit, error) {
-	if c == nil {
-		return nil, fmt.Errorf("unable to construct commit: no object")
-	}
-
-	// Encode commit components excluding signature into SignedData.
-	encoded := &plumbing.MemoryObject{}
-	if err := c.EncodeWithoutSignature(encoded); err != nil {
-		return nil, fmt.Errorf("unable to encode commit '%s': %w", c.Hash, err)
-	}
-	reader, err := encoded.Reader()
-	if err != nil {
-		return nil, fmt.Errorf("unable to encode commit '%s': %w", c.Hash, err)
-	}
-	b, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read encoded commit '%s': %w", c.Hash, err)
-	}
-	cc := &git.Commit{
-		Hash:      []byte(c.Hash.String()),
-		Reference: ref.String(),
-		Author:    buildSignature(c.Author),
-		Committer: buildSignature(c.Committer),
-		Signature: c.PGPSignature,
-		Encoded:   b,
-		Message:   c.Message,
-	}
-
-	if ref.IsTag() {
-		tt, err := buildTag(t, ref)
-		if err != nil {
-			return nil, err
-		}
-		cc.ReferencingTag = tt
-	}
-
-	return cc, nil
 }
 
 func isRemoteBranchNotFoundErr(err error, ref string) bool {
