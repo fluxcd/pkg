@@ -253,10 +253,11 @@ func TestCommit_WithSigner(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		setup   signerSetup
-		file    string
-		message string
+		name     string
+		setup    signerSetup // nil = pass nil to WithSigner
+		file     string
+		message  string
+		unsigned bool // true when WithSigner(nil) should yield an empty gpgsig
 	}{
 		{
 			name:    "openpgp",
@@ -275,6 +276,12 @@ func TestCommit_WithSigner(t *testing.T) {
 			setup:   sshSetup(ecdsaP256Key),
 			file:    "signed-ssh-ecdsa-p256",
 			message: "signed by ssh ecdsa p256",
+		},
+		{
+			name:     "nil signer yields unsigned commit",
+			file:     "unsigned",
+			message:  "unsigned despite WithSigner(nil)",
+			unsigned: true,
 		},
 	}
 
@@ -298,7 +305,13 @@ func TestCommit_WithSigner(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			ggc.repository = repo
 
-			signer, verify := tt.setup(t)
+			var (
+				signer signature.Signer
+				verify verifyFn
+			)
+			if tt.setup != nil {
+				signer, verify = tt.setup(t)
+			}
 
 			hash, err := ggc.Commit(
 				git.Commit{
@@ -314,6 +327,11 @@ func TestCommit_WithSigner(t *testing.T) {
 
 			commit, err := repo.CommitObject(plumbing.NewHash(hash))
 			g.Expect(err).ToNot(HaveOccurred())
+
+			if tt.unsigned {
+				g.Expect(commit.PGPSignature).To(BeEmpty())
+				return
+			}
 			g.Expect(commit.PGPSignature).ToNot(BeEmpty())
 			verify(t, commit)
 		})
