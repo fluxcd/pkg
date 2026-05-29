@@ -182,7 +182,7 @@ func NewSSHSigner(pem, passphrase []byte) (Signer, error) {
 			return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
 		}
 		if len(passphrase) == 0 {
-			return nil, errors.New("SSH signing key is encrypted; passphrase required")
+			return nil, ErrSSHPassphraseRequired
 		}
 		inner, err = gossh.ParsePrivateKeyWithPassphrase(pem, passphrase)
 		if err != nil {
