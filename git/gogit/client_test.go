@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/pem"
 	"io"
@@ -240,6 +242,16 @@ func TestCommit_WithSigner(t *testing.T) {
 		return pub, pem.EncodeToMemory(pemBlock)
 	}
 
+	ecdsaP256Key := func(t *testing.T) (crypto.PublicKey, []byte) {
+		t.Helper()
+		g := NewWithT(t)
+		priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		g.Expect(err).ToNot(HaveOccurred())
+		pemBlock, err := gossh.MarshalPrivateKey(priv, "test ecdsa p256 key")
+		g.Expect(err).ToNot(HaveOccurred())
+		return &priv.PublicKey, pem.EncodeToMemory(pemBlock)
+	}
+
 	tests := []struct {
 		name    string
 		setup   signerSetup
@@ -257,6 +269,12 @@ func TestCommit_WithSigner(t *testing.T) {
 			setup:   sshSetup(ed25519Key),
 			file:    "signed-ssh-ed25519",
 			message: "signed by ssh ed25519",
+		},
+		{
+			name:    "ssh ecdsa-sha2-nistp256",
+			setup:   sshSetup(ecdsaP256Key),
+			file:    "signed-ssh-ecdsa-p256",
+			message: "signed by ssh ecdsa p256",
 		},
 	}
 
