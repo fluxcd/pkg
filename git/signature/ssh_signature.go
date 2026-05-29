@@ -18,6 +18,7 @@ package signature
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"io"
@@ -183,7 +184,45 @@ func NewSSHSigner(pem, passphrase []byte) (Signer, error) {
 			return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
 		}
 	}
+	if err := validateSSHSigningKey(inner.PublicKey()); err != nil {
+		return nil, err
+	}
 	return &SSHSigner{inner: inner}, nil
+}
+
+// validateSSHSigningKey rejects SSH public keys whose algorithm is not in
+// the allowlist for commit signing.
+//
+// Allowlist:
+//   - ssh-ed25519
+//   - ecdsa-sha2-nistp256, ecdsa-sha2-nistp384, ecdsa-sha2-nistp521
+//   - ssh-rsa (require >= 2048-bit key)
+//
+// DSA and undersized RSA are rejected because they produce signatures that
+// modern OpenSSH (>= 8.7) refuses to verify.
+func validateSSHSigningKey(pub gossh.PublicKey) error {
+	switch pub.Type() {
+	case gossh.KeyAlgoED25519,
+		gossh.KeyAlgoECDSA256,
+		gossh.KeyAlgoECDSA384,
+		gossh.KeyAlgoECDSA521:
+		return nil
+	case gossh.KeyAlgoRSA:
+		ck, ok := pub.(gossh.CryptoPublicKey)
+		if !ok {
+			return fmt.Errorf("unable to inspect RSA public key: type %T does not expose crypto.PublicKey", pub)
+		}
+		rsaPub, ok := ck.CryptoPublicKey().(*rsa.PublicKey)
+		if !ok {
+			return errors.New("unable to inspect RSA public key: not an *rsa.PublicKey")
+		}
+		if bits := rsaPub.Size() * 8; bits < 2048 {
+			return fmt.Errorf("RSA key size %d bits is below the minimum supported by NewSSHSigner; must be at least 2048", bits)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported SSH signing key algorithm: %s", pub.Type())
+	}
 }
 
 // appendUniqueSentinel appends err to dst only when no existing element of
