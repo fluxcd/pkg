@@ -19,8 +19,11 @@ package signature_test
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/pem"
 	"testing"
 
@@ -41,6 +44,24 @@ func ed25519Key(t *testing.T, passphrase []byte) (crypto.PrivateKey, []byte) {
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	g.Expect(err).ToNot(HaveOccurred())
 	return priv, marshalPEM(t, priv, passphrase)
+}
+
+func ecdsaP256Key(t *testing.T, passphrase []byte) (crypto.PrivateKey, []byte) {
+	t.Helper()
+	g := NewWithT(t)
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	g.Expect(err).ToNot(HaveOccurred())
+	return priv, marshalPEM(t, priv, passphrase)
+}
+
+func rsaKey(bits int) sshKeyFactory {
+	return func(t *testing.T, passphrase []byte) (crypto.PrivateKey, []byte) {
+		t.Helper()
+		g := NewWithT(t)
+		priv, err := rsa.GenerateKey(rand.Reader, bits)
+		g.Expect(err).ToNot(HaveOccurred())
+		return priv, marshalPEM(t, priv, passphrase)
+	}
 }
 
 func marshalPEM(t *testing.T, priv crypto.PrivateKey, passphrase []byte) []byte {
@@ -91,6 +112,19 @@ func TestNewSSHSigner(t *testing.T) {
 			pemPassphrase:  []byte("right"),
 			callPassphrase: []byte("wrong"),
 			expectErr:      "could not parse SSH signing key",
+		},
+		{
+			name: "ecdsa-sha2-nistp256 accepted",
+			key:  ecdsaP256Key,
+		},
+		{
+			name: "rsa 2048 accepted",
+			key:  rsaKey(2048),
+		},
+		{
+			name:      "rsa 1024 rejected",
+			key:       rsaKey(1024),
+			expectErr: "RSA key size 1024 bits is below the minimum supported by NewSSHSigner; must be at least 2048",
 		},
 	}
 
