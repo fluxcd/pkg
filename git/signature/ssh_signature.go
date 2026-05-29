@@ -171,7 +171,17 @@ func (s *SSHSigner) Sign(r io.Reader) ([]byte, error) {
 func NewSSHSigner(pem, passphrase []byte) (Signer, error) {
 	inner, err := gossh.ParsePrivateKey(pem)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
+		var missingErr *gossh.PassphraseMissingError
+		if !errors.As(err, &missingErr) {
+			return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
+		}
+		if len(passphrase) == 0 {
+			return nil, errors.New("SSH signing key is encrypted; passphrase required")
+		}
+		inner, err = gossh.ParsePrivateKeyWithPassphrase(pem, passphrase)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
+		}
 	}
 	return &SSHSigner{inner: inner}, nil
 }

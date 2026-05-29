@@ -60,6 +60,8 @@ func marshalPEM(t *testing.T, priv crypto.PrivateKey, passphrase []byte) []byte 
 }
 
 func TestNewSSHSigner(t *testing.T) {
+	const passphrase = "correct horse battery staple"
+
 	tests := []struct {
 		name           string
 		key            sshKeyFactory
@@ -70,6 +72,25 @@ func TestNewSSHSigner(t *testing.T) {
 		{
 			name: "ed25519 unencrypted",
 			key:  ed25519Key,
+		},
+		{
+			name:           "ed25519 encrypted with passphrase",
+			key:            ed25519Key,
+			pemPassphrase:  []byte(passphrase),
+			callPassphrase: []byte(passphrase),
+		},
+		{
+			name:          "ed25519 encrypted without passphrase",
+			key:           ed25519Key,
+			pemPassphrase: []byte(passphrase),
+			expectErr:     "SSH signing key is encrypted; passphrase required",
+		},
+		{
+			name:           "ed25519 encrypted with wrong passphrase",
+			key:            ed25519Key,
+			pemPassphrase:  []byte("right"),
+			callPassphrase: []byte("wrong"),
+			expectErr:      "could not parse SSH signing key",
 		},
 	}
 
