@@ -19,6 +19,10 @@ package gogit
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,6 +36,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	. "github.com/onsi/gomega"
+	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
@@ -205,6 +210,36 @@ func TestCommit_WithSigner(t *testing.T) {
 		}
 	}
 
+	sshSetup := func(keyFn func(t *testing.T) (crypto.PublicKey, []byte)) signerSetup {
+		return func(t *testing.T) (signature.Signer, verifyFn) {
+			t.Helper()
+			g := NewWithT(t)
+			pub, pemBytes := keyFn(t)
+			signer, err := signature.NewSSHSigner(pemBytes, nil)
+			g.Expect(err).ToNot(HaveOccurred())
+			return signer, func(t *testing.T, commit *object.Commit) {
+				g := NewWithT(t)
+				g.Expect(commit.PGPSignature).To(HavePrefix("-----BEGIN SSH SIGNATURE-----"))
+				payload := commitPayload(t, commit)
+				gosshPub, err := gossh.NewPublicKey(pub)
+				g.Expect(err).ToNot(HaveOccurred())
+				authorizedKey := gossh.MarshalAuthorizedKey(gosshPub)
+				_, err = signature.VerifySSHSignature(commit.PGPSignature, payload, string(authorizedKey))
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+		}
+	}
+
+	ed25519Key := func(t *testing.T) (crypto.PublicKey, []byte) {
+		t.Helper()
+		g := NewWithT(t)
+		pub, priv, err := ed25519.GenerateKey(rand.Reader)
+		g.Expect(err).ToNot(HaveOccurred())
+		pemBlock, err := gossh.MarshalPrivateKey(priv, "test ed25519 key")
+		g.Expect(err).ToNot(HaveOccurred())
+		return pub, pem.EncodeToMemory(pemBlock)
+	}
+
 	tests := []struct {
 		name    string
 		setup   signerSetup
@@ -216,6 +251,12 @@ func TestCommit_WithSigner(t *testing.T) {
 			setup:   openpgpSetup,
 			file:    "signed-openpgp",
 			message: "signed by openpgp",
+		},
+		{
+			name:    "ssh ed25519",
+			setup:   sshSetup(ed25519Key),
+			file:    "signed-ssh-ed25519",
+			message: "signed by ssh ed25519",
 		},
 	}
 
