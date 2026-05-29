@@ -18,6 +18,7 @@ package chartutil
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -26,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/fluxcd/pkg/apis/meta"
@@ -402,6 +404,38 @@ func TestReplacePathValue(t *testing.T) {
 			}
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(values).To(Equal(tt.want))
+		})
+	}
+}
+
+func TestErrValuesReferenceErrorNilReason(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *ErrValuesReference
+		want string
+	}{
+		{
+			name: "without wrapped error",
+			err: &ErrValuesReference{
+				Name: types.NamespacedName{Namespace: "default", Name: "values"},
+			},
+			want: "could not resolve chart values reference 'default/values': unknown error",
+		},
+		{
+			name: "with wrapped error",
+			err: &ErrValuesReference{
+				Name: types.NamespacedName{Namespace: "default", Name: "values"},
+				Err:  errors.New("boom"),
+			},
+			want: "could not resolve chart values reference 'default/values': boom",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(func() { _ = tt.err.Error() }).ToNot(Panic())
+			g.Expect(tt.err.Error()).To(Equal(tt.want))
 		})
 	}
 }

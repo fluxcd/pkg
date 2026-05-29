@@ -95,9 +95,9 @@ func (e *ErrValuesReference) Error() string {
 	if key := e.Key; key != "" {
 		b.WriteString(fmt.Sprintf(" with key '%s'", key))
 	}
-	reason := e.Reason.Error()
-	if reason == "" && e.Err == nil {
-		reason = ErrUnknown.Error()
+	reason := ErrUnknown.Error()
+	if e.Reason != nil && e.Reason.Error() != "" {
+		reason = e.Reason.Error()
 	}
 	if e.Err != nil {
 		reason = e.Err.Error()
