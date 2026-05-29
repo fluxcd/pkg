@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/fluxcd/pkg/git/signature"
@@ -86,9 +87,9 @@ func TestNewSSHSigner(t *testing.T) {
 	tests := []struct {
 		name           string
 		key            sshKeyFactory
-		pemPassphrase  []byte // passphrase used to encrypt the PEM; nil = unencrypted
-		callPassphrase []byte // passphrase passed to NewSSHSigner; nil = none
-		expectErr      string // substring expected in the error; empty = expect success
+		pemPassphrase  []byte              // passphrase used to encrypt the PEM; nil = unencrypted
+		callPassphrase []byte              // passphrase passed to NewSSHSigner; nil = none
+		expectErr      types.GomegaMatcher // nil = expect success
 	}{
 		{
 			name: "ed25519 unencrypted",
@@ -104,14 +105,14 @@ func TestNewSSHSigner(t *testing.T) {
 			name:          "ed25519 encrypted without passphrase",
 			key:           ed25519Key,
 			pemPassphrase: []byte(passphrase),
-			expectErr:     "SSH signing key is encrypted; passphrase required",
+			expectErr:     MatchError(signature.ErrSSHPassphraseRequired),
 		},
 		{
 			name:           "ed25519 encrypted with wrong passphrase",
 			key:            ed25519Key,
 			pemPassphrase:  []byte("right"),
 			callPassphrase: []byte("wrong"),
-			expectErr:      "could not parse SSH signing key",
+			expectErr:      MatchError(ContainSubstring("could not parse SSH signing key")),
 		},
 		{
 			name: "ecdsa-sha2-nistp256 accepted",
@@ -124,7 +125,7 @@ func TestNewSSHSigner(t *testing.T) {
 		{
 			name:      "rsa 1024 rejected",
 			key:       rsaKey(1024),
-			expectErr: "RSA key size 1024 bits is below the minimum supported by NewSSHSigner; must be at least 2048",
+			expectErr: MatchError(ContainSubstring("RSA key size 1024 bits is below the minimum supported by NewSSHSigner; must be at least 2048")),
 		},
 	}
 
@@ -135,9 +136,8 @@ func TestNewSSHSigner(t *testing.T) {
 			priv, pemBytes := tt.key(t, tt.pemPassphrase)
 
 			signer, err := signature.NewSSHSigner(pemBytes, tt.callPassphrase)
-			if tt.expectErr != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(tt.expectErr))
+			if tt.expectErr != nil {
+				g.Expect(err).To(tt.expectErr)
 				g.Expect(signer).To(BeNil())
 				return
 			}

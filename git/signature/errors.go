@@ -42,4 +42,9 @@ var (
 	// at least one key ring or authorized_keys input and none of them could
 	// verify the signature against the payload.
 	ErrNoMatchingKey = errors.New("no matching key")
+
+	// ErrSSHPassphraseRequired is returned by NewSSHSigner when the
+	// provided private key is encrypted but no passphrase was supplied.
+	// Callers may branch on it via errors.Is.
+	ErrSSHPassphraseRequired = errors.New("SSH signing key is encrypted; passphrase required")
 )
