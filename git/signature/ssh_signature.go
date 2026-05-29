@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/hiddeco/sshsig"
@@ -135,6 +136,44 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 	// them via errors.Is.
 	return "", fmt.Errorf("unable to verify payload with any of the given authorized keys: %w",
 		errors.Join(append([]error{ErrNoMatchingKey}, verifyErrors...)...))
+}
+
+// SSHSigner adapts a [gossh.Signer] to the [Signer] interface, producing
+// SSHSIG-armored signatures with namespace [SSHSignatureNamespace] ("git")
+// and SHA-512 as the hash algorithm, matching Git's defaults for SSH-signed
+// commits. Callers may type-assert a [Signer] returned by [NewSSHSigner]
+// back to *SSHSigner to inspect or distinguish it from other Signer
+// implementations.
+type SSHSigner struct {
+	inner gossh.Signer
+}
+
+// Sign produces an SSHSIG-armored signature over the message read from r,
+// using SHA-512 and the "git" namespace.
+func (s *SSHSigner) Sign(r io.Reader) ([]byte, error) {
+	sig, err := sshsig.Sign(r, s.inner, sshsig.HashSHA512, SSHSignatureNamespace)
+	if err != nil {
+		return nil, err
+	}
+	return sshsig.Armor(sig), nil
+}
+
+// NewSSHSigner returns a [Signer] that signs commits with the given SSH
+// private key. The pem argument is the private key in any format accepted
+// by [gossh.ParsePrivateKey], typically the OpenSSH "-----BEGIN OPENSSH
+// PRIVATE KEY-----" format produced by ssh-keygen. The passphrase argument
+// is consulted only when the private key is encrypted; pass nil for an
+// unencrypted key.
+//
+// Signatures use namespace [SSHSignatureNamespace] ("git") and SHA-512,
+// which match Git's defaults for SSH-signed commits. See
+// https://git-scm.com/docs/gitformat-signature.
+func NewSSHSigner(pem, passphrase []byte) (Signer, error) {
+	inner, err := gossh.ParsePrivateKey(pem)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
+	}
+	return &SSHSigner{inner: inner}, nil
 }
 
 // appendUniqueSentinel appends err to dst only when no existing element of
