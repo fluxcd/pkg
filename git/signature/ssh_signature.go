@@ -166,6 +166,11 @@ func (s *SSHSigner) Sign(r io.Reader) ([]byte, error) {
 // is consulted only when the private key is encrypted; pass nil for an
 // unencrypted key.
 //
+// Supported algorithms: ssh-ed25519, ecdsa-sha2-nistp256/384/521, and
+// ssh-rsa with key size at least 2048 bits. DSA and undersized RSA keys
+// are rejected at construction time because they produce signatures that
+// modern OpenSSH refuses to verify.
+//
 // Signatures use namespace [SSHSignatureNamespace] ("git") and SHA-512,
 // which match Git's defaults for SSH-signed commits. See
 // https://git-scm.com/docs/gitformat-signature.
