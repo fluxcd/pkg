@@ -42,6 +42,8 @@ import (
 	"github.com/fluxcd/pkg/ssa/utils"
 )
 
+const forceApplyPropagationPolicyAnnotation = "kustomize.toolkit.fluxcd.io/propagationPolicy"
+
 // ApplyOptions contains options for server-side apply requests.
 type ApplyOptions struct {
 	// Force configures the engine to recreate objects that contain immutable field changes.
@@ -141,7 +143,12 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
-			if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+			deleteOpts, err := forceApplyDeleteOptions(object)
+			if err != nil {
+				return nil, fmt.Errorf("%s immutable field detected, %w",
+					utils.FmtUnstructured(dryRunObject), err)
+			}
+			if err := m.client.Delete(ctx, existingObject, deleteOpts...); err != nil && !errors.IsNotFound(err) {
 				return nil, fmt.Errorf("%s immutable field detected, failed to delete object: %w",
 					utils.FmtUnstructured(dryRunObject), err)
 			}
@@ -256,7 +263,12 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					// as immutable and deleted it when ApplyAll was called the last time (the check for ImmutableError
 					// returns false positives)
 					if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
-						if err := m.client.Delete(ctx, existingObject, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+						deleteOpts, err := forceApplyDeleteOptions(object)
+						if err != nil {
+							return fmt.Errorf("%s immutable field detected, %w",
+								utils.FmtUnstructured(dryRunObject), err)
+						}
+						if err := m.client.Delete(ctx, existingObject, deleteOpts...); err != nil && !errors.IsNotFound(err) {
 							return fmt.Errorf("%s immutable field detected, failed to delete object: %w",
 								utils.FmtUnstructured(dryRunObject), err)
 						}
@@ -579,6 +591,23 @@ func removeIgnoredFields(matchObj, obj *unstructured.Unstructured, rules jsondif
 	}
 
 	return nil
+}
+
+func forceApplyDeleteOptions(object *unstructured.Unstructured) ([]client.DeleteOption, error) {
+	value, ok := object.GetAnnotations()[forceApplyPropagationPolicyAnnotation]
+	if !ok {
+		// Keep PropagationPolicy unset so the API server owns the default.
+		return nil, nil
+	}
+
+	switch {
+	case strings.EqualFold(value, string(metav1.DeletePropagationBackground)):
+		return []client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationBackground)}, nil
+	case strings.EqualFold(value, string(metav1.DeletePropagationOrphan)):
+		return []client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationOrphan)}, nil
+	default:
+		return nil, fmt.Errorf("unsupported propagation policy %q, must be background or orphan", value)
+	}
 }
 
 // lookupJSONPointer resolves an RFC 6901 JSON pointer against the unstructured
