@@ -17,6 +17,7 @@ limitations under the License.
 package kustomize
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -230,4 +231,89 @@ func getSubstituteFrom(kustomization unstructured.Unstructured) ([]SubstituteRef
 	}
 
 	return nil, resultErr
+}
+
+// SubstituteEnvVariables performs variable substitution on multi-document YAML
+// input, skipping resources annotated or labeled with
+// kustomize.toolkit.fluxcd.io/substitute: disabled. The mapping function
+// resolves variable names to values; it is called for each ${var} reference
+// in non-disabled documents.
+func SubstituteEnvVariables(data string, mapping func(string) (string, bool)) (string, error) {
+	chunks, seps := splitYAMLDocuments(data)
+
+	var b strings.Builder
+	for i, chunk := range chunks {
+		if i > 0 {
+			b.WriteString(seps[i-1])
+		}
+		if isSubstituteDisabled(chunk) {
+			b.WriteString(chunk)
+			continue
+		}
+		out, err := envsubst.Eval(chunk, mapping)
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(out)
+	}
+	return b.String(), nil
+}
+
+// isSubstituteDisabled reports whether a raw YAML document carries the
+// kustomize.toolkit.fluxcd.io/substitute: disabled annotation or label.
+func isSubstituteDisabled(doc string) bool {
+	if strings.TrimSpace(doc) == "" {
+		return false
+	}
+	var m struct {
+		Metadata struct {
+			Labels      map[string]string `json:"labels"`
+			Annotations map[string]string `json:"annotations"`
+		} `json:"metadata"`
+	}
+	if err := yaml.Unmarshal([]byte(doc), &m); err != nil {
+		return false
+	}
+	return m.Metadata.Labels[substituteAnnotationKey] == DisabledValue ||
+		m.Metadata.Annotations[substituteAnnotationKey] == DisabledValue
+}
+
+// splitYAMLDocuments splits multi-document YAML into content chunks and the
+// separator strings between them. A separator is a line that is exactly "---"
+// with optional trailing whitespace. The returned slices satisfy
+// len(seps) == len(chunks)-1.
+func splitYAMLDocuments(data string) (chunks []string, seps []string) {
+	scanner := bufio.NewScanner(strings.NewReader(data))
+	var cur strings.Builder
+	for scanner.Scan() {
+		line := scanner.Text()
+		if isDocSeparator(line) {
+			chunks = append(chunks, cur.String())
+			cur.Reset()
+			seps = append(seps, line+"\n")
+		} else {
+			cur.WriteString(line)
+			cur.WriteByte('\n')
+		}
+	}
+	trailing := cur.String()
+	if len(trailing) > 0 && !strings.HasSuffix(data, "\n") {
+		trailing = strings.TrimSuffix(trailing, "\n")
+	}
+	chunks = append(chunks, trailing)
+	return chunks, seps
+}
+
+// isDocSeparator reports whether line is a YAML document separator,
+// i.e. exactly "---" optionally followed by spaces or tabs.
+func isDocSeparator(line string) bool {
+	if !strings.HasPrefix(line, "---") {
+		return false
+	}
+	for _, r := range line[3:] {
+		if r != ' ' && r != '\t' {
+			return false
+		}
+	}
+	return true
 }
