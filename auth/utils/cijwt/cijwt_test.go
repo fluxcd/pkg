@@ -17,12 +17,13 @@ limitations under the License.
 package cijwt_test
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,6 @@ import (
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/fluxcd/pkg/auth/actionsoidc"
 	"github.com/fluxcd/pkg/auth/utils/cijwt"
 )
 
@@ -67,25 +67,20 @@ func makeEdDSAJWK(t *testing.T, kid string) (jwk string, pub ed25519.PublicKey) 
 	return string(b), pub
 }
 
-// tokenServer mints a fresh JWT with the configured TTL on each call, counting
-// requests so tests can assert cache behavior. It points the actionsoidc env
-// vars at itself.
-type tokenServer struct {
-	server *httptest.Server
-	calls  atomic.Int32
+// mintingFn returns a cijwt.TokenFunc that mints a fresh JWT with the given
+// TTL on every call, counting invocations so tests can assert cache behavior.
+type mintingFn struct {
+	calls atomic.Int32
 }
 
-func newTokenServer(t *testing.T, ttl time.Duration) *tokenServer {
+func newMintingFn(t *testing.T, ttl time.Duration) (*mintingFn, cijwt.TokenFunc) {
 	t.Helper()
-	ts := &tokenServer{}
-	ts.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ts.calls.Add(1)
-		_, _ = w.Write([]byte(`{"value":"` + makeJWT(t, time.Now().Add(ttl)) + `"}`))
-	}))
-	t.Cleanup(ts.server.Close)
-	t.Setenv(actionsoidc.EnvRequestURL, ts.server.URL)
-	t.Setenv(actionsoidc.EnvRequestToken, "request-token")
-	return ts
+	m := &mintingFn{}
+	fn := func(context.Context) (string, error) {
+		m.calls.Add(1)
+		return makeJWT(t, time.Now().Add(ttl)), nil
+	}
+	return m, fn
 }
 
 // recordingRT records the Authorization header and host of every request it
@@ -140,18 +135,18 @@ func TestNewTransport_Validation(t *testing.T) {
 			wantErr: `host "a.example" is configured more than once`,
 		},
 		{
-			name: "duplicate within audiences",
+			name: "duplicate within token funcs",
 			opts: []cijwt.Option{
-				cijwt.WithHostAudience("a.example", "aud1"),
-				cijwt.WithHostAudience("a.example", "aud2"),
+				cijwt.WithHostTokenFunc("a.example", func(context.Context) (string, error) { return "", nil }),
+				cijwt.WithHostTokenFunc("a.example", func(context.Context) (string, error) { return "", nil }),
 			},
 			wantErr: `host "a.example" is configured more than once`,
 		},
 		{
-			name: "duplicate across token and audience",
+			name: "duplicate across token and token func",
 			opts: []cijwt.Option{
 				cijwt.WithHostToken("a.example", "t"),
-				cijwt.WithHostAudience("a.example", "aud"),
+				cijwt.WithHostTokenFunc("a.example", func(context.Context) (string, error) { return "", nil }),
 			},
 			wantErr: `host "a.example" is configured more than once`,
 		},
@@ -182,7 +177,7 @@ func TestNewTransport_Validation(t *testing.T) {
 			name: "valid mix of distinct hosts",
 			opts: []cijwt.Option{
 				cijwt.WithHostToken("static.example", "t"),
-				cijwt.WithHostAudience("mint.example", "aud"),
+				cijwt.WithHostTokenFunc("mint.example", func(context.Context) (string, error) { return "", nil }),
 				cijwt.WithHostJWK("jwk.example", jwk, "iss", "aud", "sub"),
 			},
 		},
@@ -228,16 +223,16 @@ func TestTransport_StaticTokenStampedAsIs(t *testing.T) {
 }
 
 func TestTransport_MintsAndCachesPerHost(t *testing.T) {
-	ts := newTokenServer(t, time.Hour)
+	m, fn := newMintingFn(t, time.Hour)
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cijwt.WithHostAudience("mint.example", "aud"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostTokenFunc("mint.example", fn))
 
 	for range 5 {
 		get(t, tr, "mint.example")
 	}
 
-	if ts.calls.Load() != 1 {
-		t.Errorf("token endpoint called %d times, want 1 (cached)", ts.calls.Load())
+	if m.calls.Load() != 1 {
+		t.Errorf("fn called %d times, want 1 (cached)", m.calls.Load())
 	}
 	for _, a := range rec.auths {
 		if !strings.HasPrefix(a, "Bearer ") || strings.Contains(a, "Basic") {
@@ -250,32 +245,64 @@ func TestTransport_MintsAndCachesPerHost(t *testing.T) {
 func TestTransport_RemintsAfterHalfLife(t *testing.T) {
 	// 4s TTL → cached for ~2s (above the 1s near-expiry guard). After 2.5s the
 	// next call must remint.
-	ts := newTokenServer(t, 4*time.Second)
+	m, fn := newMintingFn(t, 4*time.Second)
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cijwt.WithHostAudience("mint.example", "aud"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostTokenFunc("mint.example", fn))
 
 	get(t, tr, "mint.example")
-	if ts.calls.Load() != 1 {
-		t.Fatalf("token endpoint called %d times, want 1", ts.calls.Load())
+	if m.calls.Load() != 1 {
+		t.Fatalf("fn called %d times, want 1", m.calls.Load())
 	}
 
 	time.Sleep(2500 * time.Millisecond)
 
 	get(t, tr, "mint.example")
-	if ts.calls.Load() != 2 {
-		t.Errorf("token endpoint called %d times, want 2 (reminted)", ts.calls.Load())
+	if m.calls.Load() != 2 {
+		t.Errorf("fn called %d times, want 2 (reminted)", m.calls.Load())
 	}
 }
 
 func TestTransport_NearExpiredMintErrors(t *testing.T) {
-	newTokenServer(t, 500*time.Millisecond) // half-life 250ms < 1s guard
+	_, fn := newMintingFn(t, 500*time.Millisecond) // half-life 250ms < 1s guard
 	rec := &recordingRT{}
-	tr := mustNewTransport(t, rec, cijwt.WithHostAudience("mint.example", "aud"))
+	tr := mustNewTransport(t, rec, cijwt.WithHostTokenFunc("mint.example", fn))
 
 	req, _ := http.NewRequest(http.MethodGet, "https://mint.example/v2/", nil)
 	_, err := tr.RoundTrip(req)
 	if err == nil || !strings.Contains(err.Error(), "near expiry") {
 		t.Fatalf("expected near-expiry error, got: %v", err)
+	}
+}
+
+func TestTransport_TokenFuncErrorPropagates(t *testing.T) {
+	rec := &recordingRT{}
+	tr := mustNewTransport(t, rec, cijwt.WithHostTokenFunc("mint.example", func(context.Context) (string, error) {
+		return "", fmt.Errorf("boom")
+	}))
+
+	req, _ := http.NewRequest(http.MethodGet, "https://mint.example/v2/", nil)
+	_, err := tr.RoundTrip(req)
+	if err == nil || !strings.Contains(err.Error(), "boom") || !strings.Contains(err.Error(), "mint.example") {
+		t.Fatalf("expected wrapped boom for mint.example, got: %v", err)
+	}
+}
+
+func TestTransport_TokenFuncMissingExpErrors(t *testing.T) {
+	// Sign a JWT with no exp claim.
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{})
+	noExp, err := tok.SignedString([]byte("test-secret"))
+	if err != nil {
+		t.Fatalf("mint test JWT: %v", err)
+	}
+	rec := &recordingRT{}
+	tr := mustNewTransport(t, rec, cijwt.WithHostTokenFunc("mint.example", func(context.Context) (string, error) {
+		return noExp, nil
+	}))
+
+	req, _ := http.NewRequest(http.MethodGet, "https://mint.example/v2/", nil)
+	_, err = tr.RoundTrip(req)
+	if err == nil || !strings.Contains(err.Error(), "exp claim") {
+		t.Fatalf("expected missing-exp error, got: %v", err)
 	}
 }
 
@@ -294,12 +321,12 @@ func TestTransport_DoesNotMutateCallerRequest(t *testing.T) {
 }
 
 func TestTransport_RoutesPerHost(t *testing.T) {
-	newTokenServer(t, time.Hour)
+	_, fn := newMintingFn(t, time.Hour)
 	jwk, _ := makeEdDSAJWK(t, "key-1")
 	rec := &recordingRT{}
 	tr := mustNewTransport(t, rec,
 		cijwt.WithHostToken("static.example", "static-token"),
-		cijwt.WithHostAudience("mint.example", "aud"),
+		cijwt.WithHostTokenFunc("mint.example", fn),
 		cijwt.WithHostJWK("jwk.example", jwk, "https://issuer.example", "registry", "subject"),
 	)
 
