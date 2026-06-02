@@ -1,0 +1,494 @@
+/*
+Copyright 2026 The Flux authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package signature_test
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/fluxcd/pkg/git/internal/build"
+	"github.com/fluxcd/pkg/git/internal/testutil"
+	"github.com/fluxcd/pkg/git/signature"
+	"github.com/go-git/go-git/v5/plumbing"
+	. "github.com/onsi/gomega"
+)
+
+const (
+	encodedCommitFixture = `tree f0c522d8cc4c90b73e2bc719305a896e7e3c108a
+parent eb167bc68d0a11530923b1f24b4978535d10b879
+author Stefan Prodan <stefan.prodan@gmail.com> 1633681364 +0300
+committer Stefan Prodan <stefan.prodan@gmail.com> 1633681364 +0300
+
+Update containerd and runc to fix CVEs
+
+Signed-off-by: Stefan Prodan <stefan.prodan@gmail.com>
+`
+
+	malformedEncodedCommitFixture = `parent eb167bc68d0a11530923b1f24b4978535d10b879
+author Stefan Prodan <stefan.prodan@gmail.com> 1633681364 +0300
+committer Stefan Prodan <stefan.prodan@gmail.com> 1633681364 +0300
+
+Update containerd and runc to fix CVEs
+
+Signed-off-by: Stefan Prodan <stefan.prodan@gmail.com>
+`
+
+	signatureCommitFixture = `-----BEGIN PGP SIGNATURE-----
+
+iHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb
+r7nJAQCQU4zEJu04/Q0ac/UaL6htjhq/wTDNMeUM+aWG/LcBogEAqFUea1oR2BJQ
+JCJmEtERFh39zNWSazQmxPAFhEE0kbc=
+=+Wlj
+-----END PGP SIGNATURE-----`
+
+	armoredKeyRingFixture = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mQSuBF9+HgMRDADKT8UBcSzpTi4JXt/ohhVW3x81AGFPrQvs6MYrcnNJfIkPTJD8
+mY5T7j1fkaN5wcf1wnxM9qTcW8BodkWNGEoEYOtVuigLSxPFqIncxK0PHvdU8ths
+TEInBrgZv9t6xIVa4QngOEUd2D/aYni7M+75z7ntgj6eU1xLZ60upRFn05862OvJ
+rZFUvzjsZXMAO3enCu2VhG/2axCY/5uI8PgWjyiKV2TH4LBJgzlb0v6SyI+fYf5K
+Bg2WzDuLKvQBi9tFSwnUbQoFFlOeiGW8G/bdkoJDWeS1oYgSD3nkmvXvrVESCrbT
+C05OtQOiDXjSpkLim81vNVPtI2XEug+9fEA+jeJakyGwwB+K8xqV3QILKCoWHKGx
+yWcMHSR6cP9tdXCk2JHZBm1PLSJ8hIgMH/YwBJLYg90u8lLAs9WtpVBKkLplzzgm
+B4Z4VxCC+xI1kt+3ZgYvYC+oUXJXrjyAzy+J1f+aWl2+S/79glWgl/xz2VibWMz6
+nZUE+wLMxOQqyOsBALsoE6z81y/7gfn4R/BziBASi1jq/r/wdboFYowmqd39DACX
++i+V0OplP2TN/F5JajzRgkrlq5cwZHinnw+IFwj9RTfOkdGb3YwhBt/h2PP38969
+ZG+y8muNtaIqih1pXj1fz9HRtsiCABN0j+JYpvV2D2xuLL7P1O0dt5BpJ3KqNCRw
+mGgO2GLxbwvlulsLidCPxdK/M8g9Eeb/xwA5LVwvjVchHkzHuUT7durn7AT0RWiK
+BT8iDfeBB9RKienAbWyybEqRaR6/Tv+mghFIalsDiBPbfm4rsNzsq3ohfByqECiy
+yUvs2O3NDwkoaBDkA3GFyKv8/SVpcuL5OkVxAHNCIMhNzSgotQ3KLcQc0IREfFCa
+3CsBAC7CsE2bJZ9IA9sbBa3jimVhWUQVudRWiLFeYHUF/hjhqS8IHyFwprjEOLaV
+EG0kBO6ELypD/bOsmN9XZLPYyI3y9DM6Vo0KMomE+yK/By/ZMxVfex8/TZreUdhP
+VdCLL95Rc4w9io8qFb2qGtYBij2wm0RWLcM0IhXWAtjI3B17IN+6hmv+JpiZccsM
+AMNR5/RVdXIl0hzr8LROD0Xe4sTyZ+fm3mvpczoDPQNRrWpmI/9OT58itnVmZ5jM
+7djV5y/NjBk63mlqYYfkfWto97wkhg0MnTnOhzdtzSiZQRzj+vf+ilLfIlLnuRr1
+JRV9Skv6xQltcFArx4JyfZCo7JB1ZXcbdFAvIXXS11RTErO0XVrXNm2RenpW/yZA
+9f+ESQ/uUB6XNuyqVUnJDAFJFLdzx8sO3DXo7dhIlgpFqgQobUl+APpbU5LT95sm
+89UrV0Lt9vh7k6zQtKOjEUhm+dErmuBnJo8MvchAuXLagHjvb58vYBCUxVxzt1KG
+2IePwJ/oXIfawNEGad9Lmdo1FYG1u53AKWZmpYOTouu92O50FG2+7dBh0V2vO253
+aIGFRT1r14B1pkCIun7z7B/JELqOkmwmlRrUnxlADZEcQT3z/S8/4+2P7P6kXO7X
+/TAX5xBhSqUbKe3DhJSOvf05/RVL5ULc2U2JFGLAtmBOFmnD/u0qoo5UvWliI+v/
+47QnU3RlZmFuIFByb2RhbiA8c3RlZmFuLnByb2RhbkBnbWFpbC5jb20+iJAEExEI
+ADgWIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCX34eAwIbAwULCQgHAgYVCgkICwIE
+FgIDAQIeAQIXgAAKCRAyma6w5Ahbrzu/AP9l2YpRaWZr6wSQuEn0gMN8DRzsWJPx
+pn0akdY7SRP3ngD9GoKgu41FAItnHAJ2KiHv/fHFyHMndNP3kPGPNW4BF+65Aw0E
+X34eAxAMAMdYFCHmVA8TZxSTMBDpKYave8RiDCMMMjk26Gl0EPN9f2Y+s5++DhiQ
+hojNH9VmJkFwZX1xppxe1y1aLa/U6fBAqMP/IdNH8270iv+A9YIxdsWLmpm99BDO
+3suRfsHcOe9T0x/CwRfDNdGM/enGMhYGTgF4VD58DRDE6WntaBhl4JJa300NG6X0
+GM4Gh59DKWDnez/Shulj8demlWmakP5imCVoY+omOEc2k3nH02U+foqaGG5WxZZ+
+GwEPswm2sBxvn8nwjy9gbQwEtzNI7lWYiz36wCj2VS56Udqt+0eNg8WzocUT0XyI
+moe1qm8YJQ6fxIzaC431DYi/mCDzgx4EV9ww33SXX3Yp2NL6PsdWJWw2QnoqSMpM
+z5otw2KlMgUHkkXEKs0apmK4Hu2b6KD7/ydoQRFUqR38Gb0IZL1tOL6PnbCRUcig
+Aypy016W/WMCjBfQ8qxIGTaj5agX2t28hbiURbxZkCkz+Z3OWkO0Rq3Y2hNAYM5s
+eTn94JIGGwADBgv/dbSZ9LrBvdMwg8pAtdlLtQdjPiT1i9w5NZuQd7OuKhOxYTEB
+NRDTgy4/DgeNThCeOkMB/UQQPtJ3Et45S2YRtnnuvfxgnlz7xlUn765/grtnRk4t
+ONjMmb6tZos1FjIJecB/6h4RsvUd2egvtlpD/Z3YKr6MpNjWg4ji7m27e9pcJfP6
+YpTDrq9GamiHy9FS2F2pZlQxriPpVhjCLVn9tFGBIsXNxxn7SP4so6rJBmyHEAlq
+iym9wl933e0FIgAw5C1vvprYu2amk+jmVBsJjjCmInW5q/kWAFnFaHBvk+v+/7tX
+hywWUI7BqseikgUlkgJ6eU7E9z1DEyuS08x/cViDoNh2ntVUhpnluDu48pdqBvvY
+a4uL/D+KI84THUAJ/vZy+q6G3BEb4hI9pFjgrdJpUKubxyZolmkCFZHjV34uOcTc
+LQr28P8xW8vQbg5DpIsivxYLqDGXt3OyiItxvLMtw/ypt6PkoeP9A4KDST4StITE
+1hrOrPtJ/VRmS2o0iHgEGBEIACAWIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCX34e
+AwIbDAAKCRAyma6w5Ahbr6QWAP9/pl2R6r1nuCnXzewSbnH1OLsXf32hFQAjaQ5o
+Oomb3gD/TRf/nAdVED+k81GdLzciYdUGtI71/qI47G0nMBluLRE=
+=/4e+
+-----END PGP PUBLIC KEY BLOCK-----`
+
+	keyRingKeyIDFixture = "3299AEB0E4085BAF"
+
+	malformedKeyRingFixture = `
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mQSuBF9+HgMRDADKT8UBcSzpTi4JXt/ohhVW3x81AGFPrQvs6MYrcnNJfIkPTJD8
+mY5T7j1fkaN5wcf1wnxM9qTcW8BodkWNGEoEYOtVuigLSxPFqIncxK0PHvdU8ths
+TEInBrgZv9t6xIVa4QngOEUd2D/aYni7M+75z7ntgj6eU1xLZ60upRFn05862OvJ
+rZFUvzjsZXMAO3enCu2VhG/2axCY/5uI8PgWjyiKV2TH4LBJgzlb0v6SyI+fYf5K
+Bg2WzDuLKvQBi9tFSwnUbQoFFlOeiGW8G/bdkoJDWeS1oYgSD3nkmvXvrVESCrbT
+-----END PGP PUBLIC KEY BLOCK-----`
+
+	// otherKeyRingFixture is a parseable PGP public key that does not match
+	// signatureCommitFixture; used to exercise multi-keyring fallback paths
+	// where verification fails for reasons other than a parse error.
+	otherKeyRingFixture = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEagyJ+hYJKwYBBAHaRw8BAQdADqQpCJt4Rp3sE87GpTrTRn/VWxyzTHvxW0w3
+HyxUzPi0JFRlc3QgVXNlciA8dGVzdC1lZDI1NTE5QGV4YW1wbGUuY29tPoivBBMW
+CgBXFiEEcS5ioyT5661YqSl5uLi2Q/ZOS+QFAmoMifobFIAAAAAABAAObWFudTIs
+Mi41KzEuMTIsMCwzAhsjBQsJCAcCAiICBhUKCQgLAgQWAgMBAh4HAheAAAoJELi4
+tkP2TkvkWCABAJUgD27HKFU/TGCr1060EeA6FKy63dhUz16tueOibgxsAQDaykTr
+J9s5fQDoy6Us7dP5UfrwuPxqpAAyTBrkuIJ4CQ==
+=8gTZ
+-----END PGP PUBLIC KEY BLOCK-----`
+)
+
+func TestVerifyPGPSignature(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  []byte
+		sig      string
+		keyRings []string
+		want     string
+		wantErr  string
+	}{
+		{
+			name:     "Valid commit signature",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{armoredKeyRingFixture},
+			want:     keyRingKeyIDFixture,
+		},
+		{
+			name:     "Malformed encoded commit",
+			payload:  []byte(malformedEncodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Malformed key ring",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture},
+			wantErr:  "unable to read armored key ring: unexpected EOF",
+		},
+		{
+			name:     "Missing signature",
+			payload:  []byte(encodedCommitFixture),
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "signature is empty",
+		},
+		{
+			name:     "Empty payload",
+			payload:  []byte{},
+			sig:      signatureCommitFixture,
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "payload is empty",
+		},
+		{
+			name:     "Non-PGP signature",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify openPGP signature, detected signature format: ssh",
+		},
+		{
+			name:     "Malformed key ring followed by valid key ring",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture, armoredKeyRingFixture},
+			want:     keyRingKeyIDFixture,
+		},
+		{
+			name:     "Valid key ring followed by malformed key ring",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{armoredKeyRingFixture, malformedKeyRingFixture},
+			want:     keyRingKeyIDFixture,
+		},
+		{
+			name:     "Multiple malformed key rings",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture, malformedKeyRingFixture},
+			wantErr:  "unable to read armored key ring: unexpected EOF",
+		},
+		{
+			// Regression: when a malformed key ring precedes a parseable key
+			// ring whose keys do not match the signer, the error returned
+			// should describe the no-match condition rather than masking it
+			// with the earlier parse failure.
+			name:     "Malformed key ring followed by valid key ring with non-matching key",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture, otherKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Multiple malformed key rings followed by valid key ring",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture,
+			keyRings: []string{malformedKeyRingFixture, malformedKeyRingFixture, armoredKeyRingFixture},
+			want:     keyRingKeyIDFixture,
+		},
+		{
+			name:     "Missing END PGP SIGNATURE marker",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "PGP MESSAGE armor is not a detached signature",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP MESSAGE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb\n-----END PGP MESSAGE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "detected signature format: unknown",
+		},
+		{
+			name:     "Corrupted base64 body",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\n!!!!!!\n-----END PGP SIGNATURE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Empty body between markers",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\n-----END PGP SIGNATURE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Truncated signature mid-base64",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYy",
+			keyRings: []string{armoredKeyRingFixture},
+			wantErr:  "unable to verify payload with any of the given key rings",
+		},
+		{
+			name:     "Mismatched BEGIN/END markers",
+			payload:  []byte(encodedCommitFixture),
+			sig:      "-----BEGIN PGP SIGNATURE-----\n\niHUEABEIAB0WIQQHgExUr4FrLdKzpNYyma6w5AhbrwUCYV//1AAKCRAyma6w5Ahb\nr7nJAQCQU4zEJu04/Q0ac/UaL6htjhq/wTDNMeUM+aWG/LcBogEAqFUea1oR2BJQ\nJCJmEtERFh39zNWSazQmxPAFhEE0kbc=\n=+Wlj\n-----END PGP MESSAGE-----",
+			keyRings: []string{armoredKeyRingFixture},
+			want:     keyRingKeyIDFixture,
+		},
+		{
+			name:     "Extra data after END marker",
+			payload:  []byte(encodedCommitFixture),
+			sig:      signatureCommitFixture + "\ngarbage-data-after-end",
+			keyRings: []string{armoredKeyRingFixture},
+			want:     keyRingKeyIDFixture,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			got, err := signature.VerifyPGPSignature(tt.sig, tt.payload, tt.keyRings...)
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(got).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(got).To(Equal(tt.want))
+		})
+	}
+}
+
+func TestVerifyPGPSignatureSentinels(t *testing.T) {
+	tests := []struct {
+		name     string
+		sig      string
+		payload  []byte
+		keyRings []string
+		want     error
+	}{
+		{
+			name:    "empty signature",
+			payload: []byte(encodedCommitFixture),
+			want:    signature.ErrSignatureEmpty,
+		},
+		{
+			name: "empty payload",
+			sig:  signatureCommitFixture,
+			want: signature.ErrPayloadEmpty,
+		},
+		{
+			name:    "wrong signature format",
+			sig:     "-----BEGIN SSH SIGNATURE-----\n-----END SSH SIGNATURE-----",
+			payload: []byte(encodedCommitFixture),
+			want:    signature.ErrSignatureFormat,
+		},
+		{
+			name:     "no matching key",
+			sig:      signatureCommitFixture,
+			payload:  []byte(encodedCommitFixture),
+			keyRings: []string{otherKeyRingFixture},
+			want:     signature.ErrNoMatchingKey,
+		},
+		{
+			name:     "tampered payload",
+			sig:      signatureCommitFixture,
+			payload:  append([]byte{'X'}, []byte(encodedCommitFixture)...),
+			keyRings: []string{armoredKeyRingFixture},
+			want:     signature.ErrNoMatchingKey,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			_, err := signature.VerifyPGPSignature(tt.sig, tt.payload, tt.keyRings...)
+			g.Expect(err).To(HaveOccurred())
+			g.Expect(errors.Is(err, tt.want)).To(BeTrue(),
+				"expected error to wrap %v, got %v", tt.want, err)
+		})
+	}
+}
+
+func TestVerifyPGPSignatureForCommitsAndTags(t *testing.T) {
+	testDataDir := filepath.Join("testdata", "gpg_signatures")
+
+	// Test cases for each key type using fixtures
+	keyTypes := []struct {
+		name       string
+		commitFile string
+		tagFile    string
+		keyFile    string
+		wantErr    bool
+	}{
+		{"rsa_2048 valid signature", "commit_rsa_2048_signed.txt", "tag_rsa_2048_signed.txt", "key_rsa_2048.pub", false},
+		{"rsa_4096 valid signature", "commit_rsa_4096_signed.txt", "tag_rsa_4096_signed.txt", "key_rsa_4096.pub", false},
+		{"ed25519 valid signature", "commit_ed25519_signed.txt", "tag_ed25519_signed.txt", "key_ed25519.pub", false},
+		{"ecdsa_p256 valid signature", "commit_ecdsa_p256_signed.txt", "tag_ecdsa_p256_signed.txt", "key_ecdsa_p256.pub", false},
+		{"ecdsa_p384 valid signature", "commit_ecdsa_p384_signed.txt", "tag_ecdsa_p384_signed.txt", "key_ecdsa_p384.pub", false},
+		{"ecdsa_p521 valid signature", "commit_ecdsa_p521_signed.txt", "tag_ecdsa_p521_signed.txt", "key_ecdsa_p521.pub", false},
+		{"brainpool_p256 valid signature", "commit_brainpool_p256_signed.txt", "tag_brainpool_p256_signed.txt", "key_brainpool_p256.pub", false},
+		{"brainpool_p384 valid signature", "commit_brainpool_p384_signed.txt", "tag_brainpool_p384_signed.txt", "key_brainpool_p384.pub", false},
+		{"brainpool_p512 valid signature", "commit_brainpool_p512_signed.txt", "tag_brainpool_p512_signed.txt", "key_brainpool_p512.pub", false},
+	}
+
+	var allKeysRing []string
+	for _, kt := range keyTypes {
+		publicKey, err := os.ReadFile(filepath.Join(testDataDir, kt.keyFile))
+		if err != nil {
+			t.Fatalf("failed to read public key file %s: %v", kt.keyFile, err)
+		}
+		allKeysRing = append(allKeysRing, string(publicKey))
+	}
+
+	for _, kt := range keyTypes {
+		t.Run(kt.name+" tag", func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Parse the tag from the fixture file
+			tagObj, err := testutil.ParseTagFromFixture(filepath.Join(testDataDir, kt.tagFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Build a git.Tag using build.Tag
+			gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Read the public key
+			publicKey, err := os.ReadFile(filepath.Join(testDataDir, kt.keyFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Verify the signature using the git.Tag's Signature and Encoded fields
+			fingerprint, err := signature.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, string(publicKey))
+			if kt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+
+			// Verify the signature using the multi-key keyring
+			fingerprint, err = signature.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, allKeysRing...)
+			if kt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+
+		})
+	}
+
+	for _, kt := range keyTypes {
+		t.Run(kt.name+" commit", func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Parse the commit from the fixture file
+			commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, kt.commitFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Build a git.Commit using build.CommitWithRef
+			gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Read the public key
+			publicKey, err := os.ReadFile(filepath.Join(testDataDir, kt.keyFile))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Verify the signature using the git.Commit's Signature and Encoded fields
+			fingerprint, err := signature.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, string(publicKey))
+			if kt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+
+			// Verify the signature using the multi-key keyring
+			fingerprint, err = signature.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, allKeysRing...)
+			if kt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(fingerprint).To(BeEmpty())
+				return
+			}
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(fingerprint).ToNot(BeEmpty())
+
+		})
+	}
+
+	// Test error cases
+	t.Run("unsigned commit", func(t *testing.T) {
+		g := NewWithT(t)
+
+		commitObj, err := testutil.ParseCommitFromFixture(filepath.Join(testDataDir, "commit_unsigned.txt"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		gitCommit, err := build.CommitWithRef(commitObj, nil, plumbing.ReferenceName("refs/heads/main"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		publicKey, err := os.ReadFile(filepath.Join(testDataDir, "key_rsa_2048.pub"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		fingerprint, err := signature.VerifyPGPSignature(gitCommit.Signature, gitCommit.Encoded, string(publicKey))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(fingerprint).To(BeEmpty())
+	})
+
+	t.Run("unsigned tag", func(t *testing.T) {
+		g := NewWithT(t)
+
+		tagObj, err := testutil.ParseTagFromFixture(filepath.Join(testDataDir, "tag_unsigned.txt"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		gitTag, err := build.Tag(tagObj, plumbing.ReferenceName("refs/tags/test-tag"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		publicKey, err := os.ReadFile(filepath.Join(testDataDir, "key_rsa_2048.pub"))
+		g.Expect(err).ToNot(HaveOccurred())
+
+		fingerprint, err := signature.VerifyPGPSignature(gitTag.Signature, gitTag.Encoded, string(publicKey))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(fingerprint).To(BeEmpty())
+	})
+}
