@@ -42,15 +42,17 @@ import (
 	"github.com/fluxcd/pkg/ssa/utils"
 )
 
-const forceApplyPropagationPolicyAnnotation = "kustomize.toolkit.fluxcd.io/propagationPolicy"
-
 // ApplyOptions contains options for server-side apply requests.
 type ApplyOptions struct {
 	// Force configures the engine to recreate objects that contain immutable field changes.
+	// The propagation policy used for deleting the existing object can be configured
+	// with the kustomize.toolkit.fluxcd.io/propagationPolicy annotation.
 	Force bool `json:"force"`
 
 	// ForceSelector determines which in-cluster objects are Force applied
 	// based on the matching labels or annotations.
+	// The propagation policy used for deleting the existing object can be configured
+	// with the kustomize.toolkit.fluxcd.io/propagationPolicy annotation.
 	ForceSelector map[string]string `json:"forceSelector"`
 
 	// ExclusionSelector determines which in-cluster objects are skipped from apply
@@ -593,10 +595,15 @@ func removeIgnoredFields(matchObj, obj *unstructured.Unstructured, rules jsondif
 	return nil
 }
 
+const forceApplyPropagationPolicyAnnotation = "kustomize.toolkit.fluxcd.io/propagationPolicy"
+
+// forceApplyDeleteOptions returns delete options for forced immutable object replacement.
+// The kustomize.toolkit.fluxcd.io/propagationPolicy annotation accepts 'background'
+// and 'orphan'. When the annotation is absent, PropagationPolicy remains unset so
+// the API server owns the default.
 func forceApplyDeleteOptions(object *unstructured.Unstructured) ([]client.DeleteOption, error) {
 	value, ok := object.GetAnnotations()[forceApplyPropagationPolicyAnnotation]
 	if !ok {
-		// Keep PropagationPolicy unset so the API server owns the default.
 		return nil, nil
 	}
 
