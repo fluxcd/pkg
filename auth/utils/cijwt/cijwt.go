@@ -18,12 +18,14 @@ limitations under the License.
 // requests on a per-host basis with a JWT, sourcing the token from a CI/CD
 // platform's OIDC integration or signing it locally.
 //
-// Each configured host gets its token one of three ways:
+// Each configured host gets its token one of four ways:
 //   - WithHostAudience mints an OIDC ID token for the given audience from the
 //     GitHub/Forgejo Actions token endpoint (see the actionsoidc package),
 //     caching it for the first 50% of its lifetime and reminting on demand.
 //   - WithHostToken sends a static JWT as-is, e.g. a GitLab CI id_token injected
 //     into the job environment.
+//   - WithHostTokenFile reads the JWT from a file for every request, so a token
+//     rotated by an external process is picked up without restarting.
 //   - WithHostJWK signs a fresh, short-lived JWT with a private key from a JWK,
 //     issuing a new token for every request rather than caching it.
 //
@@ -36,6 +38,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,10 +66,11 @@ type hostJWK struct {
 }
 
 type options struct {
-	inner     http.RoundTripper
-	tokens    []hostValue
-	audiences []hostValue
-	jwks      []hostJWK
+	inner      http.RoundTripper
+	tokens     []hostValue
+	tokenFiles []hostValue
+	audiences  []hostValue
+	jwks       []hostJWK
 }
 
 // Option configures a Transport.
@@ -81,6 +86,15 @@ func WithInner(rt http.RoundTripper) Option {
 // sent as-is (e.g. a GitLab CI id_token).
 func WithHostToken(host, token string) Option {
 	return func(o *options) { o.tokens = append(o.tokens, hostValue{host, token}) }
+}
+
+// WithHostTokenFile configures host to be authenticated with a static JWT read
+// from path. The file is read on every request, with leading and trailing
+// whitespace trimmed, so a token rotated by an external process (e.g. a
+// projected service account token) is picked up without restarting. An
+// unreadable or empty file errors the request.
+func WithHostTokenFile(host, path string) Option {
+	return func(o *options) { o.tokenFiles = append(o.tokenFiles, hostValue{host, path}) }
 }
 
 // WithHostAudience configures host to be authenticated with an OIDC ID token
@@ -115,9 +129,10 @@ type jwkConfig struct {
 }
 
 // Transport is an http.RoundTripper that stamps Authorization: Bearer <jwt> on
-// requests whose URL host was configured with WithHostToken, WithHostAudience,
-// or WithHostJWK. Any existing Authorization header on a configured host is
-// overwritten; requests to other hosts pass through untouched.
+// requests whose URL host was configured with WithHostToken, WithHostTokenFile,
+// WithHostAudience, or WithHostJWK. Any existing Authorization header on a
+// configured host is overwritten; requests to other hosts pass through
+// untouched.
 type Transport struct {
 	inner http.RoundTripper
 	// audiences maps a host to the audience minted for it; the factory used on
@@ -126,6 +141,9 @@ type Transport struct {
 	// jwk maps a host to the signing config used to mint a fresh token for
 	// every request. It is read-only after construction.
 	jwk map[string]jwkConfig
+	// tokenFiles maps a host to a file path read on every request. It is
+	// read-only after construction.
+	tokenFiles map[string]string
 
 	mu    sync.Mutex
 	cache map[string]cacheEntry
@@ -133,8 +151,8 @@ type Transport struct {
 
 // NewTransport returns a Transport configured by opts. At least one host must be
 // configured. It returns an error if the same host is configured more than once,
-// whether via WithHostToken, WithHostAudience, WithHostJWK, or a mix of them, or
-// if a WithHostJWK key fails to parse.
+// whether via WithHostToken, WithHostTokenFile, WithHostAudience, WithHostJWK,
+// or a mix of them, or if a WithHostJWK key fails to parse.
 func NewTransport(opts ...Option) (*Transport, error) {
 	o := &options{inner: http.DefaultTransport}
 	for _, opt := range opts {
@@ -142,13 +160,14 @@ func NewTransport(opts ...Option) (*Transport, error) {
 	}
 
 	t := &Transport{
-		inner:     o.inner,
-		audiences: make(map[string]string, len(o.audiences)),
-		jwk:       make(map[string]jwkConfig, len(o.jwks)),
-		cache:     make(map[string]cacheEntry, len(o.tokens)),
+		inner:      o.inner,
+		audiences:  make(map[string]string, len(o.audiences)),
+		jwk:        make(map[string]jwkConfig, len(o.jwks)),
+		tokenFiles: make(map[string]string, len(o.tokenFiles)),
+		cache:      make(map[string]cacheEntry, len(o.tokens)),
 	}
 
-	seen := make(map[string]bool, len(o.tokens)+len(o.audiences)+len(o.jwks))
+	seen := make(map[string]bool, len(o.tokens)+len(o.tokenFiles)+len(o.audiences)+len(o.jwks))
 	claim := func(host string) error {
 		if seen[host] {
 			return fmt.Errorf("host %q is configured more than once", host)
@@ -163,6 +182,12 @@ func NewTransport(opts ...Option) (*Transport, error) {
 		}
 		// Seed the cache with a static token that never expires.
 		t.cache[hv.host] = cacheEntry{token: hv.value}
+	}
+	for _, hv := range o.tokenFiles {
+		if err := claim(hv.host); err != nil {
+			return nil, err
+		}
+		t.tokenFiles[hv.host] = hv.value
 	}
 	for _, hv := range o.audiences {
 		if err := claim(hv.host); err != nil {
@@ -182,7 +207,7 @@ func NewTransport(opts ...Option) (*Transport, error) {
 	}
 
 	if len(seen) == 0 {
-		return nil, fmt.Errorf("at least one host must be configured with WithHostToken, WithHostAudience, or WithHostJWK")
+		return nil, fmt.Errorf("at least one host must be configured with WithHostToken, WithHostTokenFile, WithHostAudience, or WithHostJWK")
 	}
 
 	return t, nil
@@ -205,16 +230,29 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.inner.RoundTrip(cloned)
 }
 
-// tokenForHost returns the bearer token for host. WithHostJWK hosts get a
-// freshly signed token on every call; WithHostAudience hosts are minted and
-// cached on a miss. The boolean is false when host was not configured.
+// tokenForHost returns the bearer token for host. WithHostJWK and
+// WithHostTokenFile hosts get a fresh token on every call; WithHostAudience
+// hosts are minted and cached on a miss. The boolean is false when host was
+// not configured.
 func (t *Transport) tokenForHost(ctx context.Context, host string) (string, bool, error) {
-	// JWK hosts sign a new token per request and never touch the cache, so they
-	// need no locking (t.jwk is read-only after construction).
+	// JWK and token-file hosts produce a fresh token per request and never
+	// touch the cache, so they need no locking (both maps are read-only after
+	// construction).
 	if cfg, ok := t.jwk[host]; ok {
 		token, err := cfg.key.Issue(cfg.iss, cfg.sub, cfg.aud, jwkTokenTTL)
 		if err != nil {
 			return "", false, err
+		}
+		return token, true, nil
+	}
+	if path, ok := t.tokenFiles[host]; ok {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", false, fmt.Errorf("read token file: %w", err)
+		}
+		token := strings.TrimSpace(string(data))
+		if token == "" {
+			return "", false, fmt.Errorf("token file %q is empty", path)
 		}
 		return token, true, nil
 	}
