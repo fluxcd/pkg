@@ -173,11 +173,17 @@ func buildAccessTokenCacheKey(provider Provider, audiences []string, providerIde
 
 	parts = append(parts, fmt.Sprintf("provider=%s", provider.GetName()))
 
+	if len(audiences) == 0 {
+		audiences = o.Audiences
+	}
+	if len(audiences) > 0 {
+		parts = append(parts, fmt.Sprintf("audiences=%s", strings.Join(audiences, ",")))
+	}
+
 	if serviceAccount != nil {
 		parts = append(parts, fmt.Sprintf("providerIdentity=%s", providerIdentity))
 		parts = append(parts, fmt.Sprintf("serviceAccountName=%s", serviceAccount.Name))
 		parts = append(parts, fmt.Sprintf("serviceAccountNamespace=%s", serviceAccount.Namespace))
-		parts = append(parts, fmt.Sprintf("serviceAccountTokenAudiences=%s", strings.Join(audiences, ",")))
 	}
 
 	if len(o.Scopes) > 0 {

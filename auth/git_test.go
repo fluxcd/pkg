@@ -217,7 +217,7 @@ func TestGetGitCredentials(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(2)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const accessTokenKey = "db625bd5a96dc48fcc100659c6db98857d1e0ceec930bbded0fdece14af4307c"
+					const accessTokenKey = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
 					var token auth.Token = &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -226,7 +226,7 @@ func TestGetGitCredentials(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedToken).To(Equal(token))
 
-					const gitCredentialsKey = "e357f59fa20ef36d03cebec28a4b5edcadab91f5b878fb24c6e97379375e3443"
+					const gitCredentialsKey = "f78ca5404e02a7b139ceb6b925ac52344cb77f33e92197b153b9d87615e6b91b"
 					token = &auth.GitCredentials{
 						Username:  "cached-user",
 						Password:  "cached-pass",

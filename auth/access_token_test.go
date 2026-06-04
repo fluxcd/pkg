@@ -262,7 +262,7 @@ func TestGetAccessToken(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const key = "db625bd5a96dc48fcc100659c6db98857d1e0ceec930bbded0fdece14af4307c"
+					const key = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
 					token := &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, key, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -365,4 +365,57 @@ func TestGetAccessToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGetAccessToken_ControllerLevelAudienceCacheKey is a regression test for a
+// token cache collision: controller-level (no service account) access tokens are
+// also audience-scoped (e.g. SOPS Vault/OpenBao decryption and kubeconfig
+// ServiceAccount tokens), so requesting a token for one audience must never
+// return a cached token that was minted for a different audience.
+func TestGetAccessToken_ControllerLevelAudienceCacheKey(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := &mockProvider{t: t, returnName: "mock-provider"}
+
+	// Controller-level options (no service account) for a given audience. The
+	// non-audience options exist only to satisfy the mock provider's checks.
+	opts := func(audience string) []auth.Option {
+		provider.paramAudiences = []string{audience}
+		return []auth.Option{
+			auth.WithAudiences(audience),
+			auth.WithScopes("scope1", "scope2"),
+			auth.WithSTSRegion("us-east-1"),
+			auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+			auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+			auth.WithCAData("ca-data"),
+			auth.WithCache(*tokenCache, cache.InvolvedObject{
+				Kind:      "test",
+				Name:      "test",
+				Namespace: "test",
+			}),
+		}
+	}
+
+	// Mint and cache a controller token for the first audience.
+	provider.returnControllerToken = &mockToken{token: "token-audience-a"}
+	got, err := auth.GetAccessToken(ctx, provider, opts("audience-a")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockToken{token: "token-audience-a"}))
+
+	// A different audience must NOT reuse the first audience's cached token.
+	provider.returnControllerToken = &mockToken{token: "token-audience-b"}
+	got, err = auth.GetAccessToken(ctx, provider, opts("audience-b")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockToken{token: "token-audience-b"}))
+
+	// The first audience still returns its own cached token (per-audience cache);
+	// the refreshed controller token must not be minted.
+	provider.returnControllerToken = &mockToken{token: "token-audience-a-fresh"}
+	got, err = auth.GetAccessToken(ctx, provider, opts("audience-a")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockToken{token: "token-audience-a"}))
 }
