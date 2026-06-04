@@ -272,7 +272,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(2)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const accessTokenKey = "db625bd5a96dc48fcc100659c6db98857d1e0ceec930bbded0fdece14af4307c"
+					const accessTokenKey = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
 					var token auth.Token = &mockToken{token: "cached-token"}
 					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -281,7 +281,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedToken).To(Equal(token))
 
-					const artifactRegistryCredentialsKey = "61fe71ebbf306060d67acbdc2389d5fd816bee40e7685afe2fdc18b7d3bde1d6"
+					const artifactRegistryCredentialsKey = "99b73881085fc83b83913d3159fadefc1f304dbc0603629a77a0ced83132990d"
 					token = &auth.ArtifactRegistryCredentials{
 						Authenticator: authn.FromConfig(authn.AuthConfig{Username: "cached-registry-token"}),
 						ExpiresAt:     now.Add(time.Hour),
