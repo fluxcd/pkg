@@ -315,15 +315,15 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 			expectValid:        false,
 		},
 		{
-			artifactRepository: "u-france-east1-docker.s3nsregistry.fr/s3ns/dsna-shared-registry-0/shared-registry",
-			expectValid:        true,
-		},
-		{
-			artifactRepository: "u-france-east1-docker.s3nsregistry.fr",
+			artifactRepository: "docker.s3nsregistry.fr/s3ns/dsna-shared-registry-0/shared-registry",
 			expectValid:        true,
 		},
 		{
 			artifactRepository: "docker.s3nsregistry.fr",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "u-france-east1-docker.s3nsregistry.fr",
 			expectValid:        false,
 		},
 		{
