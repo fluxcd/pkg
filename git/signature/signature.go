@@ -19,7 +19,17 @@ package signature
 import (
 	"slices"
 	"strings"
+
+	gogit "github.com/go-git/go-git/v5"
 )
+
+// Signer is the interface used to sign Git commits and tags. It is
+// re-exported from go-git so that consumers do not need to import the
+// go-git package directly.
+//
+// Concrete implementations are returned by [NewOpenPGPSigner] and
+// [NewSSHSigner] in this package.
+type Signer = gogit.Signer
 
 // signatureType is the canonical string returned by GetSignatureType for
 // each recognised signature category. The values are unexported on

@@ -376,7 +376,7 @@ func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) 
 	}
 
 	if options.Signer != nil {
-		opts.SignKey = options.Signer
+		opts.Signer = options.Signer
 	}
 
 	commit, err := wt.Commit(info.Message, opts)

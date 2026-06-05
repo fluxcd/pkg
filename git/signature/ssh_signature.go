@@ -18,8 +18,10 @@ package signature
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/hiddeco/sshsig"
@@ -135,6 +137,97 @@ func VerifySSHSignature(signature string, payload []byte, authorizedKeys ...stri
 	// them via errors.Is.
 	return "", fmt.Errorf("unable to verify payload with any of the given authorized keys: %w",
 		errors.Join(append([]error{ErrNoMatchingKey}, verifyErrors...)...))
+}
+
+// SSHSigner adapts a [gossh.Signer] to the [Signer] interface, producing
+// SSHSIG-armored signatures with namespace [SSHSignatureNamespace] ("git")
+// and SHA-512 as the hash algorithm, matching Git's defaults for SSH-signed
+// commits. Callers may type-assert a [Signer] returned by [NewSSHSigner]
+// back to *SSHSigner to inspect or distinguish it from other Signer
+// implementations.
+type SSHSigner struct {
+	inner gossh.Signer
+}
+
+// Sign produces an SSHSIG-armored signature over the message read from r,
+// using SHA-512 and the "git" namespace.
+func (s *SSHSigner) Sign(r io.Reader) ([]byte, error) {
+	sig, err := sshsig.Sign(r, s.inner, sshsig.HashSHA512, SSHSignatureNamespace)
+	if err != nil {
+		return nil, err
+	}
+	return sshsig.Armor(sig), nil
+}
+
+// NewSSHSigner returns a [Signer] that signs commits with the given SSH
+// private key. The pem argument is the private key in any format accepted
+// by [gossh.ParsePrivateKey], typically the OpenSSH "-----BEGIN OPENSSH
+// PRIVATE KEY-----" format produced by ssh-keygen. The passphrase argument
+// is consulted only when the private key is encrypted; pass nil for an
+// unencrypted key.
+//
+// Supported algorithms: ssh-ed25519, ecdsa-sha2-nistp256/384/521, and
+// ssh-rsa with key size at least 2048 bits. DSA and undersized RSA keys
+// are rejected at construction time because they produce signatures that
+// modern OpenSSH refuses to verify.
+//
+// Signatures use namespace [SSHSignatureNamespace] ("git") and SHA-512,
+// which match Git's defaults for SSH-signed commits. See
+// https://git-scm.com/docs/gitformat-signature.
+func NewSSHSigner(pem, passphrase []byte) (Signer, error) {
+	inner, err := gossh.ParsePrivateKey(pem)
+	if err != nil {
+		var missingErr *gossh.PassphraseMissingError
+		if !errors.As(err, &missingErr) {
+			return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
+		}
+		if len(passphrase) == 0 {
+			return nil, ErrSSHPassphraseRequired
+		}
+		inner, err = gossh.ParsePrivateKeyWithPassphrase(pem, passphrase)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
+		}
+	}
+	if err := validateSSHSigningKey(inner.PublicKey()); err != nil {
+		return nil, err
+	}
+	return &SSHSigner{inner: inner}, nil
+}
+
+// validateSSHSigningKey rejects SSH public keys whose algorithm is not in
+// the allowlist for commit signing.
+//
+// Allowlist:
+//   - ssh-ed25519
+//   - ecdsa-sha2-nistp256, ecdsa-sha2-nistp384, ecdsa-sha2-nistp521
+//   - ssh-rsa (require >= 2048-bit key)
+//
+// DSA and undersized RSA are rejected because they produce signatures that
+// modern OpenSSH (>= 8.7) refuses to verify.
+func validateSSHSigningKey(pub gossh.PublicKey) error {
+	switch pub.Type() {
+	case gossh.KeyAlgoED25519,
+		gossh.KeyAlgoECDSA256,
+		gossh.KeyAlgoECDSA384,
+		gossh.KeyAlgoECDSA521:
+		return nil
+	case gossh.KeyAlgoRSA:
+		ck, ok := pub.(gossh.CryptoPublicKey)
+		if !ok {
+			return fmt.Errorf("unable to inspect RSA public key: type %T does not expose crypto.PublicKey", pub)
+		}
+		rsaPub, ok := ck.CryptoPublicKey().(*rsa.PublicKey)
+		if !ok {
+			return errors.New("unable to inspect RSA public key: not an *rsa.PublicKey")
+		}
+		if bits := rsaPub.Size() * 8; bits < 2048 {
+			return fmt.Errorf("RSA key size %d bits is below the minimum supported by NewSSHSigner; must be at least 2048", bits)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported SSH signing key algorithm: %s", pub.Type())
+	}
 }
 
 // appendUniqueSentinel appends err to dst only when no existing element of

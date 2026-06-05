@@ -17,7 +17,14 @@ limitations under the License.
 package gogit
 
 import (
+	"bytes"
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"encoding/pem"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,12 +32,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	extgogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	. "github.com/onsi/gomega"
+	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
+	"github.com/fluxcd/pkg/git/signature"
 	"github.com/fluxcd/pkg/gittestserver"
 )
 
@@ -171,6 +183,189 @@ func TestCommit(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	// New commit should not match the old one.
 	g.Expect(cc).ToNot(Equal(hash))
+}
+
+func TestCommit_WithSigner(t *testing.T) {
+	// signerVerifier returns the [signature.Signer] to install on the
+	// commit and a verifyFn that checks the resulting commit's gpgsig
+	// header. verifyFn is nil for the unsigned-commit case.
+	type verifyFn func(t *testing.T, commit *object.Commit)
+	type signerSetup func(t *testing.T) (signature.Signer, verifyFn)
+
+	openpgpSetup := func(t *testing.T) (signature.Signer, verifyFn) {
+		t.Helper()
+		g := NewWithT(t)
+		entity, err := openpgp.NewEntity("Test", "openpgp test", "test@example.com", nil)
+		g.Expect(err).ToNot(HaveOccurred())
+		signer, err := signature.NewOpenPGPSigner(entity)
+		g.Expect(err).ToNot(HaveOccurred())
+		return signer, func(t *testing.T, commit *object.Commit) {
+			g := NewWithT(t)
+			g.Expect(commit.PGPSignature).To(HavePrefix("-----BEGIN PGP SIGNATURE-----"))
+			payload := commitPayload(t, commit)
+			var pubBuf bytes.Buffer
+			g.Expect(entity.Serialize(&pubBuf)).To(Succeed())
+			armored, err := armorPGPPublicKey(&pubBuf)
+			g.Expect(err).ToNot(HaveOccurred())
+			_, err = signature.VerifyPGPSignature(commit.PGPSignature, payload, armored)
+			g.Expect(err).ToNot(HaveOccurred())
+		}
+	}
+
+	sshSetup := func(keyFn func(t *testing.T) (crypto.PublicKey, []byte)) signerSetup {
+		return func(t *testing.T) (signature.Signer, verifyFn) {
+			t.Helper()
+			g := NewWithT(t)
+			pub, pemBytes := keyFn(t)
+			signer, err := signature.NewSSHSigner(pemBytes, nil)
+			g.Expect(err).ToNot(HaveOccurred())
+			return signer, func(t *testing.T, commit *object.Commit) {
+				g := NewWithT(t)
+				g.Expect(commit.PGPSignature).To(HavePrefix("-----BEGIN SSH SIGNATURE-----"))
+				payload := commitPayload(t, commit)
+				gosshPub, err := gossh.NewPublicKey(pub)
+				g.Expect(err).ToNot(HaveOccurred())
+				authorizedKey := gossh.MarshalAuthorizedKey(gosshPub)
+				_, err = signature.VerifySSHSignature(commit.PGPSignature, payload, string(authorizedKey))
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+		}
+	}
+
+	ed25519Key := func(t *testing.T) (crypto.PublicKey, []byte) {
+		t.Helper()
+		g := NewWithT(t)
+		pub, priv, err := ed25519.GenerateKey(rand.Reader)
+		g.Expect(err).ToNot(HaveOccurred())
+		pemBlock, err := gossh.MarshalPrivateKey(priv, "test ed25519 key")
+		g.Expect(err).ToNot(HaveOccurred())
+		return pub, pem.EncodeToMemory(pemBlock)
+	}
+
+	ecdsaP256Key := func(t *testing.T) (crypto.PublicKey, []byte) {
+		t.Helper()
+		g := NewWithT(t)
+		priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		g.Expect(err).ToNot(HaveOccurred())
+		pemBlock, err := gossh.MarshalPrivateKey(priv, "test ecdsa p256 key")
+		g.Expect(err).ToNot(HaveOccurred())
+		return &priv.PublicKey, pem.EncodeToMemory(pemBlock)
+	}
+
+	tests := []struct {
+		name     string
+		setup    signerSetup // nil = pass nil to WithSigner
+		file     string
+		message  string
+		unsigned bool // true when WithSigner(nil) should yield an empty gpgsig
+	}{
+		{
+			name:    "openpgp",
+			setup:   openpgpSetup,
+			file:    "signed-openpgp",
+			message: "signed by openpgp",
+		},
+		{
+			name:    "ssh ed25519",
+			setup:   sshSetup(ed25519Key),
+			file:    "signed-ssh-ed25519",
+			message: "signed by ssh ed25519",
+		},
+		{
+			name:    "ssh ecdsa-sha2-nistp256",
+			setup:   sshSetup(ecdsaP256Key),
+			file:    "signed-ssh-ecdsa-p256",
+			message: "signed by ssh ecdsa p256",
+		},
+		{
+			name:     "nil signer yields unsigned commit",
+			file:     "unsigned",
+			message:  "unsigned despite WithSigner(nil)",
+			unsigned: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			server, err := gittestserver.NewTempGitServer()
+			g.Expect(err).ToNot(HaveOccurred())
+			defer os.RemoveAll(server.Root())
+
+			g.Expect(server.InitRepo("../testdata/git/repo", git.DefaultBranch, "test.git")).To(Succeed())
+
+			tmp := t.TempDir()
+			repo, err := extgogit.PlainClone(tmp, false, &extgogit.CloneOptions{
+				URL: filepath.Join(server.Root(), "test.git"),
+			})
+			g.Expect(err).ToNot(HaveOccurred())
+
+			ggc, err := NewClient(tmp, nil)
+			g.Expect(err).ToNot(HaveOccurred())
+			ggc.repository = repo
+
+			var (
+				signer signature.Signer
+				verify verifyFn
+			)
+			if tt.setup != nil {
+				signer, verify = tt.setup(t)
+			}
+
+			hash, err := ggc.Commit(
+				git.Commit{
+					Author:  git.Signature{Name: "Test User", Email: "test@example.com"},
+					Message: tt.message,
+				},
+				repository.WithFiles(map[string]io.Reader{
+					tt.file: strings.NewReader("payload for " + tt.name),
+				}),
+				repository.WithSigner(signer),
+			)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			commit, err := repo.CommitObject(plumbing.NewHash(hash))
+			g.Expect(err).ToNot(HaveOccurred())
+
+			if tt.unsigned {
+				g.Expect(commit.PGPSignature).To(BeEmpty())
+				return
+			}
+			g.Expect(commit.PGPSignature).ToNot(BeEmpty())
+			verify(t, commit)
+		})
+	}
+}
+
+// commitPayload returns the canonical commit-without-signature payload that
+// signature.Verify{PGP,SSH}Signature expect for a verification round-trip.
+func commitPayload(t *testing.T, commit *object.Commit) []byte {
+	t.Helper()
+	g := NewWithT(t)
+	encoded := &plumbing.MemoryObject{}
+	g.Expect(commit.EncodeWithoutSignature(encoded)).To(Succeed())
+	r, err := encoded.Reader()
+	g.Expect(err).ToNot(HaveOccurred())
+	b, err := io.ReadAll(r)
+	g.Expect(err).ToNot(HaveOccurred())
+	return b
+}
+
+// armorPGPPublicKey ASCII-armors r as a "PGP PUBLIC KEY BLOCK".
+func armorPGPPublicKey(r io.Reader) (string, error) {
+	var sb strings.Builder
+	w, err := armor.Encode(&sb, "PGP PUBLIC KEY BLOCK", nil)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(w, r); err != nil {
+		return "", err
+	}
+	if err := w.Close(); err != nil {
+		return "", err
+	}
+	return sb.String(), nil
 }
 
 func TestPush(t *testing.T) {

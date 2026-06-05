@@ -18,7 +18,9 @@ package signature
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
@@ -87,4 +89,39 @@ func VerifyPGPSignature(signature string, payload []byte, keyRings ...string) (s
 	}
 
 	return "", fmt.Errorf("unable to verify payload with any of the given key rings: %w", ErrNoMatchingKey)
+}
+
+// OpenPGPSigner adapts an [openpgp.Entity] to the [Signer] interface so it
+// can be used as a generic Git commit signer. Callers may type-assert a
+// [Signer] returned by [NewOpenPGPSigner] back to *OpenPGPSigner to inspect
+// or distinguish it from other Signer implementations.
+type OpenPGPSigner struct {
+	entity *openpgp.Entity
+}
+
+// Sign produces an ASCII-armored detached OpenPGP signature over the
+// message read from r. The output matches what go-git's internal gpgSigner
+// produces, so it is interchangeable with the previous typed-entity
+// signing path.
+func (s *OpenPGPSigner) Sign(r io.Reader) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := openpgp.ArmoredDetachSign(&buf, s.entity, r, nil); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// NewOpenPGPSigner returns a [Signer] that signs commits with the given
+// OpenPGP entity. The entity's private key must be present and decrypted;
+// callers that load keys from passphrase-protected key rings are
+// responsible for decryption before constructing the signer.
+//
+// The constructor returns an error only when the entity is nil; today no
+// other validation is performed, but the (Signer, error) shape leaves room
+// to add validation later without an API break.
+func NewOpenPGPSigner(e *openpgp.Entity) (Signer, error) {
+	if e == nil {
+		return nil, errors.New("nil openpgp entity")
+	}
+	return &OpenPGPSigner{entity: e}, nil
 }
