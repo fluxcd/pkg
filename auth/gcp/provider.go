@@ -163,7 +163,10 @@ func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Optio
 	return nil, nil
 }
 
-const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev)|(.+-docker\.s3nsregistry\.fr))$`
+// The docker.s3nsregistry.fr host is the S3NS sovereign cloud artifact
+// registry. Unlike regular GCP Artifact Registry, the host has no location
+// prefix. See https://github.com/fluxcd/pkg/pull/1201#issuecomment-4631628154
+const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev)|(docker\.s3nsregistry\.fr))$`
 
 var registryRegex = regexp.MustCompile(registryPattern)
 
