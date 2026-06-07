@@ -17,7 +17,6 @@ limitations under the License.
 package meta
 
 import (
-	"strconv"
 	"strings"
 	"unicode"
 )
@@ -33,18 +32,15 @@ type ObjectWithDependencies interface {
 // objects. Each dependency string can be in one of the following formats:
 //   - "name" - a Flux Applier API (Kustomization or HelmRelease) dependency in the same namespace
 //   - "namespace/name" - a Flux Applier API (Kustomization or HelmRelease) dependency in a specific namespace
-//   - "name@readyExpr" - a Flux Applier API (Kustomization or HelmRelease) dependency with a CEL readiness expression (enabled)
-//   - "namespace/name@readyExpr" - a Flux Applier API (Kustomization or HelmRelease) dependency in a specific namespace with a CEL expression (enabled)
+//   - "name@readyExpr" - a Flux Applier API (Kustomization or HelmRelease) dependency with a CEL readiness expression
+//   - "namespace/name@readyExpr" - a Flux Applier API (Kustomization or HelmRelease) dependency in a specific namespace with a CEL expression
 //   - "apiVersion/Kind/name" - a Kubernetes resource dependency in the same namespace
-//   - "apiVersion/Kind/name@readyExpr" - a Kubernetes resource dependency with a CEL readiness expression (disabled)
-//   - "apiVersion/Kind/name:true@readyExpr" - a Kubernetes resource dependency with a CEL readiness expression (enabled)
+//   - "apiVersion/Kind/name@readyExpr" - a Kubernetes resource dependency with a CEL readiness expression
 //   - "apiVersion/Kind/namespace/name" - a Kubernetes resource dependency in a specific namespace
-//   - "apiVersion/Kind/namespace/name@readyExpr" - a Kubernetes resource dependency in a specific namespace with a CEL readiness expression (disabled)
-//   - "apiVersion/Kind/namespace/name:true@readyExpr" - a Kubernetes resource dependency in a specific namespace with a CEL readiness expression (enabled)
+//   - "apiVersion/Kind/namespace/name@readyExpr" - a Kubernetes resource dependency in a specific namespace with a CEL readiness expression
 //
-// The : symbol is used to separate the resource reference from the readiness check enablement.
 // The @ symbol is used to separate the resource reference from the CEL expression.
-// Note that : and @ cannot be part of resource names or namespaces per Kubernetes naming conventions:
+// Note that @ cannot be part of resource names or namespaces per Kubernetes naming conventions:
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/
 // For CEL expression syntax, see:
 // https://github.com/google/cel-spec/blob/master/doc/langdef.md
@@ -56,16 +52,6 @@ func MakeDependsOn(deps []string) []DependencyReference {
 		// Split off the CEL ready expression if present.
 		if idx := strings.Index(dep, "@"); idx != -1 {
 			ref.ReadyExpr = dep[idx+1:]
-			dep = dep[:idx]
-		}
-
-		// Split off the readiness check boolean value if present.
-		if idx := strings.Index(dep, ":"); idx != -1 {
-			ready, err := strconv.ParseBool(dep[idx+1:])
-			if err != nil {
-				ready = false
-			}
-			ref.Ready = new(ready)
 			dep = dep[:idx]
 		}
 

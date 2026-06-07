@@ -45,13 +45,6 @@ func TestMakeDependsOn(t *testing.T) {
 			},
 		},
 		{
-			name: "single name (Flux Applier API) with readiness check",
-			deps: []string{"redis:true"},
-			want: []meta.DependencyReference{
-				{Name: "redis", Ready: new(true)},
-			},
-		},
-		{
 			name: "single (Flux Applier API) with namespace",
 			deps: []string{"default/redis"},
 			want: []meta.DependencyReference{
@@ -59,52 +52,17 @@ func TestMakeDependsOn(t *testing.T) {
 			},
 		},
 		{
-			name: "single (Flux Applier API) with namespace and readiness check",
-			deps: []string{"default/redis:true"},
-			want: []meta.DependencyReference{
-				{Namespace: "default", Name: "redis", Ready: new(true)},
-			},
-		},
-		{
 			name: "single (Flux Applier API) with CEL expression",
-			deps: []string{"redis@status.ready==true"},
+			deps: []string{"redis@dep.status.ready==true"},
 			want: []meta.DependencyReference{
-				{Name: "redis", ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "single (Flux Applier API) with CEL expression (disabled)",
-			deps: []string{"redis:false@status.ready==true"},
-			want: []meta.DependencyReference{
-				{Name: "redis", Ready: new(false), ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "single (Flux Applier API) with CEL expression (enabled)",
-			deps: []string{"redis:true@status.ready==true"},
-			want: []meta.DependencyReference{
-				{Name: "redis", Ready: new(true), ReadyExpr: "status.ready==true"},
+				{Name: "redis", ReadyExpr: "dep.status.ready==true"},
 			},
 		},
 		{
 			name: "single (Flux Applier API) with namespace and CEL expression",
-			deps: []string{"default/redis@status.ready==true"},
+			deps: []string{"default/redis@dep.status.ready==true"},
 			want: []meta.DependencyReference{
-				{Namespace: "default", Name: "redis", ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "single (Flux Applier API) with namespace and CEL expression (disabled)",
-			deps: []string{"default/redis:false@status.ready==true"},
-			want: []meta.DependencyReference{
-				{Namespace: "default", Name: "redis", Ready: new(false), ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "single (Flux Applier API) with namespace and CEL expression (enabled)",
-			deps: []string{"default/redis:true@status.ready==true"},
-			want: []meta.DependencyReference{
-				{Namespace: "default", Name: "redis", Ready: new(true), ReadyExpr: "status.ready==true"},
+				{Namespace: "default", Name: "redis", ReadyExpr: "dep.status.ready==true"},
 			},
 		},
 		{
@@ -115,13 +73,6 @@ func TestMakeDependsOn(t *testing.T) {
 			},
 		},
 		{
-			name: "single Kubernetes object with readiness check",
-			deps: []string{"apps/v1/Deployment/redis:true"},
-			want: []meta.DependencyReference{
-				{APIVersion: "apps/v1", Kind: "Deployment", Name: "redis", Ready: new(true)},
-			},
-		},
-		{
 			name: "single Kubernetes object with namespace",
 			deps: []string{"v1/Secret/default/redis"},
 			want: []meta.DependencyReference{
@@ -129,95 +80,60 @@ func TestMakeDependsOn(t *testing.T) {
 			},
 		},
 		{
-			name: "single Kubernetes object with namespace and readiness check",
-			deps: []string{"v1/ConfigMap/default/redis:true"},
-			want: []meta.DependencyReference{
-				{APIVersion: "v1", Kind: "ConfigMap", Namespace: "default", Name: "redis", Ready: new(true)},
-			},
-		},
-		{
 			name: "single Kubernetes object with CEL expression",
-			deps: []string{"apps/v1/DaemonSet/redis@status.ready==true"},
+			deps: []string{"apps/v1/DaemonSet/redis@dep.status.numberReady==dep.status.desiredNumberScheduled"},
 			want: []meta.DependencyReference{
-				{APIVersion: "apps/v1", Kind: "DaemonSet", Name: "redis", ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "single Kubernetes object with CEL expression (disabled)",
-			deps: []string{"apiextensions.k8s.io/v1/CustomResourceDefinition/kustomizations.kustomize.toolkit.fluxcd.io:false@status.ready==true"},
-			want: []meta.DependencyReference{
-				{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "kustomizations.kustomize.toolkit.fluxcd.io", Ready: new(false), ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "single Kubernetes object with CEL expression (enabled)",
-			deps: []string{"apiextensions.k8s.io/v1/CustomResourceDefinition/helmreleases.helm.toolkit.fluxcd.io:true@status.ready==true"},
-			want: []meta.DependencyReference{
-				{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "helmreleases.helm.toolkit.fluxcd.io", Ready: new(true), ReadyExpr: "status.ready==true"},
+				{APIVersion: "apps/v1", Kind: "DaemonSet", Name: "redis", ReadyExpr: "dep.status.numberReady==dep.status.desiredNumberScheduled"},
 			},
 		},
 		{
 			name: "single Kubernetes object with namespace and CEL expression",
-			deps: []string{"apps/v1/StatefulSet/default/redis@status.ready==true"},
+			deps: []string{"apps/v1/StatefulSet/default/redis@dep.status.readyReplicas==dep.spec.replicas"},
 			want: []meta.DependencyReference{
-				{APIVersion: "apps/v1", Kind: "StatefulSet", Namespace: "default", Name: "redis", ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "single Kubernetes object with namespace and CEL expression (disabled)",
-			deps: []string{"source.toolkit.fluxcd.io/v1/OCIRepository/default/redis:false@status.ready==true"},
-			want: []meta.DependencyReference{
-				{APIVersion: "source.toolkit.fluxcd.io/v1", Kind: "OCIRepository", Namespace: "default", Name: "redis", Ready: new(false), ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "single Kubernetes object with namespace and CEL expression (enabled)",
-			deps: []string{"source.toolkit.fluxcd.io/v1/GitRepository/default/redis:true@status.ready==true"},
-			want: []meta.DependencyReference{
-				{APIVersion: "source.toolkit.fluxcd.io/v1", Kind: "GitRepository", Namespace: "default", Name: "redis", Ready: new(true), ReadyExpr: "status.ready==true"},
+				{APIVersion: "apps/v1", Kind: "StatefulSet", Namespace: "default", Name: "redis", ReadyExpr: "dep.status.readyReplicas==dep.spec.replicas"},
 			},
 		},
 		{
 			name: "multiple dependencies",
 			deps: []string{
 				"redis",
-				"v1/Pod/podinfo:true",
-				"v1/PersistentVolumeClaim/backend:true@status.phase==Bound",
-				"default/postgres@status.ready==true",
-				"infra/cert-manager:true",
-				"source.toolkit.fluxcd.io/v1/OCIRepository/flux-system/flux-operator:false",
-				"apiextensions.k8s.io/v1/CustomResourceDefinition/resourcesets.fluxcd.controlplane.io:true@status.ready==true",
+				"v1/Pod/podinfo",
+				"v1/PersistentVolumeClaim/backend@dep.status.phase==Bound",
+				"default/postgres@dep.status.observedGeneration==dep.metadata.generation",
+				"infra/cert-manager",
+				"source.toolkit.fluxcd.io/v1/OCIRepository/flux-system/flux-operator@true",
+				"apiextensions.k8s.io/v1/CustomResourceDefinition/resourcesets.fluxcd.controlplane.io@dep.status.storedVersions.size()==dep.spec.versions.size()",
 			},
 			want: []meta.DependencyReference{
 				{Name: "redis"},
-				{APIVersion: "v1", Kind: "Pod", Name: "podinfo", Ready: new(true)},
-				{APIVersion: "v1", Kind: "PersistentVolumeClaim", Name: "backend", Ready: new(true), ReadyExpr: "status.phase==Bound"},
-				{Namespace: "default", Name: "postgres", ReadyExpr: "status.ready==true"},
-				{Namespace: "infra", Name: "cert-manager", Ready: new(true)},
-				{APIVersion: "source.toolkit.fluxcd.io/v1", Kind: "OCIRepository", Namespace: "flux-system", Name: "flux-operator", Ready: new(false)},
-				{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "resourcesets.fluxcd.controlplane.io", Ready: new(true), ReadyExpr: "status.ready==true"},
-			},
-		},
-		{
-			name: "CEL expression with multiple operators",
-			deps: []string{
-				"default/app@status.ready==true && status.observed==1",
-				"v1/Pod/kube-system/kube-apiserver:true@status.phase==Running && status.observedGeneration==metadata.generation",
-			},
-			want: []meta.DependencyReference{
-				{Namespace: "default", Name: "app", ReadyExpr: "status.ready==true && status.observed==1"},
-				{APIVersion: "v1", Kind: "Pod", Namespace: "kube-system", Name: "kube-apiserver", Ready: new(true), ReadyExpr: "status.phase==Running && status.observedGeneration==metadata.generation"},
+				{APIVersion: "v1", Kind: "Pod", Name: "podinfo"},
+				{APIVersion: "v1", Kind: "PersistentVolumeClaim", Name: "backend", ReadyExpr: "dep.status.phase==Bound"},
+				{Namespace: "default", Name: "postgres", ReadyExpr: "dep.status.observedGeneration==dep.metadata.generation"},
+				{Namespace: "infra", Name: "cert-manager"},
+				{APIVersion: "source.toolkit.fluxcd.io/v1", Kind: "OCIRepository", Namespace: "flux-system", Name: "flux-operator", ReadyExpr: "true"},
+				{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "resourcesets.fluxcd.controlplane.io", ReadyExpr: "dep.status.storedVersions.size()==dep.spec.versions.size()"},
 			},
 		},
 		{
 			name: "CEL expression with function calls",
 			deps: []string{
-				"infra/ingress@has(status.loadBalancer.ingress)",
-				"v1/ConfigMap/podinfo:true@!has(data)",
+				"v1/ConfigMap/podinfo@!has(dep.data)",
+				"networking.k8s.io/v1/Ingress/infra/ingress@has(dep.status.loadBalancer.ingress)",
 			},
 			want: []meta.DependencyReference{
-				{Namespace: "infra", Name: "ingress", ReadyExpr: "has(status.loadBalancer.ingress)"},
-				{APIVersion: "v1", Kind: "ConfigMap", Name: "podinfo", Ready: new(true), ReadyExpr: "!has(data)"},
+				{APIVersion: "v1", Kind: "ConfigMap", Name: "podinfo", ReadyExpr: "!has(dep.data)"},
+				{APIVersion: "networking.k8s.io/v1", Kind: "Ingress", Namespace: "infra", Name: "ingress", ReadyExpr: "has(dep.status.loadBalancer.ingress)"},
+			},
+		},
+		{
+			name: "CEL expression with multiple operators",
+			deps: []string{
+				"default/app@dep.status.conditions.filter(c, c.type == 'Ready').all(c, c.status == 'True' && c.observedGeneration == dep.metadata.generation)",
+				"v1/Pod/kube-system/kube-apiserver@dep.status.phase==Running && dep.status.observedGeneration==dep.metadata.generation",
+			},
+			want: []meta.DependencyReference{
+				{Namespace: "default", Name: "app", ReadyExpr: "dep.status.conditions.filter(c, c.type == 'Ready').all(c, c.status == 'True' && c.observedGeneration == dep.metadata.generation)"},
+				{APIVersion: "v1", Kind: "Pod", Namespace: "kube-system", Name: "kube-apiserver", ReadyExpr: "dep.status.phase==Running && dep.status.observedGeneration==dep.metadata.generation"},
 			},
 		},
 	}
@@ -249,44 +165,19 @@ func TestDependencyReferenceString(t *testing.T) {
 			want: "default/redis",
 		},
 		{
-			name: "name and readiness check (Flux Applier API)",
-			ref:  meta.DependencyReference{Name: "redis", Ready: new(false)},
-			want: "redis:false",
-		},
-		{
-			name: "namespace, name, and readiness check (Flux Applier API)",
-			ref:  meta.DependencyReference{Namespace: "default", Name: "redis", Ready: new(true)},
-			want: "default/redis:true",
-		},
-		{
 			name: "name and CEL expression (Flux Applier API)",
-			ref:  meta.DependencyReference{Name: "redis", ReadyExpr: "status.ready==true"},
-			want: "redis@status.ready==true",
+			ref:  meta.DependencyReference{Name: "redis", ReadyExpr: "dep.status.observedGeneration>=1"},
+			want: "redis@dep.status.observedGeneration>=1",
 		},
 		{
 			name: "namespace, name, and CEL expression (Flux Applier API)",
-			ref:  meta.DependencyReference{Namespace: "default", Name: "redis", ReadyExpr: "status.ready==true"},
-			want: "default/redis@status.ready==true",
-		},
-		{
-			name: "name, readiness check and CEL expression (Flux Applier API)",
-			ref:  meta.DependencyReference{Name: "redis", Ready: new(false), ReadyExpr: "status.ready==true"},
-			want: "redis:false@status.ready==true",
-		},
-		{
-			name: "namespace, name, readiness check and CEL expression (Flux Applier API)",
-			ref:  meta.DependencyReference{Namespace: "default", Name: "redis", Ready: new(true), ReadyExpr: "status.ready==true"},
-			want: "default/redis:true@status.ready==true",
+			ref:  meta.DependencyReference{Namespace: "default", Name: "redis", ReadyExpr: "dep.status.observedGeneration>=1"},
+			want: "default/redis@dep.status.observedGeneration>=1",
 		},
 		{
 			name: "name with complex CEL expression (Flux Applier API)",
-			ref:  meta.DependencyReference{Name: "app", ReadyExpr: "status.ready==true && status.observed==1"},
-			want: "app@status.ready==true && status.observed==1",
-		},
-		{
-			name: "name with readiness check and complex CEL expression (Flux Applier API)",
-			ref:  meta.DependencyReference{Name: "app", Ready: new(true), ReadyExpr: "status.ready==true && status.observed==1"},
-			want: "app:true@status.ready==true && status.observed==1",
+			ref:  meta.DependencyReference{Name: "app", ReadyExpr: "dep.status.conditions.filter(c, c.type == 'Ready').all(c, c.status == 'True' && c.observedGeneration == dep.metadata.generation)"},
+			want: "app@dep.status.conditions.filter(c, c.type == 'Ready').all(c, c.status == 'True' && c.observedGeneration == dep.metadata.generation)",
 		},
 		{
 			name: "name only (Kubernetes object)",
@@ -299,54 +190,24 @@ func TestDependencyReferenceString(t *testing.T) {
 			want: "apps/v1/DaemonSet/default/redis",
 		},
 		{
-			name: "name and readiness check (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "v1", Kind: "Secret", Name: "redis", Ready: new(false)},
-			want: "v1/Secret/redis:false",
-		},
-		{
-			name: "namespace, name and readiness check (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "v1", Kind: "ConfigMap", Namespace: "default", Name: "redis", Ready: new(true)},
-			want: "v1/ConfigMap/default/redis:true",
-		},
-		{
 			name: "name and CEL expression (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "v1", Kind: "PersistentVolume", Name: "redis", ReadyExpr: "status.ready==true"},
-			want: "v1/PersistentVolume/redis@status.ready==true",
+			ref:  meta.DependencyReference{APIVersion: "v1", Kind: "PersistentVolume", Name: "redis", ReadyExpr: "dep.status.phase==Bound && dep.status.observedGeneration==dep.metadata.generation"},
+			want: "v1/PersistentVolume/redis@dep.status.phase==Bound && dep.status.observedGeneration==dep.metadata.generation",
 		},
 		{
 			name: "namespace, name and CEL expression (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "v1", Kind: "PersistentVolumeClaim", Namespace: "default", Name: "redis", ReadyExpr: "status.ready==true"},
-			want: "v1/PersistentVolumeClaim/default/redis@status.ready==true",
-		},
-		{
-			name: "name, readiness check and CEL expression (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "v1", Kind: "Node", Name: "control-plane-2", Ready: new(false), ReadyExpr: "status.ready==true"},
-			want: "v1/Node/control-plane-2:false@status.ready==true",
-		},
-		{
-			name: "namespace, name, readiness check and CEL expression (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "v1", Kind: "Ingress", Namespace: "default", Name: "redis", Ready: new(true), ReadyExpr: "status.ready==true"},
-			want: "v1/Ingress/default/redis:true@status.ready==true",
+			ref:  meta.DependencyReference{APIVersion: "v1", Kind: "PersistentVolumeClaim", Namespace: "default", Name: "redis", ReadyExpr: "dep.status.phase==Bound && dep.status.observedGeneration==dep.metadata.generation"},
+			want: "v1/PersistentVolumeClaim/default/redis@dep.status.phase==Bound && dep.status.observedGeneration==dep.metadata.generation",
 		},
 		{
 			name: "name and complex CEL expression (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "source.toolkit.fluxcd.io/v1", Kind: "GitRepository", Name: "infra-controllers", ReadyExpr: "status.ready==true && status.observed==1"},
-			want: "source.toolkit.fluxcd.io/v1/GitRepository/infra-controllers@status.ready==true && status.observed==1",
+			ref:  meta.DependencyReference{APIVersion: "source.toolkit.fluxcd.io/v1", Kind: "GitRepository", Name: "infra-controllers", ReadyExpr: "dep.status.conditions.filter(c, c.type == 'Ready').all(c, c.status == 'True' && c.observedGeneration == dep.metadata.generation)"},
+			want: "source.toolkit.fluxcd.io/v1/GitRepository/infra-controllers@dep.status.conditions.filter(c, c.type == 'Ready').all(c, c.status == 'True' && c.observedGeneration == dep.metadata.generation)",
 		},
 		{
 			name: "namespace, name and complex CEL expression (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "source.toolkit.fluxcd.io/v1", Kind: "OCIRepository", Namespace: "flux-system", Name: "flux-operator", ReadyExpr: "status.ready==true && status.observed==1"},
-			want: "source.toolkit.fluxcd.io/v1/OCIRepository/flux-system/flux-operator@status.ready==true && status.observed==1",
-		},
-		{
-			name: "name, readiness check and complex CEL expression (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "helmreleases.helm.toolkit.fluxcd.io", Ready: new(true), ReadyExpr: "status.ready==true && status.observed==1"},
-			want: "apiextensions.k8s.io/v1/CustomResourceDefinition/helmreleases.helm.toolkit.fluxcd.io:true@status.ready==true && status.observed==1",
-		},
-		{
-			name: "namespace, name, readiness check and complex CEL expression (Kubernetes object)",
-			ref:  meta.DependencyReference{APIVersion: "kustomize.toolkit.fluxcd.io/v1", Kind: "Kustomization", Name: "app", Ready: new(true), ReadyExpr: "status.ready==true && status.observed==1"},
-			want: "kustomize.toolkit.fluxcd.io/v1/Kustomization/app:true@status.ready==true && status.observed==1",
+			ref:  meta.DependencyReference{APIVersion: "source.toolkit.fluxcd.io/v1", Kind: "OCIRepository", Namespace: "flux-system", Name: "flux-operator", ReadyExpr: "dep.status.conditions.filter(c, c.type == 'Ready').all(c, c.status == 'True' && c.observedGeneration == dep.metadata.generation)"},
+			want: "source.toolkit.fluxcd.io/v1/OCIRepository/flux-system/flux-operator@dep.status.conditions.filter(c, c.type == 'Ready').all(c, c.status == 'True' && c.observedGeneration == dep.metadata.generation)",
 		},
 	}
 
@@ -364,11 +225,11 @@ func TestDependencyReferenceRoundTrip(t *testing.T) {
 	tests := []meta.DependencyReference{
 		{Name: "redis"},
 		{Namespace: "default", Name: "postgres"},
-		{Name: "cache", ReadyExpr: "status.ready==true"},
-		{Namespace: "infra", Name: "ingress", ReadyExpr: "has(status.loadBalancer.ingress)"},
-		{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "helmreleases.helm.toolkit.fluxcd.io"},
-		{APIVersion: "helm.toolkit.fluxcd.io/v2", Kind: "HelmRelease", Name: "cert-manager", Ready: new(false), ReadyExpr: "status.ready==true"},
-		{APIVersion: "v1", Kind: "Node", Name: "control-plane-2", Ready: new(true)},
+		{Name: "cache", ReadyExpr: "dep.status.observedGeneration==dep.metadata.generation"},
+		{Namespace: "infra", Name: "ingress", ReadyExpr: "has(dep.status.loadBalancer.ingress)"},
+		{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "helmreleases.helm.toolkit.fluxcd.io", ReadyExpr: "dep.status.storedVersions.size()==dep.spec.versions.size()"},
+		{APIVersion: "helm.toolkit.fluxcd.io/v2", Kind: "HelmRelease", Name: "cert-manager", ReadyExpr: ""},
+		{APIVersion: "v1", Kind: "Node", Name: "control-plane-2", ReadyExpr: "true"},
 	}
 
 	for _, original := range tests {

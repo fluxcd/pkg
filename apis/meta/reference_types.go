@@ -16,8 +16,6 @@ limitations under the License.
 
 package meta
 
-import "strconv"
-
 // LocalObjectReference contains enough information to locate the referenced Kubernetes resource object.
 type LocalObjectReference struct {
 	// Name of the referent.
@@ -81,7 +79,7 @@ func (in TypedNamespacedObjectReference) String() string {
 }
 
 // DependencyReference contains enough information to locate the referenced Kubernetes resource object
-// with optional built-in or CEL expression readiness check. When the dependency is a Flux Applier API
+// with optional CEL expression readiness check. When the dependency is a Flux Applier API
 // resource (Kustomization or HelmRelease), defaults are applied during reconciliation.
 type DependencyReference struct {
 	// APIVersion of the resource to depend on, defaults to the API group version of the
@@ -104,11 +102,6 @@ type DependencyReference struct {
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 
-	// Ready checks if the resource Ready status condition is true, defaults to
-	// true when the dependency is a Flux Applier API resource (Kustomization or HelmRelease).
-	// +optional
-	Ready *bool `json:"ready,omitempty"`
-
 	// ReadyExpr is a CEL expression that can be used to assess the readiness
 	// of a dependency. When specified, the built-in readiness check
 	// is replaced by the logic defined in the CEL expression.
@@ -119,11 +112,11 @@ type DependencyReference struct {
 }
 
 // String implements the fmt.Stringer interface for DependencyReference.
-// Returns the dependency reference in the format: [apiVersion/][kind/][namespace/]name[:ready][@readyExpr].
+// Returns the dependency reference in the format: [apiVersion/][kind/][namespace/]name[@readyExpr].
 // Examples: "app", "ns/app", "app@ready", "ns/app@obj.status.ready",
-// "v1/Secret/ns/secret", "Pod/app-abc:false", "Pod/ns/app-abc:true", "Pod/ns/app-abc:true@obj.status.phase",
+// "v1/Secret/ns/secret", "v1/Pod/ns/app-abc@obj.status.phase",
 // "HelmRelease/app", "Kustomization/ns/app", "helmreleases.helm.toolkit.fluxcd.io/v2/HelmRelease/ns/app",
-// "apiextensions.k8s.io/v1/CustomResourceDefinition/kustomizations.kustomize.toolkit.fluxcd.io:true".
+// "apiextensions.k8s.io/v1/CustomResourceDefinition/kustomizations.kustomize.toolkit.fluxcd.io".
 func (in DependencyReference) String() string {
 	s := in.Name
 	if in.Namespace != "" {
@@ -134,9 +127,6 @@ func (in DependencyReference) String() string {
 	}
 	if in.APIVersion != "" {
 		s = in.APIVersion + "/" + s
-	}
-	if in.Ready != nil {
-		s = s + ":" + strconv.FormatBool(*in.Ready)
 	}
 	if in.ReadyExpr != "" {
 		s = s + "@" + in.ReadyExpr
