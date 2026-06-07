@@ -24,16 +24,6 @@ import (
 	"github.com/fluxcd/pkg/apis/meta"
 )
 
-// Dependent interface defines methods that a Kubernetes resource object should
-// implement in order to use the dependency package for ordering dependencies.
-type Dependent interface {
-	GetAPIVersion() string
-	GetKind() string
-	GetName() string
-	GetNamespace() string
-	meta.ObjectWithDependencies
-}
-
 const (
 	unmarked = iota
 	permanentMark

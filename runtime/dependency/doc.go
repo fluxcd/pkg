@@ -14,6 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package dependency contains an utility for sorting a set of Kubernetes
-// resource objects that implement the Dependent interface.
+// Package dependency provides topological sorting and readiness checking
+// of Kubernetes resource dependencies.
+//
+// Sort orders Dependent objects by their dependsOn references using
+// depth-first search.
+//
+// CheckDependencies verifies that all dependencies of an object exist in
+// the cluster and meet readiness criteria, with optional CEL-based
+// readiness expressions.
 package dependency
