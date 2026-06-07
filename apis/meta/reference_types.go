@@ -16,8 +16,6 @@ limitations under the License.
 
 package meta
 
-import "strconv"
-
 // LocalObjectReference contains enough information to locate the referenced Kubernetes resource object.
 type LocalObjectReference struct {
 	// Name of the referent.
@@ -81,7 +79,7 @@ func (in TypedNamespacedObjectReference) String() string {
 }
 
 // DependencyReference contains enough information to locate the referenced Kubernetes resource object
-// with optional built-in or CEL expression readiness check. When the dependency is a Flux Applier API
+// with optional CEL expression readiness check. When the dependency is a Flux Applier API
 // resource (Kustomization or HelmRelease), defaults are applied during reconciliation.
 type DependencyReference struct {
 	// APIVersion of the resource to depend on, defaults to the API group version of the
@@ -103,11 +101,6 @@ type DependencyReference struct {
 	// Applier API resource (Kustomization or HelmRelease) that contains the reference.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
-
-	// Ready checks if the resource Ready status condition is true, defaults to
-	// true when the dependency is a Flux Applier API resource (Kustomization or HelmRelease).
-	// +optional
-	Ready *bool `json:"ready,omitempty"`
 
 	// ReadyExpr is a CEL expression that can be used to assess the readiness
 	// of a dependency. When specified, the built-in readiness check
@@ -134,9 +127,6 @@ func (in DependencyReference) String() string {
 	}
 	if in.APIVersion != "" {
 		s = in.APIVersion + "/" + s
-	}
-	if in.Ready != nil {
-		s = s + ":" + strconv.FormatBool(*in.Ready)
 	}
 	if in.ReadyExpr != "" {
 		s = s + "@" + in.ReadyExpr
