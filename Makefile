@@ -15,8 +15,9 @@ GO_TEST_ARGS ?= -race
 # API generation utilities
 CONTROLLER_GEN_VERSION ?= v0.21.0
 
-# Architecture to use envtest with
-ENVTEST_ARCH ?= amd64
+# Architecture to use envtest with; defaults to the host architecture.
+LOCALARCH ?= $(shell go env GOARCH)
+ENVTEST_ARCH ?= $(LOCALARCH)
 
 # Kubernetes versions to use envtest with
 ENVTEST_KUBERNETES_VERSION?=1.36
