@@ -698,3 +698,46 @@ func TestKustomizationGenerator_WithRemoteResource(t *testing.T) {
 		})
 	}
 }
+
+func TestOpenAPIPollution(t *testing.T) {
+	t.Run("custom OpenAPI schema (Deployment only) does not affect StatefulSet builds", func(t *testing.T) {
+		g := NewWithT(t)
+
+		tmpDir1, err := testTempDir(t)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(copy.Copy("testdata/openapiPollution/pollutor", tmpDir1)).To(Succeed())
+
+		// Build 1: Deployment build with custom openapi schema (includes Deployment but NOT StatefulSet)
+		res1, err := kustomize.SecureBuild(tmpDir1, tmpDir1, false)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(res1.Resources()).To(HaveLen(1))
+		yaml1, err := res1.AsYaml()
+		g.Expect(err).ToNot(HaveOccurred())
+
+		// Verify the Deployment patch was applied correctly (resource requests/limits added)
+		g.Expect(string(yaml1)).To(ContainSubstring("image: nginx:latest"))
+		g.Expect(string(yaml1)).To(ContainSubstring("resources:"))
+		g.Expect(string(yaml1)).To(ContainSubstring("requests:"))
+		g.Expect(string(yaml1)).To(ContainSubstring("memory: 64Mi"))
+
+		tmpDir2, err := testTempDir(t)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(copy.Copy("testdata/openapiPollution/victim", tmpDir2)).To(Succeed())
+
+		// Build 2: StatefulSet build without custom openapi
+		// This should work correctly even though Build 1 used a Deployment-only schema
+		res2, err := kustomize.SecureBuild(tmpDir2, tmpDir2, false)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(res2.Resources()).To(HaveLen(1))
+		yaml2, err := res2.AsYaml()
+		g.Expect(err).ToNot(HaveOccurred())
+
+		// Verify the StatefulSet patch was applied correctly
+		// The bug would cause this to fail because the Deployment-only schema doesn't define how
+		// to merge containers in a StatefulSet and "image: ..." would be missing
+		g.Expect(string(yaml2)).To(ContainSubstring("image: busybox:latest"))
+		g.Expect(string(yaml2)).To(ContainSubstring("resources:"))
+		g.Expect(string(yaml2)).To(ContainSubstring("requests:"))
+		g.Expect(string(yaml2)).To(ContainSubstring("memory: 64Mi"))
+	})
+}

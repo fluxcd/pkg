@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/kustomize/api/resmap"
 	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
+	"sigs.k8s.io/kustomize/kyaml/openapi"
 	"sigs.k8s.io/yaml"
 
 	"github.com/fluxcd/pkg/apis/kustomize"
@@ -674,6 +675,12 @@ func Build(fs filesys.FileSystem, dirPath string) (res resmap.ResMap, err error)
 		LoadRestrictions: kustypes.LoadRestrictionsNone,
 		PluginConfig:     kustypes.DisabledPluginConfig(),
 	}
+
+	// Reset the global OpenAPI schema to ensure each build is isolated.
+	// This prevents a custom openapi configuration in one Kustomization
+	// from affecting subsequent builds (e.g., causing strategic-merge
+	// patches to fail for types omitted from the custom schema).
+	openapi.ResetOpenAPI()
 
 	k := krusty.MakeKustomizer(buildOptions)
 	return k.Run(fs, dirPath)
