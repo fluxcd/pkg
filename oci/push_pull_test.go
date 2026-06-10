@@ -253,6 +253,10 @@ func Test_Push_Pull(t *testing.T) {
 				g.Expect(manifest.Annotations[CreatedAnnotation]).To(BeEquivalentTo(created))
 				g.Expect(manifest.Annotations[SourceAnnotation]).To(BeEquivalentTo(source))
 				g.Expect(manifest.Annotations[RevisionAnnotation]).To(BeEquivalentTo(revision))
+
+				configFile, err := image.ConfigFile()
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(configFile.Created.Time.UTC().Format(time.RFC3339)).To(BeEquivalentTo(created))
 			}
 
 			// Verify media types
@@ -320,6 +324,70 @@ func Test_Push_Pull(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_PushCreatedAnnotationOverridesConfigCreated(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+	c := NewClient(DefaultOptions())
+	repo := "test-push-created" + randStringRunes(5)
+	url := fmt.Sprintf("%s/%s:%s", dockerReg, repo, "v0.0.1")
+	created := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+
+	metadata := Metadata{
+		Source:   "github.com/fluxcd/flux2",
+		Revision: "rev",
+		Annotations: map[string]string{
+			CreatedAnnotation: created,
+		},
+	}
+
+	_, err := c.Push(ctx, url, "testdata/artifact", WithPushMetadata(metadata))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	image, err := crane.Pull(url)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	manifest, err := image.Manifest()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(manifest.Annotations[CreatedAnnotation]).To(BeEquivalentTo(created))
+
+	configFile, err := image.ConfigFile()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(configFile.Created.Time.UTC().Format(time.RFC3339)).To(BeEquivalentTo(created))
+}
+
+func Test_PushEmptyCreatedAnnotationUsesDefaultCreated(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+	c := NewClient(DefaultOptions())
+	repo := "test-push-empty-created" + randStringRunes(5)
+	url := fmt.Sprintf("%s/%s:%s", dockerReg, repo, "v0.0.1")
+
+	metadata := Metadata{
+		Source:   "github.com/fluxcd/flux2",
+		Revision: "rev",
+		Annotations: map[string]string{
+			CreatedAnnotation: "",
+		},
+	}
+
+	_, err := c.Push(ctx, url, "testdata/artifact", WithPushMetadata(metadata))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	image, err := crane.Pull(url)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	manifest, err := image.Manifest()
+	g.Expect(err).ToNot(HaveOccurred())
+	created := manifest.Annotations[CreatedAnnotation]
+	g.Expect(created).ToNot(BeEmpty())
+	_, err = time.Parse(time.RFC3339, created)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	configFile, err := image.ConfigFile()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(configFile.Created.Time.UTC().Format(time.RFC3339)).To(BeEquivalentTo(created))
 }
 
 func Test_getLayerMediaType(t *testing.T) {
