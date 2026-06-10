@@ -117,9 +117,29 @@ func (c *Client) Push(ctx context.Context, url, sourcePath string, opts ...PushO
 		o.meta.Created = ct.Format(time.RFC3339)
 	}
 
+	annotations := o.meta.ToAnnotations()
+	createdValue := annotations[CreatedAnnotation]
+	if createdValue == "" {
+		createdValue = o.meta.Created
+		annotations[CreatedAnnotation] = createdValue
+	}
+	created, err := time.Parse(time.RFC3339, createdValue)
+	if err != nil {
+		return "", fmt.Errorf("invalid created timestamp %q: %w", createdValue, err)
+	}
+
 	img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
 	img = mutate.ConfigMediaType(img, CanonicalConfigMediaType)
-	img = mutate.Annotations(img, o.meta.ToAnnotations()).(gcrv1.Image)
+	configFile, err := img.ConfigFile()
+	if err != nil {
+		return "", fmt.Errorf("reading artifact config failed: %w", err)
+	}
+	configFile.Created = gcrv1.Time{Time: created}
+	img, err = mutate.ConfigFile(img, configFile)
+	if err != nil {
+		return "", fmt.Errorf("setting artifact config failed: %w", err)
+	}
+	img = mutate.Annotations(img, annotations).(gcrv1.Image)
 
 	img, err = mutate.Append(img, mutate.Addendum{Layer: layer})
 	if err != nil {
