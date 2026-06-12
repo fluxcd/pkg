@@ -13,7 +13,7 @@ require (
 	github.com/distribution/distribution/v3 v3.1.1
 	github.com/fluxcd/pkg/sourceignore v0.18.0
 	github.com/fluxcd/pkg/tar v1.2.0
-	github.com/fluxcd/pkg/version v0.15.0
+	github.com/fluxcd/pkg/version v0.16.0
 	github.com/google/go-containerregistry v0.21.5
 	github.com/onsi/gomega v1.40.0
 	github.com/sirupsen/logrus v1.9.4
