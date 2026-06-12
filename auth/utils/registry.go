@@ -24,6 +24,17 @@ import (
 	"github.com/fluxcd/pkg/auth"
 )
 
+// delegatedAuthenticator is an authn.Authenticator that delegates
+// calls for Authorization to a provided function.
+type delegatedAuthenticator struct {
+	authorizationFunc func() (*authn.AuthConfig, error)
+}
+
+// Authorization implements authn.Authenticator.
+func (d *delegatedAuthenticator) Authorization() (*authn.AuthConfig, error) {
+	return d.authorizationFunc()
+}
+
 // GetArtifactRegistryCredentials retrieves the registry credentials for the
 // specified artifact repository and provider.
 func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
@@ -34,5 +45,15 @@ func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
 		return nil, err
 	}
 
-	return auth.GetArtifactRegistryCredentials(ctx, provider, artifactRepository, opts...)
+	// Fetch credentials lazily by wrapping the call to auth.GetArtifactRegistryCredentials
+	// in a delegatedAuthenticator. This ensures that credentials are fresh when
+	// Authorization() is called on the authn.Authenticator returned by this function.
+	authorizationFunc := func() (*authn.AuthConfig, error) {
+		authenticator, err := auth.GetArtifactRegistryCredentials(ctx, provider, artifactRepository, opts...)
+		if err != nil {
+			return nil, err
+		}
+		return authenticator.Authorization()
+	}
+	return &delegatedAuthenticator{authorizationFunc: authorizationFunc}, nil
 }
