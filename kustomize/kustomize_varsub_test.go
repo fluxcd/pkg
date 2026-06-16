@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/fluxcd/pkg/kustomize"
@@ -83,4 +84,56 @@ func TestKustomization_Varsub(t *testing.T) {
 	_, err = kustomize.SubstituteVariables(context.Background(),
 		kubeClient, clientObjects[0], strictMapRes.Resources()[0], kustomize.SubstituteWithStrict(false))
 	g.Expect(err).ToNot(HaveOccurred())
+}
+
+func TestKustomization_Varsub_Always(t *testing.T) {
+	// Load a Flux Kustomization that declares no substitution vars
+	// (no postBuild.substitute nor postBuild.substituteFrom).
+	yamlKus, err := os.ReadFile("./testdata/kustomization_varsub_novars.yaml")
+	g := NewWithT(t)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	clientObjects, err := readYamlObjects(strings.NewReader(string(yamlKus)))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	fs := filesys.MakeFsOnDisk()
+
+	// build a fresh resource for each sub-test, as SubstituteVariables mutates it in place.
+	buildResource := func() *resource.Resource {
+		resMap, err := kustomize.Build(fs, "./testdata/varsubalways/")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(resMap.Resources()).To(HaveLen(1))
+		return resMap.Resources()[0]
+	}
+
+	t.Run("disabled: default values are not substituted", func(t *testing.T) {
+		g := NewWithT(t)
+
+		res := buildResource()
+		outRes, err := kustomize.SubstituteVariables(context.Background(),
+			kubeClient, clientObjects[0], res)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(outRes).NotTo(BeNil())
+
+		yml, err := outRes.AsYAML()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(string(yml)).To(ContainSubstring("${cluster_env:=dev}"))
+		g.Expect(string(yml)).To(ContainSubstring("${cluster_region:=eu-central-1}"))
+	})
+
+	t.Run("enabled: default values are substituted", func(t *testing.T) {
+		g := NewWithT(t)
+
+		res := buildResource()
+		outRes, err := kustomize.SubstituteVariables(context.Background(),
+			kubeClient, clientObjects[0], res, kustomize.SubstituteWithAlways(true))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(outRes).NotTo(BeNil())
+
+		yml, err := outRes.AsYAML()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(string(yml)).NotTo(ContainSubstring("${"))
+		g.Expect(string(yml)).To(ContainSubstring("environment: dev"))
+		g.Expect(string(yml)).To(ContainSubstring("region: eu-central-1"))
+	})
 }
