@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    from-inline: "${empty_inline}"
+    from-configmap: "${empty_cm}"
+    from-secret: "${empty_secret}"
+  name: app-vars-strict-empty
+  namespace: apps

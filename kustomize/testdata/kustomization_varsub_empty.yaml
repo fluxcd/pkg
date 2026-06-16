@@ -1,0 +1,22 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: app
+  namespace: apps
+spec:
+  interval: 4m0s
+  path: ./kustomize
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: app
+  validation: client
+  postBuild:
+    substitute:
+      empty_inline: ""
+    substituteFrom:
+      - kind: ConfigMap
+        name: app-vars-empty
+      - kind: Secret
+        name: app-vars-empty
