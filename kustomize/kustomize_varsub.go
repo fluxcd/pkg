@@ -53,6 +53,7 @@ const (
 type SubstituteOptions struct {
 	DryRun bool
 	Strict bool
+	Always bool
 }
 
 type SubstituteOption func(a *SubstituteOptions)
@@ -71,6 +72,16 @@ func SubstituteWithDryRun(dryRun bool) SubstituteOption {
 func SubstituteWithStrict(strict bool) SubstituteOption {
 	return func(a *SubstituteOptions) {
 		a.Strict = strict
+	}
+}
+
+// SubstituteWithAlways sets the always option.
+// When always is true, the substitution process will be executed even if there are
+// no vars for substitution, which is useful when the shell expressions have default
+// values e.g. "${MYFOO:=bar}".
+func SubstituteWithAlways(always bool) SubstituteOption {
+	return func(a *SubstituteOptions) {
+		a.Always = always
 	}
 }
 
@@ -123,7 +134,7 @@ func SubstituteVariables(
 	}
 
 	// run bash variable substitutions
-	if len(vars) > 0 {
+	if len(vars) > 0 || options.Always {
 		jsonData, err := varSubstitution(resData, vars, options.Strict)
 		if err != nil {
 			return nil, fmt.Errorf("envsubst error: %w", err)

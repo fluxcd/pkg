@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    environment: ${cluster_env:=dev}
+  name: app-vars-always
+  namespace: apps
+data:
+  region: ${cluster_region:=eu-central-1}
