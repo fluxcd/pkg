@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"golang.org/x/net/http/httpproxy"
 
 	"github.com/fluxcd/pkg/cache"
@@ -236,20 +236,9 @@ func (p *Client) createInstallationToken(ctx context.Context) (*AppToken, error)
 		return nil, err
 	}
 
-	// Create a GitHub client authenticated with the JWT
-	ghClient := github.NewClient(p.httpClient).WithAuthToken(jwtToken)
-
-	// Set custom base URL for GitHub Enterprise
-	if p.apiURL != "" {
-		apiURL := p.apiURL
-		if !strings.HasSuffix(apiURL, "/") {
-			apiURL += "/"
-		}
-		baseURL, err := url.Parse(apiURL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid API URL: %w", err)
-		}
-		ghClient.BaseURL = baseURL
+	ghClient, err := p.newGitHubClient(jwtToken)
+	if err != nil {
+		return nil, err
 	}
 
 	// Reflect the app slug in the token if enabled.
@@ -277,6 +266,105 @@ func (p *Client) createInstallationToken(ctx context.Context) (*AppToken, error)
 		Slug:      slug,
 		ExpiresAt: token.GetExpiresAt().Time,
 	}, nil
+}
+
+func (p *Client) newGitHubClient(jwtToken string) (*github.Client, error) {
+	httpClient := p.httpClient
+	options := []github.ClientOptionsFunc{
+		github.WithAuthToken(jwtToken),
+	}
+
+	if p.apiURL != "" {
+		apiURL, err := parseAPIURL(p.apiURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid API URL: %w", err)
+		}
+
+		baseURL := githubEnterpriseBaseURL(apiURL)
+		if baseURL.Path != apiURL.Path {
+			httpClient = clientWithBasePathRewrite(p.httpClient, baseURL.Path, apiURL.Path)
+		}
+
+		uploadURL := githubEnterpriseUploadURL(apiURL)
+		options = append(options, github.WithEnterpriseURLs(baseURL.String(), uploadURL.String()))
+	}
+
+	options = append([]github.ClientOptionsFunc{github.WithHTTPClient(httpClient)}, options...)
+	return github.NewClient(options...)
+}
+
+func parseAPIURL(rawURL string) (*url.URL, error) {
+	if !strings.HasSuffix(rawURL, "/") {
+		rawURL += "/"
+	}
+	return url.Parse(rawURL)
+}
+
+func githubEnterpriseBaseURL(apiURL *url.URL) *url.URL {
+	baseURL := *apiURL
+	baseURL.RawPath = ""
+	if isGitHubAPIHost(baseURL.Host) || strings.HasSuffix(baseURL.Path, "/api/v3/") {
+		return &baseURL
+	}
+	baseURL.Path = strings.TrimSuffix(baseURL.Path, "/") + "/api/v3/"
+	return &baseURL
+}
+
+func githubEnterpriseUploadURL(apiURL *url.URL) *url.URL {
+	uploadURL := *apiURL
+	uploadURL.RawPath = ""
+	if isGitHubUploadHost(uploadURL.Host) {
+		return &uploadURL
+	}
+	if strings.HasSuffix(uploadURL.Path, "/api/v3/") {
+		uploadURL.Path = strings.TrimSuffix(uploadURL.Path, "api/v3/") + "api/uploads/"
+		return &uploadURL
+	}
+	uploadURL.Path = strings.TrimSuffix(uploadURL.Path, "/") + "/api/uploads/"
+	return &uploadURL
+}
+
+func isGitHubAPIHost(host string) bool {
+	return strings.HasPrefix(host, "api.") || strings.Contains(host, ".api.")
+}
+
+func isGitHubUploadHost(host string) bool {
+	return isGitHubAPIHost(host) || strings.HasPrefix(host, "uploads.")
+}
+
+func clientWithBasePathRewrite(client *http.Client, fromPath, toPath string) *http.Client {
+	clientCopy := *client
+	clientCopy.Transport = &basePathRewriteTransport{
+		base:     client.Transport,
+		fromPath: fromPath,
+		toPath:   toPath,
+	}
+	return &clientCopy
+}
+
+// basePathRewriteTransport preserves exact custom API base URLs when go-github
+// requires an enterprise-style /api/v3/ base URL.
+type basePathRewriteTransport struct {
+	base     http.RoundTripper
+	fromPath string
+	toPath   string
+}
+
+func (t *basePathRewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	transport := t.base
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	if !strings.HasPrefix(req.URL.Path, t.fromPath) {
+		return transport.RoundTrip(req)
+	}
+
+	request := req.Clone(req.Context())
+	u := *req.URL
+	u.Path = t.toPath + strings.TrimPrefix(req.URL.Path, t.fromPath)
+	u.RawPath = ""
+	request.URL = &u
+	return transport.RoundTrip(request)
 }
 
 // getInstallationID gets the installation ID for creating installation tokens.
