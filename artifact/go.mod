@@ -22,7 +22,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/go-digest/blake3 v0.0.0-20250813155314-89707e38ad1a
 	github.com/spf13/pflag v1.0.10
-	k8s.io/apimachinery v0.36.1
+	k8s.io/apimachinery v0.36.2
 )
 
 // Replace digest lib to master to gather access to BLAKE3.
