@@ -30,7 +30,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-containerregistry v0.21.5
-	github.com/google/go-github/v82 v82.0.0
+	github.com/google/go-github/v87 v87.0.0
 	github.com/onsi/gomega v1.40.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0
 	golang.org/x/net v0.53.0
