@@ -34,3 +34,6 @@
 - name: backport:flux/v2.8.x
   description: To be backported to flux/v2.8.x
   color: '#ffd700'
+- name: backport:flux/v2.9.x
+  description: To be backported to flux/v2.9.x
+  color: '#ffd700'
