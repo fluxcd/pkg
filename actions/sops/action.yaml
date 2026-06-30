@@ -52,9 +52,21 @@ runs:
             SOPS_TARGET_FILE="sops-${VERSION}.${ARCH}.exe"
           fi
 
+          SOPS_CHECKSUMS_FILE="sops-$VERSION.checksums.txt"
           SOPS_DOWNLOAD_URL="https://github.com/getsops/sops/releases/download/${VERSION}/"
           echo "Downloading sops from $SOPS_DOWNLOAD_URL/$SOPS_TARGET_FILE"
+
           curl -fsSL -o "$DL_DIR/$SOPS_TARGET_FILE" "$SOPS_DOWNLOAD_URL/$SOPS_TARGET_FILE"
+          curl -fsSL -o "$DL_DIR/$SOPS_CHECKSUMS_FILE" "$SOPS_DOWNLOAD_URL/$SOPS_CHECKSUMS_FILE"
+          
+          echo "Verifying checksum"
+          sum=$(openssl sha1 -sha256 "$DL_DIR/$SOPS_TARGET_FILE" | awk '{print $2}')
+
+          expected_sum=$(grep "$SOPS_TARGET_FILE" "$DL_DIR/$SOPS_CHECKSUMS_FILE" | awk '{print $1}')
+          if [ "$sum" != "$expected_sum" ]; then
+            echo "SHA sum of $SOPS_TARGET_FILE does not match. Aborting."
+            exit 1
+          fi
 
           echo "Installing sops to ${SOPS_TOOL_DIR}"
           mkdir -p "$SOPS_TOOL_DIR"
