@@ -26,9 +26,19 @@ import (
 )
 
 type object struct {
-	name      string
-	namespace string
-	dependsOn []meta.DependencyReference
+	apiVersion string
+	kind       string
+	name       string
+	namespace  string
+	dependsOn  []meta.DependencyReference
+}
+
+func (in *object) GetAPIVersion() string {
+	return in.apiVersion
+}
+
+func (in *object) GetKind() string {
+	return in.kind
 }
 
 func (in *object) GetName() string {
@@ -47,7 +57,7 @@ func TestSort(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		objects []dependency.Dependent
-		want    []meta.NamespacedObjectReference
+		want    []meta.TypedNamespacedObjectReference
 		err     string
 	}{
 		{
@@ -59,6 +69,7 @@ func TestSort(t *testing.T) {
 					dependsOn: []meta.DependencyReference{
 						{Namespace: "linkerd", Name: "linkerd"},
 						{Namespace: "default", Name: "backend"},
+						{APIVersion: "cert-manager.io/v1", Kind: "Certificate", Namespace: "default", Name: "frontend"},
 					},
 				},
 				&object{
@@ -72,10 +83,17 @@ func TestSort(t *testing.T) {
 						{Namespace: "linkerd", Name: "linkerd"},
 					},
 				},
+				&object{
+					apiVersion: "cert-manager.io/v1",
+					kind:       "Certificate",
+					name:       "frontend",
+					namespace:  "default",
+				},
 			},
-			want: []meta.NamespacedObjectReference{
+			want: []meta.TypedNamespacedObjectReference{
 				{Namespace: "linkerd", Name: "linkerd"},
 				{Namespace: "default", Name: "backend"},
+				{APIVersion: "cert-manager.io/v1", Kind: "Certificate", Namespace: "default", Name: "frontend"},
 				{Namespace: "default", Name: "frontend"},
 			},
 		},
@@ -86,12 +104,14 @@ func TestSort(t *testing.T) {
 					name:      "dependency",
 					namespace: "default",
 					dependsOn: []meta.DependencyReference{
-						{Namespace: "default", Name: "endless"},
+						{APIVersion: "helm.toolkit.fluxcd.io/v2", Kind: "HelmRelease", Namespace: "default", Name: "endless"},
 					},
 				},
 				&object{
-					name:      "endless",
-					namespace: "default",
+					apiVersion: "helm.toolkit.fluxcd.io/v2",
+					kind:       "HelmRelease",
+					name:       "endless",
+					namespace:  "default",
 					dependsOn: []meta.DependencyReference{
 						{Namespace: "default", Name: "circular"},
 					},
@@ -104,7 +124,7 @@ func TestSort(t *testing.T) {
 					},
 				},
 			},
-			err: "circular dependency detected: default/dependency -> default/endless -> default/circular -> default/dependency",
+			err: "circular dependency detected: default/dependency -> helm.toolkit.fluxcd.io/v2/HelmRelease/default/endless -> default/circular -> default/dependency",
 		},
 		{
 			name: "missing namespace",
@@ -117,12 +137,19 @@ func TestSort(t *testing.T) {
 					name:      "frontend",
 					namespace: "application",
 					dependsOn: []meta.DependencyReference{
+						{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "resourcesets.fluxcd.controlplane.io"},
 						{Name: "backend"},
 					},
 				},
+				&object{
+					apiVersion: "apiextensions.k8s.io/v1",
+					kind:       "CustomResourceDefinition",
+					name:       "resourcesets.fluxcd.controlplane.io",
+				},
 			},
-			want: []meta.NamespacedObjectReference{
+			want: []meta.TypedNamespacedObjectReference{
 				{Namespace: "application", Name: "backend"},
+				{APIVersion: "apiextensions.k8s.io/v1", Kind: "CustomResourceDefinition", Name: "resourcesets.fluxcd.controlplane.io"},
 				{Namespace: "application", Name: "frontend"},
 			},
 		},
@@ -133,6 +160,7 @@ func TestSort(t *testing.T) {
 					name:      "backend",
 					namespace: "default",
 					dependsOn: []meta.DependencyReference{
+						{APIVersion: "cert-manager.io/v1", Kind: "ClusterIssuer", Namespace: "default", Name: "acme-issuer"},
 						{Namespace: "default", Name: "common"},
 					},
 				},
@@ -141,17 +169,24 @@ func TestSort(t *testing.T) {
 					namespace: "default",
 					dependsOn: []meta.DependencyReference{
 						{Namespace: "default", Name: "infra"},
+						{APIVersion: "helm.toolkit.fluxcd.io/v2", Kind: "HelmRelease", Namespace: "default", Name: "podinfo"},
 					},
 				},
 				&object{
 					name:      "common",
 					namespace: "default",
+					dependsOn: []meta.DependencyReference{
+						{APIVersion: "helm.toolkit.fluxcd.io/v2", Kind: "HelmRelease", Namespace: "default", Name: "crds"},
+					},
 				},
 			},
-			want: []meta.NamespacedObjectReference{
+			want: []meta.TypedNamespacedObjectReference{
+				{APIVersion: "cert-manager.io/v1", Kind: "ClusterIssuer", Namespace: "default", Name: "acme-issuer"},
+				{APIVersion: "helm.toolkit.fluxcd.io/v2", Kind: "HelmRelease", Namespace: "default", Name: "crds"},
 				{Namespace: "default", Name: "common"},
 				{Namespace: "default", Name: "backend"},
 				{Namespace: "default", Name: "infra"},
+				{APIVersion: "helm.toolkit.fluxcd.io/v2", Kind: "HelmRelease", Namespace: "default", Name: "podinfo"},
 				{Namespace: "default", Name: "frontend"},
 			},
 		},
@@ -162,13 +197,17 @@ func TestSort(t *testing.T) {
 					name:      "frontend",
 					namespace: "default",
 					dependsOn: []meta.DependencyReference{
+						{APIVersion: "cert-manager.io/v1", Kind: "ClusterIssuer", Namespace: "default", Name: "acme-issuer"},
 						{Namespace: "linkerd", Name: "linkerd"},
+						{APIVersion: "v1", Kind: "PersistentVolumeClaim", Name: "backend-data"},
 						{Namespace: "default", Name: "backend"},
 					},
 				},
 			},
-			want: []meta.NamespacedObjectReference{
+			want: []meta.TypedNamespacedObjectReference{
+				{APIVersion: "cert-manager.io/v1", Kind: "ClusterIssuer", Namespace: "default", Name: "acme-issuer"},
 				{Namespace: "linkerd", Name: "linkerd"},
+				{APIVersion: "v1", Kind: "PersistentVolumeClaim", Name: "backend-data"},
 				{Namespace: "default", Name: "backend"},
 				{Namespace: "default", Name: "frontend"},
 			},
