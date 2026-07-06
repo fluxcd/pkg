@@ -17,6 +17,7 @@ limitations under the License.
 package kustomize_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/otiai10/copy"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/resmap"
 	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
@@ -740,4 +742,161 @@ func TestOpenAPIPollution(t *testing.T) {
 		g.Expect(string(yaml2)).To(ContainSubstring("requests:"))
 		g.Expect(string(yaml2)).To(ContainSubstring("memory: 64Mi"))
 	})
+}
+
+func TestOpenAPIPathMergesBuiltins(t *testing.T) {
+	tests := []struct {
+		name               string
+		options            []kustomize.BuildOption
+		wantMergedBuiltins bool
+	}{
+		{
+			name:               "enabled",
+			wantMergedBuiltins: true,
+		},
+		{
+			name: "disabled",
+			options: []kustomize.BuildOption{
+				kustomize.WithMergeOpenAPIPathWithBuiltins(false),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			tmpDir, err := testTempDir(t)
+			g.Expect(err).ToNot(HaveOccurred())
+			writeOpenAPIPathDaemonSetFixture(g, tmpDir)
+
+			res, err := kustomize.SecureBuild(tmpDir, tmpDir, false, tt.options...)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(res.Resources()).To(HaveLen(1))
+
+			out, err := res.AsYaml()
+			g.Expect(err).ToNot(HaveOccurred())
+			obj := daemonSetObject(g, out)
+			container := daemonSetContainer(g, obj.Object)
+			image, found, err := unstructured.NestedString(container, "image")
+			g.Expect(err).ToNot(HaveOccurred())
+
+			volumeMounts, foundVolumeMounts, err := unstructured.NestedSlice(container, "volumeMounts")
+			g.Expect(err).ToNot(HaveOccurred())
+
+			if tt.wantMergedBuiltins {
+				g.Expect(found).To(BeTrue())
+				g.Expect(image).To(Equal("quay.io/prometheus/node-exporter:v1.10.2"))
+				g.Expect(foundVolumeMounts).To(BeTrue())
+				g.Expect(volumeMounts).To(BeEmpty())
+
+				g.Expect(kubeClient.Create(context.Background(), obj, client.DryRunAll)).To(Succeed())
+			} else {
+				g.Expect(found).To(BeFalse())
+				g.Expect(volumeMounts).To(HaveLen(1))
+				volumeMount, ok := volumeMounts[0].(map[string]interface{})
+				g.Expect(ok).To(BeTrue())
+				_, found, err = unstructured.NestedString(volumeMount, "mountPath")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(found).To(BeFalse())
+				mountPropagation, found, err := unstructured.NestedString(volumeMount, "mountPropagation")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(found).To(BeTrue())
+				g.Expect(mountPropagation).To(Equal("None"))
+
+				err = kubeClient.Create(context.Background(), obj, client.DryRunAll)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(`DaemonSet.apps "monitoring-prometheus-node-exporter" is invalid`))
+				g.Expect(err.Error()).To(ContainSubstring("spec.template.spec.containers[0].image: Required value"))
+				g.Expect(err.Error()).To(Or(
+					ContainSubstring("spec.template.spec.containers[0].volumeMounts[0].name: Required value"),
+					ContainSubstring("spec.template.spec.containers[0].volumeMounts[0].mountPath: Required value"),
+				))
+			}
+		})
+	}
+}
+
+func daemonSetObject(g Gomega, data []byte) *unstructured.Unstructured {
+	var obj map[string]interface{}
+	g.Expect(yaml.Unmarshal(data, &obj)).To(Succeed())
+	u := &unstructured.Unstructured{Object: obj}
+	u.SetNamespace("default")
+	return u
+}
+
+func daemonSetContainer(g Gomega, obj map[string]interface{}) map[string]interface{} {
+	containers, found, err := unstructured.NestedSlice(obj, "spec", "template", "spec", "containers")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	g.Expect(containers).To(HaveLen(1))
+	container, ok := containers[0].(map[string]interface{})
+	g.Expect(ok).To(BeTrue())
+	return container
+}
+
+func writeOpenAPIPathDaemonSetFixture(g Gomega, dir string) {
+	files := map[string]string{
+		"kustomization.yaml": `resources:
+- daemonset.yaml
+openapi:
+  path: custom-openapi.json
+patches:
+- patch: |-
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: monitoring-prometheus-node-exporter
+    spec:
+      template:
+        spec:
+          containers:
+          - name: node-exporter
+            volumeMounts:
+            - name: root
+              mountPropagation: None
+  target:
+    group: apps
+    kind: DaemonSet
+    name: monitoring-prometheus-node-exporter
+`,
+		"custom-openapi.json": `{
+  "swagger": "2.0",
+  "info": {
+    "title": "Custom schema",
+    "version": "v1"
+  },
+  "paths": {},
+  "definitions": {}
+}
+`,
+		"daemonset.yaml": `apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: monitoring-prometheus-node-exporter
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+    spec:
+      containers:
+      - name: node-exporter
+        image: quay.io/prometheus/node-exporter:v1.10.2
+        volumeMounts:
+        - name: root
+          mountPath: /host/root
+      volumes:
+      - name: root
+        hostPath:
+          path: /
+`,
+	}
+
+	for name, content := range files {
+		g.Expect(os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644)).To(Succeed())
+	}
 }
