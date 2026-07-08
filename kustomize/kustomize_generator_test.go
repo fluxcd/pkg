@@ -17,7 +17,10 @@ limitations under the License.
 package kustomize_test
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +29,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/otiai10/copy"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/resmap"
 	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
@@ -741,3 +745,143 @@ func TestOpenAPIPollution(t *testing.T) {
 		g.Expect(string(yaml2)).To(ContainSubstring("memory: 64Mi"))
 	})
 }
+
+func TestOpenAPIPathMergesBuiltins(t *testing.T) {
+	g := NewWithT(t)
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	writeOpenAPIPathDaemonSetFixture(g, tmpDir, "custom-openapi.json")
+
+	res, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(res.Resources()).To(HaveLen(1))
+
+	expectOpenAPIPathDaemonSet(g, res)
+}
+
+func TestOpenAPIPathHTTPURLMergesBuiltins(t *testing.T) {
+	g := NewWithT(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g.Expect(r.URL.Path).To(Equal("/custom-openapi.json"))
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(customOpenAPISchema))
+		g.Expect(err).ToNot(HaveOccurred())
+	}))
+	defer server.Close()
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	writeOpenAPIPathDaemonSetFixture(g, tmpDir, server.URL+"/custom-openapi.json")
+
+	res, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(res.Resources()).To(HaveLen(1))
+
+	expectOpenAPIPathDaemonSet(g, res)
+}
+
+func expectOpenAPIPathDaemonSet(g Gomega, res resmap.ResMap) {
+	out, err := res.AsYaml()
+	g.Expect(err).ToNot(HaveOccurred())
+	obj := daemonSetObject(g, out)
+	container := daemonSetContainer(g, obj.Object)
+	image, found, err := unstructured.NestedString(container, "image")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	g.Expect(image).To(Equal("quay.io/prometheus/node-exporter:v1.10.2"))
+
+	volumeMounts, foundVolumeMounts, err := unstructured.NestedSlice(container, "volumeMounts")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(foundVolumeMounts).To(BeTrue())
+	g.Expect(volumeMounts).To(BeEmpty())
+
+	g.Expect(kubeClient.Create(context.Background(), obj, client.DryRunAll)).To(Succeed())
+}
+
+func daemonSetObject(g Gomega, data []byte) *unstructured.Unstructured {
+	var obj map[string]interface{}
+	g.Expect(yaml.Unmarshal(data, &obj)).To(Succeed())
+	u := &unstructured.Unstructured{Object: obj}
+	u.SetNamespace("default")
+	return u
+}
+
+func daemonSetContainer(g Gomega, obj map[string]interface{}) map[string]interface{} {
+	containers, found, err := unstructured.NestedSlice(obj, "spec", "template", "spec", "containers")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	g.Expect(containers).To(HaveLen(1))
+	container, ok := containers[0].(map[string]interface{})
+	g.Expect(ok).To(BeTrue())
+	return container
+}
+
+func writeOpenAPIPathDaemonSetFixture(g Gomega, dir, openAPIPath string) {
+	files := map[string]string{
+		"kustomization.yaml": fmt.Sprintf(`resources:
+- daemonset.yaml
+openapi:
+  path: %s
+patches:
+- patch: |-
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: monitoring-prometheus-node-exporter
+    spec:
+      template:
+        spec:
+          containers:
+          - name: node-exporter
+            volumeMounts:
+            - name: root
+              mountPropagation: None
+  target:
+    group: apps
+    kind: DaemonSet
+    name: monitoring-prometheus-node-exporter
+`, openAPIPath),
+		"custom-openapi.json": customOpenAPISchema,
+		"daemonset.yaml": `apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: monitoring-prometheus-node-exporter
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+    spec:
+      containers:
+      - name: node-exporter
+        image: quay.io/prometheus/node-exporter:v1.10.2
+        volumeMounts:
+        - name: root
+          mountPath: /host/root
+      volumes:
+      - name: root
+        hostPath:
+          path: /
+`,
+	}
+
+	for name, content := range files {
+		g.Expect(os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644)).To(Succeed())
+	}
+}
+
+const customOpenAPISchema = `{
+  "swagger": "2.0",
+  "info": {
+    "title": "Custom schema",
+    "version": "v1"
+  },
+  "paths": {},
+  "definitions": {}
+}
+`
