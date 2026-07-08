@@ -84,27 +84,6 @@ type Generator struct {
 // SavingOptions is a function that can be used to apply saving options to a kustomization
 type SavingOptions func(dirPath, file string, action Action) error
 
-// BuildOption configures Kustomize builds.
-type BuildOption func(*buildOptions)
-
-type buildOptions struct {
-	mergeOpenAPIPathWithBuiltins bool
-}
-
-func defaultBuildOptions() buildOptions {
-	return buildOptions{
-		mergeOpenAPIPathWithBuiltins: true,
-	}
-}
-
-// WithMergeOpenAPIPathWithBuiltins controls whether openapi.path schemas are
-// merged with Kustomize's embedded Kubernetes schema before builds.
-func WithMergeOpenAPIPathWithBuiltins(enabled bool) BuildOption {
-	return func(o *buildOptions) {
-		o.mergeOpenAPIPathWithBuiltins = enabled
-	}
-}
-
 // NewGenerator creates a new kustomize generator
 // It takes a root directory and a kustomization object
 // If the root is empty, no enforcement of the root directory will be done when handling paths.
@@ -651,12 +630,12 @@ func adaptSelector(selector *kustomize.Selector) (output *kustypes.Selector) {
 // buildMutex protects against kustomize concurrent map read/write panic
 var kustomizeBuildMutex sync.Mutex
 
-// SecureBuild wraps krusty.MakeKustomizer with the following settings:
+// Secure Build wraps krusty.MakeKustomizer with the following settings:
 //   - secure on-disk FS denying operations outside root
 //   - load files from outside the kustomization dir path
 //     (but not outside root)
 //   - disable plugins except for the builtin ones
-func SecureBuild(root, dirPath string, allowRemoteBases bool, opts ...BuildOption) (res resmap.ResMap, err error) {
+func SecureBuild(root, dirPath string, allowRemoteBases bool) (res resmap.ResMap, err error) {
 	var fs filesys.FileSystem
 
 	// Create secure FS for root with or without remote base support
@@ -671,13 +650,13 @@ func SecureBuild(root, dirPath string, allowRemoteBases bool, opts ...BuildOptio
 			return nil, err
 		}
 	}
-	return Build(fs, dirPath, opts...)
+	return Build(fs, dirPath)
 }
 
 // Build wraps krusty.MakeKustomizer with the following settings:
 // - load files from outside the kustomization.yaml root
 // - disable plugins except for the builtin ones
-func Build(fs filesys.FileSystem, dirPath string, opts ...BuildOption) (res resmap.ResMap, err error) {
+func Build(fs filesys.FileSystem, dirPath string) (res resmap.ResMap, err error) {
 	// temporary workaround for concurrent map read and map write bug
 	// https://github.com/kubernetes-sigs/kustomize/issues/3659
 	kustomizeBuildMutex.Lock()
@@ -697,22 +676,11 @@ func Build(fs filesys.FileSystem, dirPath string, opts ...BuildOption) (res resm
 		PluginConfig:     kustypes.DisabledPluginConfig(),
 	}
 
-	buildOpts := defaultBuildOptions()
-	for _, opt := range opts {
-		opt(&buildOpts)
-	}
-
 	// Reset the global OpenAPI schema to ensure each build is isolated.
 	// This prevents a custom openapi configuration in one Kustomization
 	// from affecting subsequent builds (e.g., causing strategic-merge
 	// patches to fail for types omitted from the custom schema).
 	openapi.ResetOpenAPI()
-
-	if buildOpts.mergeOpenAPIPathWithBuiltins {
-		if err := mergeOpenAPIPathWithBuiltins(fs, dirPath); err != nil {
-			return nil, err
-		}
-	}
 
 	k := krusty.MakeKustomizer(buildOptions)
 	return k.Run(fs, dirPath)
