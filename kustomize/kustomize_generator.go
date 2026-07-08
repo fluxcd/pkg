@@ -630,6 +630,11 @@ func adaptSelector(selector *kustomize.Selector) (output *kustypes.Selector) {
 // buildMutex protects against kustomize concurrent map read/write panic
 var kustomizeBuildMutex sync.Mutex
 
+func resetOpenAPIWithBuiltins() {
+	openapi.ResetOpenAPI()
+	_ = openapi.Schema()
+}
+
 // Secure Build wraps krusty.MakeKustomizer with the following settings:
 //   - secure on-disk FS denying operations outside root
 //   - load files from outside the kustomization dir path
@@ -677,10 +682,11 @@ func Build(fs filesys.FileSystem, dirPath string) (res resmap.ResMap, err error)
 	}
 
 	// Reset the global OpenAPI schema to ensure each build is isolated.
-	// This prevents a custom openapi configuration in one Kustomization
-	// from affecting subsequent builds (e.g., causing strategic-merge
-	// patches to fail for types omitted from the custom schema).
-	openapi.ResetOpenAPI()
+	// Preload the embedded Kubernetes schema so openapi.path schemas add to
+	// built-ins within the same build, matching the historical non-empty global
+	// schema behavior without leaking schemas across builds.
+	resetOpenAPIWithBuiltins()
+	defer openapi.ResetOpenAPI()
 
 	k := krusty.MakeKustomizer(buildOptions)
 	return k.Run(fs, dirPath)
