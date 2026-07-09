@@ -19,6 +19,8 @@ package kustomize_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -745,76 +747,57 @@ func TestOpenAPIPollution(t *testing.T) {
 }
 
 func TestOpenAPIPathMergesBuiltins(t *testing.T) {
-	tests := []struct {
-		name               string
-		options            []kustomize.BuildOption
-		wantMergedBuiltins bool
-	}{
-		{
-			name:               "enabled",
-			wantMergedBuiltins: true,
-		},
-		{
-			name: "disabled",
-			options: []kustomize.BuildOption{
-				kustomize.WithMergeOpenAPIPathWithBuiltins(false),
-			},
-		},
-	}
+	g := NewWithT(t)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	writeOpenAPIPathDaemonSetFixture(g, tmpDir, "custom-openapi.json")
 
-			tmpDir, err := testTempDir(t)
-			g.Expect(err).ToNot(HaveOccurred())
-			writeOpenAPIPathDaemonSetFixture(g, tmpDir)
+	res, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(res.Resources()).To(HaveLen(1))
 
-			res, err := kustomize.SecureBuild(tmpDir, tmpDir, false, tt.options...)
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(res.Resources()).To(HaveLen(1))
+	expectOpenAPIPathDaemonSet(g, res)
+}
 
-			out, err := res.AsYaml()
-			g.Expect(err).ToNot(HaveOccurred())
-			obj := daemonSetObject(g, out)
-			container := daemonSetContainer(g, obj.Object)
-			image, found, err := unstructured.NestedString(container, "image")
-			g.Expect(err).ToNot(HaveOccurred())
+func TestOpenAPIPathHTTPURLMergesBuiltins(t *testing.T) {
+	g := NewWithT(t)
 
-			volumeMounts, foundVolumeMounts, err := unstructured.NestedSlice(container, "volumeMounts")
-			g.Expect(err).ToNot(HaveOccurred())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g.Expect(r.URL.Path).To(Equal("/custom-openapi.json"))
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(customOpenAPISchema))
+		g.Expect(err).ToNot(HaveOccurred())
+	}))
+	defer server.Close()
 
-			if tt.wantMergedBuiltins {
-				g.Expect(found).To(BeTrue())
-				g.Expect(image).To(Equal("quay.io/prometheus/node-exporter:v1.10.2"))
-				g.Expect(foundVolumeMounts).To(BeTrue())
-				g.Expect(volumeMounts).To(BeEmpty())
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	writeOpenAPIPathDaemonSetFixture(g, tmpDir, server.URL+"/custom-openapi.json")
 
-				g.Expect(kubeClient.Create(context.Background(), obj, client.DryRunAll)).To(Succeed())
-			} else {
-				g.Expect(found).To(BeFalse())
-				g.Expect(volumeMounts).To(HaveLen(1))
-				volumeMount, ok := volumeMounts[0].(map[string]interface{})
-				g.Expect(ok).To(BeTrue())
-				_, found, err = unstructured.NestedString(volumeMount, "mountPath")
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(found).To(BeFalse())
-				mountPropagation, found, err := unstructured.NestedString(volumeMount, "mountPropagation")
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(found).To(BeTrue())
-				g.Expect(mountPropagation).To(Equal("None"))
+	res, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(res.Resources()).To(HaveLen(1))
 
-				err = kubeClient.Create(context.Background(), obj, client.DryRunAll)
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(`DaemonSet.apps "monitoring-prometheus-node-exporter" is invalid`))
-				g.Expect(err.Error()).To(ContainSubstring("spec.template.spec.containers[0].image: Required value"))
-				g.Expect(err.Error()).To(Or(
-					ContainSubstring("spec.template.spec.containers[0].volumeMounts[0].name: Required value"),
-					ContainSubstring("spec.template.spec.containers[0].volumeMounts[0].mountPath: Required value"),
-				))
-			}
-		})
-	}
+	expectOpenAPIPathDaemonSet(g, res)
+}
+
+func expectOpenAPIPathDaemonSet(g Gomega, res resmap.ResMap) {
+	out, err := res.AsYaml()
+	g.Expect(err).ToNot(HaveOccurred())
+	obj := daemonSetObject(g, out)
+	container := daemonSetContainer(g, obj.Object)
+	image, found, err := unstructured.NestedString(container, "image")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	g.Expect(image).To(Equal("quay.io/prometheus/node-exporter:v1.10.2"))
+
+	volumeMounts, foundVolumeMounts, err := unstructured.NestedSlice(container, "volumeMounts")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(foundVolumeMounts).To(BeTrue())
+	g.Expect(volumeMounts).To(BeEmpty())
+
+	g.Expect(kubeClient.Create(context.Background(), obj, client.DryRunAll)).To(Succeed())
 }
 
 func daemonSetObject(g Gomega, data []byte) *unstructured.Unstructured {
@@ -835,12 +818,12 @@ func daemonSetContainer(g Gomega, obj map[string]interface{}) map[string]interfa
 	return container
 }
 
-func writeOpenAPIPathDaemonSetFixture(g Gomega, dir string) {
+func writeOpenAPIPathDaemonSetFixture(g Gomega, dir, openAPIPath string) {
 	files := map[string]string{
-		"kustomization.yaml": `resources:
+		"kustomization.yaml": fmt.Sprintf(`resources:
 - daemonset.yaml
 openapi:
-  path: custom-openapi.json
+  path: %s
 patches:
 - patch: |-
     apiVersion: apps/v1
@@ -859,17 +842,8 @@ patches:
     group: apps
     kind: DaemonSet
     name: monitoring-prometheus-node-exporter
-`,
-		"custom-openapi.json": `{
-  "swagger": "2.0",
-  "info": {
-    "title": "Custom schema",
-    "version": "v1"
-  },
-  "paths": {},
-  "definitions": {}
-}
-`,
+`, openAPIPath),
+		"custom-openapi.json": customOpenAPISchema,
 		"daemonset.yaml": `apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -900,3 +874,14 @@ spec:
 		g.Expect(os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644)).To(Succeed())
 	}
 }
+
+const customOpenAPISchema = `{
+  "swagger": "2.0",
+  "info": {
+    "title": "Custom schema",
+    "version": "v1"
+  },
+  "paths": {},
+  "definitions": {}
+}
+`
