@@ -15,7 +15,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.6.1
 	github.com/fluxcd/pkg/apis/meta v1.31.0
 	github.com/fluxcd/pkg/lockedfile v0.8.0
-	github.com/fluxcd/pkg/oci v0.68.0
+	github.com/fluxcd/pkg/oci v0.69.0
 	github.com/fluxcd/pkg/sourceignore v0.18.0
 	github.com/fluxcd/pkg/tar v1.2.0
 	github.com/onsi/gomega v1.40.0
