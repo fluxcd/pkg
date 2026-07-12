@@ -19,6 +19,7 @@ package oci
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
 	"net/http"
@@ -42,8 +43,14 @@ func WithRetryTransport(ctx context.Context,
 	backoff remote.Backoff,
 	scopes []string,
 	insecure bool) (crane.Option, error) {
-	var retryTransport http.RoundTripper
-	retryTransport = remote.DefaultTransport.(*http.Transport).Clone()
+	httpTransport := remote.DefaultTransport.(*http.Transport).Clone()
+	if insecure {
+		if httpTransport.TLSClientConfig == nil {
+			httpTransport.TLSClientConfig = &tls.Config{}
+		}
+		httpTransport.TLSClientConfig.InsecureSkipVerify = true //nolint:gosec
+	}
+	var retryTransport http.RoundTripper = httpTransport
 	if logs.Enabled(logs.Debug) {
 		retryTransport = transport.NewLogger(retryTransport)
 	}
