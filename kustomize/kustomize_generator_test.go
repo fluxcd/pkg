@@ -316,6 +316,71 @@ spec:
 			expectedImage: "registry.example.com/app@" + digest,
 		},
 		{
+			name: "existing digest is cleared when only newTag is set",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, Digest: digest},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0"},
+			},
+			expectedImage: containerImage + ":v2.0.0",
+		},
+		{
+			name: "existing newTag is cleared when only digest is set",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v1.2.3"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, Digest: digest},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, Digest: digest},
+			},
+			expectedImage: containerImage + "@" + digest,
+		},
+		{
+			name: "existing newName is preserved when newTag replaces digest",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", Digest: digest},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v2.0.0"},
+			},
+			expectedImage: "registry.example.com/app:v2.0.0",
+		},
+		{
+			name: "newTag and digest set together are both applied",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v1.2.3"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0", Digest: digest},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0", Digest: digest},
+			},
+			expectedImage: containerImage + ":v2.0.0@" + digest,
+		},
+		{
+			name: "entry with only a name leaves the existing entry unchanged",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v1.2.3"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v1.2.3"},
+			},
+			expectedImage: "registry.example.com/app:v1.2.3",
+		},
+		{
 			name: "existing fields are overridden when set",
 			existingImages: []kustypes.Image{
 				{Name: containerImage, NewName: "old.example.com/app", NewTag: "v1.2.3"},

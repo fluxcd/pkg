@@ -307,6 +307,15 @@ func (g *Generator) GenerateManifest(dirPath string) ([]byte, string, Action, er
 			if image.NewName != "" {
 				kus.Images[index].NewName = image.NewName
 			}
+			// NewTag and Digest both select the image version, so they are
+			// updated as a single unit: setting one clears the other. This
+			// mirrors the kustomize image transformer, which replaces both
+			// original values whenever either is overridden (see
+			// sigs.k8s.io/kustomize api/filters/imagetag/updater.go), and
+			// the API contract that Digest takes precedence over NewTag.
+			// Keeping a stale digest next to a fresh tag would render
+			// "name:tag@digest", where the old digest silently wins at
+			// pull time.
 			if image.NewTag != "" || image.Digest != "" {
 				kus.Images[index].NewTag = image.NewTag
 				kus.Images[index].Digest = image.Digest
