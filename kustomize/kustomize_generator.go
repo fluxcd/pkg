@@ -307,10 +307,8 @@ func (g *Generator) GenerateManifest(dirPath string) ([]byte, string, Action, er
 			if image.NewName != "" {
 				kus.Images[index].NewName = image.NewName
 			}
-			if image.NewTag != "" {
+			if image.NewTag != "" || image.Digest != "" {
 				kus.Images[index].NewTag = image.NewTag
-			}
-			if image.Digest != "" {
 				kus.Images[index].Digest = image.Digest
 			}
 		} else {
