@@ -17,6 +17,7 @@ limitations under the License.
 package ssh
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -24,6 +25,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
+	"golang.org/x/net/proxy"
 )
 
 // ScanHostKey collects the given host's preferred public key for the
@@ -45,10 +47,20 @@ func ScanHostKey(host string, timeout time.Duration, clientHostKeyAlgos []string
 		config.HostKeyAlgorithms = clientHostKeyAlgos
 	}
 
-	client, err := ssh.Dial("tcp", host, config)
-	if err == nil {
-		defer client.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	// support for ALL_PROXY ENV varaible
+	conn, err := proxy.Dial(ctx, "tcp", host)
+	if err != nil {
+		return nil, err
 	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, host, config)
+	if err != nil {
+		return nil, err
+	}
+	client := ssh.NewClient(c, chans, reqs)
+	defer client.Close()
+
 	if len(col.knownKeys) > 0 {
 		return col.knownKeys, nil
 	}
