@@ -299,16 +299,34 @@ func (g *Generator) GenerateManifest(dirPath string) ([]byte, string, Action, er
 	}
 
 	for _, image := range images {
-		newImage := kustypes.Image{
-			Name:    image.Name,
-			NewName: image.NewName,
-			NewTag:  image.NewTag,
-			Digest:  image.Digest,
-		}
 		if exists, index := checkKustomizeImageExists(kus.Images, image.Name); exists {
-			kus.Images[index] = newImage
+			// Merge the individual fields into the existing entry, so that
+			// fields set only in the kustomization.yaml (e.g. newTag) are
+			// preserved when the Kustomization overrides a subset of them,
+			// matching the behavior of a kustomize overlay.
+			if image.NewName != "" {
+				kus.Images[index].NewName = image.NewName
+			}
+			// NewTag and Digest both select the image version, so they are
+			// updated as a single unit: setting one clears the other. This
+			// mirrors the kustomize image transformer, which replaces both
+			// original values whenever either is overridden (see
+			// sigs.k8s.io/kustomize api/filters/imagetag/updater.go), and
+			// the API contract that Digest takes precedence over NewTag.
+			// Keeping a stale digest next to a fresh tag would render
+			// "name:tag@digest", where the old digest silently wins at
+			// pull time.
+			if image.NewTag != "" || image.Digest != "" {
+				kus.Images[index].NewTag = image.NewTag
+				kus.Images[index].Digest = image.Digest
+			}
 		} else {
-			kus.Images = append(kus.Images, newImage)
+			kus.Images = append(kus.Images, kustypes.Image{
+				Name:    image.Name,
+				NewName: image.NewName,
+				NewTag:  image.NewTag,
+				Digest:  image.Digest,
+			})
 		}
 	}
 

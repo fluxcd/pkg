@@ -247,6 +247,228 @@ func Test_Components(t *testing.T) {
 	}
 }
 
+func Test_Images(t *testing.T) {
+	const containerImage = "ghcr.io/example/app"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+	deployment := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: ` + containerImage + `
+`
+
+	tests := []struct {
+		name           string
+		existingImages []kustypes.Image
+		fluxImages     []kustypes.Image
+		expectedImages []kustypes.Image
+		expectedImage  string
+	}{
+		{
+			name: "existing newTag is preserved when only newName is set",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v1.2.3"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v1.2.3"},
+			},
+			expectedImage: "registry.example.com/app:v1.2.3",
+		},
+		{
+			name: "existing newName is preserved when only newTag is set",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v2.0.0"},
+			},
+			expectedImage: "registry.example.com/app:v2.0.0",
+		},
+		{
+			name: "existing digest is preserved when only newName is set",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, Digest: digest},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", Digest: digest},
+			},
+			expectedImage: "registry.example.com/app@" + digest,
+		},
+		{
+			name: "existing digest is cleared when only newTag is set",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, Digest: digest},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0"},
+			},
+			expectedImage: containerImage + ":v2.0.0",
+		},
+		{
+			name: "existing newTag is cleared when only digest is set",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v1.2.3"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, Digest: digest},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, Digest: digest},
+			},
+			expectedImage: containerImage + "@" + digest,
+		},
+		{
+			name: "existing newName is preserved when newTag replaces digest",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", Digest: digest},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v2.0.0"},
+			},
+			expectedImage: "registry.example.com/app:v2.0.0",
+		},
+		{
+			name: "newTag and digest set together are both applied",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v1.2.3"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0", Digest: digest},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewTag: "v2.0.0", Digest: digest},
+			},
+			expectedImage: containerImage + ":v2.0.0@" + digest,
+		},
+		{
+			name: "entry with only a name leaves the existing entry unchanged",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v1.2.3"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v1.2.3"},
+			},
+			expectedImage: "registry.example.com/app:v1.2.3",
+		},
+		{
+			name: "existing fields are overridden when set",
+			existingImages: []kustypes.Image{
+				{Name: containerImage, NewName: "old.example.com/app", NewTag: "v1.2.3"},
+			},
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v2.0.0"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v2.0.0"},
+			},
+			expectedImage: "registry.example.com/app:v2.0.0",
+		},
+		{
+			name: "image without existing entry is appended",
+			fluxImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v2.0.0"},
+			},
+			expectedImages: []kustypes.Image{
+				{Name: containerImage, NewName: "registry.example.com/app", NewTag: "v2.0.0"},
+			},
+			expectedImage: "registry.example.com/app:v2.0.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			tmpDir, err := testTempDir(t)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			g.Expect(os.WriteFile(filepath.Join(tmpDir, "deployment.yaml"), []byte(deployment), 0o644)).To(Succeed())
+			kusYAML, err := yaml.Marshal(kustypes.Kustomization{
+				TypeMeta: kustypes.TypeMeta{
+					APIVersion: kustypes.KustomizationVersion,
+					Kind:       kustypes.KustomizationKind,
+				},
+				Resources: []string{"deployment.yaml"},
+				Images:    tt.existingImages,
+			})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), kusYAML, 0o644)).To(Succeed())
+
+			fluxImages := make([]any, 0, len(tt.fluxImages))
+			for _, im := range tt.fluxImages {
+				m := map[string]any{"name": im.Name}
+				if im.NewName != "" {
+					m["newName"] = im.NewName
+				}
+				if im.NewTag != "" {
+					m["newTag"] = im.NewTag
+				}
+				if im.Digest != "" {
+					m["digest"] = im.Digest
+				}
+				fluxImages = append(fluxImages, m)
+			}
+			ks := unstructured.Unstructured{Object: map[string]any{}}
+			g.Expect(unstructured.SetNestedSlice(ks.Object, fluxImages, "spec", "images")).To(Succeed())
+
+			_, err = kustomize.NewGenerator(tmpDir, ks).WriteFile(tmpDir)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			kfileYAML, err := os.ReadFile(filepath.Join(tmpDir, "kustomization.yaml"))
+			g.Expect(err).ToNot(HaveOccurred())
+			var kus kustypes.Kustomization
+			g.Expect(yaml.Unmarshal(kfileYAML, &kus)).To(Succeed())
+			g.Expect(kus.Images).To(Equal(tt.expectedImages))
+
+			resMap, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(resMap.Resources()).To(HaveLen(1))
+
+			out, err := resMap.AsYaml()
+			g.Expect(err).ToNot(HaveOccurred())
+			var obj map[string]interface{}
+			g.Expect(yaml.Unmarshal(out, &obj)).To(Succeed())
+			containers, found, err := unstructured.NestedSlice(obj, "spec", "template", "spec", "containers")
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			g.Expect(containers).To(HaveLen(1))
+			image, found, err := unstructured.NestedString(containers[0].(map[string]interface{}), "image")
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			g.Expect(image).To(Equal(tt.expectedImage))
+		})
+	}
+}
+
 func TestGenerator_BuildMetadata(t *testing.T) {
 	g := NewWithT(t)
 	dataKS, err := os.ReadFile("./testdata/buildMetadata/ks.yaml")
