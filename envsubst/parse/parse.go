@@ -283,11 +283,18 @@ func (t *Tree) parseReplaceFunc(name string) (Node, error) {
 
 	// scan arg[1]
 	{
-		param, err := t.parseParam(acceptNotSlash, scanIdent|scanEscape)
-		if err != nil {
-			return nil, err
+		// An empty pattern (e.g. ${param/#/string}) means the next rune is the
+		// delimiter, so there is nothing to scan. Record an empty pattern node
+		// to keep the two-argument shape the eval side expects.
+		if t.scanner.peek() == '/' {
+			node.Args = append(node.Args, newTextNode(""))
+		} else {
+			param, err := t.parseParam(acceptNotSlash, scanIdent|scanEscape)
+			if err != nil {
+				return nil, err
+			}
+			node.Args = append(node.Args, param)
 		}
-		node.Args = append(node.Args, param)
 	}
 
 	// expect delimiter
