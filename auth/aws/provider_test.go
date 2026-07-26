@@ -387,6 +387,16 @@ func TestProvider_ParseArtifactRepository(t *testing.T) {
 			expectValid:        true,
 		},
 		{
+			artifactRepository: "012345678901.dkr-ecr.cn-north-1.on.amazonwebservices.com.cn/foo",
+			expectedRegion:     "cn-north-1",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "012345678901.dkr-ecr.cn-north-1.on.amazonwebservices.com.cn",
+			expectedRegion:     "cn-north-1",
+			expectValid:        true,
+		},
+		{
 			artifactRepository: "gcr.io/foo/bar:baz",
 			expectValid:        false,
 		},
@@ -394,6 +404,62 @@ func TestProvider_ParseArtifactRepository(t *testing.T) {
 			artifactRepository: "public.ecr.aws/foo/bar",
 			expectedRegion:     "public.ecr.aws",
 			expectValid:        true,
+		},
+		{
+			artifactRepository: "ecr-public.aws.com/foo/bar",
+			expectedRegion:     "public.ecr.aws",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "ecr-public.aws.com",
+			expectedRegion:     "public.ecr.aws",
+			expectValid:        true,
+		},
+		// Hosts that merely embed an ECR hostname are not ECR hosts.
+		{
+			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com.example.org/foo",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com.example.org",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "prefix-012345678901.dkr.ecr.us-east-1.amazonaws.com/foo",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "xdkr.ecr.us-east-1.amazonaws.com.example.org/foo",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.comcn/foo",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "012345678901.dkr.ecr.us-east-1.amazonaws.com.nc/foo",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "012345678901Xdkr.ecr.us-east-1.amazonaws.com/foo",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "public.ecr.aws.example.org/foo/bar",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "ecr-public.aws.com.example.org/foo/bar",
+			expectValid:        false,
+		},
+		// The registry ID is an AWS account ID, which is always 12 digits.
+		{
+			artifactRepository: "01234567890.dkr.ecr.us-east-1.amazonaws.com/foo",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "0123456789012.dkr.ecr.us-east-1.amazonaws.com/foo",
+			expectValid:        false,
 		},
 	}
 
