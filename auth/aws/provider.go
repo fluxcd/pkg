@@ -204,23 +204,33 @@ func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository 
 }
 
 // This regex is sourced from the AWS ECR Credential Helper (https://github.com/awslabs/amazon-ecr-credential-helper).
-// It covers both public AWS partitions like amazonaws.com, China partitions like amazonaws.com.cn, and non-public partitions.
-const registryPattern = `([0-9+]*).dkr[.-]ecr(?:-fips)?\.([^/.]*)\.(amazonaws\.com[.cn]*|amazonaws\.eu|sc2s\.sgov\.gov|c2s\.ic\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov|on\.aws)`
+// It covers the public AWS partition (amazonaws.com), the China partitions (amazonaws.com.cn), the European Sovereign
+// Cloud (amazonaws.eu) and the non-public partitions, as well as the dual-stack hostnames used for IPv6 access
+// (on.aws and on.amazonwebservices.com.cn).
+// The pattern is anchored so that it matches the registry host in full rather than any substring of it, which is what
+// makes a match proof that the host belongs to ECR.
+const registryPattern = `^([0-9]{12})\.dkr[.-]ecr(?:-fips)?\.([a-zA-Z0-9][a-zA-Z0-9_-]{0,99})\.(amazonaws\.(?:com(?:\.cn)?|eu)|on\.(?:aws|amazonwebservices\.com\.cn)|sc2s\.sgov\.gov|c2s\.ic\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov)$`
 
-const publicECR = "public.ecr.aws"
+// The public ECR registry is reachable over an IPv4-only hostname and a dual-stack one.
+const (
+	publicECR          = "public.ecr.aws"
+	publicECRDualStack = "ecr-public.aws.com"
+)
 
 var registryRegex = regexp.MustCompile(registryPattern)
 
 // ParseArtifactRepository implements auth.Provider.
-// ParseArtifactRepository returns the ECR region, unless the registry
-// is public.ecr.aws, in which case it returns public.ecr.aws.
+// ParseArtifactRepository returns the ECR region, unless the registry is one of
+// the public ECR hostnames, in which case it returns public.ecr.aws.
 func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
 	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
 	if err != nil {
 		return "", err
 	}
 
-	if registry == publicECR {
+	// Both public hostnames are normalized to publicECR, which is what selects
+	// the public authorization token API and the us-east-1 region downstream.
+	if registry == publicECR || registry == publicECRDualStack {
 		return publicECR, nil
 	}
 
