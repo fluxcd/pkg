@@ -21,13 +21,14 @@ package ssh
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
 
-	"github.com/armon/go-socks5"
+	socks "github.com/firefart/gosocks"
 	. "github.com/onsi/gomega"
 	"golang.org/x/crypto/ssh"
 )
@@ -134,14 +135,19 @@ func TestScanHostWithProxy(t *testing.T) {
 
 	go startSSH(listener, sshConfig, g)
 
-	rule := new(testProxyRule)
-	socksServer, err := socks5.New(&socks5.Config{
-		Rules: rule,
-	})
+	handler := &CustomHandler{
+		DefaultHandler: socks.DefaultHandler{
+			Timeout: 1 * time.Second,
+		},
+	}
+	socksAddress := "127.0.0.1:1080"
+	socksProxy := socks.Proxy{
+		ServerAddr:   socksAddress,
+		Proxyhandler: handler,
+		Timeout:      1 * time.Second,
+	}
 	g.Expect(err).NotTo(HaveOccurred())
-	socksListener, err := net.Listen("tcp", "127.0.0.1:0")
-	g.Expect(err).ToNot(HaveOccurred())
-	go socksServer.Serve(socksListener)
+	socksProxy.Start(context.TODO())
 
 	// we can't set ENV only for this test
 	// because Golang proxy package caches ENV checks
@@ -152,7 +158,7 @@ func TestScanHostWithProxy(t *testing.T) {
 	cmd := exec.Command("go", "test", "-tags=proxy")
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("SSH_HOST=%s", serverAddr),
-		fmt.Sprintf("ALL_PROXY=socks5://127.0.0.1:%d", socksListener.Addr().(*net.TCPAddr).Port),
+		fmt.Sprintf("ALL_PROXY=socks5://%s", socksAddress),
 	)
 
 	output, err := cmd.CombinedOutput()
@@ -160,16 +166,17 @@ func TestScanHostWithProxy(t *testing.T) {
 		t.Fatalf("Child process failed with %v. Output: %s", err, string(output))
 	}
 
-	g.Expect(rule.proxiedRequests).Should(BeNumerically(">", 0))
+	g.Expect(handler.proxiedRequests).Should(BeNumerically(">", 0))
 	listener.Close()
-	socksListener.Close()
+	socksProxy.Stop()
 }
 
-type testProxyRule struct {
+type CustomHandler struct {
+	socks.DefaultHandler
 	proxiedRequests int
 }
 
-func (r *testProxyRule) Allow(_ context.Context, _ *socks5.Request) (context.Context, bool) {
-	r.proxiedRequests++
-	return context.Background(), true
+func (h *CustomHandler) Init(ctx context.Context, request socks.Request) (context.Context, io.ReadWriteCloser, *socks.Error) {
+	h.proxiedRequests += 1
+	return h.DefaultHandler.Init(ctx, request)
 }
