@@ -121,4 +121,24 @@ func Test_substr(t *testing.T) {
 	if got != want {
 		t.Errorf("Expect substr function to cut entire string if pos is itself out of bound")
 	}
+
+	got, want = toSubstr("hello world", "2", "-1"), "llo worl"
+	if got != want {
+		t.Errorf("Expect substr function to count a negative length back from the end, got %q want %q", got, want)
+	}
+
+	got, want = toSubstr("hello world", "0", "-3"), "hello wo"
+	if got != want {
+		t.Errorf("Expect substr function to count a negative length back from the end at offset 0, got %q want %q", got, want)
+	}
+
+	got, want = toSubstr("hello world", "8", "-8"), ""
+	if got != want {
+		t.Errorf("Expect substr function to return empty when a negative length ends before the offset, got %q want %q", got, want)
+	}
+
+	got, want = toSubstr("hello world", "-4", "-1"), "orl"
+	if got != want {
+		t.Errorf("Expect substr function to combine a negative offset with a negative length, got %q want %q", got, want)
+	}
 }
