@@ -24,14 +24,6 @@ import (
 	"github.com/fluxcd/pkg/apis/meta"
 )
 
-// Dependent interface defines methods that a Kubernetes resource object should
-// implement in order to use the dependency package for ordering dependencies.
-type Dependent interface {
-	GetName() string
-	GetNamespace() string
-	meta.ObjectWithDependencies
-}
-
 const (
 	unmarked = iota
 	permanentMark
@@ -39,29 +31,35 @@ const (
 )
 
 // Sort takes a slice of Dependent objects and returns a sorted slice of
-// NamespacedObjectReference based on their dependencies. It performs a
+// TypedNamespacedObjectReference based on their dependencies. It performs a
 // topological sort using a depth-first search algorithm, which has
 // runtime complexity of O(|V| + |E|), where |V| is the number of
 // vertices (objects) and |E| is the number of edges (dependencies).
 //
 // Reference:
 // https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
-func Sort(objects []Dependent) ([]meta.NamespacedObjectReference, error) {
+func Sort(objects []Dependent) ([]meta.TypedNamespacedObjectReference, error) {
 	// Build vertices and edges.
-	vertices := make([]meta.NamespacedObjectReference, 0, len(objects))
-	edges := make(map[meta.NamespacedObjectReference][]meta.NamespacedObjectReference)
+	vertices := make([]meta.TypedNamespacedObjectReference, 0, len(objects))
+	edges := make(map[meta.TypedNamespacedObjectReference][]meta.TypedNamespacedObjectReference)
 	for _, obj := range objects {
-		u := meta.NamespacedObjectReference{
-			Name:      obj.GetName(),
-			Namespace: obj.GetNamespace(),
+		u := meta.TypedNamespacedObjectReference{
+			APIVersion: obj.GetAPIVersion(),
+			Kind:       obj.GetKind(),
+			Name:       obj.GetName(),
+			Namespace:  obj.GetNamespace(),
 		}
 		vertices = append(vertices, u)
 		for _, depRef := range obj.GetDependsOn() {
-			v := meta.NamespacedObjectReference{
-				Name:      depRef.Name,
-				Namespace: depRef.Namespace,
+			v := meta.TypedNamespacedObjectReference{
+				APIVersion: depRef.APIVersion,
+				Kind:       depRef.Kind,
+				Name:       depRef.Name,
+				Namespace:  depRef.Namespace,
 			}
-			if v.Namespace == "" {
+			// Default the namespace only when the dependency has the same Kind
+			// as the parent object.
+			if v.Namespace == "" && (v.Kind == "" || v.Kind == obj.GetKind()) {
 				v.Namespace = obj.GetNamespace()
 			}
 			edges[u] = append(edges[u], v)
@@ -69,10 +67,10 @@ func Sort(objects []Dependent) ([]meta.NamespacedObjectReference, error) {
 	}
 
 	// Compute topological order with depth-first search.
-	var sorted []meta.NamespacedObjectReference
-	var depthFirstSearch func(u meta.NamespacedObjectReference) (cycle []string)
-	mark := make(map[meta.NamespacedObjectReference]byte)
-	depthFirstSearch = func(u meta.NamespacedObjectReference) []string {
+	var sorted []meta.TypedNamespacedObjectReference
+	var depthFirstSearch func(u meta.TypedNamespacedObjectReference) (cycle []string)
+	mark := make(map[meta.TypedNamespacedObjectReference]byte)
+	depthFirstSearch = func(u meta.TypedNamespacedObjectReference) []string {
 		mark[u] = temporaryMark
 		for _, v := range edges[u] {
 			if mark[v] == permanentMark {
