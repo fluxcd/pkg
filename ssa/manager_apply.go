@@ -102,6 +102,12 @@ type ApplyCleanupOptions struct {
 	// FieldManagers defines which `metadata.managedFields` managers should be removed from in-cluster objects.
 	FieldManagers []FieldManager `json:"fieldManagers,omitempty"`
 
+	// FieldManagersBeforeDryRun defines which `metadata.managedFields` managers
+	// are taken over before the server-side dry-run. Unlike FieldManagers, the
+	// takeover is not rolled back if the apply fails. Use it only to recover
+	// objects that fail the dry-run due to stale managers.
+	FieldManagersBeforeDryRun []FieldManager `json:"fieldManagersBeforeDryRun,omitempty"`
+
 	// Exclusions determines which in-cluster objects are skipped from cleanup
 	// based on the specified key-value pairs.
 	Exclusions map[string]string `json:"exclusions"`
@@ -153,6 +159,35 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 			return nil, fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(existingObject), err)
 		}
 	}
+
+	// Take over fields held by stale or foreign managers before the dry-run so
+	// that the merged object is valid. Without this, a manager co-owning a
+	// required field can leave that field orphaned when the applier prunes it,
+	// failing the dry-run before the post-dry-run cleanup can run, for example:
+	//   "dry-run failed: containers[1].image: Required value"
+	//
+	// This is a dangerous operation to perform, because it reassigns ownership
+	// of every field the named manager holds, not just the field causing the
+	// dry-run failure: unrelated fields the manager owns can be pruned by the
+	// same apply that fixes the wedge, and the reassignment is not rolled back
+	// if the apply subsequently fails for an unrelated reason. Only list
+	// managers here when recovering a cluster stuck in this state, and remove
+	// them from the list immediately after the affected objects have recovered
+	// to keep the danger away. An example of when this is useful is a
+	// "break-glass" workflow, where an operator disables Flux and hand-patches
+	// a workload with client-side writes from a legacy controller; when Flux is
+	// re-enabled, a stale managed fields entry left by that legacy controller
+	// can wedge every future reconcile at dry-run validation, and the ordinary
+	// post-dry-run FieldManagers cleanup can never run to fix it.
+	//
+	// Keep this comment synced with ApplyAll().
+	tookOver, err := m.takeoverFieldManagersBeforeDryRun(ctx, object, existingObject,
+		opts.Cleanup.FieldManagersBeforeDryRun, opts.Cleanup)
+	if err != nil {
+		return nil, fmt.Errorf("%s metadata.managedFields takeover failed: %w",
+			utils.FmtUnstructured(existingObject), err)
+	}
+	patched = patched || tookOver
 
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
@@ -280,6 +315,37 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 						return fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(existingObject), err)
 					}
 				}
+
+				// Take over fields held by stale or foreign managers before the dry-run
+				// so that the merged object is valid. Without this, a manager co-owning
+				// a required field can leave that field orphaned when the applier prunes
+				// it, failing the dry-run before the post-dry-run cleanup can run, for
+				// example:
+				//   "dry-run failed: containers[1].image: Required value"
+				//
+				// This is a dangerous operation to perform, because it reassigns
+				// ownership of every field the named manager holds, not just the field
+				// causing the dry-run failure: unrelated fields the manager owns can be
+				// pruned by the same apply that fixes the wedge, and the reassignment is
+				// not rolled back if the apply subsequently fails for an unrelated
+				// reason. Only list managers here when recovering a cluster stuck in
+				// this state, and remove them from the list immediately after the
+				// affected objects have recovered to keep the danger away. An example of
+				// when this is useful is a "break-glass" workflow, where an operator
+				// disables Flux and hand-patches a workload with client-side writes from
+				// a legacy controller; when Flux is re-enabled, a stale managed fields
+				// entry left by that legacy controller can wedge every future reconcile
+				// at dry-run validation, and the ordinary post-dry-run FieldManagers
+				// cleanup can never run to fix it.
+				//
+				// Keep this comment synced with Apply().
+				tookOver, err := m.takeoverFieldManagersBeforeDryRun(ctx, object, existingObject,
+					opts.Cleanup.FieldManagersBeforeDryRun, opts.Cleanup)
+				if err != nil {
+					return fmt.Errorf("%s metadata.managedFields takeover failed: %w",
+						utils.FmtUnstructured(existingObject), err)
+				}
+				patched = patched || tookOver
 
 				dryRunObject := object.DeepCopy()
 				if err := m.dryRunApply(ctx, dryRunObject); err != nil {
@@ -534,7 +600,54 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 		patches = append(patches, managedFieldPatch...)
 	}
 
-	// no patching is needed exit early
+	return m.sendJSONPatch(ctx, object, patches)
+}
+
+// takeoverFieldManagersBeforeDryRun reassigns the given field managers' ownership to the
+// applier on the in-cluster object via a JSON patch and updates object in-place
+// with the server's response. It returns true if a patch was applied.
+//
+// Unlike cleanupMetadata, this only touches managedFields and is intended to run
+// before the dry-run, so the applier reclaims ownership of fields held by stale
+// or foreign managers and the merged object stays valid. The managers to take
+// over are passed explicitly (rather than read from opts.FieldManagers) so the
+// caller can scope the pre-dry-run takeover to a narrow set, independent of the
+// post-dry-run cleanup list.
+//
+// See ApplyCleanupOptions.FieldManagersBeforeDryRun for the whole-manager
+// (not per-field) reclaim semantics and the non-transactional mutation this
+// implies when a subsequent step in Apply/ApplyAll fails.
+func (m *ResourceManager) takeoverFieldManagersBeforeDryRun(ctx context.Context,
+	desiredObject *unstructured.Unstructured,
+	object *unstructured.Unstructured,
+	managers []FieldManager,
+	opts ApplyCleanupOptions) (bool, error) {
+	if len(managers) == 0 {
+		return false, nil
+	}
+	if object == nil || object.GetResourceVersion() == "" {
+		return false, nil
+	}
+	if utils.AnyInMetadata(desiredObject, opts.Exclusions) || utils.AnyInMetadata(object, opts.Exclusions) {
+		return false, nil
+	}
+
+	patches, err := PatchReplaceFieldsManagers(object, managers, m.owner.Field)
+	if err != nil {
+		return false, err
+	}
+
+	return m.sendJSONPatch(ctx, object, patches)
+}
+
+// sendJSONPatch marshals patches into a JSON patch (RFC 6902) request and
+// sends it to the API server, updating object in-place with the server's
+// response. It is a no-op (false, nil) when patches is empty, so callers
+// don't need to guard against bumping the object's resourceVersion for no
+// reason.
+func (m *ResourceManager) sendJSONPatch(ctx context.Context,
+	object *unstructured.Unstructured,
+	patches []JSONPatch) (bool, error) {
 	if len(patches) == 0 {
 		return false, nil
 	}
