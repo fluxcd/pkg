@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	rc "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -218,7 +217,11 @@ func (i *Impersonator) getRESTConfigFromSecret(ctx context.Context) (*rest.Confi
 		return nil, fmt.Errorf("KubeConfig secret '%s' does not contain a 'value' key with a kubeconfig", secretName)
 	}
 
-	return clientcmd.RESTConfigFromKubeConfig(kubeConfig)
+	restConfig, err := KubeConfigFromBytes(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("invalid KubeConfig in secret '%s': %w", secretName, err)
+	}
+	return restConfig, nil
 }
 
 func (i *Impersonator) setImpersonationConfig(restConfig *rest.Config) {

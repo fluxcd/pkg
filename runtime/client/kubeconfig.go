@@ -18,11 +18,14 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/fluxcd/cli-utils/pkg/flowcontrol"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const (
@@ -65,6 +68,57 @@ func (o *KubeConfigOptions) BindFlags(fs *pflag.FlagSet) {
 		"Allow use of the user.exec section in kubeconfigs provided for remote apply.")
 	fs.BoolVar(&o.InsecureTLS, flagInsecureKubeConfigTLS, false,
 		"Allow that kubeconfigs provided for remote apply can disable TLS verification.")
+}
+
+// KubeConfigFromBytes builds a *rest.Config from the given serialized
+// kubeconfig. The kubeconfig must be self-contained: credentials and
+// certificates have to be embedded inline (`token`, `client-certificate-data`,
+// `client-key-data`, `certificate-authority-data`). References to files on the
+// local filesystem (`tokenFile`, `client-certificate`, `client-key`,
+// `certificate-authority`) are rejected.
+//
+// The returned config is not sanitized; callers are expected to pass it
+// through KubeConfig.
+func KubeConfigFromBytes(kubeConfig []byte) (*rest.Config, error) {
+	cfg, err := clientcmd.Load(kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateKubeConfig(cfg); err != nil {
+		return nil, err
+	}
+	return clientcmd.NewDefaultClientConfig(*cfg, &clientcmd.ConfigOverrides{}).ClientConfig()
+}
+
+// ValidateKubeConfig returns an error if any cluster or user entry in the
+// given kubeconfig references a file on the local filesystem instead of
+// embedding the data inline.
+func ValidateKubeConfig(cfg *clientcmdapi.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("kubeconfig is nil")
+	}
+	for name, cluster := range cfg.Clusters {
+		if cluster == nil {
+			return fmt.Errorf("cluster '%s' is nil", name)
+		}
+		if cluster.CertificateAuthority != "" {
+			return fmt.Errorf("cluster '%s' references a certificate-authority file, only certificate-authority-data is supported", name)
+		}
+	}
+	for name, user := range cfg.AuthInfos {
+		if user == nil {
+			return fmt.Errorf("user '%s' is nil", name)
+		}
+		switch {
+		case user.TokenFile != "":
+			return fmt.Errorf("user '%s' references a tokenFile, only an inline token is supported", name)
+		case user.ClientCertificate != "":
+			return fmt.Errorf("user '%s' references a client-certificate file, only client-certificate-data is supported", name)
+		case user.ClientKey != "":
+			return fmt.Errorf("user '%s' references a client-key file, only client-key-data is supported", name)
+		}
+	}
+	return nil
 }
 
 // KubeConfig sanitises a kubeconfig represented as *rest.Config using
