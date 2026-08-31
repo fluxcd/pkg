@@ -247,6 +247,36 @@ func TestGetRESTConfigFromSecret(t *testing.T) {
 			},
 			wantErrContains: "does not contain a 'value' key",
 		},
+		{
+			name: "error when kubeconfig references a token file",
+			secretRef: &meta.KubeConfigReference{
+				SecretRef: &meta.SecretKeyReference{Name: "kc-tokenfile"},
+			},
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "kc-tokenfile",
+					Namespace: testNamespace,
+				},
+				Data: map[string][]byte{"value": []byte(`apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    insecure-skip-tls-verify: true
+    server: https://1.2.3.4
+  name: development
+contexts:
+- context:
+    cluster: development
+    user: developer
+  name: dev
+current-context: dev
+users:
+- name: developer
+  user:
+    tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token`)},
+			},
+			wantErrContains: "invalid KubeConfig in secret",
+		},
 	}
 
 	for _, tt := range tests {
