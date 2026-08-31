@@ -166,3 +166,152 @@ func TestKubeConfig(t *testing.T) {
 func duration(d time.Duration) *time.Duration {
 	return &d
 }
+
+const testKubeConfigInline = `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    insecure-skip-tls-verify: true
+    server: https://1.2.3.4
+  name: development
+contexts:
+- context:
+    cluster: development
+    user: developer
+  name: dev
+current-context: dev
+users:
+- name: developer
+  user:
+    token: some-token`
+
+func TestKubeConfigFromBytes(t *testing.T) {
+	tests := []struct {
+		name       string
+		kubeConfig string
+		wantErr    string
+	}{
+		{
+			name:       "inline credentials",
+			kubeConfig: testKubeConfigInline,
+		},
+		{
+			name: "token file reference",
+			kubeConfig: `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    insecure-skip-tls-verify: true
+    server: https://1.2.3.4
+  name: development
+contexts:
+- context:
+    cluster: development
+    user: developer
+  name: dev
+current-context: dev
+users:
+- name: developer
+  user:
+    tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token`,
+			wantErr: "user 'developer' references a tokenFile",
+		},
+		{
+			name: "client certificate file reference",
+			kubeConfig: `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    insecure-skip-tls-verify: true
+    server: https://1.2.3.4
+  name: development
+contexts:
+- context:
+    cluster: development
+    user: developer
+  name: dev
+current-context: dev
+users:
+- name: developer
+  user:
+    client-certificate: /etc/ssl/client.crt
+    client-key: /etc/ssl/client.key`,
+			wantErr: "user 'developer' references a client-certificate file",
+		},
+		{
+			name: "client key file reference",
+			kubeConfig: `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    insecure-skip-tls-verify: true
+    server: https://1.2.3.4
+  name: development
+contexts:
+- context:
+    cluster: development
+    user: developer
+  name: dev
+current-context: dev
+users:
+- name: developer
+  user:
+    client-key: /etc/ssl/client.key`,
+			wantErr: "user 'developer' references a client-key file",
+		},
+		{
+			name: "certificate authority file reference",
+			kubeConfig: `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority: /etc/ssl/ca.crt
+    server: https://1.2.3.4
+  name: development
+contexts:
+- context:
+    cluster: development
+    user: developer
+  name: dev
+current-context: dev
+users:
+- name: developer
+  user:
+    token: some-token`,
+			wantErr: "cluster 'development' references a certificate-authority file",
+		},
+		{
+			name:       "invalid kubeconfig",
+			kubeConfig: "bad",
+			wantErr:    "couldn't get version/kind",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := KubeConfigFromBytes([]byte(tt.kubeConfig))
+			if tt.wantErr != "" {
+				assert.Nil(t, cfg)
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, "https://1.2.3.4", cfg.Host)
+			assert.Equal(t, "some-token", cfg.BearerToken)
+		})
+	}
+}
+
+func TestValidateKubeConfig(t *testing.T) {
+	assert.ErrorContains(t, ValidateKubeConfig(nil), "kubeconfig is nil")
+	assert.ErrorContains(t, ValidateKubeConfig(&api.Config{
+		Clusters: map[string]*api.Cluster{"c": nil},
+	}), "cluster 'c' is nil")
+	assert.ErrorContains(t, ValidateKubeConfig(&api.Config{
+		AuthInfos: map[string]*api.AuthInfo{"u": nil},
+	}), "user 'u' is nil")
+	assert.NoError(t, ValidateKubeConfig(&api.Config{
+		Clusters:  map[string]*api.Cluster{"c": {Server: "https://1.2.3.4", CertificateAuthorityData: []byte("ca")}},
+		AuthInfos: map[string]*api.AuthInfo{"u": {Token: "t", ClientCertificateData: []byte("crt"), ClientKeyData: []byte("key")}},
+	}))
+}
