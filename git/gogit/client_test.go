@@ -587,6 +587,71 @@ func TestForcePush(t *testing.T) {
 	g.Expect(ref.Hash().String()).To(Equal(cc2.String()))
 }
 
+func TestFetchAndReset(t *testing.T) {
+	g := NewWithT(t)
+
+	server, repoURL, err := setupGitServer(false)
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(server.Root())
+	defer server.StopHTTP()
+
+	tmpA := t.TempDir()
+	repoA, err := extgogit.PlainClone(tmpA, false, &extgogit.CloneOptions{
+		URL:        repoURL,
+		RemoteName: git.DefaultRemote,
+		Tags:       extgogit.NoTags,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	ggcA, err := NewClient(tmpA, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+	ggcA.repository = repoA
+
+	tmpB := t.TempDir()
+	repoB, err := extgogit.PlainClone(tmpB, false, &extgogit.CloneOptions{
+		URL:        repoURL,
+		RemoteName: git.DefaultRemote,
+		Tags:       extgogit.NoTags,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	ggcB, err := NewClient(tmpB, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+	ggcB.repository = repoB
+
+	// The winner pushes its change.
+	winnerCC, err := commitFile(repoA, "test", "winner content", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+	err = ggcA.Push(context.TODO(), repository.PushConfig{})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// The loser makes its own, never-pushed local commit.
+	_, err = commitFile(repoB, "test", "loser content, discarded on reset", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = ggcB.FetchAndReset(context.TODO(), git.DefaultBranch)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	headB, err := repoB.Head()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(headB.Hash().String()).To(Equal(winnerCC.String()))
+
+	clean, err := ggcB.IsClean()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(clean).To(BeTrue())
+
+	wtB, err := repoB.Worktree()
+	g.Expect(err).ToNot(HaveOccurred())
+	f, err := wtB.Filesystem.Open("test")
+	g.Expect(err).ToNot(HaveOccurred())
+	content, err := io.ReadAll(f)
+	g.Expect(err).ToNot(HaveOccurred())
+	f.Close()
+	g.Expect(string(content)).To(Equal("winner content"))
+
+	// A second call with nothing new to fetch is a no-op, not an error.
+	err = ggcB.FetchAndReset(context.TODO(), git.DefaultBranch)
+	g.Expect(err).ToNot(HaveOccurred())
+}
+
 func TestSwitchBranch(t *testing.T) {
 	tests := []struct {
 		name                      string
