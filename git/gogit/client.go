@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-git/go-billy/v5"
@@ -427,9 +428,100 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 		Options:      cfg.Options,
 	})
 	if err != nil {
+		if isNonFastForwardPushError(err) {
+			return fmt.Errorf("failed to push to remote: %w: %w", git.ErrPushRejected, err)
+		}
 		return fmt.Errorf("failed to push to remote: %w", err)
 	}
 
+	return nil
+}
+
+// isNonFastForwardPushError reports whether err indicates that a push was
+// rejected because the remote ref has moved ahead of what the local
+// repository knows about, i.e. another writer pushed first.
+//
+// go-git v5.19.1 has no exported sentinel for this on the Push path:
+//   - its own local pre-flight check (remote.go: checkFastForwardUpdate,
+//     invoked from PushContext before any pack data is sent, using a live
+//     AdvertisedReferencesContext call) returns a plain
+//     fmt.Errorf("non-fast-forward update: %s", ref) — this is what fires
+//     for a lost push race against a stale local clone.
+//   - extgogit.ErrForceNeeded is a fetch-only sentinel (set inside
+//     updateLocalReferenceStorage, never produced by PushContext) but is
+//     checked anyway for defense-in-depth in case that changes.
+//   - a genuine server-side report-status rejection surfaces as
+//     fmt.Errorf("command error on %s: %s", ref, status), whose status text
+//     also contains "non-fast-forward" for standard git servers.
+//
+// The string match is coupled to go-git's wording; a regression test
+// exercises the real Push path so a future go-git upgrade that changes this
+// text fails loudly instead of silently breaking classification.
+func isNonFastForwardPushError(err error) bool {
+	if errors.Is(err, extgogit.ErrForceNeeded) {
+		return true
+	}
+	return strings.Contains(err.Error(), "non-fast-forward")
+}
+
+// FetchAndReset fetches branch from the remote and hard-resets the current
+// worktree onto the fetched tip, discarding any local commits or changes on
+// branch that are not present on the remote. It never modifies the remote.
+//
+// This is intended for recovering from a rejected push (see
+// isNonFastForwardPushError/git.ErrPushRejected) in a long-lived working
+// directory without a full re-clone: fetch the new remote state, then
+// discard whatever local commit failed to push, so the caller can recompute
+// and retry. The branch must already be checked out; FetchAndReset only
+// reads branch to resolve which remote-tracking ref to reset onto, it does
+// not switch branches itself.
+//
+// Returns nil if the fetch found nothing new (go-git's
+// NoErrAlreadyUpToDate is swallowed, not treated as an error).
+func (g *Client) FetchAndReset(ctx context.Context, branch string) error {
+	if g.repository == nil {
+		return git.ErrNoGitRepository
+	}
+
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
+	if err != nil {
+		return fmt.Errorf("failed to construct auth method with options: %w", err)
+	}
+
+	refspec := config.RefSpec(fmt.Sprintf("+refs/heads/%s:refs/remotes/%s/%s",
+		branch, extgogit.DefaultRemoteName, branch))
+
+	err = g.repository.FetchContext(ctx, &extgogit.FetchOptions{
+		RemoteName:   extgogit.DefaultRemoteName,
+		RefSpecs:     []config.RefSpec{refspec},
+		Auth:         authMethod,
+		Tags:         extgogit.NoTags,
+		Force:        true,
+		ClientCert:   clientCert(g.authOpts),
+		ClientKey:    clientKey(g.authOpts),
+		CABundle:     caBundle(g.authOpts),
+		ProxyOptions: g.proxy,
+	})
+	if err != nil && !errors.Is(err, extgogit.NoErrAlreadyUpToDate) {
+		return fmt.Errorf("failed to fetch from remote: %w", err)
+	}
+
+	remoteRefName := plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, branch)
+	remoteRef, err := g.repository.Reference(remoteRefName, true)
+	if err != nil {
+		return fmt.Errorf("could not resolve fetched remote reference '%s': %w", branch, err)
+	}
+
+	wt, err := g.repository.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to load worktree: %w", err)
+	}
+	if err := wt.Reset(&extgogit.ResetOptions{
+		Commit: remoteRef.Hash(),
+		Mode:   extgogit.HardReset,
+	}); err != nil {
+		return fmt.Errorf("failed to reset worktree to '%s': %w", remoteRef.Hash(), err)
+	}
 	return nil
 }
 

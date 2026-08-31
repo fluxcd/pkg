@@ -243,6 +243,11 @@ func (e ErrRepositoryNotFound) Error() string {
 var (
 	ErrNoGitRepository = errors.New("no git repository")
 	ErrNoStagedFiles   = errors.New("no staged files")
+	// ErrPushRejected indicates a push was rejected because the remote
+	// branch has moved ahead of what the local repository knows about,
+	// i.e. another writer pushed first. Callers may recover by fetching
+	// and resetting onto the new remote tip before retrying.
+	ErrPushRejected = errors.New("push rejected: remote contains changes not present locally")
 )
 
 // IsConcreteCommit returns if a given commit is a concrete commit. Concrete
