@@ -433,6 +433,66 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 	return nil
 }
 
+// FetchAndReset fetches branch from the remote and hard-resets the current
+// worktree onto the fetched tip, discarding any local commits or changes on
+// branch that are not present on the remote. It never modifies the remote.
+//
+// This is intended for recovering from a failed push in a long-lived working
+// directory without a full re-clone: fetch the new remote state, then
+// discard whatever local commit failed to push, so the caller can recompute
+// and retry. The branch must already be checked out; FetchAndReset only
+// reads branch to resolve which remote-tracking ref to reset onto, it does
+// not switch branches itself.
+//
+// Returns nil if the fetch found nothing new (go-git's
+// NoErrAlreadyUpToDate is swallowed, not treated as an error).
+func (g *Client) FetchAndReset(ctx context.Context, branch string) error {
+	if g.repository == nil {
+		return git.ErrNoGitRepository
+	}
+
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
+	if err != nil {
+		return fmt.Errorf("failed to construct auth method with options: %w", err)
+	}
+
+	refspec := config.RefSpec(fmt.Sprintf("+refs/heads/%s:refs/remotes/%s/%s",
+		branch, extgogit.DefaultRemoteName, branch))
+
+	err = g.repository.FetchContext(ctx, &extgogit.FetchOptions{
+		RemoteName:   extgogit.DefaultRemoteName,
+		RefSpecs:     []config.RefSpec{refspec},
+		Auth:         authMethod,
+		Tags:         extgogit.NoTags,
+		Force:        true,
+		ClientCert:   clientCert(g.authOpts),
+		ClientKey:    clientKey(g.authOpts),
+		CABundle:     caBundle(g.authOpts),
+		ProxyOptions: g.proxy,
+	})
+	if err != nil && !errors.Is(err, extgogit.NoErrAlreadyUpToDate) {
+		return fmt.Errorf("failed to fetch from remote: %w", err)
+	}
+
+	remoteRefName := plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, branch)
+	remoteRef, err := g.repository.Reference(remoteRefName, true)
+	if err != nil {
+		return fmt.Errorf("could not resolve fetched remote reference '%s': %w", branch, err)
+	}
+
+	wt, err := g.repository.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to load worktree: %w", err)
+	}
+	if err := wt.Reset(&extgogit.ResetOptions{
+		Commit: remoteRef.Hash(),
+		Mode:   extgogit.HardReset,
+	}); err != nil {
+		return fmt.Errorf("failed to reset worktree to '%s': %w", remoteRef.Hash(), err)
+	}
+	return nil
+}
+
 // SwitchBranch switches the current branch to the given branch name.
 //
 // No new references are fetched from the remote during the process,
