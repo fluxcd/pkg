@@ -121,6 +121,18 @@ func toSubstr(s string, args ...string) string {
 		return s
 	}
 
+	if length < 0 {
+		// a negative length counts back from the end of the string, so
+		// ${var:1:-1} drops the first and the last character.
+		end := len(s) + length
+		if end < pos {
+			// bash rejects this as a negative substring expression.
+			return ""
+		}
+
+		return s[pos:end]
+	}
+
 	if pos+length >= len(s) {
 		if pos < len(s) {
 			// if the position exceeds the length of the
