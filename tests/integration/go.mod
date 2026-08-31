@@ -27,7 +27,7 @@ require (
 	github.com/fluxcd/pkg/auth v0.54.3
 	github.com/fluxcd/pkg/cache v0.14.0
 	github.com/fluxcd/pkg/git v0.52.0
-	github.com/fluxcd/pkg/runtime v0.110.2
+	github.com/fluxcd/pkg/runtime v0.110.3
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/go-containerregistry v0.21.5
