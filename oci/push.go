@@ -23,11 +23,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/go-containerregistry/pkg/v1/types"
@@ -146,7 +146,7 @@ func (c *Client) Push(ctx context.Context, url, sourcePath string, opts ...PushO
 		return "", fmt.Errorf("appeding content to artifact failed: %w", err)
 	}
 
-	if err := crane.Push(img, url, c.optionsWithContext(ctx)...); err != nil {
+	if err := remote.Write(ref, img, c.optionsWithContext(ctx)...); err != nil {
 		return "", fmt.Errorf("pushing artifact failed: %w", err)
 	}
 

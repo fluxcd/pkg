@@ -18,20 +18,21 @@ package oci
 
 import (
 	"context"
+	"net/http"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 )
 
 // Client holds the options for accessing remote OCI registries.
 type Client struct {
-	options []crane.Option
+	options []remote.Option
 }
 
-// NewClient returns an OCI client configured with the given crane options.
-func NewClient(opts []crane.Option) *Client {
-	options := []crane.Option{
-		crane.WithUserAgent(UserAgent),
+// NewClient returns an OCI client configured with the given remote options.
+func NewClient(opts []remote.Option) *Client {
+	options := []remote.Option{
+		remote.WithUserAgent(UserAgent),
 	}
 	options = append(options, opts...)
 
@@ -39,26 +40,39 @@ func NewClient(opts []crane.Option) *Client {
 }
 
 // DefaultOptions returns an empty list of client options.
-func DefaultOptions() []crane.Option {
-	return []crane.Option{}
+func DefaultOptions() []remote.Option {
+	return []remote.Option{}
 }
 
-// GetOptions returns the list of crane.Option used by this Client.
-func (c *Client) GetOptions() []crane.Option {
+// GetOptions returns the list of remote.Option used by this Client.
+func (c *Client) GetOptions() []remote.Option {
 	return c.options
 }
 
-// optionsWithContext returns the crane options for the given context.
-func (c *Client) optionsWithContext(ctx context.Context) []crane.Option {
-	options := []crane.Option{
-		crane.WithContext(ctx),
+// optionsWithContext returns the remote options for the given context.
+func (c *Client) optionsWithContext(ctx context.Context) []remote.Option {
+	options := []remote.Option{
+		remote.WithContext(ctx),
 	}
 	return append(options, c.options...)
 }
 
-// WithRetryBackOff returns a function for setting the given backoff on crane.Option.
-func WithRetryBackOff(backoff remote.Backoff) crane.Option {
-	return func(options *crane.Options) {
-		options.Remote = append(options.Remote, remote.WithRetryBackoff(backoff))
-	}
+// WithRetryBackOff returns a function for setting the given backoff on
+// remote.Option.
+func WithRetryBackOff(backoff remote.Backoff) remote.Option {
+	return remote.WithRetryBackoff(backoff)
+}
+
+// WithTransport returns a remote.Option that sets the HTTP transport.
+func WithTransport(t http.RoundTripper) remote.Option {
+	return remote.WithTransport(t)
+}
+
+// defaultRetryTransport wraps an http.RoundTripper with retry logic
+// suitable for use with the remote package.
+func defaultRetryTransport(inner http.RoundTripper) http.RoundTripper {
+	return transport.NewRetry(inner,
+		transport.WithRetryPredicate(defaultRetryPredicate),
+		transport.WithRetryStatusCodes(retryableStatusCodes...),
+	)
 }
