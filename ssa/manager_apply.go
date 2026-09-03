@@ -129,6 +129,22 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		return skippedEntry, nil
 	}
 
+	// This runs before dry-run because it fixes an error that happens during dry-run, for example:
+	//   "dry-run failed: .spec.accessPolicy: field not declared in schema"
+	// See https://github.com/fluxcd/flux2/issues/5715.
+	//
+	// This is sort of a dangerous operation to perform, because our code does not know the details
+	// and behavior of every possible resource whose API version is being migrated to properly migrate
+	// the fields. However, if there's no fields that really need to be migrated, Flux users can fix
+	// stale field managers by enabling the MigrateAPIVersion feature gate in kustomize-controller and
+	// then disable immediately after the migration is done to keep the danger away. An example of
+	// situation when this was useful is when external-secrets shipped a v1 API and removed the v1beta*
+	// version in too short of a time frame, so lots of objects still lived in users' clusters with the
+	// old API version still in the managedFields entries. Unfortunately, Kubernetes does not have a
+	// prescribed way for ecosystem controllers to migrate these managedFields entries, so Flux provides
+	// this workaround for users to fix their clusters when they encounter this problem.
+	//
+	// Keep this comment synced with ApplyAll().
 	var patched bool
 	if opts.MigrateAPIVersion && getError == nil {
 		var err error
@@ -240,6 +256,22 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					return nil
 				}
 
+				// This runs before dry-run because it fixes an error that happens during dry-run, for example:
+				//   "dry-run failed: .spec.accessPolicy: field not declared in schema"
+				// See https://github.com/fluxcd/flux2/issues/5715.
+				//
+				// This is sort of a dangerous operation to perform, because our code does not know the details
+				// and behavior of every possible resource whose API version is being migrated to properly migrate
+				// the fields. However, if there's no fields that really need to be migrated, Flux users can fix
+				// stale field managers by enabling the MigrateAPIVersion feature gate in kustomize-controller and
+				// then disable immediately after the migration is done to keep the danger away. An example of
+				// situation when this was useful is when external-secrets shipped a v1 API and removed the v1beta*
+				// version in too short of a time frame, so lots of objects still lived in users' clusters with the
+				// old API version still in the managedFields entries. Unfortunately, Kubernetes does not have a
+				// prescribed way for ecosystem controllers to migrate these managedFields entries, so Flux provides
+				// this workaround for users to fix their clusters when they encounter this problem.
+				//
+				// Keep this comment synced with Apply().
 				var patched bool
 				if opts.MigrateAPIVersion && getError == nil {
 					var err error
