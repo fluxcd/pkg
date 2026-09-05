@@ -126,6 +126,18 @@ func TestExpand(t *testing.T) {
 			input:  "${stringZ/#abc/XYZ}",
 			output: "XYZABC123ABCabc",
 		},
+		// replace prefix with empty pattern (prepend)
+		{
+			params: map[string]string{"stringZ": "somevalue"},
+			input:  "${stringZ/#/prefix-}",
+			output: "prefix-somevalue",
+		},
+		// replace suffix with empty pattern (append)
+		{
+			params: map[string]string{"stringZ": "somevalue"},
+			input:  "${stringZ/%/-suffix}",
+			output: "somevalue-suffix",
+		},
 		// replace all
 		{
 			params: map[string]string{"stringZ": "abcABC123ABCabc"},

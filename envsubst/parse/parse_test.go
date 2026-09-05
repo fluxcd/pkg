@@ -219,6 +219,28 @@ var tests = []struct {
 			},
 		},
 	},
+	{
+		Text: "${string/#/replacement}",
+		Node: &FuncNode{
+			Param: "string",
+			Name:  "/#",
+			Args: []Node{
+				&TextNode{Value: ""},
+				&TextNode{Value: "replacement"},
+			},
+		},
+	},
+	{
+		Text: "${string/%/replacement}",
+		Node: &FuncNode{
+			Param: "string",
+			Name:  "/%",
+			Args: []Node{
+				&TextNode{Value: ""},
+				&TextNode{Value: "replacement"},
+			},
+		},
+	},
 
 	//
 	// default value functions
