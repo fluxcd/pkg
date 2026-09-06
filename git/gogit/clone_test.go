@@ -566,7 +566,7 @@ func TestClone_cloneRefName(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// set a custom reference, in the format of GitHub PRs.
-	err = repo.Storer.SetReference(plumbing.NewHashReference(plumbing.ReferenceName("/refs/pull/1/head"), hash))
+	err = repo.Storer.SetReference(plumbing.NewHashReference(plumbing.ReferenceName("refs/pull/1/head"), hash))
 	g.Expect(err).ToNot(HaveOccurred())
 	err = repo.Push(&extgogit.PushOptions{
 		RefSpecs: []config.RefSpec{

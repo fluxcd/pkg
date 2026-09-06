@@ -66,7 +66,7 @@ func TestGetRegistryFromArtifactRepository(t *testing.T) {
 		{
 			name:               "dot-less repo without port",
 			artifactRepository: "localhost/repo",
-			expectedRegistry:   "index.docker.io",
+			expectedRegistry:   "localhost",
 		},
 		{
 			name:               "repo with port",

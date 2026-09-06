@@ -42,7 +42,7 @@ func TestApply(t *testing.T) {
 		existingSecret *corev1.Secret
 		expectError    bool
 		errMsg         string
-		validateFunc   func(g *WithT, secret *corev1.Secret)
+		validateFunc   func(g Gomega, secret *corev1.Secret)
 	}{
 		{
 			name: "apply new secret with string data",
@@ -57,7 +57,7 @@ func TestApply(t *testing.T) {
 					"key2": "value2",
 				},
 			},
-			validateFunc: func(g *WithT, s *corev1.Secret) {
+			validateFunc: func(g Gomega, s *corev1.Secret) {
 				g.Expect(s.StringData).To(BeNil())
 				g.Expect(s.Data).To(HaveLen(2))
 				g.Expect(s.Data["key1"]).To(Equal([]byte("value1")))
@@ -79,7 +79,7 @@ func TestApply(t *testing.T) {
 					"new": "string-data",
 				},
 			},
-			validateFunc: func(g *WithT, s *corev1.Secret) {
+			validateFunc: func(g Gomega, s *corev1.Secret) {
 				g.Expect(s.StringData).To(BeNil())
 				g.Expect(s.Data).To(HaveLen(2))
 				g.Expect(s.Data["existing"]).To(Equal([]byte("data")))
@@ -98,7 +98,7 @@ func TestApply(t *testing.T) {
 					"key": []byte("value"),
 				},
 			},
-			validateFunc: func(g *WithT, s *corev1.Secret) {
+			validateFunc: func(g Gomega, s *corev1.Secret) {
 				g.Expect(s.StringData).To(BeNil())
 				g.Expect(s.Data).To(HaveLen(1))
 				g.Expect(s.Data["key"]).To(Equal([]byte("value")))
@@ -128,7 +128,7 @@ func TestApply(t *testing.T) {
 				},
 				Immutable: nil, // mutable secret
 			},
-			validateFunc: func(g *WithT, s *corev1.Secret) {
+			validateFunc: func(g Gomega, s *corev1.Secret) {
 				g.Expect(s.Data).To(HaveLen(2))
 				g.Expect(s.Data["test1"]).To(Equal([]byte("new")))
 				g.Expect(s.Data["test2"]).To(Equal([]byte("old")))
@@ -158,7 +158,7 @@ func TestApply(t *testing.T) {
 				},
 				Immutable: &immutable,
 			},
-			validateFunc: func(g *WithT, s *corev1.Secret) {
+			validateFunc: func(g Gomega, s *corev1.Secret) {
 				g.Expect(s.Data).To(HaveLen(1))
 				g.Expect(s.Data["new"]).To(Equal([]byte("data")))
 			},
@@ -187,7 +187,7 @@ func TestApply(t *testing.T) {
 					"old": []byte("data"),
 				},
 			},
-			validateFunc: func(g *WithT, s *corev1.Secret) {
+			validateFunc: func(g Gomega, s *corev1.Secret) {
 				g.Expect(s.Data).To(HaveLen(2))
 				g.Expect(s.Data["username"]).To(Equal([]byte("val")))
 				g.Expect(s.Data["password"]).To(Equal([]byte("val")))
@@ -282,16 +282,15 @@ func TestApply(t *testing.T) {
 
 			g.Expect(err).To(Not(HaveOccurred()))
 
-			// Verify the secret was applied correctly
-			appliedSecret := &corev1.Secret{}
-			g.Eventually(func() error {
-				return env.Get(context.Background(), client.ObjectKeyFromObject(tt.secret), appliedSecret)
-			}, timeout).ShouldNot(HaveOccurred())
-
-			// Run validation function on the applied secret
-			if tt.validateFunc != nil {
-				tt.validateFunc(g, appliedSecret)
-			}
+			// Verify the secret was applied correctly. The client is backed by
+			// the manager cache, so retry until the applied state is observed.
+			g.Eventually(func(g Gomega) {
+				appliedSecret := &corev1.Secret{}
+				g.Expect(env.Get(context.Background(), client.ObjectKeyFromObject(tt.secret), appliedSecret)).To(Succeed())
+				if tt.validateFunc != nil {
+					tt.validateFunc(g, appliedSecret)
+				}
+			}, timeout).Should(Succeed())
 		})
 	}
 }
