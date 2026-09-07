@@ -102,6 +102,18 @@ type ApplyCleanupOptions struct {
 	// FieldManagers defines which `metadata.managedFields` managers should be removed from in-cluster objects.
 	FieldManagers []FieldManager `json:"fieldManagers,omitempty"`
 
+	// FieldManagersBeforeDryRun defines which `metadata.managedFields` managers
+	// are taken over on the in-cluster object BEFORE the server-side dry-run.
+	//
+	// Use this to reclaim a required field co-owned by a stale or foreign manager
+	// that would otherwise be orphaned on prune and fail the dry-run before the
+	// post-dry-run cleanup can run.
+	//
+	// It is a deliberately narrow, opt-in list, separate from FieldManagers,
+	// because taking over ownership before the dry-run mutates managedFields even
+	// if the apply later fails — unlike the post-dry-run cleanup.
+	FieldManagersBeforeDryRun []FieldManager `json:"fieldManagersBeforeDryRun,omitempty"`
+
 	// Exclusions determines which in-cluster objects are skipped from cleanup
 	// based on the specified key-value pairs.
 	Exclusions map[string]string `json:"exclusions"`
@@ -152,6 +164,20 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		if err != nil {
 			return nil, fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(existingObject), err)
 		}
+	}
+
+	// Take over fields held by stale or foreign managers before the dry-run so
+	// that the merged object is valid. Without this, a manager co-owning a
+	// required field can leave that field orphaned when the applier prunes it,
+	// failing the dry-run before the post-dry-run cleanup can run.
+	if len(opts.Cleanup.FieldManagersBeforeDryRun) > 0 && getError == nil {
+		tookOver, err := m.takeoverManagedFields(ctx, object, existingObject,
+			opts.Cleanup.FieldManagersBeforeDryRun, opts.Cleanup)
+		if err != nil {
+			return nil, fmt.Errorf("%s metadata.managedFields takeover failed: %w",
+				utils.FmtUnstructured(existingObject), err)
+		}
+		patched = patched || tookOver
 	}
 
 	dryRunObject := object.DeepCopy()
@@ -279,6 +305,18 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					if err != nil {
 						return fmt.Errorf("%s failed to migrate API version: %w", utils.FmtUnstructured(existingObject), err)
 					}
+				}
+
+				// Take over fields held by stale or foreign managers before the
+				// dry-run so that the merged object is valid (see Apply for details).
+				if len(opts.Cleanup.FieldManagersBeforeDryRun) > 0 && getError == nil {
+					tookOver, err := m.takeoverManagedFields(ctx, object, existingObject,
+						opts.Cleanup.FieldManagersBeforeDryRun, opts.Cleanup)
+					if err != nil {
+						return fmt.Errorf("%s metadata.managedFields takeover failed: %w",
+							utils.FmtUnstructured(existingObject), err)
+					}
+					patched = patched || tookOver
 				}
 
 				dryRunObject := object.DeepCopy()
@@ -535,6 +573,50 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 	}
 
 	// no patching is needed exit early
+	if len(patches) == 0 {
+		return false, nil
+	}
+
+	rawPatch, err := json.Marshal(patches)
+	if err != nil {
+		return false, err
+	}
+	patch := client.RawPatch(types.JSONPatchType, rawPatch)
+
+	return true, m.client.Patch(ctx, object, patch, client.FieldOwner(m.owner.Field))
+}
+
+// takeoverManagedFields reassigns the given field managers' ownership to the
+// applier on the in-cluster object via a JSON patch and updates object in-place
+// with the server's response. It returns true if a patch was applied.
+//
+// Unlike cleanupMetadata, this only touches managedFields and is intended to run
+// before the dry-run, so the applier reclaims ownership of fields held by stale
+// or foreign managers and the merged object stays valid. The managers to take
+// over are passed explicitly (rather than read from opts.FieldManagers) so the
+// caller can scope the pre-dry-run takeover to a narrow set, independent of the
+// post-dry-run cleanup list.
+func (m *ResourceManager) takeoverManagedFields(ctx context.Context,
+	desiredObject *unstructured.Unstructured,
+	object *unstructured.Unstructured,
+	managers []FieldManager,
+	opts ApplyCleanupOptions) (bool, error) {
+	if len(managers) == 0 {
+		return false, nil
+	}
+	if object == nil || object.GetResourceVersion() == "" {
+		return false, nil
+	}
+	if utils.AnyInMetadata(desiredObject, opts.Exclusions) || utils.AnyInMetadata(object, opts.Exclusions) {
+		return false, nil
+	}
+
+	patches, err := PatchReplaceFieldsManagers(object, managers, m.owner.Field)
+	if err != nil {
+		return false, err
+	}
+
+	// no patching is needed, exit early
 	if len(patches) == 0 {
 		return false, nil
 	}
