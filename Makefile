@@ -20,7 +20,7 @@ LOCALARCH ?= $(shell go env GOARCH)
 ENVTEST_ARCH ?= $(LOCALARCH)
 
 # Kubernetes versions to use envtest with
-ENVTEST_KUBERNETES_VERSION?=1.36
+ENVTEST_KUBERNETES_VERSION?=1.37
 
 all: tidy generate fmt vet
 

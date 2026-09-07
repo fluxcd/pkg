@@ -128,17 +128,21 @@ func (c *Client) Push(ctx context.Context, url, sourcePath string, opts ...PushO
 		return "", fmt.Errorf("invalid created timestamp %q: %w", createdValue, err)
 	}
 
-	img := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
-	img = mutate.ConfigMediaType(img, CanonicalConfigMediaType)
-	configFile, err := img.ConfigFile()
+	// Set the created timestamp on the config before changing the config
+	// media type. go-containerregistry preserves the raw config blob of
+	// non-image config media types, so mutations applied after the media
+	// type change would be discarded.
+	configFile, err := empty.Image.ConfigFile()
 	if err != nil {
 		return "", fmt.Errorf("reading artifact config failed: %w", err)
 	}
 	configFile.Created = gcrv1.Time{Time: created}
-	img, err = mutate.ConfigFile(img, configFile)
+	img, err := mutate.ConfigFile(empty.Image, configFile)
 	if err != nil {
 		return "", fmt.Errorf("setting artifact config failed: %w", err)
 	}
+	img = mutate.MediaType(img, types.OCIManifestSchema1)
+	img = mutate.ConfigMediaType(img, CanonicalConfigMediaType)
 	img = mutate.Annotations(img, annotations).(gcrv1.Image)
 
 	img, err = mutate.Append(img, mutate.Addendum{Layer: layer})

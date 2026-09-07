@@ -160,8 +160,17 @@ func WithSingleBranch(singleBranch bool) ClientOption {
 // Git related objects on disk.
 func WithDiskStorage() ClientOption {
 	return func(c *Client) error {
-		wt := osfs.New(c.path, osfs.WithBoundOS())
-		dot := osfs.New(filepath.Join(c.path, extgogit.GitDirName), osfs.WithBoundOS())
+		// Resolve symlinks in the base path so that the bound filesystem
+		// compares paths consistently. go-billy evaluates symlinks in the
+		// base directory but cannot do so for paths whose parent directory
+		// does not exist yet, which makes checkouts of nested files fail
+		// when the base directory is reached through a symlink.
+		path := c.path
+		if resolved, err := filepath.EvalSymlinks(path); err == nil {
+			path = resolved
+		}
+		wt := osfs.New(path, osfs.WithBoundOS())
+		dot := osfs.New(filepath.Join(path, extgogit.GitDirName), osfs.WithBoundOS())
 
 		c.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
 		c.worktreeFS = wt
