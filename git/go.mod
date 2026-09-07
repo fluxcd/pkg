@@ -15,9 +15,9 @@ require (
 	github.com/cyphar/filepath-securejoin v0.6.1
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/gittestserver v0.29.0
-	github.com/fluxcd/pkg/ssh v0.25.0
-	github.com/fluxcd/pkg/version v0.16.0
+	github.com/fluxcd/pkg/gittestserver v0.30.0
+	github.com/fluxcd/pkg/ssh v0.26.0
+	github.com/fluxcd/pkg/version v0.17.0
 	github.com/go-git/go-billy/v5 v5.9.1
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/hiddeco/sshsig v0.2.0

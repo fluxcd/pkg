@@ -9,9 +9,9 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/apis/kustomize v1.20.0
+	github.com/fluxcd/pkg/apis/kustomize v1.21.0
 	github.com/fluxcd/pkg/envsubst v1.8.0
-	github.com/fluxcd/pkg/sourceignore v0.18.0
+	github.com/fluxcd/pkg/sourceignore v0.19.0
 	github.com/onsi/gomega v1.43.0
 	github.com/otiai10/copy v1.14.1
 	k8s.io/api v0.37.0
