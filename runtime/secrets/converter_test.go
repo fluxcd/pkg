@@ -189,6 +189,15 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			wantGitHubApp: true,
 		},
 		{
+			name: "GitHub App with client ID instead of app ID",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppClientID:       []byte("Iv23liACLIENTID12345"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+			wantGitHubApp: true,
+		},
+		{
 			name: "GitHub App + CA (source-controller PR scenario)",
 			secretData: map[string][]byte{
 				secrets.KeyGitHubAppID:             []byte("123456"),
@@ -308,8 +317,11 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 
 			if tt.wantGitHubApp {
 				g.Expect(result.GitHubAppData).ToNot(BeNil())
-				g.Expect(result.GitHubAppData).To(HaveKey(secrets.KeyGitHubAppID))
 				g.Expect(result.GitHubAppData).To(HaveKey(secrets.KeyGitHubAppPrivateKey))
+				// At least one of app ID or client ID should be present
+				hasAppID := result.GitHubAppData[secrets.KeyGitHubAppID] != nil
+				hasClientID := result.GitHubAppData[secrets.KeyGitHubAppClientID] != nil
+				g.Expect(hasAppID || hasClientID).To(BeTrue(), "either app ID or client ID should be present")
 				// Exactly one of installation owner or installation ID should be present
 				hasInstallationOwner := result.GitHubAppData[secrets.KeyGitHubAppInstallationOwner] != nil
 				hasInstallationID := result.GitHubAppData[secrets.KeyGitHubAppInstallationID] != nil
@@ -390,7 +402,30 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 			},
 		},
 		{
-			name: "missing app ID",
+			name: "valid GitHub App data with client ID instead of app ID",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppClientID:       []byte("Iv23liACLIENTID12345"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+			wantData: map[string][]byte{
+				secrets.KeyGitHubAppClientID:       []byte("Iv23liACLIENTID12345"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+		},
+		{
+			name: "both app ID and client ID provided",
+			secretData: map[string][]byte{
+				secrets.KeyGitHubAppID:             []byte("123456"),
+				secrets.KeyGitHubAppClientID:       []byte("Iv23liACLIENTID12345"),
+				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
+				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
+			},
+			errMsg: `secret 'default/github-app-secret' must contain exactly one of 'githubAppID' or 'githubAppClientID'`,
+		},
+		{
+			name: "neither app ID nor client ID",
 			secretData: map[string][]byte{
 				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
 				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
@@ -459,10 +494,23 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 				g.Expect(result).ToNot(BeNil())
 
 				// Verify required fields are present and have correct values
-				g.Expect(result).To(HaveKey(secrets.KeyGitHubAppID))
 				g.Expect(result).To(HaveKey(secrets.KeyGitHubAppPrivateKey))
-				g.Expect(string(result[secrets.KeyGitHubAppID])).To(Equal("123456"))
 				g.Expect(string(result[secrets.KeyGitHubAppPrivateKey])).To(Equal("test-private-key"))
+
+				// At least one of app ID or client ID should be present, matching the input
+				hasAppID := result[secrets.KeyGitHubAppID] != nil
+				hasClientID := result[secrets.KeyGitHubAppClientID] != nil
+				g.Expect(hasAppID || hasClientID).To(BeTrue(), "either app ID or client ID should be present")
+				if tt.wantData[secrets.KeyGitHubAppID] != nil {
+					g.Expect(string(result[secrets.KeyGitHubAppID])).To(Equal(string(tt.wantData[secrets.KeyGitHubAppID])))
+				} else {
+					g.Expect(result[secrets.KeyGitHubAppID]).To(BeNil())
+				}
+				if tt.wantData[secrets.KeyGitHubAppClientID] != nil {
+					g.Expect(string(result[secrets.KeyGitHubAppClientID])).To(Equal(string(tt.wantData[secrets.KeyGitHubAppClientID])))
+				} else {
+					g.Expect(result[secrets.KeyGitHubAppClientID]).To(BeNil())
+				}
 
 				// Verify exactly one of installation owner or installation ID has a non-nil value
 				hasInstallationOwner := result[secrets.KeyGitHubAppInstallationOwner] != nil

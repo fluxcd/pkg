@@ -298,24 +298,29 @@ func SSHAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*SSHAuth, er
 
 // GitHubAppDataFromSecret retrieves GitHub App authentication data from a Kubernetes secret.
 //
-// The function expects the secret to contain "githubAppID" and "githubAppPrivateKey",
-// and exactly one of "githubAppInstallationOwner" or "githubAppInstallationID" fields.
-// All three fields are required and the function will return an error if any is missing.
+// The function expects the secret to contain "githubAppPrivateKey", exactly one of
+// "githubAppID" or "githubAppClientID", and exactly one of "githubAppInstallationOwner" or
+// "githubAppInstallationID". It returns an error if these requirements are not met.
 // Optional "githubAppBaseURL" field can be present for GitHub Enterprise Server instances.
 func GitHubAppDataFromSecret(ctx context.Context, secret *corev1.Secret) (GitHubAppData, error) {
 	_, hasAppID := secret.Data[KeyGitHubAppID]
+	_, hasClientID := secret.Data[KeyGitHubAppClientID]
 	_, hasInstallationOwner := secret.Data[KeyGitHubAppInstallationOwner]
 	_, hasInstallationID := secret.Data[KeyGitHubAppInstallationID]
 	_, hasPrivateKey := secret.Data[KeyGitHubAppPrivateKey]
 
 	// Complete absence - return KeyNotFoundError (will be ignored by trySetAuth)
-	if !hasAppID && !hasInstallationOwner && !hasInstallationID && !hasPrivateKey {
+	if !hasAppID && !hasClientID && !hasInstallationOwner && !hasInstallationID && !hasPrivateKey {
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppID, Secret: secret}
 	}
 
-	// Check for required fields - partial presence is an error
-	if !hasAppID {
+	// Require exactly one identity: appID or clientID.
+	if !hasAppID && !hasClientID {
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppID, Secret: secret}
+	}
+	if hasAppID && hasClientID {
+		return nil, fmt.Errorf("secret '%s' must contain exactly one of '%s' or '%s'",
+			client.ObjectKeyFromObject(secret), KeyGitHubAppID, KeyGitHubAppClientID)
 	}
 	if !hasPrivateKey {
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppPrivateKey, Secret: secret}
@@ -327,8 +332,14 @@ func GitHubAppDataFromSecret(ctx context.Context, secret *corev1.Secret) (GitHub
 	}
 
 	data := GitHubAppData{
-		KeyGitHubAppID:         secret.Data[KeyGitHubAppID],
 		KeyGitHubAppPrivateKey: secret.Data[KeyGitHubAppPrivateKey],
+	}
+
+	if appID, exists := secret.Data[KeyGitHubAppID]; exists {
+		data[KeyGitHubAppID] = appID
+	}
+	if clientID, exists := secret.Data[KeyGitHubAppClientID]; exists {
+		data[KeyGitHubAppClientID] = clientID
 	}
 
 	if owner, exists := secret.Data[KeyGitHubAppInstallationOwner]; exists {

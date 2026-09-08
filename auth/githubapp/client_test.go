@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/cache"
@@ -36,6 +37,7 @@ import (
 
 func TestClient_Options(t *testing.T) {
 	appID := "123"
+	clientID := "Iv23liACLIENTID12345"
 	installationID := "456"
 	kp, _ := ssh.GenerateKeyPair(ssh.RSA_4096)
 	gitHubEnterpriseURL := "https://github.example.com/api/v3"
@@ -45,6 +47,8 @@ func TestClient_Options(t *testing.T) {
 		name                  string
 		opts                  []OptFunc
 		wantErr               error
+		wantAppID             int64
+		wantClientID          string
 		wantInstallationID    int64
 		wantInstallationOwner string
 	}{
@@ -58,6 +62,7 @@ func TestClient_Options(t *testing.T) {
 				}),
 				WithProxyURL(proxy),
 			},
+			wantAppID:          123,
 			wantInstallationID: 456,
 		},
 		{
@@ -67,6 +72,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppInstallationID: []byte(installationID),
 				KeyAppPrivateKey:     kp.PrivateKey,
 			})},
+			wantAppID:          123,
 			wantInstallationID: 456,
 		},
 		{
@@ -77,7 +83,28 @@ func TestClient_Options(t *testing.T) {
 				KeyAppBaseURL:        []byte(gitHubEnterpriseURL),
 				KeyAppPrivateKey:     kp.PrivateKey,
 			})},
+			wantAppID:          123,
 			wantInstallationID: 456,
+		},
+		{
+			name: "Create new client with client ID",
+			opts: []OptFunc{WithAppData(map[string][]byte{
+				KeyAppClientID:       []byte(clientID),
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppPrivateKey:     kp.PrivateKey,
+			})},
+			wantClientID:       clientID,
+			wantInstallationID: 456,
+		},
+		{
+			name: "Create new client with both app ID and client ID",
+			opts: []OptFunc{WithAppData(map[string][]byte{
+				KeyAppID:             []byte(appID),
+				KeyAppClientID:       []byte(clientID),
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppPrivateKey:     kp.PrivateKey,
+			})},
+			wantErr: errors.New("only one of app ID or client ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with installation owner",
@@ -86,6 +113,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppInstallationOwner: []byte("my-org"),
 				KeyAppPrivateKey:        kp.PrivateKey,
 			})},
+			wantAppID:             123,
 			wantInstallationOwner: "my-org",
 		},
 		{
@@ -101,7 +129,7 @@ func TestClient_Options(t *testing.T) {
 		{
 			name:    "Create new client with empty data",
 			opts:    []OptFunc{WithAppData(map[string][]byte{})},
-			wantErr: errors.New("app ID must be provided to use github app authentication"),
+			wantErr: errors.New("app ID or client ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with app data with missing AppID Key",
@@ -110,7 +138,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppPrivateKey:     kp.PrivateKey,
 			},
 			)},
-			wantErr: errors.New("app ID must be provided to use github app authentication"),
+			wantErr: errors.New("app ID or client ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with app data with missing AppInstallationID Key",
@@ -138,7 +166,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppPrivateKey:     kp.PrivateKey,
 			},
 			)},
-			wantErr: errors.New("app ID must be provided to use github app authentication"),
+			wantErr: errors.New("app ID or client ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with invalid installationID in app data",
@@ -173,7 +201,8 @@ func TestClient_Options(t *testing.T) {
 				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr.Error()))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(client.appID).To(Equal(int64(123)))
+				g.Expect(client.appID).To(Equal(tt.wantAppID))
+				g.Expect(client.clientID).To(Equal(tt.wantClientID))
 				g.Expect(client.installationID).To(Equal(tt.wantInstallationID))
 				g.Expect(client.installationOwner).To(Equal(tt.wantInstallationOwner))
 				g.Expect(client.privateKey).To(Equal(kp.PrivateKey))
@@ -184,6 +213,85 @@ func TestClient_Options(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClient_createJWT_Issuer(t *testing.T) {
+	appID := "123"
+	clientID := "Iv23liACLIENTID12345"
+	installationID := "456"
+	g := NewWithT(t)
+	kp, err := ssh.GenerateKeyPair(ssh.RSA_4096)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tests := []struct {
+		name       string
+		opts       []OptFunc
+		wantIssuer string
+	}{
+		{
+			name: "issuer is numeric app ID when only app ID is set",
+			opts: []OptFunc{WithAppData(map[string][]byte{
+				KeyAppID:             []byte(appID),
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppPrivateKey:     kp.PrivateKey,
+			})},
+			wantIssuer: "123",
+		},
+		{
+			name: "issuer is client ID when only client ID is set",
+			opts: []OptFunc{WithAppData(map[string][]byte{
+				KeyAppClientID:       []byte(clientID),
+				KeyAppInstallationID: []byte(installationID),
+				KeyAppPrivateKey:     kp.PrivateKey,
+			})},
+			wantIssuer: clientID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			client, err := New(tt.opts...)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			tokenString, err := client.createJWT()
+			g.Expect(err).ToNot(HaveOccurred())
+
+			claims := &jwt.RegisteredClaims{}
+			_, _, err = jwt.NewParser().ParseUnverified(tokenString, claims)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(claims.Issuer).To(Equal(tt.wantIssuer))
+		})
+	}
+}
+
+func TestClient_buildCacheKey_DistinguishesClientID(t *testing.T) {
+	g := NewWithT(t)
+	kp, err := ssh.GenerateKeyPair(ssh.RSA_4096)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	base := func(extra map[string][]byte) *Client {
+		data := map[string][]byte{
+			KeyAppInstallationID: []byte("456"),
+			KeyAppPrivateKey:     kp.PrivateKey,
+		}
+		for k, v := range extra {
+			data[k] = v
+		}
+		c, err := New(WithAppData(data))
+		g.Expect(err).ToNot(HaveOccurred())
+		return c
+	}
+
+	appIDClient := base(map[string][]byte{KeyAppID: []byte("123")})
+	clientIDClient := base(map[string][]byte{KeyAppClientID: []byte("Iv23liACLIENTID12345")})
+	otherClientIDClient := base(map[string][]byte{KeyAppClientID: []byte("Iv23liDIFFERENT98765")})
+
+	// A client identified by client ID must not collide with one identified by app ID.
+	g.Expect(clientIDClient.buildCacheKey()).ToNot(Equal(appIDClient.buildCacheKey()))
+	// Two clients with different client IDs must not collide.
+	g.Expect(clientIDClient.buildCacheKey()).ToNot(Equal(otherClientIDClient.buildCacheKey()))
 }
 
 func TestClient_GetCredentials(t *testing.T) {
