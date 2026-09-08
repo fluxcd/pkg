@@ -415,22 +415,17 @@ func TestGitHubAppDataFromSecret(t *testing.T) {
 			},
 		},
 		{
-			name: "valid GitHub App data with both app ID and client ID",
+			name: "both app ID and client ID provided",
 			secretData: map[string][]byte{
 				secrets.KeyGitHubAppID:             []byte("123456"),
 				secrets.KeyGitHubAppClientID:       []byte("Iv23liACLIENTID12345"),
 				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
 				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
 			},
-			wantData: map[string][]byte{
-				secrets.KeyGitHubAppID:             []byte("123456"),
-				secrets.KeyGitHubAppClientID:       []byte("Iv23liACLIENTID12345"),
-				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
-				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),
-			},
+			errMsg: `secret 'default/github-app-secret' must contain exactly one of 'githubAppID' or 'githubAppClientID'`,
 		},
 		{
-			name: "missing app ID",
+			name: "neither app ID nor client ID",
 			secretData: map[string][]byte{
 				secrets.KeyGitHubAppInstallationID: []byte("7890123"),
 				secrets.KeyGitHubAppPrivateKey:     []byte("test-private-key"),

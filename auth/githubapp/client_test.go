@@ -28,9 +28,8 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/gomega"
-
 	"github.com/golang-jwt/jwt/v4"
+	. "github.com/onsi/gomega"
 
 	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/ssh"
@@ -105,9 +104,7 @@ func TestClient_Options(t *testing.T) {
 				KeyAppInstallationID: []byte(installationID),
 				KeyAppPrivateKey:     kp.PrivateKey,
 			})},
-			wantAppID:          123,
-			wantClientID:       clientID,
-			wantInstallationID: 456,
+			wantErr: errors.New("only one of app ID or client ID must be provided to use github app authentication"),
 		},
 		{
 			name: "Create new client with installation owner",
@@ -243,16 +240,6 @@ func TestClient_createJWT_Issuer(t *testing.T) {
 		{
 			name: "issuer is client ID when only client ID is set",
 			opts: []OptFunc{WithAppData(map[string][]byte{
-				KeyAppClientID:       []byte(clientID),
-				KeyAppInstallationID: []byte(installationID),
-				KeyAppPrivateKey:     kp.PrivateKey,
-			})},
-			wantIssuer: clientID,
-		},
-		{
-			name: "client ID wins when both are set",
-			opts: []OptFunc{WithAppData(map[string][]byte{
-				KeyAppID:             []byte(appID),
 				KeyAppClientID:       []byte(clientID),
 				KeyAppInstallationID: []byte(installationID),
 				KeyAppPrivateKey:     kp.PrivateKey,

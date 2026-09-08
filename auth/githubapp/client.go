@@ -97,6 +97,10 @@ func New(opts ...OptFunc) (*Client, error) {
 		return nil, fmt.Errorf("app ID or client ID must be provided to use github app authentication")
 	}
 
+	if p.appID != 0 && p.clientID != "" {
+		return nil, fmt.Errorf("only one of app ID or client ID must be provided to use github app authentication")
+	}
+
 	if p.installationOwner == "" && p.installationID == 0 {
 		return nil, fmt.Errorf("app installation owner or ID must be provided to use github app authentication")
 	}

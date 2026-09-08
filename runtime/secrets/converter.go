@@ -298,7 +298,7 @@ func SSHAuthFromSecret(ctx context.Context, secret *corev1.Secret) (*SSHAuth, er
 
 // GitHubAppDataFromSecret retrieves GitHub App authentication data from a Kubernetes secret.
 //
-// The function expects the secret to contain "githubAppPrivateKey", at least one of
+// The function expects the secret to contain "githubAppPrivateKey", exactly one of
 // "githubAppID" or "githubAppClientID", and exactly one of "githubAppInstallationOwner" or
 // "githubAppInstallationID". It returns an error if these requirements are not met.
 // Optional "githubAppBaseURL" field can be present for GitHub Enterprise Server instances.
@@ -314,9 +314,13 @@ func GitHubAppDataFromSecret(ctx context.Context, secret *corev1.Secret) (GitHub
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppID, Secret: secret}
 	}
 
-	// Require at least one identity: appID or clientID (permissive - clientID wins downstream)
+	// Require exactly one identity: appID or clientID.
 	if !hasAppID && !hasClientID {
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppID, Secret: secret}
+	}
+	if hasAppID && hasClientID {
+		return nil, fmt.Errorf("secret '%s' must contain exactly one of '%s' or '%s'",
+			client.ObjectKeyFromObject(secret), KeyGitHubAppID, KeyGitHubAppClientID)
 	}
 	if !hasPrivateKey {
 		return nil, &KeyNotFoundError{Key: KeyGitHubAppPrivateKey, Secret: secret}
