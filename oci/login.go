@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
 // LoginWithCredentials configures the client with static credentials, accepts a single token
@@ -32,7 +32,7 @@ func (c *Client) LoginWithCredentials(credentials string) error {
 		return err
 	}
 
-	c.options = append(c.options, crane.WithAuth(auth))
+	c.options = append(c.options, remote.WithAuth(auth))
 	return nil
 }
 
