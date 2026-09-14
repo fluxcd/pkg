@@ -208,3 +208,61 @@ func TestKustomization_Varsub_StrictEmptyValues(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(string(omittedYml)).To(Equal(string(yml)))
 }
+
+// TestKustomization_Varsub_ContextWithSecretVarsCollector verifies that a
+// collector registered via ContextWithSecretVarsCollector observes only the
+// vars resolved from Secret references in substituteFrom, excluding
+// ConfigMap-sourced vars and the inline substitute overlay, without requiring
+// the caller to invoke LoadVariables a second time. It also verifies that a
+// context without a collector behaves exactly as before.
+func TestKustomization_Varsub_ContextWithSecretVarsCollector(t *testing.T) {
+	g := NewWithT(t)
+
+	yamlKus, err := os.ReadFile("./testdata/kustomization_varsub_with_secret.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	clientObjects, err := readYamlObjects(strings.NewReader(string(yamlKus)))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Ensure the namespace, ConfigMap, and Secret referenced by substituteFrom
+	// exist (they may already have been created by another test).
+	if err := createObjectFile(kubeClient, "./testdata/ns.yaml"); err != nil {
+		g.Expect(err.Error()).To(ContainSubstring("already exists"))
+	}
+	if err := createObjectFile(kubeClient, "./testdata/configmap.yaml"); err != nil {
+		g.Expect(err.Error()).To(ContainSubstring("already exists"))
+	}
+	if err := createObjectFile(kubeClient, "./testdata/secret.yaml"); err != nil {
+		g.Expect(err.Error()).To(ContainSubstring("already exists"))
+	}
+
+	fs := filesys.MakeFsOnDisk()
+	resMap, err := kustomize.Build(fs, "./testdata/resources/")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(resMap.Resources()).NotTo(BeEmpty())
+
+	var collected map[string]string
+	ctx := kustomize.ContextWithSecretVarsCollector(context.Background(), func(vars map[string]string) {
+		collected = vars
+	})
+
+	_, err = kustomize.SubstituteVariables(ctx, kubeClient, clientObjects[0], resMap.Resources()[0])
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// The collector must have observed only the substituteFrom Secret values.
+	g.Expect(collected).To(HaveKeyWithValue("db_password", "s3cr3t-p@ss"))
+	// ConfigMap-sourced values must be excluded, even though they are part of
+	// the vars actually used for substitution.
+	g.Expect(collected).NotTo(HaveKey("prometheus_scrape"))
+	g.Expect(collected).NotTo(HaveKey("prometheus_port"))
+	g.Expect(collected).NotTo(HaveKey("image"))
+	// The inline substitute overlay must also be excluded.
+	g.Expect(collected).NotTo(HaveKey("cluster_env"))
+
+	// A context without a collector must behave exactly as before (no panic,
+	// no behavior change).
+	resMap2, err := kustomize.Build(fs, "./testdata/resources/")
+	g.Expect(err).NotTo(HaveOccurred())
+	_, err = kustomize.SubstituteVariables(context.Background(), kubeClient, clientObjects[0], resMap2.Resources()[0])
+	g.Expect(err).NotTo(HaveOccurred())
+}
