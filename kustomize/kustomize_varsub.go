@@ -49,6 +49,29 @@ const (
 	substituteAnnotationKey = "kustomize.toolkit.fluxcd.io/substitute"
 )
 
+// secretVarsCollectorKey is the context key used by
+// ContextWithSecretVarsCollector.
+type secretVarsCollectorKey struct{}
+
+// ContextWithSecretVarsCollector returns a copy of ctx that causes
+// LoadVariables to additionally invoke fn with the vars it resolved from
+// Secret references in spec.postBuild.substituteFrom (ConfigMap-sourced vars
+// are excluded). This lets a caller further up the call stack observe which
+// values are Secret-derived and may need redaction, without fetching the same
+// ConfigMaps/Secrets a second time.
+//
+// fn receives an independent copy of the Secret-sourced vars: it is
+// unaffected by any later mutation of the map returned to the caller (e.g.
+// SubstituteVariables merging in the inline postBuild.substitute overlay, or
+// ConfigMap-sourced vars overriding a same-named Secret-sourced var).
+//
+// fn may be invoked multiple times, once per LoadVariables call, and must be
+// safe to call repeatedly. For callers that don't set this context value, this
+// is a no-op.
+func ContextWithSecretVarsCollector(ctx context.Context, fn func(map[string]string)) context.Context {
+	return context.WithValue(ctx, secretVarsCollectorKey{}, fn)
+}
+
 // SubstituteOptions defines the options for the variable substitutions operation.
 type SubstituteOptions struct {
 	DryRun bool
@@ -152,6 +175,10 @@ func SubstituteVariables(
 // the vars referred in ConfigMaps and Secrets data keys.
 func LoadVariables(ctx context.Context, kubeClient client.Client, kustomization unstructured.Unstructured) (map[string]string, error) {
 	vars := make(map[string]string)
+	// secretVars tracks only the vars resolved from Secret references, so that
+	// ContextWithSecretVarsCollector can report the subset of vars that may
+	// need redaction, without including non-sensitive ConfigMap-sourced values.
+	secretVars := make(map[string]string)
 	substituteFrom, err := getSubstituteFrom(kustomization)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get subsituteFrom: %w", err)
@@ -180,9 +207,19 @@ func LoadVariables(ctx context.Context, kubeClient client.Client, kustomization 
 				return nil, fmt.Errorf("substitute from 'Secret/%s' error: %w", reference.Name, err)
 			}
 			for k, v := range secret.Data {
-				vars[k] = strings.ReplaceAll(string(v), "\n", "")
+				value := strings.ReplaceAll(string(v), "\n", "")
+				vars[k] = value
+				secretVars[k] = value
 			}
 		}
+	}
+
+	if fn, ok := ctx.Value(secretVarsCollectorKey{}).(func(map[string]string)); ok && fn != nil {
+		snapshot := make(map[string]string, len(secretVars))
+		for k, v := range secretVars {
+			snapshot[k] = v
+		}
+		fn(snapshot)
 	}
 
 	return vars, nil
