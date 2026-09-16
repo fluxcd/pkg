@@ -21,8 +21,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/random"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	. "github.com/onsi/gomega"
 )
 
@@ -34,13 +35,17 @@ func Test_Tag(t *testing.T) {
 	url := fmt.Sprintf("%s/%s:v0.0.1", dockerReg, testRepo)
 	img, err := random.Image(1024, 1)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = crane.Push(img, url, c.options...)
+	ref, err := name.ParseReference(url)
+	g.Expect(err).ToNot(HaveOccurred())
+	err = remote.Write(ref, img, c.options...)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	_, err = c.Tag(ctx, url, "v0.0.2")
 	g.Expect(err).ToNot(HaveOccurred())
 
-	tags, err := crane.ListTags(fmt.Sprintf("%s/%s", dockerReg, testRepo))
+	repoRef, err := name.NewRepository(fmt.Sprintf("%s/%s", dockerReg, testRepo))
+	g.Expect(err).ToNot(HaveOccurred())
+	tags, err := remote.List(repoRef)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(len(tags)).To(BeEquivalentTo(2))
 	g.Expect(tags).To(BeEquivalentTo([]string{"v0.0.1", "v0.0.2"}))

@@ -22,11 +22,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/random"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	. "github.com/onsi/gomega"
 )
 
@@ -61,7 +61,9 @@ func Test_List(t *testing.T) {
 		img, err := random.Image(1024, 1)
 		g.Expect(err).ToNot(HaveOccurred())
 		img = mutate.Annotations(img, m.ToAnnotations()).(gcrv1.Image)
-		err = crane.Push(img, dst, c.options...)
+		ref, err := name.ParseReference(dst)
+		g.Expect(err).ToNot(HaveOccurred())
+		err = remote.Write(ref, img, c.options...)
 		g.Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -135,9 +137,11 @@ func Test_List(t *testing.T) {
 
 				g.Expect(meta.ToAnnotations()).To(Equal(m.ToAnnotations()))
 
-				digest, err := crane.Digest(meta.URL, c.options...)
+				digestRef, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag.TagStr()))
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(meta.Digest).To(Equal(digest))
+				desc, err := remote.Get(digestRef, c.options...)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(meta.Digest).To(Equal(desc.Digest.String()))
 			}
 		})
 	}

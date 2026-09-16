@@ -22,10 +22,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/random"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	. "github.com/onsi/gomega"
 )
 
@@ -49,7 +50,9 @@ func TestDelete(t *testing.T) {
 		img, err := random.Image(1024, 1)
 		g.Expect(err).ToNot(HaveOccurred())
 		img = mutate.Annotations(img, m.ToAnnotations()).(gcrv1.Image)
-		err = crane.Push(img, dst, c.options...)
+		ref, err := name.ParseReference(dst)
+		g.Expect(err).ToNot(HaveOccurred())
+		err = remote.Write(ref, img, c.options...)
 		g.Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -83,7 +86,9 @@ func TestDelete(t *testing.T) {
 			g.Expect(err).To(BeNil())
 
 			for _, tag := range tt.checkTags {
-				_, err = crane.Pull(fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag))
+				ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", dockerReg, repo, tag))
+				g.Expect(err).ToNot(HaveOccurred())
+				_, err = remote.Get(ref)
 				g.Expect(err).ToNot(BeNil())
 				g.Expect(err.Error()).To(ContainSubstring("manifest unknown"))
 			}
