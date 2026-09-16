@@ -325,3 +325,48 @@ func TestHashedHostkeyCheck(t *testing.T) {
 		t.Errorf("got error %v, want %v", got, want)
 	}
 }
+
+func TestHostKeyAlgorithmsScopedToHost(t *testing.T) {
+	// A single known_hosts blob covering two hosts, each with a different
+	// set of key types. Only the key types held for the requested host may
+	// be advertised, or the server picks one that check rejects.
+	blob := []byte("github.com " + ecKeyStr + "\n" +
+		"gitlab.example.com " + edKeyStr + "\n" +
+		"gitlab.example.com " + ecKeyStr + "\n")
+
+	for _, tt := range []struct {
+		host string
+		want []string
+	}{
+		{host: "github.com", want: []string{"ecdsa-sha2-nistp256"}},
+		{host: "github.com:22", want: []string{"ecdsa-sha2-nistp256"}},
+		{host: "gitlab.example.com", want: []string{"ecdsa-sha2-nistp256", "ssh-ed25519"}},
+		{host: "unknown.example.com", want: nil},
+		{host: "github.com:2222", want: nil},
+	} {
+		// Repeated to catch a non-deterministic order: the previous
+		// implementation ranged over a map.
+		for i := 0; i < 20; i++ {
+			_, got, err := New(blob, tt.host)
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("host %s: got %v, want %v", tt.host, got, tt.want)
+			}
+		}
+	}
+}
+
+func TestHostKeyAlgorithmsIgnoresCertAuthority(t *testing.T) {
+	blob := []byte("@cert-authority github.com " + edKeyStr + "\n" +
+		"github.com " + ecKeyStr + "\n")
+
+	_, got, err := New(blob, "github.com")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if want := []string{"ecdsa-sha2-nistp256"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
