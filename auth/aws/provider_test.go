@@ -604,6 +604,125 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	g.Expect(o.STSRegion).To(Equal("us-west-2"))
 }
 
+func TestParseCodeCommitURL(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		rawURL     string
+		wantHost   string
+		wantRegion string
+		wantRepo   string
+		wantErr    string
+	}{
+		// --- positive cases ---
+		{
+			name:       "standard URL us-east-1",
+			rawURL:     "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/my-repo",
+			wantHost:   "https://git-codecommit.us-east-1.amazonaws.com",
+			wantRegion: "us-east-1",
+			wantRepo:   "my-repo",
+		},
+		{
+			name:       "standard URL eu-west-1",
+			rawURL:     "https://git-codecommit.eu-west-1.amazonaws.com/v1/repos/flux-repo",
+			wantHost:   "https://git-codecommit.eu-west-1.amazonaws.com",
+			wantRegion: "eu-west-1",
+			wantRepo:   "flux-repo",
+		},
+		{
+			name:       "FIPS URL us-west-2",
+			rawURL:     "https://git-codecommit-fips.us-west-2.amazonaws.com/v1/repos/secure-repo",
+			wantHost:   "https://git-codecommit-fips.us-west-2.amazonaws.com",
+			wantRegion: "us-west-2",
+			wantRepo:   "secure-repo",
+		},
+		{
+			name:       "China partition URL",
+			rawURL:     "https://git-codecommit.cn-north-1.amazonaws.com.cn/v1/repos/china-repo",
+			wantHost:   "https://git-codecommit.cn-north-1.amazonaws.com.cn",
+			wantRegion: "cn-north-1",
+			wantRepo:   "china-repo",
+		},
+		{
+			name:       "repo name with hyphens",
+			rawURL:     "https://git-codecommit.ap-southeast-1.amazonaws.com/v1/repos/my-great-repo-123",
+			wantHost:   "https://git-codecommit.ap-southeast-1.amazonaws.com",
+			wantRegion: "ap-southeast-1",
+			wantRepo:   "my-great-repo-123",
+		},
+		// --- negative cases: scheme ---
+		{
+			name:    "HTTP scheme rejected",
+			rawURL:  "http://git-codecommit.us-east-1.amazonaws.com/v1/repos/r",
+			wantErr: "AWS CodeCommit authentication requires an HTTPS Git URL",
+		},
+		{
+			name:    "SSH scheme rejected",
+			rawURL:  "ssh://git-codecommit.us-east-1.amazonaws.com/v1/repos/r",
+			wantErr: "AWS CodeCommit authentication requires an HTTPS Git URL",
+		},
+		{
+			name:    "empty string rejected (no scheme)",
+			rawURL:  "",
+			wantErr: "AWS CodeCommit authentication requires an HTTPS Git URL",
+		},
+		// --- negative cases: host ---
+		{
+			name:    "non-CodeCommit host",
+			rawURL:  "https://github.com/org/repo",
+			wantErr: "invalid AWS CodeCommit Git URL: github.com",
+		},
+		{
+			name:    "codecommit-like but wrong suffix",
+			rawURL:  "https://git-codecommit.us-east-1.example.com/v1/repos/r",
+			wantErr: "invalid AWS CodeCommit Git URL: git-codecommit.us-east-1.example.com",
+		},
+		// --- negative cases: path ---
+		{
+			name:    "missing v1/repos prefix",
+			rawURL:  "https://git-codecommit.us-east-1.amazonaws.com/repos/my-repo",
+			wantErr: `invalid CodeCommit URL "https://git-codecommit.us-east-1.amazonaws.com/repos/my-repo": path must be /v1/repos/{repository}`,
+		},
+		{
+			name:    "empty repository name",
+			rawURL:  "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/",
+			wantErr: `invalid CodeCommit URL "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/": path must be /v1/repos/{repository}`,
+		},
+		{
+			name:    "path has no repo segment",
+			rawURL:  "https://git-codecommit.us-east-1.amazonaws.com/v1/repos",
+			wantErr: `invalid CodeCommit URL "https://git-codecommit.us-east-1.amazonaws.com/v1/repos": path must be /v1/repos/{repository}`,
+		},
+		{
+			name:    "extra path segments",
+			rawURL:  "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/r/extra",
+			wantErr: `invalid CodeCommit URL "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/r/extra": path must be /v1/repos/{repository}`,
+		},
+		// --- edge cases ---
+		{
+			name:    "unparseable URL",
+			rawURL:  "://not a url",
+			wantErr: `invalid CodeCommit URL "://not a url":`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			host, region, repo, err := aws.ParseCodeCommitURL(tt.rawURL)
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(host).To(BeEmpty())
+				g.Expect(region).To(BeEmpty())
+				g.Expect(repo).To(BeEmpty())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(host).To(Equal(tt.wantHost))
+				g.Expect(region).To(Equal(tt.wantRegion))
+				g.Expect(repo).To(Equal(tt.wantRepo))
+			}
+		})
+	}
+}
+
 func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
