@@ -597,15 +597,41 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			},
 		},
 		{
-			name:       "empty app ID",
+			name:       "github app secret with client ID instead of app ID",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "",
+			privateKey: githubAppPrivateKey,
+			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppClientID("Iv23liACLIENTID12345"),
+				secrets.WithGitHubAppInstallationID("7891011"),
+			},
+			expectedData: map[string][]byte{
+				secrets.KeyGitHubAppClientID:       []byte("Iv23liACLIENTID12345"),
+				secrets.KeyGitHubAppInstallationID: []byte("7891011"),
+				secrets.KeyGitHubAppPrivateKey:     []byte(githubAppPrivateKey),
+			},
+		},
+		{
+			name:       "neither app ID nor client ID provided",
+			secretName: "github-app-secret",
+			namespace:  testNS,
 			privateKey: githubAppPrivateKey,
 			opts: []secrets.GitHubAppOption{
 				secrets.WithGitHubAppInstallationID("7891011"),
 			},
-			errMsg: "githubAppID is required",
+			errMsg: "exactly one of githubAppID or githubAppClientID must be provided",
+		},
+		{
+			name:       "both app ID and client ID provided",
+			secretName: "github-app-secret",
+			namespace:  testNS,
+			appID:      "123456",
+			privateKey: githubAppPrivateKey,
+			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppClientID("Iv23liACLIENTID12345"),
+				secrets.WithGitHubAppInstallationID("7891011"),
+			},
+			errMsg: "exactly one of githubAppID or githubAppClientID must be provided",
 		},
 		{
 			name:       "empty private key",
