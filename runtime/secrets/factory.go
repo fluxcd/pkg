@@ -238,29 +238,46 @@ func WithGitHubAppBaseURL(baseURL string) GitHubAppOption {
 	}
 }
 
+// WithGitHubAppID sets the app ID for the GitHub App secret.
+func WithGitHubAppID(appID string) GitHubAppOption {
+	return func(data map[string]string) {
+		data[KeyGitHubAppID] = appID
+	}
+}
+
+// WithGitHubAppClientID sets the client ID for the GitHub App secret.
+func WithGitHubAppClientID(clientID string) GitHubAppOption {
+	return func(data map[string]string) {
+		data[KeyGitHubAppClientID] = clientID
+	}
+}
+
 // MakeGitHubAppSecret creates a Kubernetes secret for GitHub App authentication.
 //
-// The function requires appID and privateKey to be non-empty.
+// The function requires privateKey to be non-empty, and exactly one of the appID or clientID.
 // Exactly one of installationOwner or installationID must be provided.
 // Optional baseURL can be provided for GitHub Enterprise Server instances.
 // The resulting secret will be of type Opaque.
-func MakeGitHubAppSecret(name, namespace, appID, privateKey string,
+func MakeGitHubAppSecret(name, namespace, privateKey string,
 	opts ...GitHubAppOption) (*corev1.Secret, error) {
 
-	if err := validateRequired(appID, KeyGitHubAppID); err != nil {
-		return nil, err
-	}
 	if err := validateRequired(privateKey, KeyGitHubAppPrivateKey); err != nil {
 		return nil, err
 	}
 
 	data := map[string]string{
-		KeyGitHubAppID:         appID,
 		KeyGitHubAppPrivateKey: privateKey,
 	}
 
 	for _, opt := range opts {
 		opt(data)
+	}
+
+	_, hasAppID := data[KeyGitHubAppID]
+	_, hasClientID := data[KeyGitHubAppClientID]
+	if hasAppID == hasClientID {
+		return nil, fmt.Errorf("exactly one of %s or %s must be provided",
+			KeyGitHubAppID, KeyGitHubAppClientID)
 	}
 
 	_, hasInstallationOwner := data[KeyGitHubAppInstallationOwner]

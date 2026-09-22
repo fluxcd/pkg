@@ -526,7 +526,6 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 		name         string
 		secretName   string
 		namespace    string
-		appID        string
 		privateKey   string
 		opts         []secrets.GitHubAppOption
 		expectedData map[string][]byte
@@ -536,9 +535,9 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			name:       "github app secret with installation ID and base URL",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "123456",
 			privateKey: githubAppPrivateKey,
 			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppID("123456"),
 				secrets.WithGitHubAppInstallationID("7891011"),
 				secrets.WithGitHubAppBaseURL("https://github.enterprise.com"),
 			},
@@ -553,9 +552,9 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			name:       "github app secret with installation ID without base URL",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "123456",
 			privateKey: githubAppPrivateKey,
 			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppID("123456"),
 				secrets.WithGitHubAppInstallationID("7891011"),
 			},
 			expectedData: map[string][]byte{
@@ -568,9 +567,9 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			name:       "github app secret with installation owner",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "123456",
 			privateKey: githubAppPrivateKey,
 			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppID("123456"),
 				secrets.WithGitHubAppInstallationOwner("my-org"),
 			},
 			expectedData: map[string][]byte{
@@ -583,9 +582,9 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			name:       "github app secret with installation owner and base URL",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "123456",
 			privateKey: githubAppPrivateKey,
 			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppID("123456"),
 				secrets.WithGitHubAppInstallationOwner("my-org"),
 				secrets.WithGitHubAppBaseURL("https://github.enterprise.com"),
 			},
@@ -597,23 +596,49 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			},
 		},
 		{
-			name:       "empty app ID",
+			name:       "github app secret with client ID instead of app ID",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "",
+			privateKey: githubAppPrivateKey,
+			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppClientID("Iv23liACLIENTID12345"),
+				secrets.WithGitHubAppInstallationID("7891011"),
+			},
+			expectedData: map[string][]byte{
+				secrets.KeyGitHubAppClientID:       []byte("Iv23liACLIENTID12345"),
+				secrets.KeyGitHubAppInstallationID: []byte("7891011"),
+				secrets.KeyGitHubAppPrivateKey:     []byte(githubAppPrivateKey),
+			},
+		},
+		{
+			name:       "neither app ID nor client ID provided",
+			secretName: "github-app-secret",
+			namespace:  testNS,
 			privateKey: githubAppPrivateKey,
 			opts: []secrets.GitHubAppOption{
 				secrets.WithGitHubAppInstallationID("7891011"),
 			},
-			errMsg: "githubAppID is required",
+			errMsg: "exactly one of githubAppID or githubAppClientID must be provided",
+		},
+		{
+			name:       "both app ID and client ID provided",
+			secretName: "github-app-secret",
+			namespace:  testNS,
+			privateKey: githubAppPrivateKey,
+			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppID("123456"),
+				secrets.WithGitHubAppClientID("Iv23liACLIENTID12345"),
+				secrets.WithGitHubAppInstallationID("7891011"),
+			},
+			errMsg: "exactly one of githubAppID or githubAppClientID must be provided",
 		},
 		{
 			name:       "empty private key",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "123456",
 			privateKey: "",
 			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppID("123456"),
 				secrets.WithGitHubAppInstallationID("7891011"),
 			},
 			errMsg: "githubAppPrivateKey is required",
@@ -622,18 +647,19 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			name:       "neither installation owner nor installation ID provided",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "123456",
 			privateKey: githubAppPrivateKey,
-			opts:       []secrets.GitHubAppOption{},
-			errMsg:     "exactly one of githubAppInstallationOwner or githubAppInstallationID must be provided",
+			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppID("123456"),
+			},
+			errMsg: "exactly one of githubAppInstallationOwner or githubAppInstallationID must be provided",
 		},
 		{
 			name:       "both installation owner and installation ID provided",
 			secretName: "github-app-secret",
 			namespace:  testNS,
-			appID:      "123456",
 			privateKey: githubAppPrivateKey,
 			opts: []secrets.GitHubAppOption{
+				secrets.WithGitHubAppID("123456"),
 				secrets.WithGitHubAppInstallationOwner("my-org"),
 				secrets.WithGitHubAppInstallationID("7891011"),
 			},
@@ -646,7 +672,7 @@ func TestMakeGitHubAppSecret(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
 
-			secret, err := secrets.MakeGitHubAppSecret(tt.secretName, tt.namespace, tt.appID, tt.privateKey, tt.opts...)
+			secret, err := secrets.MakeGitHubAppSecret(tt.secretName, tt.namespace, tt.privateKey, tt.opts...)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))

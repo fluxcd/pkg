@@ -38,6 +38,7 @@ import (
 
 const (
 	KeyAppID                = "githubAppID"
+	KeyAppClientID          = "githubAppClientID"
 	KeyAppInstallationOwner = "githubAppInstallationOwner"
 	KeyAppInstallationID    = "githubAppInstallationID"
 	KeyAppPrivateKey        = "githubAppPrivateKey"
@@ -49,6 +50,7 @@ const (
 // Client is an authentication provider for GitHub Apps.
 type Client struct {
 	appID             int64
+	clientID          string
 	installationOwner string
 	installationID    int64
 	privateKey        []byte
@@ -91,8 +93,12 @@ func New(opts ...OptFunc) (*Client, error) {
 		transport.Proxy = proxyFunc
 	}
 
-	if p.appID == 0 {
-		return nil, fmt.Errorf("app ID must be provided to use github app authentication")
+	if p.appID == 0 && p.clientID == "" {
+		return nil, fmt.Errorf("app ID or client ID must be provided to use github app authentication")
+	}
+
+	if p.appID != 0 && p.clientID != "" {
+		return nil, fmt.Errorf("only one of app ID or client ID must be provided to use github app authentication")
 	}
 
 	if p.installationOwner == "" && p.installationID == 0 {
@@ -131,6 +137,9 @@ func WithAppData(appData map[string][]byte) OptFunc {
 	return func(p *Client) {
 		if val, ok := appData[KeyAppID]; ok {
 			p.appID, _ = strconv.ParseInt(string(val), 10, 64)
+		}
+		if val, ok := appData[KeyAppClientID]; ok {
+			p.clientID = string(val)
 		}
 		if val, ok := appData[KeyAppInstallationOwner]; ok {
 			p.installationOwner = string(val)
@@ -219,10 +228,14 @@ func (p *Client) createJWT() (string, error) {
 	now := time.Now().Truncate(time.Second)
 	iat := now.Add(-30 * time.Second) // Clock drift allowance
 	exp := iat.Add(2 * time.Minute)   // Short-lived JWT (only used to get installation token)
+	issuer := p.clientID
+	if issuer == "" {
+		issuer = strconv.FormatInt(p.appID, 10)
+	}
 	claims := jwt.RegisteredClaims{
 		IssuedAt:  jwt.NewNumericDate(iat),
 		ExpiresAt: jwt.NewNumericDate(exp),
-		Issuer:    strconv.FormatInt(p.appID, 10),
+		Issuer:    issuer,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -411,6 +424,7 @@ func GetCredentials(ctx context.Context, opts ...OptFunc) (string, string, error
 func (p *Client) buildCacheKey() string {
 	keyParts := []string{
 		fmt.Sprintf("%s=%d", KeyAppID, p.appID),
+		fmt.Sprintf("%s=%s", KeyAppClientID, p.clientID),
 		fmt.Sprintf("%s=%s", KeyAppInstallationOwner, p.installationOwner),
 		fmt.Sprintf("%s=%d", KeyAppInstallationID, p.installationID),
 		fmt.Sprintf("%s=%s", KeyAppBaseURL, p.apiURL),
