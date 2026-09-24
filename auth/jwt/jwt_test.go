@@ -114,7 +114,7 @@ func TestSigningKey_Issue(t *testing.T) {
 				t.Fatalf("ParseJWK: %v", err)
 			}
 
-			signed, err := key.Issue("https://issuer", "my-subject", "my-audience", 10*time.Second)
+			signed, err := key.Issue("https://issuer", "my-subject", []string{"my-audience"}, 10*time.Second)
 			if err != nil {
 				t.Fatalf("Issue: %v", err)
 			}
@@ -162,6 +162,31 @@ func TestSigningKey_Issue(t *testing.T) {
 	}
 }
 
+func TestSigningKey_Issue_MultipleAudiences(t *testing.T) {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := jwt.ParseJWK(marshalJWK(t, jose.JSONWebKey{Key: priv, KeyID: "k"}))
+	if err != nil {
+		t.Fatalf("ParseJWK: %v", err)
+	}
+
+	signed, err := key.Issue("iss", "sub", []string{"aud-a", "aud-b"}, time.Minute)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+
+	claims := gojwt.MapClaims{}
+	if _, _, err := gojwt.NewParser().ParseUnverified(signed, claims); err != nil {
+		t.Fatalf("ParseUnverified: %v", err)
+	}
+	// RFC 7519: several audiences are carried as a JSON array.
+	if raw, ok := claims["aud"].([]any); !ok || len(raw) != 2 || raw[0] != "aud-a" || raw[1] != "aud-b" {
+		t.Errorf("aud = %v, want [aud-a aud-b]", claims["aud"])
+	}
+}
+
 func TestSigningKey_Issue_FreshJTIPerCall(t *testing.T) {
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -175,7 +200,7 @@ func TestSigningKey_Issue_FreshJTIPerCall(t *testing.T) {
 
 	seen := make(map[string]bool)
 	for range 10 {
-		signed, err := key.Issue("iss", "sub", "aud", time.Second)
+		signed, err := key.Issue("iss", "sub", []string{"aud"}, time.Second)
 		if err != nil {
 			t.Fatalf("Issue: %v", err)
 		}
