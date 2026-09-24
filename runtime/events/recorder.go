@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
+	kuberecorder "k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -77,8 +78,25 @@ type recorder struct {
 	// Retryable HTTP client.
 	client *retryablehttp.Client
 
-	// AnnotatedEventRecorder is the Kubernetes event recorder.
-	events.AnnotatedEventRecorder
+	// kube is the Kubernetes Event backend, resolved by NewRecorder after the
+	// options have been applied.
+	//
+	// It defaults to a coreV1Sink, which wraps the legacy core/v1 recorder
+	// (k8s.io/client-go/tools/record).
+	//
+	// The events.k8s.io/v1 backend (eventsV1Sink) is available as an explicit
+	// opt-in via WithEventsAPI(EventsAPIEventsV1). See kubeSink for the
+	// trade-offs.
+	kube kubeSink
+
+	// mgr is the controller-runtime manager the Kubernetes Event backend is
+	// built from, when configured via WithManager. It is nil when a recorder
+	// is injected directly (WithEventRecorder / WithLegacyEventRecorder).
+	mgr ctrl.Manager
+
+	// eventsAPI records the Kubernetes Events API the caller selected via
+	// WithEventsAPI. The empty value means the package default.
+	eventsAPI EventsAPI
 
 	// Scheme to look up the recorded objects.
 	scheme *runtime.Scheme
@@ -87,7 +105,7 @@ type recorder struct {
 	log logr.Logger
 }
 
-var _ events.AnnotatedEventRecorder = &recorder{}
+var _ Recorder = &recorder{}
 
 // RecorderOption configures a recorder.
 type RecorderOption func(*recorder)
@@ -98,8 +116,13 @@ type RecorderOption func(*recorder)
 // external recorder.
 //
 // The scheme and Kubernetes event recorder can be provided either via
-// WithManager (common case) or via WithScheme and WithEventRecorder
-// (for tests or custom setups).
+// WithManager (common case) or via WithScheme together with WithEventRecorder
+// or WithLegacyEventRecorder (for tests or custom setups).
+//
+// By default the Kubernetes Event backend is the legacy core/v1 recorder,
+// which preserves the full event message. To use the events.k8s.io/v1 backend
+// instead, pass WithEventsAPI(EventsAPIEventsV1), noting the 1024-byte note
+// limit documented on kubeSink.
 func NewRecorder(log logr.Logger, webhook, reportingController string, opts ...RecorderOption) (Recorder, error) {
 	if webhook != "" {
 		if _, err := url.Parse(webhook); err != nil {
@@ -121,34 +144,111 @@ func NewRecorder(log logr.Logger, webhook, reportingController string, opts ...R
 	for _, o := range opts {
 		o(r)
 	}
+	if err := r.resolveKubeSink(); err != nil {
+		return nil, err
+	}
 	return r, nil
 }
 
-// WithManager configures the recorder with the scheme and event recorder
-// from the given controller-runtime manager. The Kubernetes event recorder
-// reports under the reportingController passed to NewRecorder.
+// resolveKubeSink builds the Kubernetes Event backend once, after all options
+// have been applied. It reconciles the backend selected via WithEventsAPI with
+// any recorder injected via WithEventRecorder / WithLegacyEventRecorder and,
+// when a manager is configured, constructs the matching sink.
+func (r *recorder) resolveKubeSink() error {
+	api := r.eventsAPI
+	if api == "" {
+		api = defaultEventsAPI
+	}
+
+	switch {
+	case r.kube != nil:
+		// Injected via WithEventRecorder / WithLegacyEventRecorder. A caller
+		// may not both inject a recorder and select a conflicting API.
+		if r.eventsAPI != "" && r.eventsAPI != r.kube.api() {
+			return fmt.Errorf("events API %q conflicts with injected %q recorder", r.eventsAPI, r.kube.api())
+		}
+	case r.mgr != nil:
+		switch api {
+		case EventsAPICoreV1:
+			r.kube = &coreV1Sink{recorder: r.mgr.GetEventRecorderFor(r.reportingController)}
+		case EventsAPIEventsV1:
+			r.kube = &eventsV1Sink{recorder: r.mgr.GetEventRecorder(r.reportingController)}
+		default:
+			return fmt.Errorf("unsupported events API %q", api)
+		}
+	}
+	return nil
+}
+
+// WithManager configures the recorder with the scheme and Kubernetes Event
+// backend from the given controller-runtime manager. The Kubernetes event
+// recorder reports under the reportingController passed to NewRecorder.
+//
+// The backend is chosen by NewRecorder once all options are applied. By
+// default it is the legacy core/v1 recorder, which preserves the full event
+// message. Combine with WithEventsAPI to select a different backend:
+//
+//	events.WithManager(mgr)                                       // core/v1 (default)
+//	events.WithManager(mgr), events.WithEventsAPI(events.EventsAPIEventsV1) // events.k8s.io/v1
+//
+// The events.k8s.io/v1 backend records the related object and action on the
+// Event, but the apiserver rejects notes longer than 1024 bytes
+// (pkg/apis/core/validation.NoteLengthLimit) and silently drops the event
+// without surfacing an error. Use it only when event messages are known to
+// stay within the limit.
 func WithManager(mgr ctrl.Manager) RecorderOption {
 	return func(r *recorder) {
 		r.scheme = mgr.GetScheme()
-		r.AnnotatedEventRecorder = mgr.GetEventRecorder(r.reportingController)
+		r.mgr = mgr
+	}
+}
+
+// WithEventsAPI selects the Kubernetes Events API the recorder writes to.
+// The empty value means the package default (core/v1). It only records the
+// caller's choice; NewRecorder builds the backend once all options are
+// applied. Selecting an API that conflicts with a recorder injected via
+// WithEventRecorder or WithLegacyEventRecorder makes NewRecorder return an
+// error.
+func WithEventsAPI(api EventsAPI) RecorderOption {
+	return func(r *recorder) {
+		r.eventsAPI = api
 	}
 }
 
 // WithScheme configures the recorder with the given runtime scheme for
-// resolving object references. Use this together with WithEventRecorder
-// for tests or custom setups where a ctrl.Manager is not available.
+// resolving object references. Use this together with WithEventRecorder or
+// WithLegacyEventRecorder for tests or custom setups where a ctrl.Manager is
+// not available.
 func WithScheme(scheme *runtime.Scheme) RecorderOption {
 	return func(r *recorder) {
 		r.scheme = scheme
 	}
 }
 
-// WithEventRecorder configures the recorder with the given Kubernetes event
-// recorder. Use this together with WithScheme for tests or custom setups
-// where a ctrl.Manager is not available.
+// WithEventRecorder configures the recorder with the given events.k8s.io/v1
+// Kubernetes event recorder, implying EventsAPIEventsV1. Use this together
+// with WithScheme for tests or custom setups where a ctrl.Manager is not
+// available.
+//
+// The events.k8s.io/v1 recorder is subject to the apiserver's 1024-byte note
+// limit; see kubeSink for the trade-offs.
 func WithEventRecorder(er events.AnnotatedEventRecorder) RecorderOption {
 	return func(r *recorder) {
-		r.AnnotatedEventRecorder = er
+		r.kube = &eventsV1Sink{recorder: er}
+	}
+}
+
+// WithLegacyEventRecorder configures the recorder with the given legacy
+// core/v1 Kubernetes event recorder (k8s.io/client-go/tools/record), implying
+// EventsAPICoreV1. Use this together with WithScheme for tests or custom
+// setups where a ctrl.Manager is not available.
+//
+// The core/v1 recorder does not set EventTime, so recorded notes are not
+// subject to the events.k8s.io 1024-byte limit. See kubeSink for the
+// trade-offs.
+func WithLegacyEventRecorder(er kuberecorder.EventRecorder) RecorderOption {
+	return func(r *recorder) {
+		r.kube = &coreV1Sink{recorder: er}
 	}
 }
 
@@ -223,15 +323,29 @@ func (r *recorder) AnnotatedEventf(
 	// Convert the eventType to severity.
 	severity := eventTypeToSeverity(eventtype)
 
-	// Do not send trace events to notification controller,
-	// traces are persisted as Kubernetes events only as normal events.
-	if severity == eventv1.EventSeverityTrace {
-		r.AnnotatedEventRecorder.AnnotatedEventf(object, related, annotations, corev1.EventTypeNormal, reason, action, messageFmt, args...)
+	// Emit the Kubernetes Event via the configured backend. The default
+	// core/v1 backend has no related-object or action field and drops them;
+	// the events.k8s.io/v1 backend records them. Both are always preserved on
+	// the Flux event/v1 payload sent to the webhook below.
+	//
+	// A recorder configured without a Kubernetes Event backend (e.g. only
+	// WithScheme for a webhook-only setup) skips this sink rather than
+	// panicking; the webhook payload below is still sent.
+	if r.kube != nil {
+		// Do not send trace events to notification controller,
+		// traces are persisted as Kubernetes events only as normal events.
+		if severity == eventv1.EventSeverityTrace {
+			r.kube.emit(object, related, annotations, corev1.EventTypeNormal, reason, action, messageFmt, args...)
+			return
+		}
+
+		// Forward the event to the Kubernetes recorder.
+		r.kube.emit(object, related, annotations, eventtype, reason, action, messageFmt, args...)
+	} else if severity == eventv1.EventSeverityTrace {
+		// Trace events are only ever persisted as Kubernetes Events; with no
+		// Kubernetes backend there is nothing to do and they are not webhooked.
 		return
 	}
-
-	// Forward the event to the Kubernetes recorder.
-	r.AnnotatedEventRecorder.AnnotatedEventf(object, related, annotations, eventtype, reason, action, messageFmt, args...)
 
 	// If no webhook address is provided, skip posting to event recorder
 	// endpoint.

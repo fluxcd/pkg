@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	eventsv1 "k8s.io/api/events/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -35,8 +34,14 @@ import (
 // To empty the Events channel into a slice of the recorded events, use
 // GetEvents(). Not initializing Events will cause the recorder to not record
 // any messages.
+//
+// The recorded corev1.Event carries the Action and Related fields the caller
+// passed, so tests can assert on them. This is a fidelity difference from the
+// real Recorder: its core/v1 Kubernetes Event sink has no field for either and
+// drops them (they are preserved only on the Flux event/v1 webhook payload).
+// The fake keeps them so unit tests can assert what the controller emitted.
 type FakeRecorder struct {
-	Events        chan eventsv1.Event
+	Events        chan corev1.Event
 	IncludeObject bool
 }
 
@@ -52,7 +57,7 @@ var _ Recorder = &FakeRecorder{}
 //	recorder := new(FakeRecorder)
 func NewFakeRecorder(bufferSize int, includeObject bool) *FakeRecorder {
 	return &FakeRecorder{
-		Events:        make(chan eventsv1.Event, bufferSize),
+		Events:        make(chan corev1.Event, bufferSize),
 		IncludeObject: includeObject,
 	}
 }
@@ -94,7 +99,7 @@ func (f *FakeRecorder) AnnotatedEventf(obj runtime.Object, related runtime.Objec
 
 // GetEvents empties the Events channel and returns a slice of recorded events.
 // If the Events channel is nil, it returns nil.
-func (f *FakeRecorder) GetEvents() (events []eventsv1.Event) {
+func (f *FakeRecorder) GetEvents() (events []corev1.Event) {
 	if f.Events != nil {
 		for {
 			select {
@@ -112,13 +117,13 @@ func (f *FakeRecorder) GetEvents() (events []eventsv1.Event) {
 func (f *FakeRecorder) generateEvent(obj runtime.Object, related runtime.Object,
 	annotations map[string]string,
 	eventType, reason, action,
-	message string, args ...interface{}) eventsv1.Event {
-	event := eventsv1.Event{
-		Regarding: objectReference(obj, f.IncludeObject),
-		Type:      eventType,
-		Reason:    reason,
-		Action:    action,
-		Note:      fmt.Sprintf(message, args...),
+	message string, args ...interface{}) corev1.Event {
+	event := corev1.Event{
+		InvolvedObject: objectReference(obj, f.IncludeObject),
+		Type:           eventType,
+		Reason:         reason,
+		Action:         action,
+		Message:        fmt.Sprintf(message, args...),
 	}
 	if annotations != nil {
 		event.ObjectMeta.Annotations = annotations

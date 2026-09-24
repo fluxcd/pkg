@@ -19,22 +19,24 @@ package testenv
 import (
 	"context"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	eventsv1 "k8s.io/api/events/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-func TestGetEvents(t *testing.T) {
+func newEventsTestClient(objs ...client.Object) client.Client {
 	scheme := runtime.NewScheme()
-	_ = eventsv1.AddToScheme(scheme)
 	_ = corev1.AddToScheme(scheme)
+	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+}
 
-	events := []client.Object{
-		&eventsv1.Event{
+func eventFixtures() []client.Object {
+	return []client.Object{
+		&corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "event-1",
 				Namespace: "default",
@@ -42,44 +44,46 @@ func TestGetEvents(t *testing.T) {
 					"revision": "v1",
 				},
 			},
-			Regarding: corev1.ObjectReference{
+			InvolvedObject: corev1.ObjectReference{
 				Name:      "my-kustomization",
 				Namespace: "default",
 			},
 		},
-		&eventsv1.Event{
+		&corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "event-2",
 				Namespace: "default",
 			},
-			Regarding: corev1.ObjectReference{
+			InvolvedObject: corev1.ObjectReference{
 				Name:      "my-kustomization",
 				Namespace: "default",
 			},
 		},
-		&eventsv1.Event{
+		&corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "event-3",
 				Namespace: "other-ns",
 			},
-			Regarding: corev1.ObjectReference{
+			InvolvedObject: corev1.ObjectReference{
 				Name:      "my-kustomization",
 				Namespace: "other-ns",
 			},
 		},
-		&eventsv1.Event{
+		&corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "event-4",
 				Namespace: "default",
 			},
-			Regarding: corev1.ObjectReference{
+			InvolvedObject: corev1.ObjectReference{
 				Name:      "other-obj",
 				Namespace: "default",
 			},
 		},
 	}
+}
 
-	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(events...).Build()
+func TestGetEvents(t *testing.T) {
+	c := newEventsTestClient(eventFixtures()...)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -124,4 +128,27 @@ func TestGetEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWaitForEvents(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns once min matching events exist", func(t *testing.T) {
+		c := newEventsTestClient(eventFixtures()...)
+		got, err := WaitForEvents(ctx, c, "my-kustomization", "default", nil, 2, time.Second)
+		if err != nil {
+			t.Fatalf("WaitForEvents() returned unexpected error: %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("WaitForEvents() returned %d events, want 2", len(got))
+		}
+	})
+
+	t.Run("times out when events never appear", func(t *testing.T) {
+		c := newEventsTestClient(eventFixtures()...)
+		_, err := WaitForEvents(ctx, c, "nonexistent", "", nil, 1, 300*time.Millisecond)
+		if err == nil {
+			t.Fatal("WaitForEvents() expected a timeout error, got nil")
+		}
+	})
 }
