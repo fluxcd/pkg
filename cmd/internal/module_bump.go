@@ -95,9 +95,22 @@ func (m *ModuleBump) apply(ctx context.Context, targetModule string, dryRun bool
 		return false, fmt.Errorf("failed to read %s: %w", gomod, err)
 	}
 	oldContent := string(b)
-	if !m.regex.MatchString(oldContent) {
+	// Extract current version from the go.mod line and compare with the computed new version.
+	matches := m.regex.FindStringSubmatch(oldContent)
+	if len(matches) == 0 {
 		return false, nil
 	}
+	if len(matches) > 1 {
+		if currentVer, err := semver.NewVersion(matches[1]); err == nil {
+			if newVer, err := semver.NewVersion(m.newVersion); err == nil {
+				if currentVer.GreaterThan(newVer) {
+					// Use the higher version already present (e.g., a manual major bump).
+					m.newVersion = currentVer.String()
+				}
+			}
+		}
+	}
+
 	bumpString := fmt.Sprintf("github.com/fluxcd/pkg/%s v%s", m.module, m.newVersion)
 	newContent := m.regex.ReplaceAllString(oldContent, bumpString)
 	if oldContent == newContent {
