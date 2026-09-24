@@ -57,7 +57,7 @@ func TestFetchToken(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, srv.URL+"/token?api-version=2.0")
 		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
 
-		token, err := actionsoidc.FetchToken(context.Background(), "my-audience")
+		token, err := actionsoidc.FetchToken(context.Background(), []string{"my-audience"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -75,10 +75,36 @@ func TestFetchToken(t *testing.T) {
 		}
 	})
 
+	t.Run("fetches token for multiple audiences", func(t *testing.T) {
+		idToken := makeJWT(t, time.Now().Add(time.Hour))
+
+		var gotAudiences []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAudiences = r.URL.Query()["audience"]
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"value":"` + idToken + `"}`))
+		}))
+		defer srv.Close()
+
+		t.Setenv(actionsoidc.EnvRequestURL, srv.URL+"/token?api-version=2.0")
+		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+
+		token, err := actionsoidc.FetchToken(context.Background(), []string{"aud-a", "aud-b"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if token != idToken {
+			t.Errorf("token = %q, want %q", token, idToken)
+		}
+		if len(gotAudiences) != 2 || gotAudiences[0] != "aud-a" || gotAudiences[1] != "aud-b" {
+			t.Errorf("audience query = %v, want [aud-a aud-b]", gotAudiences)
+		}
+	})
+
 	t.Run("errors when env vars are unset", func(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, "")
 		t.Setenv(actionsoidc.EnvRequestToken, "")
-		_, err := actionsoidc.FetchToken(context.Background(), "aud")
+		_, err := actionsoidc.FetchToken(context.Background(), []string{"aud"})
 		if err == nil || !strings.Contains(err.Error(), actionsoidc.EnvRequestURL) {
 			t.Fatalf("expected error mentioning %s, got: %v", actionsoidc.EnvRequestURL, err)
 		}
@@ -93,7 +119,7 @@ func TestFetchToken(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
 		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
 
-		_, err := actionsoidc.FetchToken(context.Background(), "aud")
+		_, err := actionsoidc.FetchToken(context.Background(), []string{"aud"})
 		if err == nil || !strings.Contains(err.Error(), "denied") {
 			t.Fatalf("expected error containing response body, got: %v", err)
 		}
@@ -107,7 +133,7 @@ func TestFetchToken(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
 		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
 
-		_, err := actionsoidc.FetchToken(context.Background(), "aud")
+		_, err := actionsoidc.FetchToken(context.Background(), []string{"aud"})
 		if err == nil || !strings.Contains(err.Error(), "did not contain a token") {
 			t.Fatalf("expected empty-token error, got: %v", err)
 		}

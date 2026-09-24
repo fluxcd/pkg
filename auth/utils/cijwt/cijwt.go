@@ -64,7 +64,7 @@ type hostJWK struct {
 	host string
 	jwk  string
 	iss  string
-	aud  string
+	auds []string
 	sub  string
 }
 
@@ -122,10 +122,10 @@ func WithHostTokenFunc(host string, fn TokenFunc) Option {
 // using a private key parsed from jwk (a single JSON Web Key holding an Ed25519
 // or ECDSA private key; the signing algorithm is derived from the key type, see
 // the jwt package). Each request gets a freshly signed, 60-second-lived token
-// carrying iss, aud, and sub as given and the signing key's id in the "kid"
-// header. Unlike WithHostAudience, the token is never cached.
-func WithHostJWK(host, jwk, iss, aud, sub string) Option {
-	return func(o *options) { o.jwks = append(o.jwks, hostJWK{host, jwk, iss, aud, sub}) }
+// carrying iss, every audience in auds, and sub as given and the signing key's
+// id in the "kid" header. Unlike WithHostAudience, the token is never cached.
+func WithHostJWK(host, jwk, iss string, auds []string, sub string) Option {
+	return func(o *options) { o.jwks = append(o.jwks, hostJWK{host, jwk, iss, auds, sub}) }
 }
 
 type cacheEntry struct {
@@ -136,10 +136,10 @@ type cacheEntry struct {
 }
 
 type jwkConfig struct {
-	key *jwt.SigningKey
-	iss string
-	aud string
-	sub string
+	key  *jwt.SigningKey
+	iss  string
+	auds []string
+	sub  string
 }
 
 // Transport is an http.RoundTripper that stamps Authorization: Bearer <jwt> on
@@ -217,7 +217,7 @@ func NewTransport(opts ...Option) (*Transport, error) {
 		if err != nil {
 			return nil, fmt.Errorf("host %q: %w", hj.host, err)
 		}
-		t.jwk[hj.host] = jwkConfig{key: key, iss: hj.iss, aud: hj.aud, sub: hj.sub}
+		t.jwk[hj.host] = jwkConfig{key: key, iss: hj.iss, auds: hj.auds, sub: hj.sub}
 	}
 
 	if len(seen) == 0 {
@@ -253,7 +253,7 @@ func (t *Transport) tokenForHost(ctx context.Context, host string) (string, bool
 	// touch the cache, so they need no locking (both maps are read-only after
 	// construction).
 	if cfg, ok := t.jwk[host]; ok {
-		token, err := cfg.key.Issue(cfg.iss, cfg.sub, cfg.aud, jwkTokenTTL)
+		token, err := cfg.key.Issue(cfg.iss, cfg.sub, cfg.auds, jwkTokenTTL)
 		if err != nil {
 			return "", false, err
 		}
