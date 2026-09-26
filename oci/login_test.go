@@ -24,7 +24,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	. "github.com/onsi/gomega"
 )
 
@@ -72,10 +73,12 @@ func Test_Login(t *testing.T) {
 				},
 			}
 
-			c.options = append(c.options, crane.WithTransport(&transportFunc))
+			c.options = append(c.options, remote.WithTransport(&transportFunc))
 
-			err = crane.Delete(fmt.Sprintf("%s/%s:%s", dockerReg, "test", "test"), c.optionsWithContext(ctx)...)
+			ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", dockerReg, "test", "test"))
 			g.Expect(err).ToNot(HaveOccurred())
+
+			_ = remote.Delete(ref, c.optionsWithContext(ctx)...)
 			g.Expect(transportFunc.request).ToNot(BeNil())
 			g.Expect(transportFunc.request.Header.Get("Authorization")).To(Equal(tt.expectedAuth))
 		})
