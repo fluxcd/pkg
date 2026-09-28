@@ -154,7 +154,7 @@ func TestNewTransport_Validation(t *testing.T) {
 			name: "duplicate across token and jwk",
 			opts: []cijwt.Option{
 				cijwt.WithHostToken("a.example", "t"),
-				cijwt.WithHostJWK("a.example", jwk, "iss", "aud", "sub"),
+				cijwt.WithHostJWK("a.example", jwk, "iss", []string{"aud"}, "sub"),
 			},
 			wantErr: `host "a.example" is configured more than once`,
 		},
@@ -169,7 +169,7 @@ func TestNewTransport_Validation(t *testing.T) {
 		{
 			name: "invalid jwk",
 			opts: []cijwt.Option{
-				cijwt.WithHostJWK("a.example", "not-json", "iss", "aud", "sub"),
+				cijwt.WithHostJWK("a.example", "not-json", "iss", []string{"aud"}, "sub"),
 			},
 			wantErr: `host "a.example": failed to parse JWK`,
 		},
@@ -178,7 +178,7 @@ func TestNewTransport_Validation(t *testing.T) {
 			opts: []cijwt.Option{
 				cijwt.WithHostToken("static.example", "t"),
 				cijwt.WithHostTokenFunc("mint.example", func(context.Context) (string, error) { return "", nil }),
-				cijwt.WithHostJWK("jwk.example", jwk, "iss", "aud", "sub"),
+				cijwt.WithHostJWK("jwk.example", jwk, "iss", []string{"aud"}, "sub"),
 			},
 		},
 	}
@@ -327,7 +327,7 @@ func TestTransport_RoutesPerHost(t *testing.T) {
 	tr := mustNewTransport(t, rec,
 		cijwt.WithHostToken("static.example", "static-token"),
 		cijwt.WithHostTokenFunc("mint.example", fn),
-		cijwt.WithHostJWK("jwk.example", jwk, "https://issuer.example", "registry", "subject"),
+		cijwt.WithHostJWK("jwk.example", jwk, "https://issuer.example", []string{"registry"}, "subject"),
 	)
 
 	get(t, tr, "static.example")
@@ -400,7 +400,7 @@ func TestTransport_JWKSignsFreshTokenPerRequest(t *testing.T) {
 	jwk, pub := makeEdDSAJWK(t, kid)
 	rec := &recordingRT{}
 	tr := mustNewTransport(t, rec,
-		cijwt.WithHostJWK("jwk.example", jwk, "https://issuer.example", "registry", "the-subject"))
+		cijwt.WithHostJWK("jwk.example", jwk, "https://issuer.example", []string{"registry"}, "the-subject"))
 
 	get(t, tr, "jwk.example")
 	get(t, tr, "jwk.example")

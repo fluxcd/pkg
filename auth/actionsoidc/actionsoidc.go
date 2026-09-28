@@ -44,12 +44,14 @@ const (
 	EnvRequestToken = "ACTIONS_ID_TOKEN_REQUEST_TOKEN"
 )
 
-// FetchToken requests an OIDC ID token for the given audience from the
-// GitHub/Forgejo Actions token endpoint. The endpoint URL and the request
+// FetchToken requests an OIDC ID token for the given audiences from the
+// GitHub/Forgejo Actions token endpoint. Each audience is sent as a repeated
+// "audience" query parameter; whether and how the endpoint folds them into the
+// token's aud claim is up to the provider. The endpoint URL and the request
 // bearer token are read from the EnvRequestURL and EnvRequestToken environment
 // variables, which Actions injects into a job that has the 'id-token: write'
 // permission.
-func FetchToken(ctx context.Context, audience string) (string, error) {
+func FetchToken(ctx context.Context, audiences []string) (string, error) {
 	requestURL := os.Getenv(EnvRequestURL)
 	requestToken := os.Getenv(EnvRequestToken)
 	if requestURL == "" || requestToken == "" {
@@ -62,7 +64,9 @@ func FetchToken(ctx context.Context, audience string) (string, error) {
 		return "", fmt.Errorf("invalid %s: %w", EnvRequestURL, err)
 	}
 	q := u.Query()
-	q.Set("audience", audience)
+	for _, audience := range audiences {
+		q.Add("audience", audience)
+	}
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)

@@ -104,9 +104,10 @@ const clockSkewLeeway = 30 * time.Second
 // Issue mints a compact-serialized JWT signed with the key, using the algorithm
 // determined by the key type. The signing key's id is set in the "kid" header
 // field. The token carries all seven registered claims (RFC 7519): iss, sub, and
-// aud as given, iat at the current time, nbf backdated by a small clock-skew
-// leeway, exp ttl after issuance, and a random jti.
-func (k *SigningKey) Issue(iss, sub, aud string, ttl time.Duration) (string, error) {
+// every audience in auds, iat at the current time, nbf backdated by a small
+// clock-skew leeway, exp ttl after issuance, and a random jti. RFC 7519 encodes
+// a single audience as a JSON string and several as a JSON array.
+func (k *SigningKey) Issue(iss, sub string, auds []string, ttl time.Duration) (string, error) {
 	jti, err := newJTI()
 	if err != nil {
 		return "", err
@@ -116,7 +117,7 @@ func (k *SigningKey) Issue(iss, sub, aud string, ttl time.Duration) (string, err
 	claims := gojwt.RegisteredClaims{
 		Issuer:    iss,
 		Subject:   sub,
-		Audience:  gojwt.ClaimStrings{aud},
+		Audience:  gojwt.ClaimStrings(auds),
 		IssuedAt:  gojwt.NewNumericDate(now),
 		NotBefore: gojwt.NewNumericDate(now.Add(-clockSkewLeeway)),
 		ExpiresAt: gojwt.NewNumericDate(now.Add(ttl)),
