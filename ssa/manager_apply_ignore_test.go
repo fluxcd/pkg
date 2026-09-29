@@ -2998,3 +2998,209 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 		}
 	}
 }
+
+// kubectlRestartedAtAnnotation is the pod template annotation written by
+// `kubectl rollout restart` to force a new ReplicaSet.
+const kubectlRestartedAtAnnotation = "kubectl.kubernetes.io/restartedAt"
+
+// JSON pointer to the pod template's 'kubectl.kubernetes.io/restartedAt' annotation, rooted at the Deployment.
+// The slash in the annotation key is escaped as ~1.
+const kubectlRestartedAtIgnorePath = "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt"
+
+// Simulates `kubectl rollout restart` by setting the
+// restartedAt annotation on the pod template with a merge patch.
+//
+// It touches only the keys it carries, leaving the existing
+// annotations and the rest of the spec alone. This mirrors
+// `kubectl rollout restart`, which sends a strategic merge patch carrying
+// nothing but this annotation.
+func kubectlRolloutRestart(ctx context.Context, t *testing.T, id, timestamp string) {
+	t.Helper()
+	restartObj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]interface{}{
+				"name":      id,
+				"namespace": id,
+			},
+			"spec": map[string]interface{}{
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"annotations": map[string]interface{}{
+							kubectlRestartedAtAnnotation: timestamp,
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := manager.client.Patch(ctx, restartObj, client.Merge,
+		client.FieldOwner("kubectl-rollout")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Returns the given pod template annotation, or the
+// empty string when it is absent.
+func podTemplateAnnotation(object *unstructured.Unstructured, key string) string {
+	value, _, _ := unstructured.NestedString(object.Object,
+		"spec", "template", "metadata", "annotations", key)
+	return value
+}
+
+// Creates a namespace and applies the fixture Deployment as Flux,
+// then claims the restartedAt annotation as kubectl-rollout.
+// It returns the desired object and the annotation value
+// that is now set in-cluster but absent from Flux's desired state.
+func restartedAtTestFixture(ctx context.Context, t *testing.T, id string,
+	opts ApplyOptions) (*unstructured.Unstructured, string) {
+	t.Helper()
+
+	createNamespace(ctx, t, id)
+
+	// Flux owns the pod template annotations map, but only the
+	// prometheus.io/scrape key inside it. It never declares restartedAt.
+	deploy := driftIgnoreTestDeployment(id)
+	entry, err := manager.Apply(ctx, deploy, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.Action != CreatedAction {
+		t.Fatalf("expected CreatedAction, got %s", entry.Action)
+	}
+
+	restartedAt := "2026-09-25T11:37:45+02:00"
+	kubectlRolloutRestart(ctx, t, id, restartedAt)
+
+	existing := deploy.DeepCopy()
+	if err := manager.client.Get(ctx, client.ObjectKeyFromObject(existing), existing); err != nil {
+		t.Fatal(err)
+	}
+	if got := podTemplateAnnotation(existing, kubectlRestartedAtAnnotation); got != restartedAt {
+		t.Fatalf("expected in-cluster annotation %q after rollout restart, got %q", restartedAt, got)
+	}
+
+	return deploy, restartedAt
+}
+
+func createNamespace(ctx context.Context, t *testing.T, id string) {
+	ns := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Namespace",
+			"metadata":   map[string]interface{}{"name": id},
+		},
+	}
+	if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Covers an ignored path that is absent from the desired manifest,
+// present in-cluster, and owned by a manager that Cleanup.FieldManagers reclaims.
+//
+// This differs from TestApply_DriftIgnoreRules_FieldManagerCleanupInteraction
+// in exactly one respect: there, the ignored path (/spec/replicas) is part of
+// Flux's desired state. Here the ignored path is not in
+// the payload at all.
+func TestApply_DriftIgnoreRules_KubectlRestartedAtReclaim(t *testing.T) {
+	timeout := 60 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("drift-restartedat")
+
+	ignoreRestartedAt := []jsondiff.IgnoreRule{
+		{
+			Paths: []string{kubectlRestartedAtIgnorePath},
+			Selector: &jsondiff.Selector{
+				Kind: "Deployment",
+			},
+		},
+	}
+
+	ignoreOpts := DefaultApplyOptions()
+	ignoreOpts.DriftIgnoreRules = ignoreRestartedAt
+
+	// Ignore rules plus the field manager reclaim, mirroring the options
+	// kustomize-controller builds in its apply method.
+	reclaimAndIgnoreOpts := DefaultApplyOptions()
+	reclaimAndIgnoreOpts.DriftIgnoreRules = ignoreRestartedAt
+	reclaimAndIgnoreOpts.Cleanup = ApplyCleanupOptions{
+		FieldManagers: []FieldManager{
+			{
+				Name:          "kubectl",
+				OperationType: metav1.ManagedFieldsOperationUpdate,
+			},
+		},
+	}
+
+	deploy, restartedAt := restartedAtTestFixture(ctx, t, id, ignoreOpts)
+
+	t.Run("dry-run retains the annotation", func(t *testing.T) {
+		// Apply snapshots the dry-run result before cleanupMetadata transfers
+		// ownership, and computeDriftedPaths compares the live object against
+		// that snapshot. At this point kubectl-rollout still owns the
+		// annotation and Flux's payload does not declare it, so server-side
+		// apply leaves it in place.
+		dryRunObject := deploy.DeepCopy()
+		if err := manager.dryRunApply(ctx, dryRunObject); err != nil {
+			t.Fatal(err)
+		}
+		if got := podTemplateAnnotation(dryRunObject, kubectlRestartedAtAnnotation); got != restartedAt {
+			t.Errorf("expected dry-run to retain annotation %q, got %q", restartedAt, got)
+		}
+	})
+
+	t.Run("ignore rule alone reports no drift", func(t *testing.T) {
+		// Control case. Without the reclaim the ignore rule works: the
+		// annotation is excluded from the comparison, nothing else changed,
+		// and no apply is issued.
+		entry, err := manager.Apply(ctx, deploy, ignoreOpts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Action != UnchangedAction {
+			t.Errorf("expected UnchangedAction, got %s", entry.Action)
+		}
+
+		existing := deploy.DeepCopy()
+		if err := manager.client.Get(ctx, client.ObjectKeyFromObject(existing), existing); err != nil {
+			t.Fatal(err)
+		}
+		if got := podTemplateAnnotation(existing, kubectlRestartedAtAnnotation); got != restartedAt {
+			t.Errorf("expected annotation %q to survive, got %q", restartedAt, got)
+		}
+	})
+
+	t.Run("reclaim overrides the ignore rule and strips the annotation", func(t *testing.T) {
+		// cleanupMetadata transfers the kubectl-rollout entry to Flux and
+		// returns true, so patched is true even though hasDriftedWithIgnore
+		// reports no drift. The object is applied, Flux now owns the
+		// annotation key, and because the payload does not declare it, the API
+		// server prunes it.
+		entry, err := manager.Apply(ctx, deploy, reclaimAndIgnoreOpts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Action != ConfiguredAction {
+			t.Errorf("expected ConfiguredAction, got %s", entry.Action)
+		}
+
+		existing := deploy.DeepCopy()
+		if err := manager.client.Get(ctx, client.ObjectKeyFromObject(existing), existing); err != nil {
+			t.Fatal(err)
+		}
+
+		if got := podTemplateAnnotation(existing, kubectlRestartedAtAnnotation); got != restartedAt {
+			t.Errorf("expected ignored annotation %q to survive the apply, got %q", restartedAt, got)
+		}
+
+		for _, mf := range existing.GetManagedFields() {
+			if mf.Manager == "kubectl-rollout" {
+				t.Errorf("expected kubectl-rollout managed fields entry to be transferred to Flux")
+			}
+		}
+	})
+}
