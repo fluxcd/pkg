@@ -110,7 +110,7 @@ func Fuzz_Eventf(f *testing.F) {
 		if err != nil {
 			return
 		}
-		eventRecorder.Eventf(&obj, nil, eventtype, reason, eventv1.ActionReconciling, obj.Name)
+		eventRecorder.Eventf(&obj, nil, eventtype, reason, testAction, obj.Name)
 
 		_ = fuzzEnv.Stop()
 	})
