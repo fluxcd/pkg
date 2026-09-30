@@ -269,6 +269,52 @@ func TestPatchHelper(t *testing.T) {
 				}, timeout).Should(BeTrue())
 			})
 
+			t.Run("should preserve the observed generation of the reconciled object", func(t *testing.T) {
+				g := NewWithT(t)
+
+				obj := obj.DeepCopy()
+
+				t.Log("Creating the object")
+				g.Expect(env.Create(ctx, obj)).To(Succeed())
+				defer func() {
+					g.Expect(env.Delete(ctx, obj)).To(Succeed())
+				}()
+				key := client.ObjectKey{Name: obj.Name, Namespace: obj.Namespace}
+
+				t.Log("Checking that the object has been created")
+				g.Eventually(func() error {
+					return env.Get(ctx, key, obj)
+				}).Should(Succeed())
+
+				t.Log("Creating a new patch helper")
+				patcher, err := NewHelper(obj, env)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				observedGeneration := obj.GetGeneration()
+
+				t.Log("Bumping the generation while the controller is reconciling")
+				latest := obj.DeepCopy()
+				latest.Spec.Value = "changed"
+				g.Expect(env.Update(ctx, latest)).To(Succeed())
+
+				t.Log("Marking Ready=True based on the reconciled generation")
+				conditions.MarkTrue(obj, meta.ReadyCondition, meta.SucceededReason, "")
+
+				t.Log("Patching the object")
+				g.Expect(patcher.Patch(ctx, obj)).To(Succeed())
+
+				t.Log("Validating the condition retains the reconciled generation")
+				g.Eventually(func() bool {
+					objAfter := obj.DeepCopy()
+					if err := env.Get(ctx, key, objAfter); err != nil {
+						return false
+					}
+					ready := conditions.Get(objAfter, meta.ReadyCondition)
+					return objAfter.GetGeneration() > observedGeneration &&
+						ready != nil && ready.ObservedGeneration == observedGeneration
+				}, timeout).Should(BeTrue())
+			})
+
 			t.Run("should recover if there is a resolvable conflict", func(t *testing.T) {
 				g := NewWithT(t)
 
