@@ -73,7 +73,7 @@ func transportAuth(opts *git.AuthOptions, fallbackToDefaultKnownHosts bool) (tra
 		var callback gossh.HostKeyCallback
 		var hkAlgos []string
 		if len(opts.KnownHosts) > 0 {
-			callback, hkAlgos, err = knownhosts.New(opts.KnownHosts)
+			callback, hkAlgos, err = knownhosts.New(opts.KnownHosts, opts.Host)
 			if err != nil {
 				return nil, err
 			}
