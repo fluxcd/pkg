@@ -88,7 +88,38 @@ type ApplyOptions struct {
 	// remove specific fields from objects before applying them.
 	// This is useful for ignoring fields that are managed by other controllers
 	// (e.g. VPA, HPA) and would otherwise cause drift.
+	//
+	// These rules are resolved AFTER the server-side dry-run, so an ignored
+	// field whose desired value would be rejected by schema or admission
+	// validation still fails the dry-run. Use DriftIgnoreRulesBeforeDryRun for
+	// the opt-in that reshapes the desired object before the dry-run.
 	DriftIgnoreRules []jsondiff.IgnoreRule `json:"driftIgnoreRules,omitempty"`
+
+	// DriftIgnoreRulesBeforeDryRun defines a list of JSON pointer ignore rules
+	// that are resolved on the desired object BEFORE the server-side dry-run,
+	// instead of after it like DriftIgnoreRules.
+	//
+	// Use this to unblock reconciliation when an ignored field's desired value
+	// would be rejected by schema or admission validation (e.g. a forbidden
+	// version downgrade), which would otherwise wedge the dry-run before the
+	// post-dry-run ignore resolution can run.
+	//
+	// Unlike DriftIgnoreRules, the matched paths are stripped from (or, when
+	// Flux is the sole owner, replaced with the in-cluster value of) the desired
+	// object before the dry-run, so the API server validates the reshaped
+	// payload. This is a deliberately narrow, opt-in list.
+	//
+	// The reshape is a purely client-side mutation of the desired object; no
+	// cluster write happens until the regular apply. Relaxing the dry-run
+	// validation boundary carries risk: the API server validates a different
+	// shape than the manifest, which can mask a genuine error on that field or
+	// break a cross-field invariant a webhook enforces. Because Apply/ApplyAll
+	// are not transactional, another controller may re-add or delete the field
+	// between the reshape and the apply. A path resolved before the dry-run is
+	// not resolved again after it; listing the same path in DriftIgnoreRules as
+	// well is redundant and has no additional effect (the post-dry-run pass sees
+	// the already-reshaped object, so it is a no-op for that path).
+	DriftIgnoreRulesBeforeDryRun []jsondiff.IgnoreRule `json:"driftIgnoreRulesBeforeDryRun,omitempty"`
 }
 
 // ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
@@ -154,6 +185,24 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 		}
 	}
 
+	// Strip or adopt ignored fields flagged for before-dry-run resolution so
+	// that an ignored field whose desired value would be rejected by schema or
+	// admission validation cannot wedge the dry-run. Unlike the post-dry-run
+	// path below, this reshapes the desired object in place before validation
+	// runs. Skipped on create (no in-cluster object to compare against).
+	//
+	// Keep this block synced with ApplyAll().
+	if existingObject.GetResourceVersion() != "" && len(opts.DriftIgnoreRulesBeforeDryRun) > 0 {
+		preCompiled, err := jsondiff.CompileIgnoreRules(opts.DriftIgnoreRulesBeforeDryRun)
+		if err != nil {
+			return nil, err
+		}
+		dr := computeDriftedPaths(existingObject, object, preCompiled, m.owner.Field)
+		if err := applyDriftResult(object, dr); err != nil {
+			return nil, err
+		}
+	}
+
 	dryRunObject := object.DeepCopy()
 	if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 		if !errors.IsNotFound(getError) && m.shouldForceApply(object, existingObject, opts, err) {
@@ -174,10 +223,21 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	}
 	patched = patched || patchedCleanupMetadata
 
-	// Compile ignore rules once for both drift detection and conditional field stripping.
-	var compiled jsondiff.CompiledIgnoreRules
+	// Compile post-dry-run ignore rules for conditional field stripping.
+	var postCompiled jsondiff.CompiledIgnoreRules
 	if existingObject.GetResourceVersion() != "" && len(opts.DriftIgnoreRules) > 0 {
-		compiled, err = jsondiff.CompileIgnoreRules(opts.DriftIgnoreRules)
+		postCompiled, err = jsondiff.CompileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Drift detection excludes both before- and after-dry-run ignored paths so
+	// that an ignored field never drives an apply on its own.
+	var driftCompiled jsondiff.CompiledIgnoreRules
+	if existingObject.GetResourceVersion() != "" &&
+		len(opts.DriftIgnoreRules)+len(opts.DriftIgnoreRulesBeforeDryRun) > 0 {
+		driftCompiled, err = jsondiff.CompileIgnoreRules(unionIgnoreRules(opts))
 		if err != nil {
 			return nil, err
 		}
@@ -186,7 +246,7 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	// Do not apply objects that have not drifted to avoid bumping the resource version.
 	// Ignored fields are excluded from the comparison so that differences in fields
 	// managed by other controllers (e.g. VPA, HPA) do not trigger unnecessary applies.
-	drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, compiled)
+	drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, driftCompiled)
 	if err != nil {
 		return nil, err
 	}
@@ -199,8 +259,8 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	// For each drifted ignored field, either strip it from the payload (when
 	// another Apply manager owns it) or adopt the in-cluster value (when Flux
 	// is the sole owner) to avoid API errors and silent value corruption.
-	if compiled != nil {
-		dr := computeDriftedPaths(existingObject, dryRunObject, compiled, m.owner.Field)
+	if postCompiled != nil {
+		dr := computeDriftedPaths(existingObject, dryRunObject, postCompiled, m.owner.Field)
 		if err := applyDriftResult(appliedObject, dr); err != nil {
 			return nil, err
 		}
@@ -230,10 +290,28 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 	driftResults := make([]driftResult, len(objects))
 
 	// Compile ignore rules once for drift detection and conditional field stripping.
-	var compiled jsondiff.CompiledIgnoreRules
+	// preCompiled and postCompiled drive before- and after-dry-run field
+	// stripping respectively; driftCompiled (their union) excludes all ignored
+	// paths from drift detection so an ignored field never drives an apply on
+	// its own.
+	var preCompiled, postCompiled, driftCompiled jsondiff.CompiledIgnoreRules
+	if len(opts.DriftIgnoreRulesBeforeDryRun) > 0 {
+		var err error
+		preCompiled, err = jsondiff.CompileIgnoreRules(opts.DriftIgnoreRulesBeforeDryRun)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if len(opts.DriftIgnoreRules) > 0 {
 		var err error
-		compiled, err = jsondiff.CompileIgnoreRules(opts.DriftIgnoreRules)
+		postCompiled, err = jsondiff.CompileIgnoreRules(opts.DriftIgnoreRules)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(opts.DriftIgnoreRules)+len(opts.DriftIgnoreRulesBeforeDryRun) > 0 {
+		var err error
+		driftCompiled, err = jsondiff.CompileIgnoreRules(unionIgnoreRules(opts))
 		if err != nil {
 			return nil, err
 		}
@@ -281,6 +359,18 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 					}
 				}
 
+				// Strip or adopt before-dry-run ignored fields on the desired
+				// object in place so the dry-run validates the reshaped payload
+				// (see Apply for the rationale and caveats). Skipped on create.
+				//
+				// Keep this block synced with Apply().
+				if preCompiled != nil && existingObject.GetResourceVersion() != "" {
+					dr := computeDriftedPaths(existingObject, object, preCompiled, m.owner.Field)
+					if err := applyDriftResult(object, dr); err != nil {
+						return err
+					}
+				}
+
 				dryRunObject := object.DeepCopy()
 				if err := m.dryRunApply(ctx, dryRunObject); err != nil {
 					// We cannot have an immutable error (and therefore shouldn't force-apply) if the resource doesn't
@@ -323,15 +413,15 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				}
 				patched = patched || patchedCleanupMetadata
 
-				drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, compiled)
+				drifted, err := m.hasDriftedWithIgnore(existingObject, dryRunObject, driftCompiled)
 				if err != nil {
 					return err
 				}
 				if patched || drifted {
 					toApply[i] = object
 					// Compute drifted paths while existingObject and dryRunObject are available.
-					if compiled != nil && existingObject.GetResourceVersion() != "" {
-						driftResults[i] = computeDriftedPaths(existingObject, dryRunObject, compiled, m.owner.Field)
+					if postCompiled != nil && existingObject.GetResourceVersion() != "" {
+						driftResults[i] = computeDriftedPaths(existingObject, dryRunObject, postCompiled, m.owner.Field)
 					}
 					if dryRunObject.GetResourceVersion() == "" {
 						changes[i] = *m.changeSetEntry(dryRunObject, CreatedAction)
@@ -592,6 +682,17 @@ func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructur
 	return false, nil
 }
 
+// unionIgnoreRules returns the concatenation of the after- and before-dry-run
+// ignore rules from opts. It is used to compile the rule set that excludes all
+// ignored paths from drift detection, so that an ignored field never drives an
+// apply on its own regardless of when it is resolved.
+func unionIgnoreRules(opts ApplyOptions) []jsondiff.IgnoreRule {
+	all := make([]jsondiff.IgnoreRule, 0, len(opts.DriftIgnoreRules)+len(opts.DriftIgnoreRulesBeforeDryRun))
+	all = append(all, opts.DriftIgnoreRules...)
+	all = append(all, opts.DriftIgnoreRulesBeforeDryRun...)
+	return all
+}
+
 // removeIgnoredFields removes the fields matched by the given pre-compiled
 // ignore rules from obj. Selectors are evaluated against matchObj so that
 // existing and dry-run copies are stripped based on the same decision.
@@ -709,6 +810,21 @@ func computeDriftedPaths(
 							action: driftStrip,
 						})
 					} else {
+						// Adopt copies the in-cluster value into the payload to
+						// preserve what is live for a Flux-sole-owned ignored
+						// field. When the field is absent in-cluster (ef ==
+						// false, existingVal == nil) there is nothing live to
+						// preserve: adopting would replace the value the user
+						// declared with null and apply it. Skip the adopt and
+						// leave the desired/manifest value in the payload,
+						// which also gives the correct create semantics on the
+						// immutable-field recreate path (no in-cluster object
+						// after the delete). This guard also corrects the same
+						// latent adopt-nil bug in the post-dry-run path, which
+						// shares this helper.
+						if !ef {
+							continue
+						}
 						result.entries = append(result.entries, driftEntry{
 							path:   path,
 							action: driftAdopt,
