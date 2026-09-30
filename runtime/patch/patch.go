@@ -321,6 +321,15 @@ func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, f
 			return false, err
 		}
 
+		// Conditions are computed from the object observed by the controller.
+		// Set stamps conditions with the generation of the object they are
+		// applied to, so use the observed generation instead of the one from
+		// the latest version. Otherwise a condition computed from an older
+		// generation is recorded as observing a newer one.
+		if gen := after.GetGeneration(); gen > 0 && gen <= latest.GetGeneration() {
+			latest.SetGeneration(gen)
+		}
+
 		// Create the condition patch before merging conditions.
 		conditionsPatch := client.MergeFromWithOptions(latest.DeepCopyObject().(conditions.Setter), client.MergeFromWithOptimisticLock{})
 
