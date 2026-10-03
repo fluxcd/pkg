@@ -532,6 +532,71 @@ func TestApply_Force(t *testing.T) {
 	})
 }
 
+func TestForceApplyDeleteOptions(t *testing.T) {
+	background := metav1.DeletePropagationBackground
+	orphan := metav1.DeletePropagationOrphan
+
+	tests := []struct {
+		name       string
+		annotation string
+		want       *metav1.DeletionPropagation
+		wantErr    string
+	}{
+		{
+			name: "no annotation uses API server default",
+		},
+		{
+			name:       "background annotation sets background policy",
+			annotation: "background",
+			want:       &background,
+		},
+		{
+			name:       "orphan annotation sets orphan policy",
+			annotation: "orphan",
+			want:       &orphan,
+		},
+		{
+			name:       "invalid annotation errors",
+			annotation: "foreground",
+			wantErr:    `unsupported propagation policy "foreground", must be background or orphan`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			object := &unstructured.Unstructured{}
+			if tt.annotation != "" {
+				object.SetAnnotations(map[string]string{
+					forceApplyPropagationPolicyAnnotation: tt.annotation,
+				})
+			}
+
+			opts, err := forceApplyDeleteOptions(object)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				if diff := cmp.Diff(tt.wantErr, err.Error()); diff != "" {
+					t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			deleteOpts := &client.DeleteOptions{}
+			for _, opt := range opts {
+				opt.ApplyToDelete(deleteOpts)
+			}
+
+			if diff := cmp.Diff(tt.want, deleteOpts.PropagationPolicy); diff != "" {
+				t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestApply_SetNativeKindsDefaults(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
