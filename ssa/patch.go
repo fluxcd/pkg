@@ -18,7 +18,6 @@ limitations under the License.
 package ssa
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 
@@ -79,6 +78,16 @@ func matchFieldManager(entry metav1.ManagedFieldsEntry, manager FieldManager) bo
 	return strings.HasPrefix(entry.Manager, manager.Name)
 }
 
+// matchesAnyFieldManager return true if the given ManagedFieldsEntry matches any specified FieldManager.
+func matchesAnyFieldManager(entry metav1.ManagedFieldsEntry, managers []FieldManager) bool {
+	for _, m := range managers {
+		if matchFieldManager(entry, m) {
+			return true
+		}
+	}
+	return false
+}
+
 // PatchRemoveFieldsManagers returns a JSONPatch array for removing managers with matching name or prefix.
 func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []FieldManager) []JSONPatch {
 	objEntries := object.GetManagedFields()
@@ -109,65 +118,45 @@ func PatchRemoveFieldsManagers(object *unstructured.Unstructured, managers []Fie
 	return append(patches, NewPatchReplace(managedFieldsPath, entries))
 }
 
-// PatchReplaceFieldsManagers returns a JSONPatch array for replacing the managers with matching
+// PatchReplaceFieldsManagers returns a JSONPatch array that replaces the managers with matching
 // name and operation type with the specified manager name and an apply operation.
 func PatchReplaceFieldsManagers(object *unstructured.Unstructured, managers []FieldManager, name string) ([]JSONPatch, error) {
 	objEntries := object.GetManagedFields()
 
-	var prevManagedFields metav1.ManagedFieldsEntry
-	empty := metav1.ManagedFieldsEntry{}
-
-	// save the previous manager fields
-	for _, entry := range objEntries {
-		if entry.Manager == name && entry.Operation == metav1.ManagedFieldsOperationApply {
-			prevManagedFields = entry
+	var (
+		keptEntries []metav1.ManagedFieldsEntry
+		fields      []*metav1.FieldsV1
+		matched     bool
+	)
+	for _, e := range objEntries {
+		switch {
+		case e.Manager == name && e.Operation == metav1.ManagedFieldsOperationApply:
+			// existing apply entry: merged into the new one
+			fields = append(fields, e.FieldsV1)
+		case matchesAnyFieldManager(e, managers):
+			fields = append(fields, e.FieldsV1)
+			matched = true
+		default:
+			keptEntries = append(keptEntries, e)
 		}
 	}
-
-	var patches []JSONPatch
-	entries := make([]metav1.ManagedFieldsEntry, 0, len(objEntries))
-	edited := false
-
-each_entry:
-	for _, entry := range objEntries {
-		// no need to append entry for previous managedField
-		// since it will be merged with other managedFields and
-		// appended at the end.
-		if entry == prevManagedFields {
-			continue
-		}
-
-		for _, manager := range managers {
-			if matchFieldManager(entry, manager) {
-
-				// if no previous managedField was found,
-				// rename the first match.
-				if prevManagedFields == empty {
-					entry.Manager = name
-					entry.Operation = metav1.ManagedFieldsOperationApply
-					prevManagedFields = entry
-					edited = true
-					continue each_entry
-				}
-
-				mergedField, err := mergeManagedFieldsV1(prevManagedFields.FieldsV1, entry.FieldsV1)
-				if err != nil {
-					return nil, fmt.Errorf("unable to merge managed fields: '%w'", err)
-				}
-				prevManagedFields.FieldsV1 = mergedField
-				edited = true
-				continue each_entry
-			}
-		}
-		entries = append(entries, entry)
-	}
-
-	if !edited {
+	if !matched {
 		return nil, nil
 	}
 
-	entries = append(entries, prevManagedFields)
-	return append(patches, NewPatchReplace(managedFieldsPath, entries)), nil
+	mergedFields, err := mergeManagedFieldsV1(fields...)
+	if err != nil {
+		return nil, fmt.Errorf("unable to merge managed fields: %w", err)
+	}
+
+	newEntry := metav1.ManagedFieldsEntry{
+		Manager:    name,
+		Operation:  metav1.ManagedFieldsOperationApply,
+		APIVersion: object.GetAPIVersion(),
+		FieldsType: "FieldsV1",
+		FieldsV1:   mergedFields,
+	}
+	return []JSONPatch{NewPatchReplace(managedFieldsPath, append(keptEntries, newEntry))}, nil
 }
 
 // PatchMigrateToVersion returns a JSONPatch array that rewrites every
@@ -210,35 +199,35 @@ func PatchMigrateToVersion(object *unstructured.Unstructured, apiVersion string)
 	return []JSONPatch{NewPatchReplace(managedFieldsPath, entries)}, nil
 }
 
-func mergeManagedFieldsV1(prevField *metav1.FieldsV1, newField *metav1.FieldsV1) (*metav1.FieldsV1, error) {
-	if prevField == nil && newField == nil {
+// mergeManagedFieldsV1 returns the union of all non-nil field sets, or nil if there are none.
+func mergeManagedFieldsV1(fields ...*metav1.FieldsV1) (*metav1.FieldsV1, error) {
+	var presentFields []*metav1.FieldsV1
+	for _, f := range fields {
+		if f != nil {
+			presentFields = append(presentFields, f)
+		}
+	}
+
+	switch len(presentFields) {
+	case 0:
 		return nil, nil
+	case 1:
+		return presentFields[0], nil // nothing to merge, avoid a pointless JSON round trip
 	}
 
-	if prevField == nil {
-		return newField, nil
+	unionSet := &fieldpath.Set{}
+	for _, f := range presentFields {
+		set, err := FieldsToSet(*f)
+		if err != nil {
+			return nil, err
+		}
+		unionSet = unionSet.Union(&set)
 	}
 
-	if newField == nil {
-		return prevField, nil
-	}
-
-	prevSet, err := FieldsToSet(*prevField)
-	if err != nil {
-		return nil, err
-	}
-
-	newSet, err := FieldsToSet(*newField)
-	if err != nil {
-		return nil, err
-	}
-
-	unionSet := prevSet.Union(&newSet)
 	mergedField, err := SetToFields(*unionSet)
 	if err != nil {
-		return nil, fmt.Errorf("unable to convert managed set to field: %s", err)
+		return nil, fmt.Errorf("unable to convert managed set to field: %w", err)
 	}
-
 	return &mergedField, nil
 }
 
@@ -269,17 +258,18 @@ func PatchRemoveLabels(object *unstructured.Unstructured, keys []string) []JSONP
 }
 
 // FieldsToSet and SetsToFields are copied from
-// https://github.com/kubernetes/apiserver/blob/c4c20f4f7d4ca609906621943c748bc16797a5f3/pkg/endpoints/handlers/fieldmanager/internal/fields.go
+// https://github.com/kubernetes/apimachinery/blob/85f19baf0e880559ec3e247f4f3eb4f76538d5d7/pkg/util/managedfields/internal/fields.go#L35-L46
 // since it is an internal module and can't be imported
 
 // FieldsToSet creates a set paths from an input trie of fields
 func FieldsToSet(f metav1.FieldsV1) (s fieldpath.Set, err error) {
-	err = s.FromJSON(bytes.NewReader(f.Raw))
+	err = s.FromJSON(f.GetRawReader())
 	return s, err
 }
 
 // SetToFields creates a trie of fields from an input set of paths
 func SetToFields(s fieldpath.Set) (f metav1.FieldsV1, err error) {
-	f.Raw, err = s.ToJSON()
+	raw, err := s.ToJSON()
+	f.SetRawBytes(raw)
 	return f, err
 }
