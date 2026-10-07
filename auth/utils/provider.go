@@ -19,14 +19,41 @@ package utils
 import (
 	"fmt"
 
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/auth/gcp"
 	"github.com/fluxcd/pkg/auth/generic"
+	"github.com/fluxcd/pkg/auth/kubernetes"
 )
 
-// ProviderByName looks up the implemented providers by name and type.
-func ProviderByName[T any](name string) (T, error) {
+// CredentialProviderByName looks up the implemented credential providers by name.
+func CredentialProviderByName(name string) (auth.CredentialProvider, error) {
+	switch name {
+	case kubernetes.ProviderName:
+		return kubernetes.Provider{}, nil
+	default:
+		return nil, fmt.Errorf("credential provider '%s' not implemented", name)
+	}
+}
+
+// withCredentialProvider resolves the credential provider from the credential
+// configuration in the options and appends it to the options.
+func withCredentialProvider(opts ...auth.Option) ([]auth.Option, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	if o.Credential == nil || o.CredentialProvider != nil {
+		return opts, nil
+	}
+	provider, err := CredentialProviderByName(string(o.Credential.Provider))
+	if err != nil {
+		return nil, err
+	}
+	return append(opts, auth.WithCredentialProvider(provider)), nil
+}
+
+// ServiceProviderByName looks up the implemented providers by name and type.
+func ServiceProviderByName[T any](name string) (T, error) {
 	var p any
 	var zero T
 

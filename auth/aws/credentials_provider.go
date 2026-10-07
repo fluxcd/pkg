@@ -42,13 +42,13 @@ func NewCredentialsProvider(ctx context.Context, opts ...auth.Option) aws.Creden
 // the behavior of all providers around this so the usage of this
 // library can be consistent regardless of the provider.
 func (c *credentialsProvider) Retrieve(context.Context) (aws.Credentials, error) {
-	token, err := auth.GetAccessToken(c.ctx, Provider{}, c.opts...)
+	credential, err := auth.GetCredential(c.ctx, Provider{}, c.opts...)
 	if err != nil {
 		return aws.Credentials{}, err
 	}
-	awsCreds, ok := token.(*Credentials)
+	awsCreds, ok := credential.(*Credentials)
 	if !ok {
-		return aws.Credentials{}, fmt.Errorf("failed to cast token to AWS token: %T", token)
+		return aws.Credentials{}, fmt.Errorf("failed to cast credential to AWS credentials: %T", credential)
 	}
 	return aws.Credentials{
 		AccessKeyID:     *awsCreds.AccessKeyId,

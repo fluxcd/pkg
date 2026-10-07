@@ -38,7 +38,7 @@ import (
 	"github.com/fluxcd/pkg/auth/azure"
 )
 
-func TestProvider_NewControllerToken(t *testing.T) {
+func TestProvider_NewAmbientCredential(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		shellOut bool
@@ -73,9 +73,9 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			}
 
 			provider := azure.Provider{Implementation: impl}
-			token, err := provider.NewControllerToken(context.Background(), opts...)
+			token, err := provider.NewAmbientCredential(context.Background(), opts...)
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{
+			g.Expect(token).To(Equal(&azure.AccessToken{AccessToken: azcore.AccessToken{
 				Token:     "access-token",
 				ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 			}}))
@@ -83,7 +83,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	}
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewCredentialForMaterial(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		annotations map[string]string
@@ -136,11 +136,12 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			provider := azure.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			token, err := provider.NewCredentialForMaterial(context.Background(),
+				&auth.JWT{Token: oidcToken}, append(opts, auth.WithServiceAccount(serviceAccount))...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{
+				g.Expect(token).To(Equal(&azure.AccessToken{AccessToken: azcore.AccessToken{
 					Token:     "access-token",
 					ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 				}}))
@@ -155,7 +156,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 func TestProvider_GetAudiences(t *testing.T) {
 	g := NewWithT(t)
-	aud, err := azure.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
+	aud, err := azure.Provider{}.GetJWTAudiences(context.Background(), corev1.ServiceAccount{})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(aud).To(Equal([]string{"api://AzureADTokenExchange"}))
 }
@@ -163,7 +164,7 @@ func TestProvider_GetAudiences(t *testing.T) {
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
 
-	identity, err := azure.Provider{}.GetIdentity(corev1.ServiceAccount{
+	identity, err := azure.Provider{}.GetJWTIdentity(corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				"azure.workload.identity/client-id": "client-id",
@@ -737,13 +738,13 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 
 	for _, tt := range []struct {
 		name        string
-		accessToken auth.Token
+		accessToken auth.Credential
 		expected    *auth.GitCredentials
 		err         string
 	}{
 		{
 			name: "valid Azure access token is returned as bearer token",
-			accessToken: &azure.Token{AccessToken: azcore.AccessToken{
+			accessToken: &azure.AccessToken{AccessToken: azcore.AccessToken{
 				Token:     "aad-token",
 				ExpiresOn: expiresOn,
 			}},
@@ -755,7 +756,7 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 		{
 			name:        "wrong token type is rejected",
 			accessToken: &mockNonAzureToken{},
-			err:         "failed to cast token to Azure token: *azure_test.mockNonAzureToken",
+			err:         "failed to cast credential to Azure access token: *azure_test.mockNonAzureToken",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

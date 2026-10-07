@@ -85,7 +85,7 @@ func GetRESTConfig(ctx context.Context,
 	}
 
 	// Get provider by name.
-	provider, err := ProviderByName[auth.RESTConfigProvider](cm.Data[meta.KubeConfigKeyProvider])
+	provider, err := ServiceProviderByName[auth.RESTConfigProvider](cm.Data[meta.KubeConfigKeyProvider])
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +116,11 @@ func GetRESTConfig(ctx context.Context,
 			audiences = append(audiences, aud)
 		}
 		opts = append(opts, auth.WithAudiences(audiences...))
+	}
+
+	opts, err = withCredentialProvider(opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	conf, err := auth.GetRESTConfig(ctx, provider, opts...)

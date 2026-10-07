@@ -14,19 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generic
+package gcp
 
 import (
 	"time"
+
+	"golang.org/x/oauth2"
 )
 
-// Token is the generic token.
-type Token struct {
-	Token     string
-	ExpiresAt time.Time
+// AccessToken is the GCP access token.
+type AccessToken struct{ oauth2.Token }
+
+// GetDuration implements auth.Credential.
+func (t *AccessToken) GetDuration() time.Duration {
+	return time.Until(t.Expiry)
 }
 
-// GetDuration implements auth.Token.
-func (t *Token) GetDuration() time.Duration {
-	return time.Until(t.ExpiresAt)
+func (t *AccessToken) source() oauth2.TokenSource {
+	return oauth2.StaticTokenSource(&t.Token)
 }

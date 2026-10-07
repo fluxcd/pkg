@@ -69,8 +69,8 @@ func (Provider) GetName() string {
 	return ProviderName
 }
 
-// NewControllerToken implements auth.Provider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+// NewAmbientCredential implements auth.ServiceProvider.
+func (p Provider) NewAmbientCredential(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
@@ -108,16 +108,16 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		return nil, err
 	}
 
-	return newTokenFromAWSCredentials(&creds), nil
+	return newCredentials(&creds), nil
 }
 
-// GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
+// GetJWTAudiences implements auth.Provider.
+func (Provider) GetJWTAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
 	return []string{"sts.amazonaws.com"}, nil
 }
 
-// GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+// GetJWTIdentity implements auth.Provider.
+func (Provider) GetJWTIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
 	roleARN, err := getRoleARN(serviceAccount)
 	if err != nil {
 		return "", err
@@ -125,12 +125,23 @@ func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error
 	return roleARN, nil
 }
 
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewCredentialForMaterial implements auth.ServiceProvider.
+func (p Provider) NewCredentialForMaterial(ctx context.Context, credential auth.CredentialMaterial,
+	opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
+
+	jwt, ok := credential.(*auth.JWT)
+	if !ok {
+		return nil, fmt.Errorf("unsupported credential type %T", credential)
+	}
+	oidcToken := jwt.Token
+
+	if o.ServiceAccount == nil {
+		return nil, fmt.Errorf("a ServiceAccount is required to exchange a credential")
+	}
+	serviceAccount := *o.ServiceAccount
 
 	stsRegion := o.STSRegion
 	if stsRegion == "" {
@@ -255,7 +266,7 @@ func getECRRegionFromRegistryInput(registryInput string) string {
 
 // NewArtifactRegistryCredentials implements auth.Provider.
 func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessToken auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -338,7 +349,7 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 //
 // Reference:
 // https://docs.aws.amazon.com/eks/latest/best-practices/identity-and-access-management.html#_controlling_access_to_eks_clusters
-func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
 	// The expiration for an EKS restconfig is always 15 minutes, see the reference above.
@@ -466,7 +477,7 @@ func (Provider) ParseGitRepository(gitURL *url.URL) (string, error) {
 
 // NewGitCredentials implements auth.GitCredentialsProvider.
 func (Provider) NewGitCredentials(_ context.Context, gitInput string,
-	accessToken auth.Token, _ ...auth.Option) (*auth.GitCredentials, error) {
+	accessToken auth.Credential, _ ...auth.Option) (*auth.GitCredentials, error) {
 
 	gitURL, err := url.Parse(gitInput)
 	if err != nil {
@@ -479,7 +490,7 @@ func (Provider) NewGitCredentials(_ context.Context, gitInput string,
 
 	creds, ok := accessToken.(*Credentials)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast token to AWS token: %T", accessToken)
+		return nil, fmt.Errorf("failed to cast credential to AWS credentials: %T", accessToken)
 	}
 
 	req, err := http.NewRequest("GIT", gitURL.String(), nil)

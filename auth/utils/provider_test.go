@@ -54,7 +54,7 @@ func TestProviderByName(t *testing.T) {
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				g := NewWithT(t)
-				p, err := authutils.ProviderByName[auth.Provider](tt.name)
+				p, err := authutils.ServiceProviderByName[auth.ServiceProvider](tt.name)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(p).To(Equal(tt.provider))
 			})
@@ -78,22 +78,18 @@ func TestProviderByName(t *testing.T) {
 				name:     gcp.ProviderName,
 				provider: gcp.Provider{},
 			},
+			{
+				name:     generic.ProviderName,
+				provider: generic.Provider{},
+			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				g := NewWithT(t)
-				p, err := authutils.ProviderByName[auth.ArtifactRegistryCredentialsProvider](tt.name)
+				p, err := authutils.ServiceProviderByName[auth.ArtifactRegistryCredentialsProvider](tt.name)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(p).To(Equal(tt.provider))
 			})
 		}
-
-		t.Run("generic provider", func(t *testing.T) {
-			g := NewWithT(t)
-			p, err := authutils.ProviderByName[auth.ArtifactRegistryCredentialsProvider](generic.ProviderName)
-			g.Expect(err).To(HaveOccurred())
-			g.Expect(err.Error()).To(ContainSubstring("does not implement the expected interface"))
-			g.Expect(p).To(BeNil())
-		})
 	})
 
 	t.Run("git providers", func(t *testing.T) {
@@ -112,7 +108,7 @@ func TestProviderByName(t *testing.T) {
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				g := NewWithT(t)
-				p, err := authutils.ProviderByName[auth.GitCredentialsProvider](tt.name)
+				p, err := authutils.ServiceProviderByName[auth.GitCredentialsProvider](tt.name)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(p).To(Equal(tt.provider))
 			})
@@ -121,7 +117,7 @@ func TestProviderByName(t *testing.T) {
 		for _, name := range []string{gcp.ProviderName, generic.ProviderName} {
 			t.Run(name, func(t *testing.T) {
 				g := NewWithT(t)
-				p, err := authutils.ProviderByName[auth.GitCredentialsProvider](name)
+				p, err := authutils.ServiceProviderByName[auth.GitCredentialsProvider](name)
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring("does not implement the expected interface"))
 				g.Expect(p).To(BeNil())
@@ -153,7 +149,7 @@ func TestProviderByName(t *testing.T) {
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				g := NewWithT(t)
-				p, err := authutils.ProviderByName[auth.RESTConfigProvider](tt.name)
+				p, err := authutils.ServiceProviderByName[auth.RESTConfigProvider](tt.name)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(p).To(Equal(tt.provider))
 			})
@@ -186,7 +182,7 @@ func TestProviderByName(t *testing.T) {
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				g := NewWithT(t)
-				p, err := authutils.ProviderByName[iface](tt.name)
+				p, err := authutils.ServiceProviderByName[iface](tt.name)
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring("does not implement the expected interface"))
 				g.Expect(p).To(BeNil())
@@ -195,7 +191,7 @@ func TestProviderByName(t *testing.T) {
 
 		t.Run("unknown provider", func(t *testing.T) {
 			g := NewWithT(t)
-			p, err := authutils.ProviderByName[iface]("unknown")
+			p, err := authutils.ServiceProviderByName[iface]("unknown")
 			g.Expect(err).To(HaveOccurred())
 			g.Expect(err.Error()).To(Equal("provider 'unknown' not implemented"))
 			g.Expect(p).To(BeNil())

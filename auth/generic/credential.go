@@ -14,16 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth_test
+package generic
 
 import (
 	"time"
 )
 
-type mockToken struct {
-	token string
+// Credential is the generic credential.
+type Credential struct {
+	Token     string
+	ExpiresAt time.Time
 }
 
-func (m *mockToken) GetDuration() time.Duration {
-	return time.Hour
+// GetDuration implements auth.Credential.
+func (t *Credential) GetDuration() time.Duration {
+	return time.Until(t.ExpiresAt)
 }

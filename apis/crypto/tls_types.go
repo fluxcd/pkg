@@ -24,13 +24,18 @@ const (
 	// certificates referenced by the API object.
 	TLSProviderSecret TLSProvider = "secret"
 
+	// TLSProviderKubernetes is the TLS provider that uses X.509 client
+	// certificates issued by Kubernetes for the ServiceAccount configured
+	// in the API object. It is supported only for client authentication.
+	TLSProviderKubernetes TLSProvider = "kubernetes"
+
 	// TLSProviderSPIFFE is the TLS provider that uses SPIFFE X.509-SVIDs.
 	TLSProviderSPIFFE TLSProvider = "spiffe"
 )
 
-// TrustDomainSelf is the special trust domain value that authorizes
-// any SVID in the client's own trust domain.
-const TrustDomainSelf = "self"
+// SelfSPIFFEID is the special SPIFFE ID value that authorizes any SVID in
+// our own trust domain.
+const SelfSPIFFEID = "spiffe://self"
 
 // TLS defines the TLS configuration for communicating with a remote
 // service. ClientAuth and ServerAuth are independent and may use
@@ -52,39 +57,32 @@ type TLS struct {
 // service.
 type TLSClientAuth struct {
 	// Provider is the provider of the client certificate.
-	// +kubebuilder:validation:Enum=secret;spiffe
+	// +kubebuilder:validation:Enum=secret;kubernetes;spiffe
 	// +required
 	Provider TLSProvider `json:"provider"`
 }
 
 // TLSServerAuth configures how the remote service is authenticated.
 //
-// +kubebuilder:validation:XValidation:rule="(self.provider == 'spiffe') == has(self.spiffe)",message="tls.serverAuth.spiffe must be set if and only if tls.serverAuth.provider is 'spiffe'"
+// +kubebuilder:validation:XValidation:rule="(self.provider == 'spiffe') == has(self.spiffeID)",message="tls.serverAuth.spiffeID must be set if and only if tls.serverAuth.provider is 'spiffe'"
 type TLSServerAuth struct {
 	// Provider is the provider used to authenticate the remote service.
+	// Kubernetes is not supported because Kubernetes only issues X.509
+	// client certificates.
 	// +kubebuilder:validation:Enum=secret;spiffe
 	// +required
 	Provider TLSProvider `json:"provider"`
 
-	// SPIFFE configures the authorization of the remote service's
-	// X.509-SVID.
+	// SPIFFEID authorizes the remote service's X.509-SVID. The following
+	// forms are supported:
+	// - an exact SPIFFE ID, e.g. spiffe://example.org/registry;
+	// - a SPIFFE ID prefix when it ends with a trailing slash ("/"),
+	//   e.g. spiffe://example.org/registry/;
+	// - a trust domain when the SPIFFE ID has no path, e.g.
+	//   spiffe://example.org, which authorizes any SVID in that trust
+	//   domain;
+	// - the special value 'spiffe://self', which authorizes any SVID in
+	//   our own trust domain.
 	// +optional
-	SPIFFE *TLSServerAuthSPIFFE `json:"spiffe,omitempty"`
-}
-
-// TLSServerAuthSPIFFE configures the authorization of a remote service's
-// X.509-SVID. Exactly one of ServerID or TrustDomain must be set.
-//
-// +kubebuilder:validation:XValidation:rule="has(self.serverID) != has(self.trustDomain)",message="exactly one of tls.serverAuth.spiffe.serverID or tls.serverAuth.spiffe.trustDomain must be set"
-type TLSServerAuthSPIFFE struct {
-	// ServerID authorizes an exact SPIFFE ID. When it ends with a
-	// trailing slash ("/"), it authorizes any SPIFFE ID with that prefix.
-	// +optional
-	ServerID string `json:"serverID,omitempty"`
-
-	// TrustDomain authorizes any SVID in the given trust domain. The
-	// special value 'self' authorizes any SVID in the client's own
-	// trust domain.
-	// +optional
-	TrustDomain string `json:"trustDomain,omitempty"`
+	SPIFFEID string `json:"spiffeID,omitempty"`
 }

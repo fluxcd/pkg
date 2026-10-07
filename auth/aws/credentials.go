@@ -27,7 +27,7 @@ import (
 // Credentials is the AWS token.
 type Credentials struct{ types.Credentials }
 
-func newTokenFromAWSCredentials(creds *aws.Credentials) *Credentials {
+func newCredentials(creds *aws.Credentials) *Credentials {
 	return &Credentials{types.Credentials{
 		AccessKeyId:     &creds.AccessKeyID,
 		SecretAccessKey: &creds.SecretAccessKey,
@@ -36,7 +36,7 @@ func newTokenFromAWSCredentials(creds *aws.Credentials) *Credentials {
 	}}
 }
 
-// GetDuration implements auth.Token.
+// GetDuration implements auth.Credential.
 func (c *Credentials) GetDuration() time.Duration {
 	return time.Until(*c.Expiration)
 }
