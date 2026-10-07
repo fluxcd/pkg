@@ -2998,3 +2998,316 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 		}
 	}
 }
+
+// newDriftTestConfigMap builds a ConfigMap unstructured object for
+// computeDriftedPaths tests. A nil data map omits the "data" field entirely,
+// so lookupJSONPointer reports the path as absent rather than present-but-nil.
+func newDriftTestConfigMap(data map[string]interface{}, managedFields []metav1.ManagedFieldsEntry) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      "test",
+				"namespace": "default",
+			},
+		},
+	}
+	if data != nil {
+		u.Object["data"] = data
+	}
+	if managedFields != nil {
+		u.SetManagedFields(managedFields)
+	}
+	return u
+}
+
+// compileDriftTestRule compiles a single ignore rule for the given path,
+// matching all ConfigMaps.
+func compileDriftTestRule(t *testing.T, path string) jsondiff.CompiledIgnoreRules {
+	t.Helper()
+	rules, err := jsondiff.CompileIgnoreRules([]jsondiff.IgnoreRule{
+		{
+			Paths:    []string{path},
+			Selector: &jsondiff.Selector{Kind: "ConfigMap"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to compile ignore rules: %v", err)
+	}
+	return rules
+}
+
+// rawDriftTestRule builds a CompiledIgnoreRules for the given path without the
+// pointer validation performed by CompileIgnoreRules. It is used to exercise
+// the defensive malformed-pointer guard in computeDriftedPaths, which is
+// otherwise unreachable now that CompileIgnoreRules rejects invalid pointers.
+func rawDriftTestRule(t *testing.T, path string) jsondiff.CompiledIgnoreRules {
+	t.Helper()
+	sr, err := jsondiff.NewSelectorRegex(&jsondiff.Selector{Kind: "ConfigMap"})
+	if err != nil {
+		t.Fatalf("failed to compile selector: %v", err)
+	}
+	return jsondiff.CompiledIgnoreRules{sr: []string{path}}
+}
+
+// TestComputeDriftedPaths covers every combination of ef (field exists in the
+// existing/live object) and df (field exists in the dry-run/desired object),
+// plus the malformed JSON pointer error path. Only the ef=true/df=true
+// quadrant can ever produce a drift resolution (strip or adopt); every other
+// quadrant, and the error path, must be a no-op so the ignored field follows
+// normal SSA ownership.
+func TestComputeDriftedPaths(t *testing.T) {
+	const fluxManager = "flux"
+	const otherManager = "other-controller"
+
+	tests := []struct {
+		name        string
+		existing    *unstructured.Unstructured
+		dryRun      *unstructured.Unstructured
+		path        string
+		rawPath     bool
+		wantEntries []driftEntry
+	}{
+		{
+			// ef=true, df=true, values equal: nothing has drifted, so the
+			// path must not be resolved at all.
+			name: "ef=true df=true values equal is no-op",
+			existing: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "same-val",
+			}, nil),
+			dryRun: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "same-val",
+			}, nil),
+			path:        "/data/optional",
+			wantEntries: nil,
+		},
+		{
+			// ef=true, df=true, values differ, another Apply manager owns
+			// the field: Flux must strip the field from the payload so the
+			// other manager's value is preserved.
+			name: "ef=true df=true drifted owned by other manager strips",
+			existing: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "other-owned-val",
+			}, []metav1.ManagedFieldsEntry{
+				{
+					Manager:   otherManager,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: []byte(`{"f:data":{"f:optional":{}}}`)},
+				},
+			}),
+			dryRun: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "desired-val",
+			}, nil),
+			path: "/data/optional",
+			wantEntries: []driftEntry{
+				{path: "/data/optional", action: driftStrip},
+			},
+		},
+		{
+			// ef=true, df=true, values differ, Flux is the sole owner:
+			// Flux must adopt the in-cluster value into the payload.
+			name: "ef=true df=true drifted sole owner adopts",
+			existing: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "live-val",
+			}, nil),
+			dryRun: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "desired-val",
+			}, nil),
+			path: "/data/optional",
+			wantEntries: []driftEntry{
+				{path: "/data/optional", action: driftAdopt, value: "live-val"},
+			},
+		},
+		{
+			// ef=true, df=false: the path is live but not declared by the
+			// desired state. A strip would be a no-op and an adopt would
+			// fail (replace against a missing key), so leave it untouched.
+			name: "ef=true df=false is no-op",
+			existing: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "live-val",
+			}, nil),
+			dryRun:      newDriftTestConfigMap(nil, nil),
+			path:        "/data/optional",
+			wantEntries: nil,
+		},
+		{
+			// ef=false, df=true: nothing live to adopt, and stripping would
+			// drop the value the user declared in Git. Leave it untouched so
+			// the declared value is created as-is.
+			name:     "ef=false df=true is no-op",
+			existing: newDriftTestConfigMap(nil, nil),
+			dryRun: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "desired-val",
+			}, nil),
+			path:        "/data/optional",
+			wantEntries: nil,
+		},
+		{
+			// ef=false, df=false: the field is absent on both sides, so
+			// there is trivially nothing to resolve.
+			name:        "ef=false df=false is no-op",
+			existing:    newDriftTestConfigMap(nil, nil),
+			dryRun:      newDriftTestConfigMap(nil, nil),
+			path:        "/data/optional",
+			wantEntries: nil,
+		},
+		{
+			// Malformed JSON pointer: lookupJSONPointer cannot resolve it on
+			// either side, so ef and df are both false and the path is skipped
+			// by the present-on-both-sides guard. CompileIgnoreRules rejects
+			// such pointers, so the compiled rules are built directly to
+			// exercise this defensive path.
+			name: "malformed pointer is no-op",
+			existing: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "live-val",
+			}, nil),
+			dryRun: newDriftTestConfigMap(map[string]interface{}{
+				"optional": "desired-val",
+			}, nil),
+			path:        "data/optional", // missing leading slash
+			rawPath:     true,
+			wantEntries: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var rules jsondiff.CompiledIgnoreRules
+			if tt.rawPath {
+				rules = rawDriftTestRule(t, tt.path)
+			} else {
+				rules = compileDriftTestRule(t, tt.path)
+			}
+			got := computeDriftedPaths(tt.existing, tt.dryRun, rules, fluxManager)
+			if diff := cmp.Diff(tt.wantEntries, got.entries, cmp.AllowUnexported(driftEntry{})); diff != "" {
+				t.Errorf("computeDriftedPaths() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestApply_DriftIgnoreRules_UndeclaredPathDoesNotWedgeApply is the end-to-end
+// regression for https://github.com/fluxcd/pkg/issues/1311: an ignored path
+// that is live in-cluster and owned solely by Flux, but is no longer declared
+// by the desired state (e.g. "/spec/replicas" handed to an HPA that has not yet
+// scaled), must not fail the apply.
+//
+// Before the fix, computeDriftedPaths recorded a driftAdopt for such a path and
+// applyDriftResult emitted a JSON-patch "replace" against the desired payload,
+// which does not declare the path. The replace failed with
+//
+//	replace operation does not apply: doc is missing key: /spec/replicas
+//
+// and the error never cleared: every subsequent reconcile aborted, so the
+// object never converged and pruning stopped. With the df guard the path is
+// left to normal SSA ownership and the apply succeeds.
+func TestApply_DriftIgnoreRules_UndeclaredPathDoesNotWedgeApply(t *testing.T) {
+	timeout := 30 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	id := generateName("drift-undeclared")
+	objects, err := readManifest("testdata/test2.yaml", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.SetOwnerLabels(objects, "app1", "default")
+
+	if err := normalize.UnstructuredList(objects); err != nil {
+		t.Fatal(err)
+	}
+
+	_, deployObject := getFirstObject(objects, "Deployment", id)
+
+	opts := DefaultApplyOptions()
+	opts.DriftIgnoreRules = []jsondiff.IgnoreRule{
+		{
+			Paths: []string{"/spec/replicas"},
+			Selector: &jsondiff.Selector{
+				Kind: "Deployment",
+			},
+		},
+	}
+
+	// Step 1: create the Deployment with replicas declared, so Flux becomes the
+	// sole Apply owner of spec.replicas (ignore rules are skipped on create).
+	if err := unstructured.SetNestedField(deployObject.Object, int64(2), "spec", "replicas"); err != nil {
+		t.Fatal(err)
+	}
+	changeSet, err := manager.ApplyAllStaged(ctx, objects, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range changeSet.Entries {
+		if entry.Action != CreatedAction {
+			t.Fatalf("expected CreatedAction on first apply, got %s", entry.Action)
+		}
+	}
+
+	// Confirm the precondition: replicas is live in-cluster and solely owned by
+	// Flux (no other Apply manager owns it), which forces the adopt branch.
+	existing := deployObject.DeepCopy()
+	if err := manager.client.Get(ctx, client.ObjectKeyFromObject(existing), existing); err != nil {
+		t.Fatal(err)
+	}
+	if replicas, found, _ := unstructured.NestedInt64(existing.Object, "spec", "replicas"); !found || replicas != 2 {
+		t.Fatalf("expected spec.replicas=2 in-cluster after create, got %d (found=%v)", replicas, found)
+	}
+	for _, mf := range existing.GetManagedFields() {
+		if mf.Operation != metav1.ManagedFieldsOperationApply || mf.Manager == manager.owner.Field {
+			continue
+		}
+		if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+			t.Fatalf("precondition failed: %q already owns spec.replicas, adopt branch would not be exercised", mf.Manager)
+		}
+	}
+
+	// Step 2: the next revision stops declaring replicas (handed to an HPA that
+	// has not scaled yet) and changes a non-ignored field so the apply runs.
+	unstructured.RemoveNestedField(deployObject.Object, "spec", "replicas")
+	if err := unstructured.SetNestedField(deployObject.Object, int64(9), "spec", "minReadySeconds"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 3: the apply must succeed. Before the fix this failed with
+	// "doc is missing key: /spec/replicas".
+	entry, err := manager.Apply(ctx, deployObject, opts)
+	if err != nil {
+		t.Fatalf("expected apply to succeed for an undeclared ignored path, got: %v", err)
+	}
+	if entry.Action != ConfiguredAction {
+		t.Errorf("expected ConfiguredAction, got %s", entry.Action)
+	}
+
+	// The ignored path follows normal SSA ownership (the rule is a no-op for an
+	// undeclared path): the non-ignored change is applied, and because the
+	// desired state stops declaring replicas, Flux relinquishes ownership of it
+	// (an HPA would then own it; here it defaults). The apply must not fail.
+	existing = deployObject.DeepCopy()
+	if err := manager.client.Get(ctx, client.ObjectKeyFromObject(existing), existing); err != nil {
+		t.Fatal(err)
+	}
+	if mrs, found, _ := unstructured.NestedInt64(existing.Object, "spec", "minReadySeconds"); !found || mrs != 9 {
+		t.Errorf("expected spec.minReadySeconds=9 to be applied, got %d (found=%v)", mrs, found)
+	}
+	for _, mf := range existing.GetManagedFields() {
+		if mf.Manager != manager.owner.Field || mf.Operation != metav1.ManagedFieldsOperationApply {
+			continue
+		}
+		if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+			t.Errorf("expected Flux to relinquish spec.replicas for an undeclared ignored path, but it still owns it")
+		}
+	}
+
+	// The apply must stay stable across reconciles: a repeat with no further
+	// changes is unchanged, proving the apply is not wedged.
+	entry, err = manager.Apply(ctx, deployObject, opts)
+	if err != nil {
+		t.Fatalf("expected repeat apply to succeed, got: %v", err)
+	}
+	if entry.Action != UnchangedAction {
+		t.Errorf("expected UnchangedAction on repeat apply, got %s", entry.Action)
+	}
+}
