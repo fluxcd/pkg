@@ -2998,3 +2998,218 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyDriftResult_AdoptMissingPath(t *testing.T) {
+	target := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"minReadySeconds": int64(9),
+			},
+		},
+	}
+	want := target.DeepCopy()
+	dr := driftResult{
+		entries: []driftEntry{
+			{path: "/spec/replicas", action: driftAdopt, value: int64(2)},
+		},
+	}
+
+	if err := applyDriftResult(target, dr); err != nil {
+		t.Fatalf("expected adoption of a missing path to be skipped, got: %v", err)
+	}
+	if diff := cmp.Diff(want.Object, target.Object); diff != "" {
+		t.Errorf("unexpected payload change (-want +got):\n%s", diff)
+	}
+}
+
+func TestApply_DriftIgnoreRules_HPAUndeclaredReplicas(t *testing.T) {
+	for _, method := range []string{"Apply", "ApplyAll"} {
+		for _, tt := range []struct {
+			name              string
+			initiallyDeclared bool
+			scaleBeforeRemove bool
+		}{
+			{name: "replicas omitted from creation"},
+			{name: "replicas removed before HPA scales", initiallyDeclared: true},
+			{name: "replicas removed after HPA scales", initiallyDeclared: true, scaleBeforeRemove: true},
+		} {
+			t.Run(method+"/"+tt.name, func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
+				id := generateName("drift-hpa")
+				objects, err := readManifest("testdata/test2.yaml", id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := normalize.UnstructuredList(objects); err != nil {
+					t.Fatal(err)
+				}
+				_, deploy := getFirstObject(objects, "Deployment", id)
+				if tt.initiallyDeclared {
+					if err := unstructured.SetNestedField(deploy.Object, int64(2), "spec", "replicas"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				opts := DefaultApplyOptions()
+				opts.DriftIgnoreRules = []jsondiff.IgnoreRule{{
+					Paths:    []string{"/spec/replicas"},
+					Selector: &jsondiff.Selector{Kind: "Deployment"},
+				}}
+				if _, err := manager.ApplyAllStaged(ctx, objects, opts); err != nil {
+					t.Fatal(err)
+				}
+
+				hpa := &unstructured.Unstructured{Object: map[string]interface{}{
+					"apiVersion": "autoscaling/v2",
+					"kind":       "HorizontalPodAutoscaler",
+					"metadata":   map[string]interface{}{"name": id, "namespace": id},
+					"spec": map[string]interface{}{
+						"scaleTargetRef": map[string]interface{}{
+							"apiVersion": "apps/v1", "kind": "Deployment", "name": id,
+						},
+						"minReplicas": int64(1),
+						"maxReplicas": int64(10),
+					},
+				}}
+				if _, err := manager.Apply(ctx, hpa, opts); err != nil {
+					t.Fatal(err)
+				}
+
+				assertReplicas := func(want int64) {
+					t.Helper()
+					existing := deploy.DeepCopy()
+					if err := manager.client.Get(ctx, client.ObjectKeyFromObject(deploy), existing); err != nil {
+						t.Fatal(err)
+					}
+					if replicas, found, err := unstructured.NestedInt64(existing.Object, "spec", "replicas"); err != nil || !found || replicas != want {
+						t.Fatalf("expected replicas=%d, got %d (found=%v err=%v)", want, replicas, found, err)
+					}
+				}
+
+				// Envtest has no HPA controller. Reproduce its Update on /scale.
+				scaleReplicas := func(wantBefore int64) {
+					t.Helper()
+					assertReplicas(wantBefore)
+					scale := &unstructured.Unstructured{}
+					scale.SetAPIVersion("autoscaling/v1")
+					scale.SetKind("Scale")
+					if err := manager.client.SubResource("scale").Get(ctx, deploy, scale); err != nil {
+						t.Fatal(err)
+					}
+					if err := unstructured.SetNestedField(scale.Object, int64(5), "spec", "replicas"); err != nil {
+						t.Fatal(err)
+					}
+					if err := manager.client.SubResource("scale").Update(ctx, deploy,
+						client.WithSubResourceBody(scale), client.FieldOwner("horizontal-pod-autoscaler")); err != nil {
+						t.Fatal(err)
+					}
+					assertReplicas(5)
+				}
+
+				if tt.scaleBeforeRemove {
+					scaleReplicas(2)
+					existing := deploy.DeepCopy()
+					if err := manager.client.Get(ctx, client.ObjectKeyFromObject(deploy), existing); err != nil {
+						t.Fatal(err)
+					}
+					hpaOwnsReplicas := false
+					for _, entry := range existing.GetManagedFields() {
+						if entry.FieldsV1 == nil || !strings.Contains(string(entry.FieldsV1.Raw), `"f:replicas"`) {
+							continue
+						}
+						if entry.Manager == manager.owner.Field {
+							t.Fatal("expected HPA scaling to take replicas ownership from Flux")
+						}
+						if entry.Manager == "horizontal-pod-autoscaler" && entry.Operation == metav1.ManagedFieldsOperationUpdate {
+							hpaOwnsReplicas = true
+						}
+					}
+					if !hpaOwnsReplicas {
+						t.Fatalf("expected HPA to own replicas before removing them from desired state, got: %v", existing.GetManagedFields())
+					}
+				}
+
+				apply := func(want Action) {
+					t.Helper()
+					if method == "Apply" {
+						entry, err := manager.Apply(ctx, deploy, opts)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if entry.Action != want {
+							t.Fatalf("expected %s, got %s", want, entry.Action)
+						}
+					} else {
+						changes, err := manager.ApplyAll(ctx, []*unstructured.Unstructured{deploy, hpa}, opts)
+						if err != nil {
+							t.Fatal(err)
+						}
+						wantChanges := map[string]Action{
+							"Deployment/" + id + "/" + id:              want,
+							"HorizontalPodAutoscaler/" + id + "/" + id: UnchangedAction,
+						}
+						if diff := cmp.Diff(wantChanges, changes.ToMap()); diff != "" {
+							t.Fatalf("unexpected change set (-want +got):\n%s", diff)
+						}
+					}
+					if _, found, err := unstructured.NestedInt64(deploy.Object, "spec", "replicas"); err != nil || found {
+						t.Fatalf("desired replicas must remain absent: found=%v err=%v", found, err)
+					}
+					if tt.scaleBeforeRemove {
+						assertReplicas(5)
+					}
+				}
+
+				// Without an HPA write, removing Flux-owned replicas defaults them
+				// to 1 and exercises the missing-path guard. After an HPA write,
+				// omission must preserve the HPA's value of 5 instead.
+				unstructured.RemoveNestedField(deploy.Object, "spec", "replicas")
+				if err := unstructured.SetNestedField(deploy.Object, int64(9), "spec", "minReadySeconds"); err != nil {
+					t.Fatal(err)
+				}
+				apply(ConfiguredAction)
+				apply(UnchangedAction)
+
+				if !tt.scaleBeforeRemove {
+					scaleReplicas(1)
+				}
+
+				// Scaling alone must not trigger a write. A non-ignored change must
+				// still apply without resetting replicas or taking their ownership.
+				apply(UnchangedAction)
+				if err := unstructured.SetNestedField(deploy.Object, int64(10), "spec", "minReadySeconds"); err != nil {
+					t.Fatal(err)
+				}
+				apply(ConfiguredAction)
+				apply(UnchangedAction)
+
+				existing := deploy.DeepCopy()
+				if err := manager.client.Get(ctx, client.ObjectKeyFromObject(deploy), existing); err != nil {
+					t.Fatal(err)
+				}
+				if replicas, found, err := unstructured.NestedInt64(existing.Object, "spec", "replicas"); err != nil || !found || replicas != 5 {
+					t.Errorf("expected HPA replicas=5, got %d (found=%v err=%v)", replicas, found, err)
+				}
+				if seconds, found, err := unstructured.NestedInt64(existing.Object, "spec", "minReadySeconds"); err != nil || !found || seconds != 10 {
+					t.Errorf("expected minReadySeconds=10, got %d (found=%v err=%v)", seconds, found, err)
+				}
+				hpaOwnsReplicas := false
+				for _, entry := range existing.GetManagedFields() {
+					if entry.FieldsV1 == nil || !strings.Contains(string(entry.FieldsV1.Raw), `"f:replicas"`) {
+						continue
+					}
+					if entry.Manager == manager.owner.Field && entry.Operation == metav1.ManagedFieldsOperationApply {
+						t.Error("Flux must not own undeclared replicas")
+					}
+					if entry.Manager == "horizontal-pod-autoscaler" && entry.Operation == metav1.ManagedFieldsOperationUpdate {
+						hpaOwnsReplicas = true
+					}
+				}
+				if tt.scaleBeforeRemove && !hpaOwnsReplicas {
+					t.Error("expected HPA to retain replicas ownership after Flux applies")
+				}
+			})
+		}
+	}
+}
