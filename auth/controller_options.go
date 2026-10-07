@@ -27,10 +27,17 @@ var ErrInconsistentObjectLevelConfiguration = fmt.Errorf(
 	FeatureGateObjectLevelWorkloadIdentity)
 
 // InconsistentObjectLevelConfiguration checks if the controller's object-level
-// workload identity configuration is inconsistent.
-func InconsistentObjectLevelConfiguration() bool {
-	return !IsObjectLevelWorkloadIdentityEnabled() &&
-		(GetDefaultServiceAccount() != "" ||
-			GetDefaultKubeConfigServiceAccount() != "" ||
-			GetDefaultDecryptionServiceAccount() != "")
+// workload identity configuration is inconsistent, which is the case when the
+// ObjectLevelWorkloadIdentity feature gate is not enabled but default service
+// accounts are set.
+func InconsistentObjectLevelConfiguration(defaultServiceAccounts ...string) bool {
+	if IsObjectLevelWorkloadIdentityEnabled() {
+		return false
+	}
+	for _, sa := range defaultServiceAccounts {
+		if sa != "" {
+			return true
+		}
+	}
+	return false
 }

@@ -34,7 +34,7 @@ import (
 // ArtifactRegistryCredentialsProvider is an interface that defines methods
 // for retrieving credentials for artifact registries from cloud providers.
 type ArtifactRegistryCredentialsProvider interface {
-	Provider
+	ServiceProvider
 
 	// GetAccessTokenOptionsForArtifactRepository returns the options that must be
 	// passed to the provider to retrieve access tokens for an artifact repository.
@@ -50,10 +50,10 @@ type ArtifactRegistryCredentialsProvider interface {
 	// ParseArtifactRepository() and an access token and returns credentials
 	// that can be used to authenticate with the registry.
 	NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
-		accessToken Token, opts ...Option) (*ArtifactRegistryCredentials, error)
+		accessToken Credential, opts ...Option) (*ArtifactRegistryCredentials, error)
 }
 
-// ArtifactRegistryCredentials is a particular type implementing the Token interface
+// ArtifactRegistryCredentials is a particular type implementing the Credential interface
 // for credentials that can be used to authenticate against an artifact registry
 // from a cloud provider.
 type ArtifactRegistryCredentials struct {
@@ -61,7 +61,7 @@ type ArtifactRegistryCredentials struct {
 	ExpiresAt time.Time
 }
 
-// GetDuration implements Token.
+// GetDuration implements Credential.
 func (a *ArtifactRegistryCredentials) GetDuration() time.Duration {
 	return time.Until(a.ExpiresAt)
 }
@@ -97,7 +97,7 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 		return nil, err
 	}
 	accessTokenOpts = append(slices.Clone(opts), accessTokenOpts...)
-	accessToken, err := GetAccessToken(ctx, provider, accessTokenOpts...)
+	accessToken, err := GetCredential(ctx, provider, accessTokenOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get access token for artifact registry: %w", err)
 	}
@@ -123,7 +123,7 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 	var serviceAccount *corev1.ServiceAccount
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	if o.ShouldGetServiceAccount() {
 		var err error
 		saRef := client.ObjectKey{
 			Name:      o.ServiceAccountName,
@@ -148,7 +148,7 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 	operation := o.InvolvedObject.Operation
 
 	// Get credentials from cache.
-	creds, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
+	creds, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Credential, error) {
 		return newArtifactRegistryCredentials()
 	}, cache.WithInvolvedObject(kind, name, namespace, operation))
 	if err != nil {

@@ -3,6 +3,7 @@ module github.com/fluxcd/pkg/git/internal/e2e
 go 1.26.0
 
 replace (
+	github.com/fluxcd/pkg/apis/crypto => ../../../apis/crypto
 	github.com/fluxcd/pkg/auth => ../../../auth
 	github.com/fluxcd/pkg/cache => ../../../cache
 	github.com/fluxcd/pkg/git => ../../../git

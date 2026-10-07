@@ -70,91 +70,56 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 	}
 }
 
-func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
+func TestOptions_ShouldGetServiceAccount(t *testing.T) {
 	tests := []struct {
-		name                string
-		opts                []auth.Option
-		defaultSA           string
-		defaultKubeConfigSA string
-		defaultDecryptionSA string
-		expected            bool
+		name     string
+		opts     []auth.Option
+		expected bool
 	}{
 		{
-			name: "both name and namespace provided",
+			name: "service account name provided",
 			opts: []auth.Option{
 				auth.WithServiceAccountName("test-sa"),
-				auth.WithServiceAccountNamespace("default"),
 			},
 			expected: true,
 		},
 		{
-			name: "only namespace provided - no global vars",
+			name: "default service account provided",
 			opts: []auth.Option{
-				auth.WithServiceAccountNamespace("default"),
+				auth.WithDefaultServiceAccount("default-sa"),
 			},
-			expected: false,
+			expected: true,
 		},
 		{
-			name: "namespace and defaultServiceAccount",
-			opts: []auth.Option{
-				auth.WithServiceAccountNamespace("default"),
-			},
-			defaultSA: "default-sa",
-			expected:  true,
-		},
-		{
-			name: "namespace and defaultKubeConfigServiceAccount",
-			opts: []auth.Option{
-				auth.WithServiceAccountNamespace("default"),
-			},
-			defaultKubeConfigSA: "default-kubeconfig-sa",
-			expected:            true,
-		},
-		{
-			name: "namespace and defaultDecryptionServiceAccount - expect false! decryption is handled in kustomize-controller",
-			opts: []auth.Option{
-				auth.WithServiceAccountNamespace("default"),
-			},
-			defaultDecryptionSA: "default-decryption-sa",
-			expected:            false,
-		},
-		{
-			name: "only name provided",
+			name: "both name and default provided",
 			opts: []auth.Option{
 				auth.WithServiceAccountName("test-sa"),
+				auth.WithDefaultServiceAccount("default-sa"),
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name:     "neither provided",
 			opts:     []auth.Option{},
 			expected: false,
 		},
+		{
+			name: "only namespace provided",
+			opts: []auth.Option{
+				auth.WithServiceAccountNamespace("default"),
+			},
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-			}
-
-			if tt.defaultKubeConfigSA != "" {
-				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
-				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
-			}
-
-			if tt.defaultDecryptionSA != "" {
-				auth.SetDefaultDecryptionServiceAccount(tt.defaultDecryptionSA)
-				t.Cleanup(func() { auth.SetDefaultDecryptionServiceAccount("") })
-			}
-
 			var o auth.Options
 			o.Apply(tt.opts...)
 
-			result := o.ShouldGetServiceAccountToken()
+			result := o.ShouldGetServiceAccount()
 			if result != tt.expected {
-				t.Errorf("ShouldGetServiceAccountToken() = %v, want %v", result, tt.expected)
+				t.Errorf("ShouldGetServiceAccount() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
