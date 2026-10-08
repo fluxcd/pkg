@@ -7,6 +7,7 @@
 
 ### APIs
 - **[github.com/fluxcd/pkg/apis/acl](./apis/acl)** - API types for defining access control lists
+- **[github.com/fluxcd/pkg/apis/crypto](./apis/crypto)** - API types for configuring short-lived cryptographic material
 - **[github.com/fluxcd/pkg/apis/event](./apis/event)** - API Schema definitions for Flux eventing  
 - **[github.com/fluxcd/pkg/apis/kustomize](./apis/kustomize)** - API types for Kustomize resources
 - **[github.com/fluxcd/pkg/apis/meta](./apis/meta)** - Generic metadata APIs for Kubernetes resources
