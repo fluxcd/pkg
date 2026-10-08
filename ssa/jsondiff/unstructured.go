@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-openapi/jsonpointer"
 	"github.com/wI2L/jsondiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -47,14 +48,24 @@ type IgnoreRule struct {
 // CompiledIgnoreRules is a set of IgnoreRule with compiled selectors.
 type CompiledIgnoreRules map[*SelectorRegex][]string
 
-// CompileIgnoreRules compiles the selectors in the given IgnoreRule slice
-// and returns a CompiledIgnoreRules.
+// CompileIgnoreRules compiles the selectors in the given IgnoreRule slice and
+// validates that every path is a syntactically valid RFC 6901 JSON pointer,
+// returning a CompiledIgnoreRules. A malformed pointer is rejected here so the
+// error surfaces to the user instead of silently disabling the rule.
 func CompileIgnoreRules(rules []IgnoreRule) (CompiledIgnoreRules, error) {
 	compiled := make(CompiledIgnoreRules, len(rules))
 	for _, rule := range rules {
 		sr, err := NewSelectorRegex(rule.Selector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create ignore rule selector: %w", err)
+		}
+		for _, path := range rule.Paths {
+			// IgnorePathRoot ("") is the sentinel for the whole document and
+			// parses as a valid empty pointer; other paths must be well-formed
+			// RFC 6901 pointers (non-empty ones must start with "/").
+			if _, err := jsonpointer.New(path); err != nil {
+				return nil, fmt.Errorf("invalid ignore path %q: %w", path, err)
+			}
 		}
 		compiled[sr] = rule.Paths
 	}

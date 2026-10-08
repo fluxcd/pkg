@@ -614,19 +614,21 @@ func removeIgnoredFields(matchObj, obj *unstructured.Unstructured, rules jsondif
 }
 
 // lookupJSONPointer resolves an RFC 6901 JSON pointer against the unstructured
-// object's content. A missing path is reported as (nil, false, nil).
-func lookupJSONPointer(obj *unstructured.Unstructured, pointer string) (any, bool, error) {
+// object's content. A missing or unresolvable path is reported as (nil, false).
+// Pointers are validated by CompileIgnoreRules before reaching this point, so a
+// syntactically invalid pointer is also treated as "not present".
+func lookupJSONPointer(obj *unstructured.Unstructured, pointer string) (any, bool) {
 	ptr, err := jsonpointer.New(pointer)
 	if err != nil {
-		return nil, false, err
+		return nil, false
 	}
 	val, _, err := ptr.Get(obj.Object)
 	if err != nil {
-		// jsonpointer returns an error when any segment of the pointer cannot
-		// be resolved; treat that as "not present" rather than a hard failure.
-		return nil, false, nil
+		// Any segment of the pointer that cannot be resolved means the path
+		// is not present.
+		return nil, false
 	}
-	return val, true, nil
+	return val, true
 }
 
 // driftAction describes what to do with a drifted ignored path.
@@ -660,8 +662,23 @@ func applyDriftResult(target *unstructured.Unstructured, dr driftResult) error {
 	for _, e := range dr.entries {
 		switch e.action {
 		case driftStrip:
+			// A remove against a missing path is tolerated
+			// (AllowMissingPathOnRemove), so stripping is always safe.
 			stripPaths = append(stripPaths, e.path)
 		case driftAdopt:
+			// Adopt is a JSON-patch "replace", which fails the whole apply if
+			// the payload does not declare the path:
+			//   "replace operation does not apply: doc is missing key: <path>"
+			// This happens when an ignored path is still live in-cluster but is
+			// no longer declared by the desired state (e.g. "/spec/replicas"
+			// handed to an HPA), possibly because the dry-run server-defaulted
+			// the field back in so the drift comparison still saw it. Skip the
+			// adopt and leave the path to normal SSA ownership, which is the
+			// documented contract for an ignored path absent from the desired
+			// state. See https://github.com/fluxcd/pkg/issues/1311.
+			if _, ok := lookupJSONPointer(target, e.path); !ok {
+				continue
+			}
 			adoptOps = append(adoptOps, jsondiff.ReplaceOp{
 				Path:  e.path,
 				Value: e.value,
@@ -699,22 +716,48 @@ func computeDriftedPaths(
 	for sr, paths := range rules {
 		if sr.MatchUnstructured(dryRunObject) {
 			for _, path := range paths {
-				existingVal, ef, eerr := lookupJSONPointer(existingObject, path)
-				dryRunVal, df, derr := lookupJSONPointer(dryRunObject, path)
-				if eerr != nil || derr != nil || ef != df ||
-					!apiequality.Semantic.DeepEqual(existingVal, dryRunVal) {
-					if isFieldOwnedByOtherApplyManager(existingObject, path, fluxManager, parsed) {
-						result.entries = append(result.entries, driftEntry{
-							path:   path,
-							action: driftStrip,
-						})
-					} else {
-						result.entries = append(result.entries, driftEntry{
-							path:   path,
-							action: driftAdopt,
-							value:  existingVal,
-						})
-					}
+				existingVal, ef := lookupJSONPointer(existingObject, path)
+				dryRunVal, df := lookupJSONPointer(dryRunObject, path)
+
+				// Only resolve the ignored path when it is present on both the
+				// live object (ef) and the dry-run result (df):
+				//
+				//   - df == false: the dry-run result does not contain the path,
+				//     so there is no drifted value to reconcile against. A strip
+				//     is a no-op and an adopt has nothing meaningful to copy.
+				//   - ef == false: there is nothing live to adopt, and a strip
+				//     would drop the value the user declared. Leaving the
+				//     desired value in the payload gives the correct create
+				//     semantics, including on the immutable-field recreate path
+				//     (no in-cluster object after the delete).
+				//
+				// Note that df reflects the dry-run result, not the applied
+				// payload: the server may default a removed field back in (e.g.
+				// "/spec/replicas"), so df can be true while the desired payload
+				// omits the path. applyDriftResult guards the adopt against the
+				// payload to avoid a "replace against a missing key" failure
+				// (https://github.com/fluxcd/pkg/issues/1311).
+				if !ef || !df {
+					continue
+				}
+
+				// The ignored field is both live and declared; resolve it only
+				// when it has actually drifted.
+				if apiequality.Semantic.DeepEqual(existingVal, dryRunVal) {
+					continue
+				}
+
+				if isFieldOwnedByOtherApplyManager(existingObject, path, fluxManager, parsed) {
+					result.entries = append(result.entries, driftEntry{
+						path:   path,
+						action: driftStrip,
+					})
+				} else {
+					result.entries = append(result.entries, driftEntry{
+						path:   path,
+						action: driftAdopt,
+						value:  existingVal,
+					})
 				}
 			}
 		}
