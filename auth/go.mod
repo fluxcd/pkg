@@ -3,6 +3,7 @@ module github.com/fluxcd/pkg/auth
 go 1.26.0
 
 replace (
+	github.com/fluxcd/pkg/apis/crypto => ../apis/crypto
 	github.com/fluxcd/pkg/apis/meta => ../apis/meta
 	github.com/fluxcd/pkg/cache => ../cache
 	github.com/fluxcd/pkg/ssh => ../ssh
@@ -23,6 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.49.0
 	github.com/aws/smithy-go/aws-http-auth v1.2.1
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/fluxcd/pkg/apis/crypto v0.1.0
 	github.com/fluxcd/pkg/apis/meta v1.32.0
 	github.com/fluxcd/pkg/cache v0.15.0
 	github.com/fluxcd/pkg/ssh v0.26.0

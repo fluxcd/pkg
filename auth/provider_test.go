@@ -45,8 +45,8 @@ type mockProvider struct {
 	returnGitCredentials    *auth.GitCredentials
 	returnRESTConfig        *auth.RESTConfig
 	returnRESTConfigOptsErr string
-	returnControllerToken   auth.Token
-	returnAccessToken       auth.Token
+	returnControllerToken   auth.Credential
+	returnAccessToken       auth.Credential
 	returnRegistryOptions   []auth.Option
 	returnRegistryToken     *auth.ArtifactRegistryCredentials
 	paramAudiences          []string
@@ -56,8 +56,8 @@ type mockProvider struct {
 	paramGitURL             *url.URL
 	paramCluster            string
 	paramClusterAddress     string
-	paramAccessToken        auth.Token
-	paramAccessTokens       []auth.Token
+	paramAccessToken        auth.Credential
+	paramAccessTokens       []auth.Credential
 	paramAllowShellOut      bool
 
 	// For multi-token flow (RESTConfig)
@@ -71,19 +71,19 @@ func (m *mockProvider) GetName() string {
 	return m.returnName
 }
 
-func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (m *mockProvider) NewAmbientCredential(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 	m.checkOptions(opts...)
 	return m.returnControllerToken, nil
 }
 
-func (m *mockProvider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
+func (m *mockProvider) GetJWTAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
 	return []string{"mock-audience"}, nil
 }
 
-func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+func (m *mockProvider) GetJWTIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
@@ -93,11 +93,15 @@ func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string
 	return m.returnIdentity, nil
 }
 
-func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+func (m *mockProvider) NewCredentialForMaterial(ctx context.Context, credential auth.CredentialMaterial,
+	opts ...auth.Option) (auth.Credential, error) {
 
 	m.t.Helper()
 	g := NewWithT(m.t)
+
+	jwtCred, ok := credential.(*auth.JWT)
+	g.Expect(ok).To(BeTrue())
+	oidcToken := jwtCred.Token
 
 	// Verify the OIDC token.
 	token, _, err := jwt.NewParser().ParseUnverified(oidcToken, jwt.MapClaims{})
@@ -118,7 +122,9 @@ func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken 
 		g.Expect(err).NotTo(HaveOccurred())
 	}
 
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	var o auth.Options
+	o.Apply(opts...)
+	g.Expect(o.ServiceAccount).To(Equal(&m.paramServiceAccount))
 
 	m.checkOptions(opts...)
 
@@ -143,7 +149,7 @@ func (m *mockProvider) GetAccessTokenOptionsForArtifactRepository(artifactReposi
 }
 
 func (m *mockProvider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessToken auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(registryInput).To(Equal(m.paramArtifactRepository))
@@ -170,7 +176,7 @@ func (m *mockProvider) GetAccessTokenOptionsForGitRepository(gitURL *url.URL) ([
 }
 
 func (m *mockProvider) NewGitCredentials(ctx context.Context, gitInput string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.GitCredentials, error) {
+	accessToken auth.Credential, opts ...auth.Option) (*auth.GitCredentials, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(gitInput).To(Equal(m.returnGitInput))
@@ -191,7 +197,7 @@ func (m *mockProvider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][
 	return [][]auth.Option{{auth.WithScopes("first-token")}, {auth.WithScopes("second-token")}}, nil
 }
 
-func (m *mockProvider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (m *mockProvider) NewRESTConfig(ctx context.Context, accessTokens []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)

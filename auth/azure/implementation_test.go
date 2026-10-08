@@ -65,7 +65,7 @@ type mockImplementation struct {
 	returnKubeconfigs []*armcontainerservice.CredentialResult
 }
 
-type mockTokenCredential struct {
+type mockCredentialCredential struct {
 	t *testing.T
 
 	argScopes []string
@@ -120,7 +120,7 @@ func (m *mockImplementation) newDefaultAzureCredential(options *azidentity.Defau
 		}
 	}
 
-	return &mockTokenCredential{t: m.t, argScopes: expectedScopes, returnToken: m.returnToken}, nil
+	return &mockCredentialCredential{t: m.t, argScopes: expectedScopes, returnToken: m.returnToken}, nil
 }
 
 func (m *mockImplementation) NewClientAssertionCredential(tenantID string, clientID string, getAssertion func(context.Context) (string, error), options *azidentity.ClientAssertionCredentialOptions) (azcore.TokenCredential, error) {
@@ -153,7 +153,7 @@ func (m *mockImplementation) NewClientAssertionCredential(tenantID string, clien
 		}
 	}
 
-	return &mockTokenCredential{t: m.t, argScopes: expectedScopes, returnToken: m.returnToken}, nil
+	return &mockCredentialCredential{t: m.t, argScopes: expectedScopes, returnToken: m.returnToken}, nil
 }
 
 func (m *mockImplementation) ExchangeAADAccessTokenForACRRefreshToken(ctx context.Context, client *azcontainerregistry.AuthenticationClient, grantType azcontainerregistry.PostContentSchemaGrantType, service string, options *azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenOptions) (azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenResponse, error) {
@@ -257,7 +257,7 @@ func (m *mockAKSClient) ListClusterUserCredentials(ctx context.Context, resource
 	}, nil
 }
 
-func (m *mockTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
+func (m *mockCredentialCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(options.Scopes).To(Equal(m.argScopes))

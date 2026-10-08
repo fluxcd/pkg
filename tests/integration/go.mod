@@ -3,6 +3,7 @@ module github.com/fluxcd/pkg/tests/integration
 go 1.26.0
 
 replace (
+	github.com/fluxcd/pkg/apis/crypto => ../../apis/crypto
 	github.com/fluxcd/pkg/apis/meta => ../../apis/meta
 	github.com/fluxcd/pkg/auth => ../../auth
 	github.com/fluxcd/pkg/cache => ../../cache
@@ -87,6 +88,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fluxcd/pkg/apis/crypto v0.1.0 // indirect
 	github.com/fluxcd/pkg/ssh v0.26.0 // indirect
 	github.com/fluxcd/pkg/version v0.17.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect

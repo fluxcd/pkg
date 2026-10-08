@@ -50,8 +50,8 @@ func (Provider) GetName() string {
 	return ProviderName
 }
 
-// NewControllerToken implements auth.Provider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+// NewAmbientCredential implements auth.ServiceProvider.
+func (p Provider) NewAmbientCredential(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -77,27 +77,36 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		return nil, err
 	}
 
-	return &Token{token}, nil
+	return &AccessToken{token}, nil
 }
 
-// GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
+// GetJWTAudiences implements auth.Provider.
+func (Provider) GetJWTAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
 	return []string{"api://AzureADTokenExchange"}, nil
 }
 
-// GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+// GetJWTIdentity implements auth.Provider.
+func (Provider) GetJWTIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
 	return getIdentity(serviceAccount)
 }
 
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewCredentialForMaterial implements auth.ServiceProvider.
+func (p Provider) NewCredentialForMaterial(ctx context.Context, credential auth.CredentialMaterial,
+	opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	identity, err := getIdentity(serviceAccount)
+	jwt, ok := credential.(*auth.JWT)
+	if !ok {
+		return nil, fmt.Errorf("unsupported credential type %T", credential)
+	}
+	oidcToken := jwt.Token
+
+	if o.ServiceAccount == nil {
+		return nil, fmt.Errorf("a ServiceAccount is required to exchange a credential")
+	}
+	identity, err := getIdentity(*o.ServiceAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +132,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		return nil, err
 	}
 
-	return &Token{token}, nil
+	return &AccessToken{token}, nil
 }
 
 // GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
@@ -201,7 +210,7 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 
 // NewArtifactRegistryCredentials implements auth.Provider.
 func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessToken auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -222,7 +231,7 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 	grantType := azcontainerregistry.PostContentSchemaGrantTypeAccessToken
 	service := registry
 	tokenOpts := &azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenOptions{
-		AccessToken: &accessToken.(*Token).Token,
+		AccessToken: &accessToken.(*AccessToken).Token,
 	}
 	resp, err := p.impl().ExchangeAADAccessTokenForACRRefreshToken(ctx, client, grantType, service, tokenOpts)
 	if err != nil {
@@ -287,14 +296,14 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 }
 
 // NewRESTConfig implements auth.Provider.
-func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
-	aksToken := accessTokens[0].(*Token)
+	aksToken := accessTokens[0].(*AccessToken)
 
-	var armToken *Token
+	var armToken *AccessToken
 	if len(accessTokens) == 2 {
-		armToken = accessTokens[1].(*Token)
+		armToken = accessTokens[1].(*AccessToken)
 	}
 
 	var o auth.Options
@@ -411,15 +420,15 @@ func (Provider) ParseGitRepository(*url.URL) (string, error) {
 
 // NewGitCredentials implements auth.GitCredentialsProvider.
 func (Provider) NewGitCredentials(_ context.Context, _ string,
-	accessToken auth.Token, _ ...auth.Option) (*auth.GitCredentials, error) {
+	accessToken auth.Credential, _ ...auth.Option) (*auth.GitCredentials, error) {
 
-	token, ok := accessToken.(*Token)
+	credential, ok := accessToken.(*AccessToken)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast token to Azure token: %T", accessToken)
+		return nil, fmt.Errorf("failed to cast credential to Azure access token: %T", accessToken)
 	}
 	return &auth.GitCredentials{
-		BearerToken: token.Token,
-		ExpiresAt:   token.ExpiresOn,
+		BearerToken: credential.Token,
+		ExpiresAt:   credential.ExpiresOn,
 	}, nil
 }
 

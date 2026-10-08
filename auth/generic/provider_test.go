@@ -37,7 +37,7 @@ import (
 func TestProvider_NewControllerToken(t *testing.T) {
 	t.Run("no client", func(t *testing.T) {
 		g := NewWithT(t)
-		token, err := generic.Provider{}.NewControllerToken(context.Background())
+		token, err := generic.Provider{}.NewAmbientCredential(context.Background())
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(Equal("client is required to create a controller token"))
 		g.Expect(token).To(BeNil())
@@ -66,15 +66,15 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			t: t,
 			b: []byte("eyJhbGciOiJSUzI1NiIsImtpZCI6IkU2cUVmaVJ0QUY2OWhoNThZWU1QUmhPc1F1b1N5XzJuT1ZfRWF3TVRETlkifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiXSwiZXhwIjoxNzUyMjkwMDE1LCJpYXQiOjE3NTIyODY0MTUsImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiMzEwMTgxZGItZDc3MC00MGE5LTg5MDEtN2M1NTQzOTBjZDhjIiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJkZWZhdWx0Iiwic2VydmljZWFjY291bnQiOnsibmFtZSI6ImNvbnRyb2xsZXIiLCJ1aWQiOiJjMTUzNWEyNi01NDY5LTRmYzAtOGRiMi1kZWFhMGRlNDRmZjUifX0sIm5iZiI6MTc1MjI4NjQxNSwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OmRlZmF1bHQ6Y29udHJvbGxlciJ9.k-jt09bIwrGUNbSATEwaHHaaoym7NjcdStXcM0RYXZbL_PXCwP-TZPgBb2FzCq6V79E_q-NtZrY3RyvyAynUezXr6IPVkGne201uvOAjaibLvDxLzvbA5jWlZ0bHuLCfOxlC7GYSWjsglyH_ufulb6vxoMhY0rmiQzBbDHfB3EWM79-udcqLrxBsGgxjDnW4BXMIgSpuvipNA1GaMkpQb5AaY7Ns4zd0FftOimQmmvnwz8oDrGrCf2kmw91r0sAovva5B2BoJKlZwYGwO93zwTwK1qOMPLN2QHCUNBEY4K-QQlgz0oMUYR-YRpPJr7akjTQ6hm9zrTD90Tm0Jbqw7g\n"),
 		}
-		token, err := auth.GetAccessToken(ctx, generic.Provider{m},
+		token, err := auth.GetCredential(ctx, generic.Provider{m},
 			auth.WithClient(envClient),
 			auth.WithAudiences("audience1", "audience2"))
 		g.Expect(err).NotTo(HaveOccurred())
-		genericToken := token.(*generic.Token)
-		g.Expect(genericToken).NotTo(BeNil())
+		genericCredential := token.(*generic.Credential)
+		g.Expect(genericCredential).NotTo(BeNil())
 
 		// Validate token.
-		jwtToken, _, err := jwt.NewParser().ParseUnverified(genericToken.Token, jwt.MapClaims{})
+		jwtToken, _, err := jwt.NewParser().ParseUnverified(genericCredential.Token, jwt.MapClaims{})
 		g.Expect(err).NotTo(HaveOccurred())
 		sub, err := jwtToken.Claims.GetSubject()
 		g.Expect(err).NotTo(HaveOccurred())
@@ -87,10 +87,10 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			_, err = oidc.NewVerifier(iss, jwks, &oidc.Config{
 				ClientID:             aud,
 				SupportedSigningAlgs: []string{jwtToken.Method.Alg()},
-			}).Verify(ctx, genericToken.Token)
+			}).Verify(ctx, genericCredential.Token)
 			g.Expect(err).NotTo(HaveOccurred())
 		}
-		g.Expect(time.Until(genericToken.ExpiresAt)).To(BeNumerically("~", time.Hour, 10*time.Second))
+		g.Expect(time.Until(genericCredential.ExpiresAt)).To(BeNumerically("~", time.Hour, 10*time.Second))
 	})
 }
 
@@ -116,17 +116,17 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	// Create token.
-	token, err := auth.GetAccessToken(ctx, generic.Provider{},
+	token, err := auth.GetCredential(ctx, generic.Provider{},
 		auth.WithClient(envClient),
 		auth.WithServiceAccountName(serviceAccount.Name),
 		auth.WithServiceAccountNamespace(serviceAccount.Namespace),
 		auth.WithAudiences("audience1", "audience2"))
 	g.Expect(err).NotTo(HaveOccurred())
-	genericToken := token.(*generic.Token)
-	g.Expect(genericToken).NotTo(BeNil())
+	genericCredential := token.(*generic.Credential)
+	g.Expect(genericCredential).NotTo(BeNil())
 
 	// Validate token.
-	jwtToken, _, err := jwt.NewParser().ParseUnverified(genericToken.Token, jwt.MapClaims{})
+	jwtToken, _, err := jwt.NewParser().ParseUnverified(genericCredential.Token, jwt.MapClaims{})
 	g.Expect(err).NotTo(HaveOccurred())
 	sub, err := jwtToken.Claims.GetSubject()
 	g.Expect(err).NotTo(HaveOccurred())
@@ -139,15 +139,15 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 		_, err = oidc.NewVerifier(iss, jwks, &oidc.Config{
 			ClientID:             aud,
 			SupportedSigningAlgs: []string{jwtToken.Method.Alg()},
-		}).Verify(ctx, genericToken.Token)
+		}).Verify(ctx, genericCredential.Token)
 		g.Expect(err).NotTo(HaveOccurred())
 	}
-	g.Expect(time.Until(genericToken.ExpiresAt)).To(BeNumerically("~", time.Hour, 10*time.Second))
+	g.Expect(time.Until(genericCredential.ExpiresAt)).To(BeNumerically("~", time.Hour, 10*time.Second))
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
-	id, err := generic.Provider{}.GetIdentity(corev1.ServiceAccount{
+	id, err := generic.Provider{}.GetJWTIdentity(corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "tenant",
 			Namespace: "default",

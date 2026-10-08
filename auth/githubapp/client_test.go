@@ -321,9 +321,9 @@ func TestClient_GetCredentials(t *testing.T) {
 		{
 			name: "Get cached token",
 			opts: []OptFunc{func(client *Client) {
-				c, err := cache.NewTokenCache(1)
+				c, err := cache.NewCredentialCache(1)
 				g.Expect(err).NotTo(HaveOccurred())
-				_, ok, err := c.GetOrSet(context.Background(), client.buildCacheKey(), func(context.Context) (cache.Token, error) {
+				_, ok, err := c.GetOrSet(context.Background(), client.buildCacheKey(), func(context.Context) (cache.Credential, error) {
 					return &AppToken{
 						Token:     "access-token",
 						ExpiresAt: expiresAt,

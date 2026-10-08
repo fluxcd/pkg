@@ -35,7 +35,7 @@ import (
 	"github.com/fluxcd/pkg/auth/generic"
 )
 
-func TestProvider_NewControllerToken(t *testing.T) {
+func TestProvider_NewAmbientCredential(t *testing.T) {
 	impl := &mockImplementation{
 		t:              t,
 		argRegion:      "us-east-1",
@@ -83,7 +83,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			token, err := provider.NewControllerToken(t.Context(), opts...)
+			token, err := provider.NewAmbientCredential(t.Context(), opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -102,7 +102,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	}
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewCredentialForMaterial(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
 		roleARN            string
@@ -175,7 +175,8 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			token, err := provider.NewCredentialForMaterial(context.Background(),
+				&auth.JWT{Token: oidcToken}, append(opts, auth.WithServiceAccount(serviceAccount))...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -196,7 +197,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 func TestProvider_GetAudiences(t *testing.T) {
 	g := NewWithT(t)
-	aud, err := aws.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
+	aud, err := aws.Provider{}.GetJWTAudiences(context.Background(), corev1.ServiceAccount{})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(aud).To(Equal([]string{"sts.amazonaws.com"}))
 }
@@ -204,7 +205,7 @@ func TestProvider_GetAudiences(t *testing.T) {
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
 
-	identity, err := aws.Provider{}.GetIdentity(corev1.ServiceAccount{
+	identity, err := aws.Provider{}.GetJWTIdentity(corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				"eks.amazonaws.com/role-arn": "arn:aws:iam::1234567890:role/some-role",
@@ -723,14 +724,14 @@ func TestProvider_ParseGitRepository(t *testing.T) {
 }
 
 func TestProvider_NewGitCredentials(t *testing.T) {
-	invalidToken := &generic.Token{Token: "invalid", ExpiresAt: time.Now().Add(time.Hour)}
+	invalidToken := &generic.Credential{Token: "invalid", ExpiresAt: time.Now().Add(time.Hour)}
 	proxyUrl := url.URL{Scheme: "http", Host: "proxy.example.com"}
 	awsRegion := "us-east-1"
 	for _, tt := range []struct {
 		name             string
 		gitURL           string
 		getAccessToken   bool
-		accessToken      auth.Token
+		accessToken      auth.Credential
 		expectedUsername string
 		err              string
 	}{
@@ -757,7 +758,7 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 			gitURL:         "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
 			getAccessToken: false,
 			accessToken:    invalidToken,
-			err:            "failed to cast token to AWS token: *generic.Token",
+			err:            "failed to cast credential to AWS credentials: *generic.Credential",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -774,7 +775,7 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 			accessToken := tt.accessToken
 			if tt.getAccessToken {
 				var err error
-				accessToken, err = auth.GetAccessToken(t.Context(), provider,
+				accessToken, err = auth.GetCredential(t.Context(), provider,
 					auth.WithSTSRegion(awsRegion),
 					auth.WithProxyURL(proxyUrl),
 				)

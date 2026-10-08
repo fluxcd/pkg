@@ -21,8 +21,10 @@ import (
 	"net/url"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/fluxcd/pkg/apis/crypto"
 	"github.com/fluxcd/pkg/cache"
 )
 
@@ -33,9 +35,13 @@ type Option func(*Options)
 // Not all providers/methods support all options.
 type Options struct {
 	Client                  client.Client
-	Cache                   *cache.TokenCache
+	Cache                   *cache.CredentialCache
 	ServiceAccountName      string
 	ServiceAccountNamespace string
+	DefaultServiceAccount   string
+	ServiceAccount          *corev1.ServiceAccount
+	Credential              *crypto.Credential
+	CredentialProvider      CredentialProvider
 	InvolvedObject          cache.InvolvedObject
 	Audiences               []string
 	Scopes                  []string
@@ -49,13 +55,9 @@ type Options struct {
 	AllowShellOut           bool
 }
 
-// ShouldGetServiceAccountToken returns true if ServiceAccount token should be retrieved.
-func (o *Options) ShouldGetServiceAccountToken() bool {
-	// ServiceAccount namespace is required because ServiceAccounts are namespace-scoped resources.
-	// ServiceAccountName can be empty as it may be provided by defaultServiceAccount or by
-	// defaultKubeConfigServiceAccount.
-	return o.ServiceAccountNamespace != "" &&
-		(o.ServiceAccountName != "" || getDefaultServiceAccount() != "")
+// ShouldGetServiceAccount returns true if a ServiceAccount should be retrieved.
+func (o *Options) ShouldGetServiceAccount() bool {
+	return o.ServiceAccountName != "" || o.DefaultServiceAccount != ""
 }
 
 // WithClient sets the controller-runtime client for the provider.
@@ -79,8 +81,41 @@ func WithServiceAccountNamespace(namespace string) Option {
 	}
 }
 
+// WithDefaultServiceAccount sets the default ServiceAccount name for the token
+// if ServiceAccountName is not provided.
+func WithDefaultServiceAccount(name string) Option {
+	return func(o *Options) {
+		o.DefaultServiceAccount = name
+	}
+}
+
+// WithServiceAccount sets the ServiceAccount that the credential belongs to.
+func WithServiceAccount(serviceAccount corev1.ServiceAccount) Option {
+	return func(o *Options) {
+		o.ServiceAccount = &serviceAccount
+	}
+}
+
+// WithCredential sets the credential configuration for obtaining short-lived
+// cryptographic material.
+func WithCredential(credential *crypto.Credential) Option {
+	return func(o *Options) {
+		o.Credential = credential
+	}
+}
+
+// WithCredentialProvider sets the credential provider that will be used to
+// obtain short-lived cryptographic material. It is resolved from the credential
+// configuration by the auth/utils package, callers are not expected to set it
+// directly.
+func WithCredentialProvider(provider CredentialProvider) Option {
+	return func(o *Options) {
+		o.CredentialProvider = provider
+	}
+}
+
 // WithCache sets the token cache and the involved object for recording events.
-func WithCache(cache cache.TokenCache, involvedObject cache.InvolvedObject) Option {
+func WithCache(cache cache.CredentialCache, involvedObject cache.InvolvedObject) Option {
 	return func(o *Options) {
 		o.Cache = &cache
 		o.InvolvedObject = involvedObject
