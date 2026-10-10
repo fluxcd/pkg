@@ -25,6 +25,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/pem"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -585,6 +586,244 @@ func TestForcePush(t *testing.T) {
 	ref, err := repo.Head()
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(ref.Hash().String()).To(Equal(cc2.String()))
+}
+
+func TestFetchAndReset(t *testing.T) {
+	tests := []struct {
+		name        string
+		cloneConfig repository.CloneConfig
+		// setup prepares the remote before the client clones it.
+		setup func(g *WithT, remote *extgogit.Repository)
+		// race commits the winning changes, and returns the files and
+		// their content that the client must commit after recovering.
+		race          func(g *WithT, remote *extgogit.Repository) map[string]string
+		expectedFiles []string
+		absentFiles   []string
+		// wantShallow expects the clone to stay shallow, without fetching
+		// the commits before the winner. race must commit at least twice.
+		wantShallow bool
+	}{
+		{
+			name: "full clone",
+			race: func(g *WithT, remote *extgogit.Repository) map[string]string {
+				_, err := commitFile(remote, "test", "winner content", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				return map[string]string{"test": "winner content"}
+			},
+			expectedFiles: []string{"test"},
+		},
+		{
+			name:        "shallow clone",
+			cloneConfig: repository.CloneConfig{ShallowClone: true},
+			setup: func(g *WithT, remote *extgogit.Repository) {
+				_, err := commitFile(remote, "a", "old content", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				_, err = commitFile(remote, "a", "new content", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+			},
+			race: func(g *WithT, remote *extgogit.Repository) map[string]string {
+				_, err := commitFile(remote, "b", "intermediate content", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				// Reintroduce a blob that is only reachable from beyond
+				// the shallow boundary of the client.
+				_, err = commitFile(remote, "a", "old content", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				return map[string]string{"a": "old content", "b": "intermediate content"}
+			},
+			expectedFiles: []string{"a", "b"},
+			wantShallow:   true,
+		},
+		{
+			name:        "sparse checkout",
+			cloneConfig: repository.CloneConfig{SparseCheckoutDirectories: []string{"dir1"}},
+			setup: func(g *WithT, remote *extgogit.Repository) {
+				_, err := commitFiles(remote, map[string]string{
+					"dir1/file1": "dir1 content",
+					"dir2/file2": "dir2 content",
+				}, time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+			},
+			race: func(g *WithT, remote *extgogit.Repository) map[string]string {
+				files := map[string]string{
+					"dir1/file1": "winner dir1 content",
+					"dir2/file2": "winner dir2 content",
+				}
+				_, err := commitFiles(remote, files, time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				return files
+			},
+			expectedFiles: []string{"dir1/file1"},
+			absentFiles:   []string{"dir2/file2"},
+		},
+		{
+			name: "shallow sparse checkout",
+			cloneConfig: repository.CloneConfig{
+				ShallowClone:              true,
+				SparseCheckoutDirectories: []string{"dir1"},
+			},
+			setup: func(g *WithT, remote *extgogit.Repository) {
+				_, err := commitFiles(remote, map[string]string{
+					"dir1/file1": "dir1 content",
+					"dir2/file2": "dir2 content",
+				}, time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+			},
+			race: func(g *WithT, remote *extgogit.Repository) map[string]string {
+				_, err := commitFile(remote, "dir2/file2", "intermediate dir2 content", time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				files := map[string]string{
+					"dir1/file1": "winner dir1 content",
+					"dir2/file2": "winner dir2 content",
+				}
+				_, err = commitFiles(remote, files, time.Now())
+				g.Expect(err).ToNot(HaveOccurred())
+				return files
+			},
+			expectedFiles: []string{"dir1/file1"},
+			absentFiles:   []string{"dir2/file2"},
+			wantShallow:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			server, repoURL, err := setupGitServer(false)
+			g.Expect(err).ToNot(HaveOccurred())
+			defer os.RemoveAll(server.Root())
+			defer server.StopHTTP()
+
+			remote, err := extgogit.PlainClone(t.TempDir(), false, &extgogit.CloneOptions{
+				URL:        repoURL,
+				RemoteName: git.DefaultRemote,
+			})
+			g.Expect(err).ToNot(HaveOccurred())
+			if tt.setup != nil {
+				tt.setup(g, remote)
+				g.Expect(remote.Push(&extgogit.PushOptions{RemoteName: git.DefaultRemote})).To(Succeed())
+			}
+
+			tmp := t.TempDir()
+			ggc, err := NewClient(tmp, &git.AuthOptions{Transport: git.HTTP})
+			g.Expect(err).ToNot(HaveOccurred())
+			tt.cloneConfig.CheckoutStrategy.Branch = git.DefaultBranch
+			_, err = ggc.Clone(context.TODO(), repoURL, tt.cloneConfig)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// The client loses the race with a local commit, and has an
+			// untracked file lying around.
+			_, err = ggc.Commit(git.Commit{
+				Author:  git.Signature{Name: "Test User", Email: "test@example.com"},
+				Message: "loser",
+			}, repository.WithFiles(map[string]io.Reader{
+				"dir1/loser": strings.NewReader("loser content"),
+			}))
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(os.WriteFile(filepath.Join(tmp, "untracked"), []byte("untracked"), 0o600)).To(Succeed())
+
+			winnerFiles := tt.race(g, remote)
+			g.Expect(remote.Push(&extgogit.PushOptions{RemoteName: git.DefaultRemote})).To(Succeed())
+			winner, err := remote.Head()
+			g.Expect(err).ToNot(HaveOccurred())
+
+			err = ggc.FetchAndReset(context.TODO(), git.DefaultBranch)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			head, err := ggc.Head()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(head).To(Equal(winner.Hash().String()))
+
+			clean, err := ggc.IsClean()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(clean).To(BeTrue())
+
+			for _, file := range tt.expectedFiles {
+				content, err := os.ReadFile(filepath.Join(tmp, file))
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(string(content)).To(Equal(winnerFiles[file]))
+			}
+			for _, file := range append(tt.absentFiles, "dir1/loser", "untracked") {
+				_, err := os.Stat(filepath.Join(tmp, file))
+				g.Expect(os.IsNotExist(err)).To(BeTrue(), "file %s should not exist", file)
+			}
+
+			shallows, err := ggc.repository.Storer.Shallow()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(len(shallows) > 0).To(Equal(tt.wantShallow))
+			if tt.wantShallow {
+				winnerCommit, err := remote.CommitObject(winner.Hash())
+				g.Expect(err).ToNot(HaveOccurred())
+				_, err = ggc.repository.CommitObject(winnerCommit.ParentHashes[0])
+				g.Expect(err).To(MatchError(plumbing.ErrObjectNotFound))
+			}
+
+			// A second call with nothing new to fetch is a no-op.
+			err = ggc.FetchAndReset(context.TODO(), git.DefaultBranch)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// The retried commit carries the winner's changes, including
+			// the ones outside of the sparse checkout directories.
+			cc, err := ggc.Commit(git.Commit{
+				Author:  git.Signature{Name: "Test User", Email: "test@example.com"},
+				Message: "retry",
+			}, repository.WithFiles(map[string]io.Reader{
+				"dir1/retry": strings.NewReader("retry content"),
+			}))
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(ggc.Push(context.TODO(), repository.PushConfig{})).To(Succeed())
+
+			commit, err := ggc.repository.CommitObject(plumbing.NewHash(cc))
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(commit.ParentHashes).To(Equal([]plumbing.Hash{winner.Hash()}))
+			for file, want := range winnerFiles {
+				f, err := commit.File(file)
+				g.Expect(err).ToNot(HaveOccurred())
+				content, err := f.Contents()
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(content).To(Equal(want))
+			}
+		})
+	}
+}
+
+func TestFetchAndReset_errors(t *testing.T) {
+	g := NewWithT(t)
+
+	server, repoURL, err := setupGitServer(false)
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(server.Root())
+	defer server.StopHTTP()
+
+	ggc, err := NewClient(t.TempDir(), &git.AuthOptions{Transport: git.HTTP})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = ggc.FetchAndReset(context.TODO(), git.DefaultBranch)
+	g.Expect(err).To(Equal(git.ErrNoGitRepository))
+
+	_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneConfig{
+		CheckoutStrategy: repository.CheckoutStrategy{Branch: git.DefaultBranch},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	head, err := ggc.Head()
+	g.Expect(err).ToNot(HaveOccurred())
+
+	for _, branch := range []string{"", "*", "main:other", "a..b"} {
+		err = ggc.FetchAndReset(context.TODO(), branch)
+		g.Expect(err).To(MatchError(ContainSubstring("invalid branch name")), "branch %q", branch)
+	}
+
+	err = ggc.FetchAndReset(context.TODO(), "other")
+	g.Expect(err).To(MatchError(ContainSubstring("not on branch 'other'")))
+
+	g.Expect(ggc.SwitchBranch(context.TODO(), "local-only")).To(Succeed())
+	err = ggc.FetchAndReset(context.TODO(), "local-only")
+	g.Expect(errors.Is(err, extgogit.NoMatchingRefSpecError{})).To(BeTrue())
+
+	// None of the failed calls moved HEAD.
+	cc, err := ggc.Head()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cc).To(Equal(head))
 }
 
 func TestSwitchBranch(t *testing.T) {

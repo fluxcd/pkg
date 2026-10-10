@@ -32,6 +32,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
+	"github.com/go-git/go-git/v5/plumbing/format/index"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -439,6 +440,110 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 		return fmt.Errorf("failed to push to remote: %w", err)
 	}
 
+	return nil
+}
+
+// FetchAndReset fetches branch from the remote and hard-resets the worktree
+// onto the fetched tip. Local commits that are not on the remote, changes to
+// tracked files and untracked files are discarded. The remote is never
+// modified.
+//
+// It is intended for recovering from a rejected push without a full
+// re-clone: the caller recomputes its changes on top of the new remote tip,
+// commits and pushes again. HEAD must be on branch, FetchAndReset does not
+// switch branches. Only refs/heads/<branch> is fetched, so pushes made with
+// custom refspecs (e.g. refs/heads/main:refs/heads/auto or refs/for/main)
+// are not covered. If branch does not exist on the remote, the returned
+// error wraps go-git's NoMatchingRefSpecError.
+//
+// Shallow clones stay shallow, and the sparse checkout directories set at
+// clone time are preserved. Untracked files outside of those directories
+// may be left in place.
+//
+// go-git does not fully implement the multi_ack negotiation that fetches
+// into an existing clone rely on, which some Git servers (e.g. Azure DevOps
+// and AWS CodeCommit) require. Callers must fall back to a fresh clone when
+// FetchAndReset returns an error.
+func (g *Client) FetchAndReset(ctx context.Context, branch string) error {
+	if g.repository == nil {
+		return git.ErrNoGitRepository
+	}
+
+	branchRef := plumbing.NewBranchReferenceName(branch)
+	if err := branchRef.Validate(); err != nil {
+		return fmt.Errorf("invalid branch name '%s': %w", branch, err)
+	}
+
+	head, err := g.repository.Head()
+	if err != nil {
+		return fmt.Errorf("failed to resolve HEAD: %w", err)
+	}
+	if head.Name() != branchRef {
+		return fmt.Errorf("HEAD is at '%s', not on branch '%s'", head.Name(), branch)
+	}
+
+	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
+	if err != nil {
+		return fmt.Errorf("failed to construct auth method with options: %w", err)
+	}
+
+	// go-git only sends the shallow boundary to the server when a depth is
+	// set. Fetching a shallow clone with depth 1 also keeps it shallow, while
+	// setting a depth on a full clone would turn it into a shallow one.
+	shallows, err := g.repository.Storer.Shallow()
+	if err != nil {
+		return fmt.Errorf("failed to read shallow commits: %w", err)
+	}
+	var depth int
+	if len(shallows) > 0 {
+		depth = 1
+	}
+
+	remoteRefName := plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, branch)
+	refspec := config.RefSpec(fmt.Sprintf("+%s:%s", branchRef, remoteRefName))
+
+	err = g.repository.FetchContext(ctx, &extgogit.FetchOptions{
+		RemoteName:   extgogit.DefaultRemoteName,
+		RefSpecs:     []config.RefSpec{refspec},
+		Depth:        depth,
+		Auth:         authMethod,
+		Tags:         extgogit.NoTags,
+		Force:        true,
+		ClientCert:   clientCert(g.authOpts),
+		ClientKey:    clientKey(g.authOpts),
+		CABundle:     caBundle(g.authOpts),
+		ProxyOptions: g.proxy,
+	})
+	if err != nil && !errors.Is(err, extgogit.NoErrAlreadyUpToDate) {
+		return fmt.Errorf("failed to fetch branch '%s' from remote: %w", branch, err)
+	}
+
+	remoteRef, err := g.repository.Reference(remoteRefName, true)
+	if err != nil {
+		return fmt.Errorf("could not resolve fetched remote reference '%s': %w", branch, err)
+	}
+
+	wt, err := g.repository.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to load worktree: %w", err)
+	}
+
+	// go-git skips sparse (skip-worktree) index entries when diffing the
+	// index against the target tree. Those entries would keep pointing at
+	// their old blobs, and the next commit would revert remote changes made
+	// outside the sparse checkout directories. Starting from an empty index
+	// rebuilds every entry from the target tree, as during the initial clone.
+	if len(g.sparseCheckoutDirectories) > 0 {
+		if err := g.repository.Storer.SetIndex(&index.Index{Version: 2}); err != nil {
+			return fmt.Errorf("failed to clear index: %w", err)
+		}
+	}
+	if err := wt.ResetSparsely(&extgogit.ResetOptions{
+		Commit: remoteRef.Hash(),
+		Mode:   extgogit.HardReset,
+	}, g.sparseCheckoutDirectories); err != nil {
+		return fmt.Errorf("failed to reset worktree to '%s': %w", remoteRef.Hash(), err)
+	}
 	return nil
 }
 
