@@ -662,6 +662,15 @@ func applyDriftResult(target *unstructured.Unstructured, dr driftResult) error {
 		case driftStrip:
 			stripPaths = append(stripPaths, e.path)
 		case driftAdopt:
+			// Ignore acts only on a field the desired object declares.
+			// Replacing a missing path fails the apply on every reconcile.
+			_, found, err := lookupJSONPointer(target, e.path)
+			if err != nil {
+				return err
+			}
+			if !found {
+				continue
+			}
 			adoptOps = append(adoptOps, jsondiff.ReplaceOp{
 				Path:  e.path,
 				Value: e.value,
