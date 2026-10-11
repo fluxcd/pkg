@@ -200,6 +200,20 @@ func TestExpression_EvaluateBoolean(t *testing.T) {
 			data:   map[string]any{"foo": map[string]any{"bar": false}},
 			result: false,
 		},
+		{
+			name:   "compiled expression with regex matching true",
+			expr:   "value.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')",
+			opts:   []cel.Option{cel.WithCompile(), cel.WithStringVariables("value")},
+			data:   map[string]any{"value": "tenant-a"},
+			result: true,
+		},
+		{
+			name:   "compiled expression with regex matching false",
+			expr:   "value.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')",
+			opts:   []cel.Option{cel.WithCompile(), cel.WithStringVariables("value")},
+			data:   map[string]any{"value": "Tenant_A"},
+			result: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -612,6 +626,73 @@ func TestExpression_Evaluate(t *testing.T) {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result).To(Equal(tt.result))
 			}
+		})
+	}
+}
+
+func TestNewStringAssertion(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		variable string
+		expr     string
+		data     map[string]any
+		result   bool
+		err      string
+	}{
+		{
+			name:     "regex matching true",
+			variable: "value",
+			expr:     "value.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')",
+			data:     map[string]any{"value": "tenant-a"},
+			result:   true,
+		},
+		{
+			name:     "regex matching false",
+			variable: "value",
+			expr:     "value.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')",
+			data:     map[string]any{"value": "Tenant_A"},
+			result:   false,
+		},
+		{
+			name:     "namespace variable",
+			variable: "ns",
+			expr:     "ns.startsWith('tenant-')",
+			data:     map[string]any{"ns": "tenant-a"},
+			result:   true,
+		},
+		{
+			name:     "undeclared variable",
+			variable: "value",
+			expr:     "other.matches('.*')",
+			err:      "undeclared reference to 'other'",
+		},
+		{
+			name:     "non-boolean output",
+			variable: "value",
+			expr:     "value + '-suffix'",
+			err:      "CEL expression output type mismatch: expected bool, got string",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			g := NewWithT(t)
+
+			e, err := cel.NewStringAssertion(tt.variable, tt.expr)
+
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+				g.Expect(e).To(BeNil())
+				return
+			}
+
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(e).NotTo(BeNil())
+
+			result, err := e.EvaluateBoolean(context.Background(), tt.data)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(result).To(Equal(tt.result))
 		})
 	}
 }

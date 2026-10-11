@@ -51,6 +51,16 @@ func WithStructVariables(vars ...string) Option {
 	}
 }
 
+// WithStringVariables declares variables of type string.
+func WithStringVariables(vars ...string) Option {
+	return func(o *options) {
+		for _, v := range vars {
+			d := cel.Variable(v, cel.StringType)
+			o.variables = append(o.variables, d)
+		}
+	}
+}
+
 // WithCompile specifies that the expression should be compiled,
 // which provides stricter checks at parse time, before evaluation.
 func WithCompile() Option {
@@ -123,6 +133,17 @@ func NewExpression(expr string, opts ...Option) (*Expression, error) {
 		expr: expr,
 		prog: prog,
 	}, nil
+}
+
+// NewStringAssertion parses a CEL expression that asserts a property of a
+// single string variable. The variable is made available to the expression
+// under the given name and the expression must return a boolean.
+func NewStringAssertion(name, expr string) (*Expression, error) {
+	return NewExpression(expr,
+		WithCompile(),
+		WithOutputType(cel.BoolType),
+		WithStringVariables(name),
+	)
 }
 
 // String returns the original CEL expression string.
