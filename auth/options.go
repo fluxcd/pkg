@@ -46,6 +46,8 @@ type Options struct {
 	ClusterResource         string
 	ClusterAddress          string
 	AllowShellOut           bool
+
+	ArtifactRegistryHTTPClient *http.Client
 }
 
 // ShouldGetServiceAccountToken returns true if ServiceAccount token should be retrieved.
@@ -119,6 +121,18 @@ func WithSTSEndpoint(stsEndpoint string) Option {
 func WithProxyURL(proxyURL url.URL) Option {
 	return func(o *Options) {
 		o.ProxyURL = &proxyURL
+	}
+}
+
+// WithArtifactRegistryHTTPClient sets the HTTP client for exchanging access
+// tokens for Azure registry credentials. It does not change identity token
+// acquisition, including managed identity requests to the metadata service.
+// The client is used unchanged, including its proxy, redirect and timeout
+// settings, and takes precedence over WithProxyURL for the registry exchange.
+// A nil client preserves the default HTTP client behavior.
+func WithArtifactRegistryHTTPClient(client *http.Client) Option {
+	return func(o *Options) {
+		o.ArtifactRegistryHTTPClient = client
 	}
 }
 
