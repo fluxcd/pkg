@@ -107,12 +107,12 @@ func main() {
 		authOpts = append(authOpts, auth.WithServiceAccountNamespace(*wiSANamespace))
 	}
 
-	// Configure a token cache.
-	tokenCache, err := cache.NewTokenCache(100)
+	// Configure a credential cache.
+	credentialCache, err := cache.NewCredentialCache(100)
 	if err != nil {
 		panic(err)
 	}
-	authOpts = append(authOpts, auth.WithCache(*tokenCache, cache.InvolvedObject{
+	authOpts = append(authOpts, auth.WithCache(*credentialCache, cache.InvolvedObject{
 		Kind:      "TestApp",
 		Name:      "testapp",
 		Namespace: "default",

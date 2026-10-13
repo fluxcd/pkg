@@ -40,7 +40,12 @@ func (d *delegatedAuthenticator) Authorization() (*authn.AuthConfig, error) {
 func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
 	artifactRepository string, opts ...auth.Option) (authn.Authenticator, error) {
 
-	provider, err := ProviderByName[auth.ArtifactRegistryCredentialsProvider](providerName)
+	provider, err := ServiceProviderByName[auth.ArtifactRegistryCredentialsProvider](providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err = withCredentialProvider(opts...)
 	if err != nil {
 		return nil, err
 	}

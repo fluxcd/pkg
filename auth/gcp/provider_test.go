@@ -34,7 +34,7 @@ import (
 	"github.com/fluxcd/pkg/auth/gcp"
 )
 
-func TestProvider_NewControllerToken(t *testing.T) {
+func TestProvider_NewAmbientCredential(t *testing.T) {
 	g := NewWithT(t)
 
 	impl := &mockImplementation{
@@ -48,12 +48,12 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	}
 
 	provider := gcp.Provider{Implementation: impl}
-	token, err := provider.NewControllerToken(context.Background(), opts...)
+	token, err := provider.NewAmbientCredential(context.Background(), opts...)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(token).To(Equal(&gcp.Token{oauth2.Token{AccessToken: "access-token"}}))
+	g.Expect(token).To(Equal(&gcp.AccessToken{oauth2.Token{AccessToken: "access-token"}}))
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewCredentialForMaterial(t *testing.T) {
 	startGKEMetadataServer(t)
 
 	for _, tt := range []struct {
@@ -171,11 +171,12 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			provider := gcp.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			token, err := provider.NewCredentialForMaterial(context.Background(),
+				&auth.JWT{Token: oidcToken}, append(opts, auth.WithServiceAccount(serviceAccount))...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&gcp.Token{oauth2.Token{AccessToken: "access-token"}}))
+				g.Expect(token).To(Equal(&gcp.AccessToken{oauth2.Token{AccessToken: "access-token"}}))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
@@ -214,7 +215,7 @@ func TestProvider_GetAudience(t *testing.T) {
 				},
 			}
 
-			aud, err := gcp.Provider{}.GetAudiences(context.Background(), serviceAccount)
+			aud, err := gcp.Provider{}.GetJWTAudiences(context.Background(), serviceAccount)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(aud).To(Equal([]string{tt.expected}))
 		})
@@ -248,7 +249,7 @@ func TestProvider_GetIdentity(t *testing.T) {
 				},
 			}
 
-			identity, err := gcp.Provider{}.GetIdentity(serviceAccount)
+			identity, err := gcp.Provider{}.GetJWTIdentity(serviceAccount)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(identity).To(Equal(tt.expected))
 		})

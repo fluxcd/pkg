@@ -58,7 +58,7 @@ type Client struct {
 	apiURL            string
 	proxyURL          *url.URL
 	httpClient        *http.Client
-	cache             *cache.TokenCache
+	cache             *cache.CredentialCache
 	kind              string
 	name              string
 	namespace         string
@@ -165,7 +165,7 @@ func WithProxyURL(proxyURL *url.URL) OptFunc {
 
 // WithCache sets the token cache and the object involved in the operation for
 // recording cache events.
-func WithCache(cache *cache.TokenCache, kind, name, namespace, operation string) OptFunc {
+func WithCache(cache *cache.CredentialCache, kind, name, namespace, operation string) OptFunc {
 	return func(p *Client) {
 		p.cache = cache
 		p.kind = kind
@@ -198,7 +198,7 @@ func (at *AppToken) GetDuration() time.Duration {
 // as a GitHub App installation.
 // Ref: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
 func (p *Client) GetToken(ctx context.Context) (*AppToken, error) {
-	newToken := func(ctx context.Context) (cache.Token, error) {
+	newToken := func(ctx context.Context) (cache.Credential, error) {
 		return p.createInstallationToken(ctx)
 	}
 

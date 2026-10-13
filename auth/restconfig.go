@@ -34,7 +34,7 @@ import (
 // RESTConfigProvider is an interface that defines methods for retrieving
 // REST configurations for Kubernetes clusters from cloud providers.
 type RESTConfigProvider interface {
-	Provider
+	ServiceProvider
 
 	// GetAccessTokenOptionsForCluster returns the options that must be
 	// passed to the provider to retrieve access tokens for a cluster.
@@ -49,10 +49,10 @@ type RESTConfigProvider interface {
 	// data, and for accessing the cluster API server itself via the IAM
 	// system of the cloud provider. If it's just a single token or multiple,
 	// it depends on the provider.
-	NewRESTConfig(ctx context.Context, accessTokens []Token, opts ...Option) (*RESTConfig, error)
+	NewRESTConfig(ctx context.Context, accessTokens []Credential, opts ...Option) (*RESTConfig, error)
 }
 
-// RESTConfig is a particular type implementing the Token interface
+// RESTConfig is a particular type implementing the Credential interface
 // for Kubernetes REST configurations.
 type RESTConfig struct {
 	Host        string
@@ -61,7 +61,7 @@ type RESTConfig struct {
 	ExpiresAt   time.Time
 }
 
-// GetDuration implements Token.
+// GetDuration implements Credential.
 func (r *RESTConfig) GetDuration() time.Duration {
 	return time.Until(r.ExpiresAt)
 }
@@ -103,14 +103,14 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	if err != nil {
 		return nil, err
 	}
-	accessTokens := make([]Token, 0, len(accessTokenOpts))
+	accessTokens := make([]Credential, 0, len(accessTokenOpts))
 	for i := range accessTokenOpts {
 		accessTokenOpts[i] = append(slices.Clone(opts), accessTokenOpts[i]...)
-		token, err := GetAccessToken(ctx, provider, accessTokenOpts[i]...)
+		credential, err := GetCredential(ctx, provider, accessTokenOpts[i]...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get access token for cluster: %w", err)
 		}
-		accessTokens = append(accessTokens, token)
+		accessTokens = append(accessTokens, credential)
 	}
 
 	// Prepare a function to create the restconfig if needed.
@@ -131,7 +131,7 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	var serviceAccount *corev1.ServiceAccount
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	if o.ShouldGetServiceAccount() {
 		var err error
 		saRef := client.ObjectKey{
 			Name:      o.ServiceAccountName,
@@ -164,12 +164,12 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 		o.InvolvedObject.Operation)}
 
 	// Get restconfig from cache.
-	token, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
+	credential, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Credential, error) {
 		return newRESTConfig()
 	}, cacheOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return token.(*RESTConfig), nil
+	return credential.(*RESTConfig), nil
 }

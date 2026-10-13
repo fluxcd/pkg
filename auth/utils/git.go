@@ -28,9 +28,14 @@ import (
 func GetGitCredentials(ctx context.Context, providerName string,
 	opts ...auth.Option) (*auth.GitCredentials, error) {
 
-	provider, err := ProviderByName[auth.GitCredentialsProvider](providerName)
+	provider, err := ServiceProviderByName[auth.GitCredentialsProvider](providerName)
 	if err != nil {
 		return nil, fmt.Errorf("provider '%s' does not support Git credentials", providerName)
+	}
+
+	opts, err = withCredentialProvider(opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	return auth.GetGitCredentials(ctx, provider, opts...)

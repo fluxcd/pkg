@@ -24,17 +24,17 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
-// Token is the Azure token.
-type Token struct{ azcore.AccessToken }
+// AccessToken is the Azure access token.
+type AccessToken struct{ azcore.AccessToken }
 
 type staticTokenCredential struct{ azcore.AccessToken }
 
-// GetDuration implements auth.Token.
-func (t *Token) GetDuration() time.Duration {
+// GetDuration implements auth.Credential.
+func (t *AccessToken) GetDuration() time.Duration {
 	return time.Until(t.ExpiresOn)
 }
 
-func (t *Token) credential() azcore.TokenCredential {
+func (t *AccessToken) credential() azcore.TokenCredential {
 	return &staticTokenCredential{t.AccessToken}
 }
 

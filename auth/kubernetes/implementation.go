@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Flux authors
+Copyright 2026 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,22 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcp
+package kubernetes
 
-import (
-	"time"
+import "os"
 
-	"golang.org/x/oauth2"
-)
-
-// Token is the GCP token.
-type Token struct{ oauth2.Token }
-
-// GetDuration implements auth.Token.
-func (t *Token) GetDuration() time.Duration {
-	return time.Until(t.Expiry)
+// Implementation provides the required methods of the kubernetes libraries.
+type Implementation interface {
+	ReadFile(name string) ([]byte, error)
 }
 
-func (t *Token) source() oauth2.TokenSource {
-	return oauth2.StaticTokenSource(&t.Token)
+type implementation struct{}
+
+func (implementation) ReadFile(name string) ([]byte, error) {
+	return os.ReadFile(name)
 }

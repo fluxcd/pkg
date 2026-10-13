@@ -22,33 +22,31 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// Provider contains the logic to retrieve security credentials
-// for accessing resources in a cloud provider.
-type Provider interface {
-	// GetName returns the name of the cloud provider.
+// ServiceProvider contains the logic to retrieve security credentials
+// for accessing resources in a service, e.g. a cloud provider.
+type ServiceProvider interface {
+	// GetName returns the name of the service provider.
 	GetName() string
 
-	// NewControllerToken returns a token that can be used to authenticate
-	// with the cloud provider retrieved from the default source, i.e. from
-	// the environment of the controller pod, e.g. files mounted in the pod,
+	// NewAmbientCredential returns a token that can be used to authenticate
+	// with the service provider retrieved from the ambient environment,
+	// e.g. from the environment of the process, files mounted in the pod,
 	// environment variables, local metadata services, etc.
-	NewControllerToken(ctx context.Context, opts ...Option) (Token, error)
+	NewAmbientCredential(ctx context.Context, opts ...Option) (Credential, error)
 
-	// GetAudiences returns the audiences the OIDC tokens issued representing
+	// GetJWTAudiences returns the audiences the OIDC tokens issued representing
 	// ServiceAccounts should have. These are usually strings that represent
-	// the cloud provider's STS service, or some entity in the provider for
+	// the service provider's STS service, or some entity in the provider for
 	// which the OIDC tokens are targeted to.
-	GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error)
+	GetJWTAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error)
 
-	// GetIdentity takes a ServiceAccount and returns the identity which the
+	// GetJWTIdentity takes a ServiceAccount and returns the identity which the
 	// ServiceAccount wants to impersonate, by looking at annotations.
-	GetIdentity(serviceAccount corev1.ServiceAccount) (string, error)
+	GetJWTIdentity(serviceAccount corev1.ServiceAccount) (string, error)
 
-	// NewToken takes a ServiceAccount and its OIDC token and returns a token
-	// that can be used to authenticate with the cloud provider. The OIDC token is
-	// the JWT token that was issued for the ServiceAccount by the Kubernetes API.
-	// The implementation should exchange this token for a cloud provider access
-	// token through the provider's STS service.
-	NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-		serviceAccount corev1.ServiceAccount, opts ...Option) (Token, error)
+	// NewCredentialForMaterial takes a CredentialMaterial and returns a token that can
+	// be used to authenticate with the service provider. Implementations may
+	// exchange the credential for a service-specific token (e.g. a cloud
+	// provider access token), or return it as-is when no exchange is needed.
+	NewCredentialForMaterial(ctx context.Context, credential CredentialMaterial, opts ...Option) (Credential, error)
 }

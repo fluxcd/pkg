@@ -33,7 +33,7 @@ import (
 // GitCredentialsProvider is an interface that defines methods for
 // retrieving credentials for Git repositories from cloud providers.
 type GitCredentialsProvider interface {
-	Provider
+	ServiceProvider
 
 	// GetAccessTokenOptionsForGitRepository returns the options that must be
 	// passed to the provider to retrieve access tokens for the given Git
@@ -53,7 +53,7 @@ type GitCredentialsProvider interface {
 	// and an access token and returns credentials that can be used to
 	// authenticate against the Git repository.
 	NewGitCredentials(ctx context.Context, gitInput string,
-		accessToken Token, opts ...Option) (*GitCredentials, error)
+		accessToken Credential, opts ...Option) (*GitCredentials, error)
 }
 
 // GitCredentials contains authentication data needed in order to access a Git
@@ -65,7 +65,7 @@ type GitCredentials struct {
 	ExpiresAt   time.Time
 }
 
-// GetDuration implements Token.
+// GetDuration implements Credential.
 func (g *GitCredentials) GetDuration() time.Duration {
 	return time.Until(g.ExpiresAt)
 }
@@ -95,7 +95,7 @@ func GetGitCredentials(ctx context.Context, provider GitCredentialsProvider,
 		return nil, err
 	}
 	accessTokenOpts = append(slices.Clone(opts), accessTokenOpts...)
-	accessToken, err := GetAccessToken(ctx, provider, accessTokenOpts...)
+	accessToken, err := GetCredential(ctx, provider, accessTokenOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get access token for Git repository: %w", err)
 	}
@@ -118,7 +118,7 @@ func GetGitCredentials(ctx context.Context, provider GitCredentialsProvider,
 	var serviceAccount *corev1.ServiceAccount
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	if o.ShouldGetServiceAccount() {
 		var err error
 		saRef := client.ObjectKey{
 			Name:      o.ServiceAccountName,
@@ -143,7 +143,7 @@ func GetGitCredentials(ctx context.Context, provider GitCredentialsProvider,
 	operation := o.InvolvedObject.Operation
 
 	// Get credentials from cache.
-	creds, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
+	creds, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Credential, error) {
 		return newGitCredentials()
 	}, cache.WithInvolvedObject(kind, name, namespace, operation))
 	if err != nil {

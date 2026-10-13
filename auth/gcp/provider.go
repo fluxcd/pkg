@@ -50,8 +50,8 @@ func (Provider) GetName() string {
 	return ProviderName
 }
 
-// NewControllerToken implements auth.Provider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+// NewAmbientCredential implements auth.ServiceProvider.
+func (p Provider) NewAmbientCredential(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
@@ -66,11 +66,11 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		return nil, err
 	}
 
-	return &Token{*token}, nil
+	return &AccessToken{*token}, nil
 }
 
-// GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
+// GetJWTAudiences implements auth.Provider.
+func (Provider) GetJWTAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
 
 	// Check if a workload identity provider is specified in the service account.
 	// If so, the current cluster is not GKE and the audience is the provider itself.
@@ -90,8 +90,8 @@ func (Provider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceA
 	return []string{audience}, nil
 }
 
-// GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+// GetJWTIdentity implements auth.Provider.
+func (Provider) GetJWTIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
 	email, err := getServiceAccountEmail(serviceAccount)
 	if err != nil {
 		return "", err
@@ -99,12 +99,23 @@ func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error
 	return email, nil
 }
 
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewCredentialForMaterial implements auth.ServiceProvider.
+func (p Provider) NewCredentialForMaterial(ctx context.Context, credential auth.CredentialMaterial,
+	opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
+
+	jwt, ok := credential.(*auth.JWT)
+	if !ok {
+		return nil, fmt.Errorf("unsupported credential type %T", credential)
+	}
+	oidcToken := jwt.Token
+
+	if o.ServiceAccount == nil {
+		return nil, fmt.Errorf("a ServiceAccount is required to exchange a credential")
+	}
+	serviceAccount := *o.ServiceAccount
 
 	// Check if a workload identity provider is specified in the service account.
 	// If so, the current cluster is not GKE and the audience is the provider itself.
@@ -154,7 +165,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		return nil, err
 	}
 
-	return &Token{*token}, nil
+	return &AccessToken{*token}, nil
 }
 
 // GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
@@ -189,9 +200,9 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 
 // NewArtifactRegistryCredentials implements auth.Provider.
 func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
-	accessToken auth.Token, _ ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessToken auth.Credential, _ ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
-	t := accessToken.(*Token)
+	t := accessToken.(*AccessToken)
 
 	return &auth.ArtifactRegistryCredentials{
 		Authenticator: authn.FromConfig(authn.AuthConfig{
@@ -209,10 +220,10 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 }
 
 // NewRESTConfig implements auth.Provider.
-func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
-	token := accessTokens[0].(*Token)
+	credential := accessTokens[0].(*AccessToken)
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -231,7 +242,7 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		if p := o.ProxyURL; p != nil {
 			baseTransport.Proxy = http.ProxyURL(p)
 		}
-		transport, err := htransport.NewTransport(ctx, baseTransport, option.WithTokenSource(token.source()))
+		transport, err := htransport.NewTransport(ctx, baseTransport, option.WithTokenSource(credential.source()))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create google http transport for describing GKE cluster: %w", err)
 		}
@@ -261,9 +272,9 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	// Build and return the REST config.
 	return &auth.RESTConfig{
 		Host:        host,
-		BearerToken: token.AccessToken,
+		BearerToken: credential.AccessToken,
 		CAData:      caData,
-		ExpiresAt:   token.Expiry,
+		ExpiresAt:   credential.Expiry,
 	}, nil
 }
 

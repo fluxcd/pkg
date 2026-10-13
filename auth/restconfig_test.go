@@ -133,7 +133,7 @@ func TestGetRESTConfig(t *testing.T) {
 		{
 			name: "restconfig from controller access token",
 			provider: &mockProvider{
-				returnControllerToken: &mockToken{token: "mock-default-token"},
+				returnControllerToken: &mockCredential{token: "mock-default-token"},
 				returnRESTConfig: &auth.RESTConfig{
 					Host:        "https://cluster/resource/name",
 					BearerToken: "mock-bearer-token",
@@ -144,9 +144,9 @@ func TestGetRESTConfig(t *testing.T) {
 				paramSecondScopes:  []string{"second-token"},
 				expectFirstScopes:  true,
 				expectSecondScopes: true,
-				paramAccessTokens: []auth.Token{
-					&mockToken{token: "mock-default-token"},
-					&mockToken{token: "mock-default-token"},
+				paramAccessTokens: []auth.Credential{
+					&mockCredential{token: "mock-default-token"},
+					&mockCredential{token: "mock-default-token"},
 				},
 			},
 			cluster: "cluster/resource/name",
@@ -168,7 +168,7 @@ func TestGetRESTConfig(t *testing.T) {
 			name: "restconfig from access token from service account",
 			provider: &mockProvider{
 				returnName:        "mock-provider",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnAccessToken: &mockCredential{token: "mock-access-token"},
 				returnRESTConfig: &auth.RESTConfig{
 					Host:        "https://cluster/resource/name",
 					BearerToken: "mock-bearer-token",
@@ -182,9 +182,9 @@ func TestGetRESTConfig(t *testing.T) {
 				paramSecondScopes:    []string{"second-token"},
 				expectFirstScopes:    true,
 				expectSecondScopes:   true,
-				paramAccessTokens: []auth.Token{
-					&mockToken{token: "mock-access-token"},
-					&mockToken{token: "mock-access-token"},
+				paramAccessTokens: []auth.Credential{
+					&mockCredential{token: "mock-access-token"},
+					&mockCredential{token: "mock-access-token"},
 				},
 			},
 			cluster: "cluster/resource/name",
@@ -233,12 +233,12 @@ func TestGetRESTConfig(t *testing.T) {
 				auth.WithClusterResource("cluster/resource/name"),
 				auth.WithClusterAddress("https://cluster/resource/name"),
 				func(o *auth.Options) {
-					tokenCache, err := cache.NewTokenCache(3)
+					tokenCache, err := cache.NewCredentialCache(3)
 					g.Expect(err).NotTo(HaveOccurred())
 
 					accessTokenKey := "61f0d5d2ddd8c21ebcbab3686c5fe73234d7a825d02062baaa2951565eeb7398"
-					var token auth.Token = &mockToken{token: "cached-token"}
-					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
+					var token auth.Credential = &mockCredential{token: "cached-token"}
+					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Credential, error) {
 						return token, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
@@ -246,8 +246,8 @@ func TestGetRESTConfig(t *testing.T) {
 					g.Expect(cachedToken).To(Equal(token))
 
 					accessTokenKey = "583b0d84b5393b72396ad500503a74315e86b7044c3085d470c6597e751438af"
-					token = &mockToken{token: "cached-token"}
-					cachedToken, ok, err = tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
+					token = &mockCredential{token: "cached-token"}
+					cachedToken, ok, err = tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Credential, error) {
 						return token, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
@@ -261,7 +261,7 @@ func TestGetRESTConfig(t *testing.T) {
 						CAData:      []byte("ca-data"),
 						ExpiresAt:   now.Add(time.Hour),
 					}
-					cachedToken, ok, err = tokenCache.GetOrSet(ctx, restConfigKey, func(ctx context.Context) (cache.Token, error) {
+					cachedToken, ok, err = tokenCache.GetOrSet(ctx, restConfigKey, func(ctx context.Context) (cache.Credential, error) {
 						return token, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
@@ -291,7 +291,7 @@ func TestGetRESTConfig(t *testing.T) {
 			name: "restconfig from default kubeconfig service account using lockdown support",
 			provider: &mockProvider{
 				returnName:        "mock-provider",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnAccessToken: &mockCredential{token: "mock-access-token"},
 				returnRESTConfig: &auth.RESTConfig{
 					Host:        "https://cluster/resource/name",
 					BearerToken: "mock-bearer-token",
@@ -305,9 +305,9 @@ func TestGetRESTConfig(t *testing.T) {
 				paramSecondScopes:    []string{"second-token"},
 				expectFirstScopes:    true,
 				expectSecondScopes:   true,
-				paramAccessTokens: []auth.Token{
-					&mockToken{token: "mock-access-token"},
-					&mockToken{token: "mock-access-token"},
+				paramAccessTokens: []auth.Credential{
+					&mockCredential{token: "mock-access-token"},
+					&mockCredential{token: "mock-access-token"},
 				},
 			},
 			cluster: "cluster/resource/name",
@@ -332,7 +332,7 @@ func TestGetRESTConfig(t *testing.T) {
 			name: "restconfig from default kubeconfig service account using lockdown support - object level disabled",
 			provider: &mockProvider{
 				returnName:        "mock-provider",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnAccessToken: &mockCredential{token: "mock-access-token"},
 				returnRESTConfig: &auth.RESTConfig{
 					Host:        "https://cluster/resource/name",
 					BearerToken: "mock-bearer-token",
@@ -346,9 +346,9 @@ func TestGetRESTConfig(t *testing.T) {
 				paramSecondScopes:    []string{"second-token"},
 				expectFirstScopes:    true,
 				expectSecondScopes:   true,
-				paramAccessTokens: []auth.Token{
-					&mockToken{token: "mock-access-token"},
-					&mockToken{token: "mock-access-token"},
+				paramAccessTokens: []auth.Credential{
+					&mockCredential{token: "mock-access-token"},
+					&mockCredential{token: "mock-access-token"},
 				},
 			},
 			cluster: "cluster/resource/name",
@@ -406,8 +406,7 @@ func TestGetRESTConfig(t *testing.T) {
 			}
 
 			if tt.defaultKubeConfigSA != "" {
-				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
-				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
+				tt.opts = append(tt.opts, auth.WithDefaultServiceAccount(tt.defaultKubeConfigSA))
 			}
 
 			if tt.cluster != "" {

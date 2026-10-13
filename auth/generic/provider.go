@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/go-containerregistry/pkg/authn"
 	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +36,10 @@ import (
 // ProviderName is the name of the generic authentication provider.
 const ProviderName = "generic"
 
+// usernameAnnotation is the annotation key used to indicate that a JWT
+// credential should be used as the password in a username/password pair.
+const usernameAnnotation = "auth.fluxcd.io/username"
+
 // Provider implements the auth.Provider interface for generic authentication.
 type Provider struct{ Implementation }
 
@@ -43,8 +48,8 @@ func (p Provider) GetName() string {
 	return ProviderName
 }
 
-// NewControllerToken implements auth.RESTConfigProvider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+// NewAmbientCredential implements auth.RESTConfigProvider.
+func (p Provider) NewAmbientCredential(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -93,42 +98,86 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		return nil, fmt.Errorf("failed to create kubernetes token for controller service account '%s': %w",
 			client.ObjectKeyFromObject(&serviceAccount), err)
 	}
-	token := tokenReq.Status.Token
+	rawToken := tokenReq.Status.Token
 
-	exp, err := getExpirationFromToken(token)
+	exp, err := getExpirationFromJWT(rawToken)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Token{
-		Token:     token,
+	return &Credential{
+		Token:     rawToken,
 		ExpiresAt: *exp,
 	}, nil
 }
 
-// GetAudiences implements auth.RESTConfigProvider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
+// GetJWTAudiences implements auth.RESTConfigProvider.
+func (Provider) GetJWTAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
 	// Use TokenRequest default audiences.
 	return nil, nil
 }
 
-// GetIdentity implements auth.RESTConfigProvider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+// GetJWTIdentity implements auth.RESTConfigProvider.
+func (Provider) GetJWTIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
 	return fmt.Sprintf("system:serviceaccount:%s:%s", serviceAccount.Namespace, serviceAccount.Name), nil
 }
 
-// NewTokenForServiceAccount implements auth.RESTConfigProvider.
-func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewCredentialForMaterial implements auth.RESTConfigProvider.
+func (Provider) NewCredentialForMaterial(_ context.Context, credential auth.CredentialMaterial,
+	_ ...auth.Option) (auth.Credential, error) {
 
-	exp, err := getExpirationFromToken(oidcToken)
-	if err != nil {
-		return nil, err
+	jwt, ok := credential.(*auth.JWT)
+	if !ok {
+		return nil, fmt.Errorf("unsupported credential type %T", credential)
 	}
 
-	return &Token{
-		Token:     oidcToken,
-		ExpiresAt: *exp,
+	return &Credential{
+		Token:     jwt.Token,
+		ExpiresAt: jwt.ExpiresAt,
+	}, nil
+}
+
+// GetAccessTokenOptionsForArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Option, error) {
+	// No special options are needed to get an access token for an artifact registry.
+	return nil, nil
+}
+
+// ParseArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (p Provider) ParseArtifactRepository(string) (string, error) {
+	// The artifact repository is irrelevant for issuing the credential,
+	// just return the provider name for inclusion in the cache key.
+	return p.GetName(), nil
+}
+
+// NewArtifactRegistryCredentials implements auth.ArtifactRegistryCredentialsProvider.
+func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
+	accessToken auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+
+	credential, ok := accessToken.(*Credential)
+	if !ok {
+		return nil, fmt.Errorf("unsupported access token type %T", accessToken)
+	}
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	// Present the credential as the password of a username/password pair when
+	// a username is configured, otherwise as a bearer token.
+	if o.Credential != nil {
+		if username := o.Credential.Annotations[usernameAnnotation]; username != "" {
+			return &auth.ArtifactRegistryCredentials{
+				Authenticator: &authn.Basic{
+					Username: username,
+					Password: credential.Token,
+				},
+				ExpiresAt: credential.ExpiresAt,
+			}, nil
+		}
+	}
+	return &auth.ArtifactRegistryCredentials{
+		Authenticator: &authn.Bearer{Token: credential.Token},
+		ExpiresAt:     credential.ExpiresAt,
 	}, nil
 }
 
@@ -148,10 +197,10 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 }
 
 // NewRESTConfig implements auth.RESTConfigProvider.
-func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
-	token := accessTokens[0].(*Token)
+	credential := accessTokens[0].(*Credential)
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -176,8 +225,8 @@ func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	return &auth.RESTConfig{
 		Host:        host,
 		CAData:      caData,
-		BearerToken: token.Token,
-		ExpiresAt:   token.ExpiresAt,
+		BearerToken: credential.Token,
+		ExpiresAt:   credential.ExpiresAt,
 	}, nil
 }
 
@@ -188,8 +237,8 @@ func (p Provider) impl() Implementation {
 	return p.Implementation
 }
 
-func getExpirationFromToken(token string) (*time.Time, error) {
-	tok, _, err := jwt.NewParser().ParseUnverified(token, jwt.MapClaims{})
+func getExpirationFromJWT(rawToken string) (*time.Time, error) {
+	tok, _, err := jwt.NewParser().ParseUnverified(rawToken, jwt.MapClaims{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse service account token: %w", err)
 	}

@@ -69,13 +69,13 @@ func TestGetAccessToken(t *testing.T) {
 		opts               []auth.Option
 		disableObjectLevel bool
 		defaultSA          string
-		expectedToken      auth.Token
+		expectedToken      auth.Credential
 		expectedErr        string
 	}{
 		{
 			name: "controller access token",
 			provider: &mockProvider{
-				returnControllerToken: &mockToken{token: "mock-default-token"},
+				returnControllerToken: &mockCredential{token: "mock-default-token"},
 			},
 			opts: []auth.Option{
 				auth.WithAudiences("audience1", "audience2"),
@@ -85,12 +85,12 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			expectedToken: &mockToken{token: "mock-default-token"},
+			expectedToken: &mockCredential{token: "mock-default-token"},
 		},
 		{
 			name: "controller access token allowing shell out",
 			provider: &mockProvider{
-				returnControllerToken: &mockToken{token: "mock-default-token"},
+				returnControllerToken: &mockCredential{token: "mock-default-token"},
 				paramAllowShellOut:    true,
 			},
 			opts: []auth.Option{
@@ -102,13 +102,13 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithCAData("ca-data"),
 				auth.WithAllowShellOut(),
 			},
-			expectedToken: &mockToken{token: "mock-default-token"},
+			expectedToken: &mockCredential{token: "mock-default-token"},
 		},
 		{
 			name: "access token from service account using default - for lockdown support",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
-				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				returnAccessToken:    &mockCredential{token: "mock-access-token"},
 				paramAudiences:       []string{"audience1", "audience2"},
 				paramServiceAccount:  *lockdownServiceAccount,
 				paramOIDCTokenClient: oidcClient,
@@ -124,13 +124,13 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithCAData("ca-data"),
 			},
 			defaultSA:     "lockdown-sa",
-			expectedToken: &mockToken{token: "mock-access-token"},
+			expectedToken: &mockCredential{token: "mock-access-token"},
 		},
 		{
 			name: "access token from service account using default - for lockdown support, object level disabled",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
-				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				returnAccessToken:    &mockCredential{token: "mock-access-token"},
 				paramAudiences:       []string{"audience1", "audience2"},
 				paramServiceAccount:  *lockdownServiceAccount,
 				paramOIDCTokenClient: oidcClient,
@@ -147,14 +147,14 @@ func TestGetAccessToken(t *testing.T) {
 			},
 			defaultSA:          "lockdown-sa",
 			disableObjectLevel: true,
-			expectedToken:      &mockToken{token: "mock-access-token"},
+			expectedToken:      &mockCredential{token: "mock-access-token"},
 			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
 		},
 		{
 			name: "error when default service account does not exist - for lockdown support",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
-				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				returnAccessToken:    &mockCredential{token: "mock-access-token"},
 				paramAudiences:       []string{"audience1", "audience2"},
 				paramServiceAccount:  *lockdownServiceAccount,
 				paramOIDCTokenClient: oidcClient,
@@ -171,7 +171,7 @@ func TestGetAccessToken(t *testing.T) {
 			name: "access token from service account",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
-				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				returnAccessToken:    &mockCredential{token: "mock-access-token"},
 				paramAudiences:       []string{"audience1", "audience2"},
 				paramServiceAccount:  *defaultServiceAccount,
 				paramOIDCTokenClient: oidcClient,
@@ -189,18 +189,18 @@ func TestGetAccessToken(t *testing.T) {
 				// Exercise the code path where a cache is set but no token is
 				// available in the cache.
 				func(o *auth.Options) {
-					tokenCache, err := cache.NewTokenCache(1)
+					tokenCache, err := cache.NewCredentialCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 					o.Cache = tokenCache
 				},
 			},
-			expectedToken: &mockToken{token: "mock-access-token"},
+			expectedToken: &mockCredential{token: "mock-access-token"},
 		},
 		{
 			name: "access token from service account with explicit name ignoring default",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
-				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				returnAccessToken:    &mockCredential{token: "mock-access-token"},
 				paramAudiences:       []string{"audience1", "audience2"},
 				paramServiceAccount:  *defaultServiceAccount,
 				paramOIDCTokenClient: oidcClient,
@@ -217,13 +217,13 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithCAData("ca-data"),
 			},
 			defaultSA:     "non-existent-sa",
-			expectedToken: &mockToken{token: "mock-access-token"},
+			expectedToken: &mockCredential{token: "mock-access-token"},
 		},
 		{
 			name: "access token from service account - default audience",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
-				returnAccessToken:    &mockToken{token: "mock-access-token"},
+				returnAccessToken:    &mockCredential{token: "mock-access-token"},
 				paramAudiences:       []string{},
 				paramServiceAccount:  *defaultServiceAccount,
 				paramOIDCTokenClient: oidcClient,
@@ -238,7 +238,7 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			expectedToken: &mockToken{token: "mock-access-token"},
+			expectedToken: &mockCredential{token: "mock-access-token"},
 		},
 		{
 			name: "all the options are taken into account in the cache key",
@@ -259,12 +259,12 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
-					tokenCache, err := cache.NewTokenCache(1)
+					tokenCache, err := cache.NewCredentialCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 
 					const key = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
-					token := &mockToken{token: "cached-token"}
-					cachedToken, ok, err := tokenCache.GetOrSet(ctx, key, func(ctx context.Context) (cache.Token, error) {
+					token := &mockCredential{token: "cached-token"}
+					cachedToken, ok, err := tokenCache.GetOrSet(ctx, key, func(ctx context.Context) (cache.Credential, error) {
 						return token, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
@@ -274,7 +274,7 @@ func TestGetAccessToken(t *testing.T) {
 					o.Cache = tokenCache
 				},
 			},
-			expectedToken: &mockToken{token: "cached-token"},
+			expectedToken: &mockCredential{token: "cached-token"},
 		},
 		{
 			name: "error getting identity",
@@ -312,7 +312,7 @@ func TestGetAccessToken(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
-					tokenCache, err := cache.NewTokenCache(1)
+					tokenCache, err := cache.NewCredentialCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 					o.Cache = tokenCache
 				},
@@ -350,11 +350,10 @@ func TestGetAccessToken(t *testing.T) {
 			}
 
 			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
+				tt.opts = append(tt.opts, auth.WithDefaultServiceAccount(tt.defaultSA))
 			}
 
-			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)
+			token, err := auth.GetCredential(ctx, tt.provider, tt.opts...)
 
 			if tt.expectedErr != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.expectedErr)))
@@ -376,7 +375,7 @@ func TestGetAccessToken_ControllerLevelAudienceCacheKey(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
 
-	tokenCache, err := cache.NewTokenCache(3)
+	tokenCache, err := cache.NewCredentialCache(3)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	provider := &mockProvider{t: t, returnName: "mock-provider"}
@@ -401,21 +400,21 @@ func TestGetAccessToken_ControllerLevelAudienceCacheKey(t *testing.T) {
 	}
 
 	// Mint and cache a controller token for the first audience.
-	provider.returnControllerToken = &mockToken{token: "token-audience-a"}
-	got, err := auth.GetAccessToken(ctx, provider, opts("audience-a")...)
+	provider.returnControllerToken = &mockCredential{token: "token-audience-a"}
+	got, err := auth.GetCredential(ctx, provider, opts("audience-a")...)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(got).To(Equal(&mockToken{token: "token-audience-a"}))
+	g.Expect(got).To(Equal(&mockCredential{token: "token-audience-a"}))
 
 	// A different audience must NOT reuse the first audience's cached token.
-	provider.returnControllerToken = &mockToken{token: "token-audience-b"}
-	got, err = auth.GetAccessToken(ctx, provider, opts("audience-b")...)
+	provider.returnControllerToken = &mockCredential{token: "token-audience-b"}
+	got, err = auth.GetCredential(ctx, provider, opts("audience-b")...)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(got).To(Equal(&mockToken{token: "token-audience-b"}))
+	g.Expect(got).To(Equal(&mockCredential{token: "token-audience-b"}))
 
 	// The first audience still returns its own cached token (per-audience cache);
 	// the refreshed controller token must not be minted.
-	provider.returnControllerToken = &mockToken{token: "token-audience-a-fresh"}
-	got, err = auth.GetAccessToken(ctx, provider, opts("audience-a")...)
+	provider.returnControllerToken = &mockCredential{token: "token-audience-a-fresh"}
+	got, err = auth.GetCredential(ctx, provider, opts("audience-a")...)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(got).To(Equal(&mockToken{token: "token-audience-a"}))
+	g.Expect(got).To(Equal(&mockCredential{token: "token-audience-a"}))
 }

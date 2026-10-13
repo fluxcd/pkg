@@ -37,13 +37,13 @@ func NewTokenSource(ctx context.Context, opts ...auth.Option) oauth2.TokenSource
 
 // Token implements oauth2.TokenSource.
 func (t *tokenSource) Token() (*oauth2.Token, error) {
-	token, err := auth.GetAccessToken(t.ctx, Provider{}, t.opts...)
+	credential, err := auth.GetCredential(t.ctx, Provider{}, t.opts...)
 	if err != nil {
 		return nil, err
 	}
-	gcpToken, ok := token.(*Token)
+	accessToken, ok := credential.(*AccessToken)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast token to GCP token: %T", token)
+		return nil, fmt.Errorf("failed to cast credential to GCP access token: %T", credential)
 	}
-	return &gcpToken.Token, nil
+	return &accessToken.Token, nil
 }

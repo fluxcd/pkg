@@ -133,11 +133,11 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			name: "registry token from controller access token",
 			provider: &mockProvider{
 				returnRegistryInput:   "some-registry.io/some/artifact",
-				returnControllerToken: &mockToken{token: "mock-default-token"},
+				returnControllerToken: &mockCredential{token: "mock-default-token"},
 				returnRegistryToken: &auth.ArtifactRegistryCredentials{
 					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 				},
-				paramAccessToken:        &mockToken{token: "mock-default-token"},
+				paramAccessToken:        &mockCredential{token: "mock-default-token"},
 				paramArtifactRepository: "some-registry.io/some/artifact",
 			},
 			artifactRepository: "some-registry.io/some/artifact",
@@ -158,7 +158,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			provider: &mockProvider{
 				returnName:          "mock-provider",
 				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
+				returnAccessToken:   &mockCredential{token: "mock-access-token"},
 				returnRegistryToken: &auth.ArtifactRegistryCredentials{
 					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 				},
@@ -166,7 +166,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				paramServiceAccount:     *defaultServiceAccount,
 				paramOIDCTokenClient:    oidcClient,
 				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
+				paramAccessToken:        &mockCredential{token: "mock-access-token"},
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
@@ -189,7 +189,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			provider: &mockProvider{
 				returnName:          "mock-provider",
 				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
+				returnAccessToken:   &mockCredential{token: "mock-access-token"},
 				returnRegistryToken: &auth.ArtifactRegistryCredentials{
 					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 				},
@@ -197,7 +197,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				paramServiceAccount:     *defaultServiceAccount,
 				paramOIDCTokenClient:    oidcClient,
 				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
+				paramAccessToken:        &mockCredential{token: "mock-access-token"},
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
@@ -220,7 +220,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			provider: &mockProvider{
 				returnName:          "mock-provider",
 				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
+				returnAccessToken:   &mockCredential{token: "mock-access-token"},
 				returnRegistryToken: &auth.ArtifactRegistryCredentials{
 					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 				},
@@ -228,7 +228,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				paramServiceAccount:     *defaultServiceAccount,
 				paramOIDCTokenClient:    oidcClient,
 				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
+				paramAccessToken:        &mockCredential{token: "mock-access-token"},
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
@@ -269,12 +269,12 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
-					tokenCache, err := cache.NewTokenCache(2)
+					tokenCache, err := cache.NewCredentialCache(2)
 					g.Expect(err).NotTo(HaveOccurred())
 
 					const accessTokenKey = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
-					var token auth.Token = &mockToken{token: "cached-token"}
-					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
+					var token auth.Credential = &mockCredential{token: "cached-token"}
+					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Credential, error) {
 						return token, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
@@ -286,7 +286,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 						Authenticator: authn.FromConfig(authn.AuthConfig{Username: "cached-registry-token"}),
 						ExpiresAt:     now.Add(time.Hour),
 					}
-					cachedToken, ok, err = tokenCache.GetOrSet(ctx, artifactRegistryCredentialsKey, func(ctx context.Context) (cache.Token, error) {
+					cachedToken, ok, err = tokenCache.GetOrSet(ctx, artifactRegistryCredentialsKey, func(ctx context.Context) (cache.Credential, error) {
 						return token, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
@@ -341,8 +341,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			}
 
 			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
+				tt.opts = append(tt.opts, auth.WithDefaultServiceAccount(tt.defaultSA))
 			}
 
 			creds, err := auth.GetArtifactRegistryCredentials(ctx, tt.provider, tt.artifactRepository, tt.opts...)
