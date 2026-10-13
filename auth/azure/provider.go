@@ -208,9 +208,13 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 
 	// Create the ACR authentication client.
 	endpoint := fmt.Sprintf("https://%s", registry)
+	httpClient := o.ArtifactRegistryHTTPClient
+	if httpClient == nil {
+		httpClient = o.GetHTTPClient()
+	}
 	clientOpts := azcontainerregistry.AuthenticationClientOptions{
 		ClientOptions: azcore.ClientOptions{
-			Transport: o.GetHTTPClient(),
+			Transport: httpClient,
 		},
 	}
 	client, err := azcontainerregistry.NewAuthenticationClient(endpoint, &clientOpts)
@@ -220,13 +224,20 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 
 	// Exchange the access token for an ACR token.
 	grantType := azcontainerregistry.PostContentSchemaGrantTypeAccessToken
-	service := registry
+	registryURL, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	service := registryURL.Hostname()
 	tokenOpts := &azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenOptions{
 		AccessToken: &accessToken.(*Token).Token,
 	}
 	resp, err := p.impl().ExchangeAADAccessTokenForACRRefreshToken(ctx, client, grantType, service, tokenOpts)
 	if err != nil {
 		return nil, err
+	}
+	if resp.RefreshToken == nil || *resp.RefreshToken == "" {
+		return nil, fmt.Errorf("ACR exchange response is missing a refresh token")
 	}
 	token := *resp.RefreshToken
 
@@ -238,6 +249,10 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 	expiry, err := claims.GetExpirationTime()
 	if err != nil {
 		return nil, err
+	}
+
+	if expiry == nil {
+		return nil, fmt.Errorf("ACR refresh token is missing an expiration time")
 	}
 
 	// Return the credentials.
