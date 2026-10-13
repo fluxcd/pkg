@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package crypto contains API types for configuring short-lived
-// cryptographic material used to authenticate with external services.
+// Package crypto contains APIs for configuring short-lived
+// cryptographic material used to authenticate with external
+// services.
 // +kubebuilder:object:generate=true
-package crypto
+package v1
