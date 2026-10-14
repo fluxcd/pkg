@@ -20,8 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
 // Tag creates a new tag for the given artifact using the same OCI repository as the origin.
@@ -31,11 +31,15 @@ func (c *Client) Tag(ctx context.Context, url, tag string) (string, error) {
 		return "", fmt.Errorf("invalid URL: %w", err)
 	}
 
-	if err := crane.Tag(url, tag, c.optionsWithContext(ctx)...); err != nil {
-		return "", err
+	desc, err := remote.Get(ref, c.optionsWithContext(ctx)...)
+	if err != nil {
+		return "", fmt.Errorf("fetching image failed: %w", err)
 	}
 
 	dst := ref.Context().Tag(tag)
+	if err := remote.Tag(dst, desc, c.optionsWithContext(ctx)...); err != nil {
+		return "", err
+	}
 
 	return dst.Name(), nil
 }

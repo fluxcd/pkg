@@ -24,9 +24,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/fluxcd/pkg/tar"
 )
@@ -75,9 +75,14 @@ func (c *Client) Pull(ctx context.Context, url, outPath string, opts ...PullOpti
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
-	img, err := crane.Pull(url, c.optionsWithContext(ctx)...)
+	desc, err := remote.Get(ref, c.optionsWithContext(ctx)...)
 	if err != nil {
 		return nil, err
+	}
+
+	img, err := desc.Image()
+	if err != nil {
+		return nil, fmt.Errorf("parsing image failed: %w", err)
 	}
 
 	digest, err := img.Digest()
