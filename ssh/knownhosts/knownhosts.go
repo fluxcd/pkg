@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sort"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -165,18 +166,47 @@ func (db *inMemoryHostKeyDB) IsRevoked(key *ssh.Certificate) bool {
 	return ok
 }
 
-func (db *inMemoryHostKeyDB) hostKeyAlgorithms() []string {
-	var algos []string
-
+// hostKeyAlgorithms returns the host key algorithms held by the database for
+// the given address, sorted so that the negotiation order is deterministic.
+//
+// Only the algorithms known for a are returned. Advertising an algorithm for
+// which the database holds no entry for a lets the server select it, and
+// check then rejects the resulting host key as a mismatch.
+//
+// It returns nil when the database holds no host key for a, leaving the
+// negotiation to the defaults of golang.org/x/crypto/ssh.
+func (db *inMemoryHostKeyDB) hostKeyAlgorithms(a addr) []string {
 	uniq := make(map[string]struct{})
 	for _, hk := range db.hostKeys {
+		// A certificate authority entry holds the key that signs host
+		// certificates, not a host key algorithm the server can offer.
+		if hk.cert || !hk.match(a) {
+			continue
+		}
 		uniq[hk.key.Type()] = struct{}{}
 	}
+	if len(uniq) == 0 {
+		return nil
+	}
+
+	algos := make([]string, 0, len(uniq))
 	for k := range uniq {
 		algos = append(algos, k)
 	}
+	sort.Strings(algos)
 
 	return algos
+}
+
+// hostAddr parses a host, with or without a port, into an addr. It mirrors
+// the parsing done by newHostnameMatcher so that the address derived from the
+// connection target matches the known_hosts patterns.
+func hostAddr(host string) addr {
+	h, p, err := net.SplitHostPort(host)
+	if err != nil {
+		return addr{host: strings.Trim(host, "[]"), port: "22"}
+	}
+	return addr{host: h, port: p}
 }
 
 const markerCert = "@cert-authority"
@@ -381,7 +411,13 @@ func (db *inMemoryHostKeyDB) Read(r io.Reader) error {
 // operates on the hostname if available, i.e. if a server changes its
 // IP address, the host key check will still succeed, even though a
 // record of the new IP address is not available.
-func New(b []byte) (ssh.HostKeyCallback, []string, error) {
+//
+// It also returns the host key algorithms to advertise for host, for use in
+// ssh.ClientConfig.HostKeyAlgorithms. The host is the connection target, with
+// or without a port; only the algorithms held for that host are returned, so
+// that a blob covering several hosts does not make the server offer a host key
+// the callback then rejects.
+func New(b []byte, host string) (ssh.HostKeyCallback, []string, error) {
 	db := newInMemoryHostKeyDB()
 	r := bytes.NewReader(b)
 	if err := db.Read(r); err != nil {
@@ -393,7 +429,7 @@ func New(b []byte) (ssh.HostKeyCallback, []string, error) {
 	certChecker.IsRevoked = db.IsRevoked
 	certChecker.HostKeyFallback = db.check
 
-	return certChecker.CheckHostKey, db.hostKeyAlgorithms(), nil
+	return certChecker.CheckHostKey, db.hostKeyAlgorithms(hostAddr(host)), nil
 }
 
 func decodeHash(encoded string) (hashType string, salt, hash []byte, err error) {
