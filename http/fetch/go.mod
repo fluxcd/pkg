@@ -1,6 +1,6 @@
 module github.com/fluxcd/pkg/http/fetch
 
-go 1.26.0
+go 1.27.0
 
 replace (
 	github.com/fluxcd/pkg/tar => ../../tar
@@ -28,7 +28,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )

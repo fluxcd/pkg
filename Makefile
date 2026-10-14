@@ -28,7 +28,7 @@ tidy:
 	$(MAKE) $(addprefix tidy-, $(MODULES))
 
 tidy-%:
-	cd $(subst :,/,$*); go mod tidy -compat=1.26
+	cd $(subst :,/,$*); go mod tidy -compat=1.27
 
 fmt:
 	$(MAKE) $(addprefix fmt-, $(MODULES))
