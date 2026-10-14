@@ -12,10 +12,10 @@ replace (
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6
 	github.com/fluxcd/cli-utils v1.4.0
-	github.com/fluxcd/pkg/apis/acl v0.11.0
-	github.com/fluxcd/pkg/apis/event v0.30.0
-	github.com/fluxcd/pkg/apis/kustomize v1.21.0
-	github.com/fluxcd/pkg/apis/meta v1.33.0
+	github.com/fluxcd/pkg/apis/acl v0.12.0
+	github.com/fluxcd/pkg/apis/event v0.31.0
+	github.com/fluxcd/pkg/apis/kustomize v1.22.0
+	github.com/fluxcd/pkg/apis/meta v1.34.0
 	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zapr v1.3.0
 	github.com/google/cel-go v0.29.2
