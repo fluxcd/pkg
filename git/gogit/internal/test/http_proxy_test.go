@@ -113,14 +113,14 @@ func Test_HTTP_proxy(t *testing.T) {
 				proxy.OnRequest().HandleConnect(proxyHandler)
 
 				return &git.AuthOptions{
-						Transport: git.HTTPS,
-						Username:  username,
-						Password:  password,
-						CAFile:    exampleCA,
-					}, func() {
-						os.RemoveAll(gitServer.Root())
-						gitServer.StopHTTP()
-					}
+					Transport: git.HTTPS,
+					Username:  username,
+					Password:  password,
+					CAFile:    exampleCA,
+				}, func() {
+					os.RemoveAll(gitServer.Root())
+					gitServer.StopHTTP()
+				}
 			},
 			wantUsedProxy: true,
 			tls:           true,
@@ -137,9 +137,9 @@ func Test_HTTP_proxy(t *testing.T) {
 				proxy.OnRequest().HandleConnect(proxyHandler)
 
 				return &git.AuthOptions{
-						Transport: git.HTTP,
-					}, func() {
-					}
+					Transport: git.HTTP,
+				}, func() {
+				}
 			},
 			wantUsedProxy: false,
 		},
@@ -243,9 +243,9 @@ func setupHTTPGitProxy(g *WithT, proxy *goproxy.ProxyHttpServer, proxiedRequests
 	proxy.OnRequest().Do(proxyHandler)
 
 	return &git.AuthOptions{
-			Transport: git.HTTP,
-		}, func() {
-			os.RemoveAll(gitServer.Root())
-			gitServer.StopHTTP()
-		}
+		Transport: git.HTTP,
+	}, func() {
+		os.RemoveAll(gitServer.Root())
+		gitServer.StopHTTP()
+	}
 }

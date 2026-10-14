@@ -227,7 +227,7 @@ func createSSHIdentitySecret(repoURL url.URL) (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	keygen := ssh.NewRSAGenerator(2048)
+	keygen := ssh.NewRSAGenerator(4096)
 	pair, err := keygen.Generate()
 	if err != nil {
 		return nil, err

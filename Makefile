@@ -3,11 +3,7 @@ MODULES=$(shell find . -mindepth 2 -maxdepth 4 -type f -name 'go.mod' | cut -c 3
 root_dir=$(shell git rev-parse --show-toplevel)
 
 # Use $GOBIN from the environment if set, otherwise use ./bin
-ifeq (,$(shell go env GOBIN))
-GOBIN=$(root_dir)/bin
-else
-GOBIN=$(shell go env GOBIN)
-endif
+GOBIN ?= $(root_dir)/bin
 
 PKG?=$*
 GO_TEST_ARGS ?= -race
@@ -28,7 +24,7 @@ tidy:
 	$(MAKE) $(addprefix tidy-, $(MODULES))
 
 tidy-%:
-	cd $(subst :,/,$*); go mod tidy -compat=1.26
+	cd $(subst :,/,$*); go mod tidy -compat=1.27
 
 fmt:
 	$(MAKE) $(addprefix fmt-, $(MODULES))
@@ -113,7 +109,7 @@ TMP_DIR=$$(mktemp -d) ;\
 cd $$TMP_DIR ;\
 go mod init tmp ;\
 echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
+GOBIN=$(GOBIN) go install $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
