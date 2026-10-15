@@ -34,7 +34,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/csaupgrade"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
@@ -526,26 +528,83 @@ func (m *ResourceManager) cleanupMetadata(ctx context.Context,
 		patches = append(patches, PatchRemoveLabels(object, opts.Labels)...)
 	}
 
-	if len(opts.FieldManagers) > 0 {
-		managedFieldPatch, err := PatchReplaceFieldsManagers(object, opts.FieldManagers, m.owner.Field)
+	patched := false
+	if len(patches) > 0 {
+		rawPatch, err := json.Marshal(patches)
 		if err != nil {
 			return false, err
 		}
-		patches = append(patches, managedFieldPatch...)
+		patch := client.RawPatch(types.JSONPatchType, rawPatch)
+
+		err = m.client.Patch(ctx, object, patch, client.FieldOwner(m.owner.Field))
+		if err != nil {
+			return false, err
+		}
+
+		patched = true
 	}
 
-	// no patching is needed exit early
-	if len(patches) == 0 {
-		return false, nil
+	released := false
+	if len(opts.FieldManagers) > 0 {
+		var err error
+		released, err = m.releaseOverrideManagerFields(ctx, object, opts.FieldManagers)
+		if err != nil {
+			return false, err
+		}
 	}
 
-	rawPatch, err := json.Marshal(patches)
-	if err != nil {
-		return false, err
-	}
-	patch := client.RawPatch(types.JSONPatchType, rawPatch)
+	return patched || released, nil
+}
 
-	return true, m.client.Patch(ctx, object, patch, client.FieldOwner(m.owner.Field))
+func (m *ResourceManager) releaseOverrideManagerFields(ctx context.Context, object *unstructured.Unstructured, managers []FieldManager) (bool, error) {
+	upgradeManagers := sets.New[string]()
+	ssaManagers := sets.New[string]()
+
+	// First look through the managed fields for matching managers.
+	// Keep track of managers that have been using client-side apply.
+	for _, entry := range object.GetManagedFields() {
+		for _, manager := range managers {
+			if matchFieldManager(entry, manager) {
+				if entry.Operation == metav1.ManagedFieldsOperationUpdate {
+					upgradeManagers.Insert(entry.Manager)
+				}
+				ssaManagers.Insert(entry.Manager)
+			}
+		}
+	}
+
+	// Upgrade managed fields from CSA to SSA for all CSA managers to make the
+	// empty releasing SSA request below effective.
+	for manager := range upgradeManagers {
+		patch, err := csaupgrade.UpgradeManagedFieldsPatch(object, sets.New(manager), manager)
+		if err != nil {
+			return false, fmt.Errorf("preparing upgrade managed fields patch: %w", err)
+		}
+		if len(patch) == 0 {
+			continue
+		}
+
+		err = m.client.Patch(ctx, object, client.RawPatch(types.JSONPatchType, patch))
+		if err != nil {
+			return false, fmt.Errorf("upgrade managed fields patch: %w", err)
+		}
+	}
+
+	// Perform an empty SSA request on behalf of all managers
+	// to release ownership over all fields.
+	for manager := range ssaManagers {
+		emptyApplyObject := &unstructured.Unstructured{}
+		emptyApplyObject.SetAPIVersion(object.GetAPIVersion())
+		emptyApplyObject.SetKind(object.GetKind())
+		emptyApplyObject.SetName(object.GetName())
+		emptyApplyObject.SetNamespace(object.GetNamespace())
+
+		err := m.client.Apply(ctx, client.ApplyConfigurationFromUnstructured(emptyApplyObject), client.FieldOwner(manager))
+		if err != nil {
+			return false, fmt.Errorf("performing empty SSA request: %w", err)
+		}
+	}
+	return true, nil
 }
 
 // shouldForceApply determines based on the apply error and ApplyOptions if the object should be recreated.
