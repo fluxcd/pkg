@@ -17,3 +17,7 @@
 /build/
 bin/
 testbin/
+
+# Editor/IDE
+.idea/
+*.iml
