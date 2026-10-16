@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	"errors"
 	"testing"
 )
 
@@ -91,22 +90,18 @@ func TestGCPClusterValidate(t *testing.T) {
 	const cluster = "projects/my-project/locations/us-central1/clusters/my-cluster"
 	tests := []struct {
 		name      string
-		data      map[string]string
-		wantErr   error
+		cluster   string
 		wantError bool
 	}{
-		{name: "valid", data: map[string]string{KubeConfigCluster: cluster}},
-		{name: "missing", data: map[string]string{}, wantErr: ErrClusterRequired, wantError: true},
-		{name: "invalid", data: map[string]string{KubeConfigCluster: "nope"}, wantError: true},
+		{name: "valid", cluster: cluster},
+		{name: "empty", wantError: true},
+		{name: "invalid", cluster: "nope", wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := GCPCluster("").Validate(tt.data)
+			err := GCPCluster("").Validate(tt.cluster)
 			if (err != nil) != tt.wantError {
 				t.Fatalf("got error %v, want error=%v", err, tt.wantError)
-			}
-			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
-				t.Fatalf("got error %v, want %v", err, tt.wantErr)
 			}
 		})
 	}

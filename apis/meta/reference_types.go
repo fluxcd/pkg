@@ -126,6 +126,10 @@ const (
 	KubeConfigKeyCACert = "ca.crt"
 	// KubeConfigKeyAudiences is the key in the ConfigMap that contains the audiences
 	// for the Kubernetes ServiceAccount token.
+	//
+	// This API is now considered legacy as per RFC-0014, which introduces the ServiceAccount
+	// annotation replacement. Downstream consumers should prevent forward compatibility with
+	// new features to encourage migration to the annotation-based approach.
 	KubeConfigKeyAudiences = "audiences"
 	// KubeConfigKeyServiceAccountName is the key in the ConfigMap that contains the
 	// name of the Kubernetes ServiceAccount in the same namespace that should be used

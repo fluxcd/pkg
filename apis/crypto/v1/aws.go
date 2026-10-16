@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 )
@@ -113,15 +112,10 @@ func (AWSCluster) String() string {
 }
 
 // Extract checks if the AWSCluster is in the correct format and returns it.
-func (AWSCluster) ExtractRegionAndName(cmData map[string]string) (string, string, error) {
-	_, matches, ok, err := extractConfigMapKeyForKubeConfig(KubeConfigCluster, cmData, awsClusterPatternRegex)
+func (AWSCluster) ExtractRegionAndName(cluster string) (string, string, error) {
+	_, matches, err := parseKubeConfigCluster(cluster, awsClusterPatternRegex)
 	if err != nil {
 		return "", "", err
-	}
-	if !ok {
-		// Always required for AWS in order to retrieve the region,
-		// so we return a different error than ErrClusterRequired.
-		return "", "", errors.New("EKS cluster missing from kubeconfig ConfigMap")
 	}
 	region := matches[1]
 	name := matches[2]

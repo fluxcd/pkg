@@ -215,10 +215,10 @@ func (CredentialAudiences) Extract(saAnnotations map[string]string) []string {
 
 // ExtractKubeConfigAudiences extracts the audiences for minting a credential for
 // accessing a remote Kubernetes cluster in applier APIs from the given ServiceAccount
-// annotations and ConfigMap data. It implements the rule defined by KubeConfigLegacyAudiences.
-func (CredentialAudiences) ExtractKubeConfigAudiences(saAnnotations, cmData map[string]string) ([]string, error) {
-	cmAudiences, ok := cmData[KubeConfigLegacyAudiences]
-	if !ok {
+// annotations and legacy ConfigMap `audiences` value. It implements the rule
+// defined for the legacy `audiences` key.
+func (CredentialAudiences) ExtractKubeConfigAudiences(saAnnotations map[string]string, cmAudiences string) ([]string, error) {
+	if cmAudiences == "" {
 		return AnnotationCredentialAudiences.Extract(saAnnotations), nil
 	}
 	rfc0014Annotation, ok := FindRFC0014Annotation(saAnnotations)

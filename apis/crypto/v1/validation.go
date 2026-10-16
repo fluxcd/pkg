@@ -46,24 +46,27 @@ var uuidRegex = regexp.MustCompile(
 
 // extractServiceAccountAnnotation validates annotations used in a ServiceAccount.
 func extractServiceAccountAnnotation(key string, saAnnotations map[string]string, regex *regexp.Regexp) (string, bool, error) {
-	s, _, ok, err := extractKey("ServiceAccount annotation key", key, saAnnotations, regex)
-	return s, ok, err
-}
-
-// extractConfigMapKeyForKubeConfig validates keys used in a ConfigMap.
-func extractConfigMapKeyForKubeConfig(key string, cmData map[string]string, regex *regexp.Regexp) (string, []string, bool, error) {
-	return extractKey("kubeconfig ConfigMap data key", key, cmData, regex)
-}
-
-func extractKey(keyType, key string, m map[string]string, regex *regexp.Regexp) (string, []string, bool, error) {
-	value, ok := m[key]
+	value, ok := saAnnotations[key]
 	if !ok {
-		return "", nil, false, nil
+		return "", false, nil
 	}
+	s, _, err := parseValueFromMap("ServiceAccount annotation key", key, value, regex)
+	if err != nil {
+		return "", false, err
+	}
+	return s, true, nil
+}
+
+// parseKubeConfigCluster validates keys used in a ConfigMap.
+func parseKubeConfigCluster(value string, regex *regexp.Regexp) (string, []string, error) {
+	return parseValueFromMap("kubeconfig ConfigMap data key", "cluster", value, regex)
+}
+
+func parseValueFromMap(keyType, key, value string, regex *regexp.Regexp) (string, []string, error) {
 	matches := regex.FindStringSubmatch(value)
 	if matches == nil {
-		return "", nil, false, fmt.Errorf("invalid %s %s: '%s'. must match %s",
+		return "", nil, fmt.Errorf("invalid %s %s: '%s'. must match %s",
 			keyType, key, value, regex.String())
 	}
-	return value, matches, true, nil
+	return value, matches, nil
 }
