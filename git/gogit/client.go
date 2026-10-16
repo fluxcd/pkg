@@ -260,6 +260,9 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 	if err := g.validateUrlAndAuthOptions(url); err != nil {
 		return nil, err
 	}
+	if cfg.Depth < 0 {
+		return nil, fmt.Errorf("invalid clone depth %d: must not be negative", cfg.Depth)
+	}
 
 	return g.clone(ctx, url, cfg)
 }
