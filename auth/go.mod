@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.49.0
 	github.com/aws/smithy-go/aws-http-auth v1.2.1
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/fluxcd/pkg/apis/meta v1.35.0
+	github.com/fluxcd/pkg/apis/meta v1.36.0
 	github.com/fluxcd/pkg/cache v0.17.0
 	github.com/fluxcd/pkg/ssh v0.28.0
 	github.com/go-jose/go-jose/v4 v4.1.5
