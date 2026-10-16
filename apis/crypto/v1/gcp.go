@@ -96,13 +96,10 @@ func (GCPCluster) String() string {
 }
 
 // Validate checks if the GCPCluster is in the correct format.
-func (GCPCluster) Validate(cmData map[string]string) error {
-	_, _, ok, err := extractConfigMapKeyForKubeConfig(KubeConfigCluster, cmData, gcpClusterPatternRegex)
+func (GCPCluster) Validate(cluster string) error {
+	_, _, err := parseKubeConfigCluster(cluster, gcpClusterPatternRegex)
 	if err != nil {
 		return err
-	}
-	if !ok {
-		return ErrClusterRequired
 	}
 	return nil
 }

@@ -119,15 +119,10 @@ func (AzureCluster) String() string {
 
 // ExtractSubscriptionResourceGroupAndName checks if the AzureCluster is in the
 // correct format and returns the subscription ID, resource group and cluster name.
-// The cluster is only required when one of {address, ca.crt} is missing, so a
-// missing cluster returns ErrClusterRequired.
-func (AzureCluster) ExtractSubscriptionResourceGroupAndName(cmData map[string]string) (string, string, string, error) {
-	_, matches, ok, err := extractConfigMapKeyForKubeConfig(KubeConfigCluster, cmData, azureClusterPatternRegex)
+func (AzureCluster) ExtractSubscriptionResourceGroupAndName(cluster string) (string, string, string, error) {
+	_, matches, err := parseKubeConfigCluster(cluster, azureClusterPatternRegex)
 	if err != nil {
 		return "", "", "", err
-	}
-	if !ok {
-		return "", "", "", ErrClusterRequired
 	}
 	subscriptionID := matches[1]
 	resourceGroup := matches[2]

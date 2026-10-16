@@ -272,27 +272,26 @@ func TestExtractKubeConfigAudiences(t *testing.T) {
 	tests := []struct {
 		name      string
 		ann       map[string]string
-		cm        map[string]string
+		cm        string
 		want      []string
 		wantError bool
 	}{
-		{name: "no legacy key and no annotation", ann: map[string]string{}, cm: map[string]string{}},
+		{name: "no legacy key and no annotation", ann: map[string]string{}},
 		{
 			name: "no legacy key with annotation",
 			ann:  map[string]string{AnnotationCredentialAudiences.String(): "a,b"},
-			cm:   map[string]string{},
 			want: []string{"a", "b"},
 		},
 		{
 			name: "legacy key",
 			ann:  map[string]string{},
-			cm:   map[string]string{KubeConfigLegacyAudiences: "c\nd"},
+			cm:   "c\nd",
 			want: []string{"c", "d"},
 		},
 		{
 			name:      "legacy key with rfc0014 annotation",
 			ann:       map[string]string{AnnotationCredentialProvider.String(): CredentialProviderSPIFFE},
-			cm:        map[string]string{KubeConfigLegacyAudiences: "c"},
+			cm:        "c",
 			wantError: true,
 		},
 	}

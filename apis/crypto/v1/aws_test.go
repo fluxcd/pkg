@@ -85,23 +85,23 @@ func TestAWSClusterExtractRegionAndName(t *testing.T) {
 	const cluster = "arn:aws:eks:us-east-1:123456789012:cluster/my-cluster"
 	tests := []struct {
 		name       string
-		data       map[string]string
+		cluster    string
 		wantRegion string
 		wantName   string
 		wantError  bool
 	}{
 		{
 			name:       "valid",
-			data:       map[string]string{KubeConfigCluster: cluster},
+			cluster:    cluster,
 			wantRegion: "us-east-1",
 			wantName:   "my-cluster",
 		},
-		{name: "missing", data: map[string]string{}, wantError: true},
-		{name: "invalid", data: map[string]string{KubeConfigCluster: "not-an-arn"}, wantError: true},
+		{name: "empty", wantError: true},
+		{name: "invalid", cluster: "not-an-arn", wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			region, name, err := AWSCluster("").ExtractRegionAndName(tt.data)
+			region, name, err := AWSCluster("").ExtractRegionAndName(tt.cluster)
 			if region != tt.wantRegion || name != tt.wantName || (err != nil) != tt.wantError {
 				t.Fatalf("got (%q, %q, %v), want (%q, %q, err=%v)",
 					region, name, err, tt.wantRegion, tt.wantName, tt.wantError)

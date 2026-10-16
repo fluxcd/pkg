@@ -89,33 +89,31 @@ func TestExtractServiceAccountAnnotation(t *testing.T) {
 	}
 }
 
-func TestExtractConfigMapKeyForKubeConfig(t *testing.T) {
+func TestParseKubeConfigCluster(t *testing.T) {
 	regex := regexp.MustCompile(`^(a)/(b)$`)
 	tests := []struct {
 		name      string
-		data      map[string]string
+		value     string
 		want      string
 		wantMatch []string
-		wantOk    bool
 		wantError bool
 	}{
 		{
 			name:      "valid",
-			data:      map[string]string{"key": "a/b"},
+			value:     "a/b",
 			want:      "a/b",
 			wantMatch: []string{"a/b", "a", "b"},
-			wantOk:    true,
 		},
-		{name: "missing", data: map[string]string{}},
-		{name: "invalid", data: map[string]string{"key": "a/c"}, wantError: true},
+		{name: "empty", wantError: true},
+		{name: "invalid", value: "a/c", wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, matches, ok, err := extractConfigMapKeyForKubeConfig("key", tt.data, regex)
-			if got != tt.want || ok != tt.wantOk || (err != nil) != tt.wantError ||
+			got, matches, err := parseKubeConfigCluster(tt.value, regex)
+			if got != tt.want || (err != nil) != tt.wantError ||
 				!reflect.DeepEqual(matches, tt.wantMatch) {
-				t.Fatalf("got (%q, %v, %v, %v), want (%q, %v, err=%v, matches=%v)",
-					got, matches, ok, err, tt.want, tt.wantOk, tt.wantError, tt.wantMatch)
+				t.Fatalf("got (%q, %v, %v), want (%q, err=%v, matches=%v)",
+					got, matches, err, tt.want, tt.wantError, tt.wantMatch)
 			}
 		})
 	}
