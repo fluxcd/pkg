@@ -2998,3 +2998,85 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 		}
 	}
 }
+
+// TestApply_DriftIgnoreRules_AdoptSkippedWhenAbsentInCluster is a regression
+// test for the b2 adopt-nil guard on the RELEASED post-dry-run path (this helper
+// is shared with the before-dry-run path). An ignored path that is present in
+// the applied payload but absent in-cluster must not be adopted: adopting would
+// copy the absent (nil) value over the value the user declared and apply null.
+// The guard skips the adopt so the desired value is applied as declared.
+func TestApply_DriftIgnoreRules_AdoptSkippedWhenAbsentInCluster(t *testing.T) {
+	timeout := 30 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	for _, mode := range applyModes() {
+		t.Run(mode.name, func(t *testing.T) {
+			id := generateName("drift-absent")
+
+			ns := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Namespace",
+					"metadata":   map[string]interface{}{"name": id},
+				},
+			}
+			if err := manager.client.Patch(ctx, ns, client.Apply, client.FieldOwner("test")); err != nil {
+				t.Fatal(err)
+			}
+
+			newCM := func(data map[string]interface{}) *unstructured.Unstructured {
+				return &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata": map[string]interface{}{
+							"name":      id,
+							"namespace": id,
+						},
+						"data": data,
+					},
+				}
+			}
+
+			// Post-dry-run ignore rule on a path that will be absent in-cluster.
+			opts := DefaultApplyOptions()
+			opts.DriftIgnoreRules = []jsondiff.IgnoreRule{
+				{
+					Paths:    []string{"/data/optional"},
+					Selector: &jsondiff.Selector{Kind: "ConfigMap"},
+				},
+			}
+
+			// Create with only data.key1; data.optional is absent in-cluster.
+			if _, err := mode.apply(ctx, newCM(map[string]interface{}{"key1": "v1"}), opts); err != nil {
+				t.Fatal(err)
+			}
+
+			// Apply desired that adds data.optional (absent in-cluster) and drifts
+			// a non-ignored field so the apply runs and the drift resolution
+			// executes.
+			entry, err := mode.apply(ctx, newCM(map[string]interface{}{
+				"key1":     "v2",
+				"optional": "should-stay",
+			}), opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if entry.Action != ConfiguredAction {
+				t.Fatalf("expected ConfiguredAction, got %s", entry.Action)
+			}
+
+			existing := newCM(nil)
+			if err := manager.client.Get(ctx, client.ObjectKeyFromObject(existing), existing); err != nil {
+				t.Fatal(err)
+			}
+			// Without the guard, adopt would have applied a null value here,
+			// dropping the field. With the guard, the declared value is applied.
+			optional, found, _ := unstructured.NestedString(existing.Object, "data", "optional")
+			if !found || optional != "should-stay" {
+				t.Fatalf("expected data.optional=should-stay (adopt must be skipped when absent in-cluster), got %q (found=%v)", optional, found)
+			}
+		})
+	}
+}
