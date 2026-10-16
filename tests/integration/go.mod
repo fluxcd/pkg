@@ -23,11 +23,11 @@ require (
 	github.com/aws/smithy-go v1.28.1
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fluxcd/cli-utils v1.4.0
-	github.com/fluxcd/pkg/apis/meta v1.35.0
-	github.com/fluxcd/pkg/auth v0.62.0
+	github.com/fluxcd/pkg/apis/meta v1.36.0
+	github.com/fluxcd/pkg/auth v0.63.0
 	github.com/fluxcd/pkg/cache v0.17.0
 	github.com/fluxcd/pkg/git v0.55.0
-	github.com/fluxcd/pkg/runtime v0.119.0
+	github.com/fluxcd/pkg/runtime v0.120.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/google/go-containerregistry v0.22.1
