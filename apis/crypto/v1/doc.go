@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 // Package crypto contains APIs for configuring short-lived
-// cryptographic material used to authenticate with external
-// services.
-// +kubebuilder:object:generate=true
+// cryptographic material used to communicate with external
+// services, which is mostly based on ServiceAccount
+// annotations. The package parses and validates the
+// annotations alongside legacy fields sourced from
+// other places, like .spec and ConfigMaps.
 package v1
