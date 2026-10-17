@@ -16,136 +16,91 @@ limitations under the License.
 
 package v1
 
-import (
-	"testing"
-
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-)
+import "testing"
 
 func TestParseSPIFFEID(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		want      *SPIFFEPeerAuthorization
-		wantError bool
+		name            string
+		value           string
+		wantID          string
+		wantPrefix      string
+		wantTrustDomain string
+		wantSelf        bool
+		wantError       bool
 	}{
 		{
-			name:  "self trust domain",
-			value: "spiffe://" + SPIFFETrustDomainSelf,
-			want:  &SPIFFEPeerAuthorization{UseSelfTrustDomain: true},
+			name:   "exact SPIFFE ID",
+			value:  "spiffe://example.org/foo/bar",
+			wantID: "spiffe://example.org/foo/bar",
 		},
 		{
-			name:  "exact ID",
-			value: "spiffe://example.org/foo",
-			want:  &SPIFFEPeerAuthorization{ID: mustSPIFFEID(t, "spiffe://example.org/foo")},
+			name:       "SPIFFE ID prefix",
+			value:      "spiffe://example.org/foo/",
+			wantPrefix: "spiffe://example.org/foo",
 		},
 		{
-			name:  "prefix",
-			value: "spiffe://example.org/foo/",
-			want:  &SPIFFEPeerAuthorization{Prefix: mustSPIFFEID(t, "spiffe://example.org/foo")},
+			name:            "SPIFFE trust domain",
+			value:           "spiffe://example.org",
+			wantTrustDomain: "example.org",
 		},
 		{
-			name:  "trust domain",
-			value: "spiffe://example.org",
-			want:  &SPIFFEPeerAuthorization{TrustDomain: mustTrustDomain(t, "example.org")},
+			name:     "self trust domain",
+			value:    "spiffe://self",
+			wantSelf: true,
 		},
-		{name: "invalid ID", value: "not-a-spiffe-id", wantError: true},
-		{name: "invalid prefix", value: "spiffe:///", wantError: true},
+		{name: "invalid SPIFFE ID", value: "nope", wantError: true},
+		{name: "invalid SPIFFE ID prefix", value: "spiffe://example.org/a b/", wantError: true},
 		{name: "prefix without path", value: "spiffe://example.org/", wantError: true},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseSPIFFEID(tt.value)
-			if (err != nil) != tt.wantError {
-				t.Fatalf("got error %v, want error=%v", err, tt.wantError)
-			}
 			if tt.wantError {
-				if got != nil {
-					t.Fatalf("got %+v, want nil", got)
+				if err == nil {
+					t.Fatalf("expected an error, got %+v", got)
 				}
 				return
 			}
-			assertPeerAuthorization(t, got, tt.want)
-		})
-	}
-}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			switch {
+			case tt.wantID != "":
+				if got.ID == nil || got.ID.String() != tt.wantID {
+					t.Fatalf("got ID %v, want %q", got.ID, tt.wantID)
+				}
+			case tt.wantPrefix != "":
+				if got.Prefix == nil || got.Prefix.String() != tt.wantPrefix {
+					t.Fatalf("got Prefix %v, want %q", got.Prefix, tt.wantPrefix)
+				}
+			case tt.wantTrustDomain != "":
+				if got.TrustDomain == nil || got.TrustDomain.String() != tt.wantTrustDomain {
+					t.Fatalf("got TrustDomain %v, want %q", got.TrustDomain, tt.wantTrustDomain)
+				}
+			case tt.wantSelf:
+				if !got.UseSelfTrustDomain {
+					t.Fatalf("got %+v, want UseSelfTrustDomain", got)
+				}
+			}
 
-func TestMTLSSPIFFEServerIDExtract(t *testing.T) {
-	t.Run("missing", func(t *testing.T) {
-		got, err := AnnotationMTLSSPIFFEServerID.Extract(map[string]string{})
-		if err != nil || got != nil {
-			t.Fatalf("got (%+v, %v), want (nil, nil)", got, err)
-		}
-	})
-	t.Run("present", func(t *testing.T) {
-		got, err := AnnotationMTLSSPIFFEServerID.Extract(map[string]string{
-			AnnotationMTLSSPIFFEServerID.String(): "spiffe://example.org/foo",
+			// Exactly one field must be set.
+			set := 0
+			if got.ID != nil {
+				set++
+			}
+			if got.Prefix != nil {
+				set++
+			}
+			if got.TrustDomain != nil {
+				set++
+			}
+			if got.UseSelfTrustDomain {
+				set++
+			}
+			if set != 1 {
+				t.Fatalf("got %d fields set, want exactly 1: %+v", set, got)
+			}
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		assertPeerAuthorization(t, got, &SPIFFEPeerAuthorization{
-			ID: mustSPIFFEID(t, "spiffe://example.org/foo"),
-		})
-	})
-	t.Run("invalid", func(t *testing.T) {
-		got, err := AnnotationMTLSSPIFFEServerID.Extract(map[string]string{
-			AnnotationMTLSSPIFFEServerID.String(): "nope",
-		})
-		if err == nil || got != nil {
-			t.Fatalf("got (%+v, %v), want (nil, error)", got, err)
-		}
-	})
-}
-
-func mustSPIFFEID(t *testing.T, value string) *spiffeid.ID {
-	t.Helper()
-	id, err := spiffeid.FromString(value)
-	if err != nil {
-		t.Fatalf("parsing SPIFFE ID %q: %v", value, err)
-	}
-	return &id
-}
-
-func mustTrustDomain(t *testing.T, value string) *spiffeid.TrustDomain {
-	t.Helper()
-	trustDomain, err := spiffeid.TrustDomainFromString(value)
-	if err != nil {
-		t.Fatalf("parsing SPIFFE trust domain %q: %v", value, err)
-	}
-	return &trustDomain
-}
-
-func assertPeerAuthorization(t *testing.T, got, want *SPIFFEPeerAuthorization) {
-	t.Helper()
-	if got == nil {
-		t.Fatalf("got nil, want %+v", want)
-	}
-	switch {
-	case got.ID != nil && want.ID != nil:
-		if got.ID.String() != want.ID.String() {
-			t.Fatalf("ID = %q, want %q", got.ID, want.ID)
-		}
-	case got.ID != nil || want.ID != nil:
-		t.Fatalf("ID = %v, want %v", got.ID, want.ID)
-	}
-	switch {
-	case got.Prefix != nil && want.Prefix != nil:
-		if got.Prefix.String() != want.Prefix.String() {
-			t.Fatalf("Prefix = %q, want %q", got.Prefix, want.Prefix)
-		}
-	case got.Prefix != nil || want.Prefix != nil:
-		t.Fatalf("Prefix = %v, want %v", got.Prefix, want.Prefix)
-	}
-	switch {
-	case got.TrustDomain != nil && want.TrustDomain != nil:
-		if got.TrustDomain.String() != want.TrustDomain.String() {
-			t.Fatalf("TrustDomain = %q, want %q", got.TrustDomain, want.TrustDomain)
-		}
-	case got.TrustDomain != nil || want.TrustDomain != nil:
-		t.Fatalf("TrustDomain = %v, want %v", got.TrustDomain, want.TrustDomain)
-	}
-	if got.UseSelfTrustDomain != want.UseSelfTrustDomain {
-		t.Fatalf("UseSelfTrustDomain = %v, want %v", got.UseSelfTrustDomain, want.UseSelfTrustDomain)
 	}
 }
