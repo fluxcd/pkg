@@ -19,19 +19,36 @@ package utils
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/fluxcd/pkg/auth"
 )
 
 // GetGitCredentials looks up the implemented providers that support Git
 // and returns the credentials for the specified provider.
+//
+// When object-level workload identity is configured through the options, the
+// ServiceAccount is fetched and validated with the
+// github.com/fluxcd/pkg/apis/crypto package before the credentials are
+// retrieved.
 func GetGitCredentials(ctx context.Context, providerName string,
-	opts ...auth.Option) (*auth.GitCredentials, error) {
+	opts ...Option) (*auth.GitCredentials, error) {
+
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 
 	provider, err := ProviderByName[auth.GitCredentialsProvider](providerName)
 	if err != nil {
 		return nil, fmt.Errorf("provider '%s' does not support Git credentials", providerName)
 	}
 
-	return auth.GetGitCredentials(ctx, provider, opts...)
+	saOpts, err := resolveServiceAccount(ctx, providerName, o)
+	if err != nil {
+		return nil, err
+	}
+	authOpts := append(slices.Clone(o.authOpts), saOpts...)
+
+	return auth.GetGitCredentials(ctx, provider, authOpts...)
 }

@@ -56,11 +56,6 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			stsEndpoint: "https://sts.amazonaws.com",
 		},
 		{
-			name:        "invalid sts endpoint",
-			stsEndpoint: "https://something.amazonaws.com",
-			err:         `invalid STS endpoint: 'https://something.amazonaws.com'. must match ^https://(.+\.)?sts(-fips)?(\.[^.]+)?(\.vpce)?\.amazonaws\.com$`,
-		},
-		{
 			name:          "missing region",
 			stsEndpoint:   "https://sts.amazonaws.com",
 			skipSTSRegion: true,
@@ -79,7 +74,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-				auth.WithSTSEndpoint(tt.stsEndpoint),
+				auth.WithAWSSTSEndpoint(tt.stsEndpoint),
 			}
 
 			provider := aws.Provider{Implementation: impl}
@@ -122,24 +117,12 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			stsEndpoint: "https://sts.amazonaws.com",
 		},
 		{
-			name:        "invalid sts endpoint",
-			roleARN:     "arn:aws:iam::1234567890:role/some-role",
-			stsEndpoint: "https://something.amazonaws.com",
-			err:         `invalid STS endpoint: 'https://something.amazonaws.com'. must match ^https://(.+\.)?sts(-fips)?(\.[^.]+)?(\.vpce)?\.amazonaws\.com$`,
-		},
-		{
 			name:          "missing region",
 			roleARN:       "arn:aws:iam::1234567890:role/some-role",
 			stsEndpoint:   "https://sts.amazonaws.com",
 			skipSTSRegion: true,
 			err: "an AWS region is required for authenticating with a service account. " +
 				"please configure one in the object spec",
-		},
-		{
-			name:        "invalid role ARN",
-			roleARN:     "foobar",
-			stsEndpoint: "https://sts.amazonaws.com",
-			err:         `invalid eks.amazonaws.com/role-arn annotation: 'foobar'. must match ^arn:aws[\w-]*:iam::[0-9]{1,30}:role/.{1,200}$`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -157,25 +140,26 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			oidcToken := "oidc-token"
-			serviceAccount := corev1.ServiceAccount{
+			serviceAccount := &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-sa",
-					Namespace:   "test-ns",
-					Annotations: map[string]string{"eks.amazonaws.com/role-arn": tt.roleARN},
+					Name:      "test-sa",
+					Namespace: "test-ns",
 				},
 			}
 
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-				auth.WithSTSEndpoint(tt.stsEndpoint),
+				auth.WithAWSSTSEndpoint(tt.stsEndpoint),
+				auth.WithAWSRoleARN(tt.roleARN),
+				auth.WithServiceAccount(serviceAccount),
 			}
 
 			if !tt.skipSTSRegion {
-				opts = append(opts, auth.WithSTSRegion("us-east-1"))
+				opts = append(opts, auth.WithAWSRegion("us-east-1"))
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -196,7 +180,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 func TestProvider_GetAudiences(t *testing.T) {
 	g := NewWithT(t)
-	aud, err := aws.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
+	aud, err := aws.Provider{}.GetAudiences(context.Background())
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(aud).To(Equal([]string{"sts.amazonaws.com"}))
 }
@@ -204,13 +188,8 @@ func TestProvider_GetAudiences(t *testing.T) {
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
 
-	identity, err := aws.Provider{}.GetIdentity(corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				"eks.amazonaws.com/role-arn": "arn:aws:iam::1234567890:role/some-role",
-			},
-		},
-	})
+	identity, err := aws.Provider{}.GetIdentity(
+		auth.WithAWSRoleARN("arn:aws:iam::1234567890:role/some-role"))
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(identity).To(Equal("arn:aws:iam::1234567890:role/some-role"))
 }
@@ -287,7 +266,7 @@ func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
 	var o auth.Options
 	o.Apply(opts...)
 
-	g.Expect(o.STSRegion).To(Equal("us-east-1"))
+	g.Expect(o.AWSRegion).To(Equal("us-east-1"))
 }
 
 func TestProvider_ParseArtifactRepository(t *testing.T) {
@@ -477,56 +456,31 @@ func TestProvider_ParseArtifactRepository(t *testing.T) {
 func TestProvider_NewRESTConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
-		cluster        string
 		clusterAddress string
 		caData         string
 		stsEndpoint    string
-		err            string
 	}{
 		{
-			name:    "valid EKS cluster",
-			cluster: "arn:aws:eks:us-east-1:123456789012:cluster/test-cluster",
+			name: "valid EKS cluster",
 		},
 		{
-			name:    "us gov EKS cluster is valid",
-			cluster: "arn:aws-us-gov:eks:us-east-1:123456789012:cluster/test-cluster",
+			name: "us gov EKS cluster is valid",
 		},
 		{
 			name:           "valid EKS cluster with address match",
-			cluster:        "arn:aws:eks:us-east-1:123456789012:cluster/test-cluster",
 			clusterAddress: "https://EXAMPLE1234567890123456789012345678.gr7.us-east-1.eks.amazonaws.com:443",
 		},
 		{
-			name:    "valid EKS cluster with CA",
-			cluster: "arn:aws:eks:us-east-1:123456789012:cluster/test-cluster",
-			caData:  "-----BEGIN CERTIFICATE-----",
-		},
-		{
-			name:           "CA and address only. EKS requires cluster to extract region",
-			clusterAddress: "https://EXAMPLE1234567890123456789012345678.gr7.us-east-1.eks.amazonaws.com:443",
-			caData:         "-----BEGIN CERTIFICATE-----",
-			err:            `invalid EKS cluster ARN: ''. must match ^arn:aws[\w-]*:eks:([^:]{1,100}):[0-9]{1,30}:cluster/(.{1,200})$`,
+			name:   "valid EKS cluster with CA",
+			caData: "-----BEGIN CERTIFICATE-----",
 		},
 		{
 			name:           "valid EKS cluster with address override",
-			cluster:        "arn:aws:eks:us-east-1:123456789012:cluster/test-cluster",
 			clusterAddress: "https://different-endpoint.eks.amazonaws.com:443",
 		},
 		{
 			name:        "valid EKS cluster with custom STS endpoint",
-			cluster:     "arn:aws:eks:us-east-1:123456789012:cluster/test-cluster",
 			stsEndpoint: "https://sts.amazonaws.com",
-		},
-		{
-			name:        "invalid STS endpoint",
-			cluster:     "arn:aws:eks:us-east-1:123456789012:cluster/test-cluster",
-			stsEndpoint: "https://invalid.amazonaws.com",
-			err:         `invalid STS endpoint: 'https://invalid.amazonaws.com'. must match ^https://(.+\.)?sts(-fips)?(\.[^.]+)?(\.vpce)?\.amazonaws\.com$`,
-		},
-		{
-			name:    "invalid cluster ARN",
-			cluster: "invalid-cluster-arn",
-			err:     `invalid EKS cluster ARN: 'invalid-cluster-arn'. must match ^arn:aws[\w-]*:eks:([^:]{1,100}):[0-9]{1,30}:cluster/(.{1,200})$`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -548,10 +502,8 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-			}
-
-			if tt.cluster != "" {
-				opts = append(opts, auth.WithClusterResource(tt.cluster))
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSClusterName("test-cluster"),
 			}
 
 			if tt.clusterAddress != "" {
@@ -563,45 +515,52 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			}
 
 			if tt.stsEndpoint != "" {
-				opts = append(opts, auth.WithSTSEndpoint(tt.stsEndpoint))
+				opts = append(opts, auth.WithAWSSTSEndpoint(tt.stsEndpoint))
 			}
 
 			provider := aws.Provider{Implementation: impl}
 			restConfig, err := auth.GetRESTConfig(context.Background(), provider, opts...)
 
-			if tt.err == "" {
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(restConfig).NotTo(BeNil())
-				expectedHost := "https://EXAMPLE1234567890123456789012345678.gr7.us-east-1.eks.amazonaws.com"
-				if tt.clusterAddress != "" {
-					expectedHost = tt.clusterAddress
-				}
-				g.Expect(restConfig.Host).To(Equal(expectedHost))
-				g.Expect(restConfig.BearerToken).To(Equal("k8s-aws-v1.aHR0cHM6Ly9zdHMudXMtZWFzdC0xLmFtYXpvbmF3cy5jb20vP0FjdGlvbj1HZXRDYWxsZXJJZGVudGl0eSZWZXJzaW9uPTIwMTEtMDYtMTUmWC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTY"))
-				g.Expect(restConfig.CAData).To(Equal([]byte("-----BEGIN CERTIFICATE-----")))
-				g.Expect(restConfig.ExpiresAt).To(BeTemporally(">", time.Now().Add(14*time.Minute)))
-				g.Expect(restConfig.ExpiresAt).To(BeTemporally("<", time.Now().Add(16*time.Minute)))
-			} else {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(tt.err))
-				g.Expect(restConfig).To(BeNil())
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(restConfig).NotTo(BeNil())
+			expectedHost := "https://EXAMPLE1234567890123456789012345678.gr7.us-east-1.eks.amazonaws.com"
+			if tt.clusterAddress != "" {
+				expectedHost = tt.clusterAddress
 			}
+			g.Expect(restConfig.Host).To(Equal(expectedHost))
+			g.Expect(restConfig.BearerToken).To(Equal("k8s-aws-v1.aHR0cHM6Ly9zdHMudXMtZWFzdC0xLmFtYXpvbmF3cy5jb20vP0FjdGlvbj1HZXRDYWxsZXJJZGVudGl0eSZWZXJzaW9uPTIwMTEtMDYtMTUmWC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTY"))
+			g.Expect(restConfig.CAData).To(Equal([]byte("-----BEGIN CERTIFICATE-----")))
+			g.Expect(restConfig.ExpiresAt).To(BeTemporally(">", time.Now().Add(14*time.Minute)))
+			g.Expect(restConfig.ExpiresAt).To(BeTemporally("<", time.Now().Add(16*time.Minute)))
 		})
 	}
 }
 
 func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
-	g := NewWithT(t)
+	t.Run("with region", func(t *testing.T) {
+		g := NewWithT(t)
 
-	opts, err := aws.Provider{}.GetAccessTokenOptionsForCluster(
-		auth.WithClusterResource("arn:aws:eks:us-west-2:123456789012:cluster/my-cluster"))
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(opts).To(HaveLen(1))
+		opts, err := aws.Provider{}.GetAccessTokenOptionsForCluster(
+			auth.WithAWSRegion("us-west-2"),
+			auth.WithAWSClusterName("my-cluster"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(opts).To(HaveLen(1))
 
-	var o auth.Options
-	o.Apply(opts[0]...)
+		var o auth.Options
+		o.Apply(opts[0]...)
 
-	g.Expect(o.STSRegion).To(Equal("us-west-2"))
+		g.Expect(o.AWSRegion).To(Equal("us-west-2"))
+	})
+
+	t.Run("without region", func(t *testing.T) {
+		g := NewWithT(t)
+
+		opts, err := aws.Provider{}.GetAccessTokenOptionsForCluster(
+			auth.WithAWSClusterName("my-cluster"))
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(Equal("AWS region is required"))
+		g.Expect(opts).To(BeNil())
+	})
 }
 
 func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
@@ -658,7 +617,7 @@ func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
 				g.Expect(err).NotTo(HaveOccurred())
 				var o auth.Options
 				o.Apply(atOpts...)
-				g.Expect(o.STSRegion).To(Equal(tt.expectedRegion))
+				g.Expect(o.AWSRegion).To(Equal(tt.expectedRegion))
 			}
 		})
 	}
@@ -775,7 +734,7 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 			if tt.getAccessToken {
 				var err error
 				accessToken, err = auth.GetAccessToken(t.Context(), provider,
-					auth.WithSTSRegion(awsRegion),
+					auth.WithAWSRegion(awsRegion),
 					auth.WithProxyURL(proxyUrl),
 				)
 				g.Expect(err).NotTo(HaveOccurred())

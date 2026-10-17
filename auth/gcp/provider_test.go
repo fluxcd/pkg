@@ -27,8 +27,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google/externalaccount"
 	"google.golang.org/api/container/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/gcp"
@@ -57,10 +55,11 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	startGKEMetadataServer(t)
 
 	for _, tt := range []struct {
-		name        string
-		conf        externalaccount.Config
-		annotations map[string]string
-		err         string
+		name  string
+		conf  externalaccount.Config
+		gcpSA string
+		wip   string
+		err   string
 	}{
 		{
 			name: "direct access",
@@ -91,9 +90,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
-			annotations: map[string]string{
-				"iam.gke.io/gcp-service-account": "test-sa@project-id.iam.gserviceaccount.com",
-			},
+			gcpSA: "test-sa@project-id.iam.gserviceaccount.com",
 		},
 		{
 			name: "direct access - federation",
@@ -109,9 +106,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
-			annotations: map[string]string{
-				"gcp.auth.fluxcd.io/workload-identity-provider": "projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
-			},
+			wip: "projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
 		},
 		{
 			name: "impersonation - federation",
@@ -127,24 +122,8 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 				SubjectTokenSupplier: gcp.StaticTokenSupplier("oidc-token"),
 				UniverseDomain:       "googleapis.com",
 			},
-			annotations: map[string]string{
-				"iam.gke.io/gcp-service-account":                "test-sa@project-id.iam.gserviceaccount.com",
-				"gcp.auth.fluxcd.io/workload-identity-provider": "projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
-			},
-		},
-		{
-			name: "invalid sa email",
-			annotations: map[string]string{
-				"iam.gke.io/gcp-service-account": "foobar",
-			},
-			err: `invalid iam.gke.io/gcp-service-account annotation: 'foobar'. must match ^[a-zA-Z0-9-]{1,100}@[a-zA-Z0-9-]{1,100}\.iam\.gserviceaccount\.com$`,
-		},
-		{
-			name: "invalid workload identity provider",
-			annotations: map[string]string{
-				"gcp.auth.fluxcd.io/workload-identity-provider": "foobar",
-			},
-			err: `invalid gcp.auth.fluxcd.io/workload-identity-provider annotation: 'foobar'. must match ^projects/\d{1,30}/locations/global/workloadIdentityPools/[^/]{1,100}/providers/[^/]{1,100}$`,
+			gcpSA: "test-sa@project-id.iam.gserviceaccount.com",
+			wip:   "projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,20 +137,18 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			oidcToken := "oidc-token"
-			serviceAccount := corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-sa",
-					Namespace:   "test-ns",
-					Annotations: tt.annotations,
-				},
-			}
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
-				auth.WithSTSEndpoint("https://sts.example.com"),
+			}
+			if tt.wip != "" {
+				opts = append(opts, auth.WithGCPWorkloadIdentityProvider(tt.wip))
+			}
+			if tt.gcpSA != "" {
+				opts = append(opts, auth.WithGCPServiceAccount(tt.gcpSA))
 			}
 
 			provider := gcp.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -189,15 +166,13 @@ func TestProvider_GetAudience(t *testing.T) {
 	startGKEMetadataServer(t)
 
 	for _, tt := range []struct {
-		name        string
-		annotations map[string]string
-		expected    string
+		name     string
+		wip      string
+		expected string
 	}{
 		{
-			name: "federation",
-			annotations: map[string]string{
-				"gcp.auth.fluxcd.io/workload-identity-provider": "projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
-			},
+			name:     "federation",
+			wip:      "projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
 			expected: "//iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/test-pool/providers/test-provider",
 		},
 		{
@@ -208,13 +183,12 @@ func TestProvider_GetAudience(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			serviceAccount := corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: tt.annotations,
-				},
+			var opts []auth.Option
+			if tt.wip != "" {
+				opts = append(opts, auth.WithGCPWorkloadIdentityProvider(tt.wip))
 			}
 
-			aud, err := gcp.Provider{}.GetAudiences(context.Background(), serviceAccount)
+			aud, err := gcp.Provider{}.GetAudiences(context.Background(), opts...)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(aud).To(Equal([]string{tt.expected}))
 		})
@@ -223,15 +197,13 @@ func TestProvider_GetAudience(t *testing.T) {
 
 func TestProvider_GetIdentity(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		annotations map[string]string
-		expected    string
+		name     string
+		gcpSA    string
+		expected string
 	}{
 		{
-			name: "impersonation",
-			annotations: map[string]string{
-				"iam.gke.io/gcp-service-account": "test-sa@project-id.iam.gserviceaccount.com",
-			},
+			name:     "impersonation",
+			gcpSA:    "test-sa@project-id.iam.gserviceaccount.com",
 			expected: "test-sa@project-id.iam.gserviceaccount.com",
 		},
 		{
@@ -242,13 +214,12 @@ func TestProvider_GetIdentity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			serviceAccount := corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: tt.annotations,
-				},
+			var opts []auth.Option
+			if tt.gcpSA != "" {
+				opts = append(opts, auth.WithGCPServiceAccount(tt.gcpSA))
 			}
 
-			identity, err := gcp.Provider{}.GetIdentity(serviceAccount)
+			identity, err := gcp.Provider{}.GetIdentity(opts...)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(identity).To(Equal(tt.expected))
 		})
@@ -398,11 +369,6 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 				ClusterCaCertificate: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t",
 			},
 			endpoint: "https://203.0.113.10",
-		},
-		{
-			name:    "invalid cluster ID",
-			cluster: "invalid-cluster-id",
-			err:     "invalid GKE cluster ID: 'invalid-cluster-id'. must match ^projects/[^/]{1,200}/locations/[^/]{1,200}/clusters/[^/]{1,200}$",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

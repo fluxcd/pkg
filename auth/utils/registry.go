@@ -18,9 +18,11 @@ package utils
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 
+	crypto "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
 )
 
@@ -37,19 +39,35 @@ func (d *delegatedAuthenticator) Authorization() (*authn.AuthConfig, error) {
 
 // GetArtifactRegistryCredentials retrieves the registry credentials for the
 // specified artifact repository and provider.
+//
+// When object-level workload identity is configured through the options, the
+// ServiceAccount is fetched and validated with the
+// github.com/fluxcd/pkg/apis/crypto package before the credentials are
+// retrieved.
 func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
-	artifactRepository string, opts ...auth.Option) (authn.Authenticator, error) {
+	artifactRepository string, opts ...Option) (authn.Authenticator, error) {
+
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 
 	provider, err := ProviderByName[auth.ArtifactRegistryCredentialsProvider](providerName)
 	if err != nil {
 		return nil, err
 	}
 
+	saOpts, err := resolveServiceAccount(ctx, providerName, o, crypto.WithOCI(true))
+	if err != nil {
+		return nil, err
+	}
+	authOpts := append(slices.Clone(o.authOpts), saOpts...)
+
 	// Fetch credentials lazily by wrapping the call to auth.GetArtifactRegistryCredentials
 	// in a delegatedAuthenticator. This ensures that credentials are fresh when
 	// Authorization() is called on the authn.Authenticator returned by this function.
 	authorizationFunc := func() (*authn.AuthConfig, error) {
-		authenticator, err := auth.GetArtifactRegistryCredentials(ctx, provider, artifactRepository, opts...)
+		authenticator, err := auth.GetArtifactRegistryCredentials(ctx, provider, artifactRepository, authOpts...)
 		if err != nil {
 			return nil, err
 		}

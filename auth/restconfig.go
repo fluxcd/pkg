@@ -26,7 +26,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
 )
@@ -133,12 +132,8 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	var audiences []string
 	if o.ShouldGetServiceAccountToken() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -157,11 +152,9 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	cacheKey := buildCacheKey(cacheKeyParts...)
 
 	// Build involved object details.
+	io := o.InvolvedObject()
 	cacheOpts := []cache.Options{cache.WithInvolvedObject(
-		o.InvolvedObject.Kind,
-		o.InvolvedObject.Name,
-		o.InvolvedObject.Namespace,
-		o.InvolvedObject.Operation)}
+		io.Kind, io.Name, io.Namespace, io.Operation)}
 
 	// Get restconfig from cache.
 	token, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {

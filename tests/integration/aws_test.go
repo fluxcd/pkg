@@ -159,8 +159,10 @@ func getGitTestConfigAWS(outputs map[string]*tfjson.StateOutput) (*gitTestConfig
 	}
 
 	creds, err := authutils.GetGitCredentials(context.Background(), aws.ProviderName,
-		auth.WithSTSRegion(region),
-		auth.WithGitURL(*parsedRepoURL),
+		authutils.WithAuthOptions(
+			auth.WithAWSRegion(region),
+			auth.WithGitURL(*parsedRepoURL),
+		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AWS CodeCommit credentials: %w", err)

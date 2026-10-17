@@ -38,8 +38,8 @@ import (
 	"github.com/aws/smithy-go/aws-http-auth/sigv4"
 	v4 "github.com/aws/smithy-go/aws-http-auth/v4"
 	"github.com/google/go-containerregistry/pkg/authn"
-	corev1 "k8s.io/api/core/v1"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
 )
 
@@ -78,10 +78,10 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		config.WithHTTPClient(o.GetHTTPClient()),
 	}
 
-	stsRegion := o.STSRegion
+	stsRegion := o.AWSRegion
 	if stsRegion == "" {
 		// EKS sets this environment variable automatically if the controller pod is
-		// properly configured with IRSA or EKS Pod Identity, so we can rely on it.
+		// properly configured with IRSA or EKS Pod Identity, so we can reuse it.
 		stsRegion = os.Getenv("AWS_REGION")
 		if stsRegion == "" {
 			return nil, errors.New("AWS_REGION environment variable is not set in the Flux controller. " +
@@ -92,10 +92,7 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	}
 	confOpts = append(confOpts, config.WithRegion(stsRegion))
 
-	if e := o.STSEndpoint; e != "" {
-		if err := ValidateSTSEndpoint(e); err != nil {
-			return nil, err
-		}
+	if e := o.AWSSTSEndpoint; e != "" {
 		confOpts = append(confOpts, config.WithBaseEndpoint(e))
 	}
 
@@ -112,27 +109,28 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
+func (Provider) GetAudiences(context.Context, ...auth.Option) ([]string, error) {
 	return []string{"sts.amazonaws.com"}, nil
 }
 
 // GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	roleARN, err := getRoleARN(serviceAccount)
-	if err != nil {
-		return "", err
+func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	if o.AWSRoleARN == "" {
+		return "", errors.New("AWS role ARN is required")
 	}
-	return roleARN, nil
+	return o.AWSRoleARN, nil
 }
 
 // NewTokenForServiceAccount implements auth.Provider.
 func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+	opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	stsRegion := o.STSRegion
+	stsRegion := o.AWSRegion
 	if stsRegion == "" {
 		// In this case we can't rely on IRSA or EKS Pod Identity for the controller
 		// pod because this is object-level configuration, so we show a different
@@ -144,22 +142,20 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 			"please configure one in the object spec")
 	}
 
-	roleARN, err := getRoleARN(serviceAccount)
-	if err != nil {
-		return nil, err
+	roleARN := o.AWSRoleARN
+	if roleARN == "" {
+		return nil, errors.New("AWS role ARN is required")
 	}
 
-	roleSessionName := getRoleSessionName(serviceAccount, stsRegion)
+	sa := o.GetServiceAccount()
+	roleSessionName := cryptov1.GetRoleSessionName(sa.Name, sa.Namespace, stsRegion)
 
 	stsOpts := sts.Options{
 		Region:     stsRegion,
 		HTTPClient: o.GetHTTPClient(),
 	}
 
-	if e := o.STSEndpoint; e != "" {
-		if err := ValidateSTSEndpoint(e); err != nil {
-			return nil, err
-		}
+	if e := o.AWSSTSEndpoint; e != "" {
 		stsOpts.BaseEndpoint = &e
 	}
 
@@ -200,7 +196,7 @@ func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository 
 		return nil, err
 	}
 	ecrRegion := getECRRegionFromRegistryInput(registryInput)
-	return []auth.Option{auth.WithSTSRegion(ecrRegion)}, nil
+	return []auth.Option{auth.WithAWSRegion(ecrRegion)}, nil
 }
 
 // This regex is sourced from the AWS ECR Credential Helper (https://github.com/awslabs/amazon-ecr-credential-helper).
@@ -326,12 +322,10 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryIn
 func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 	var o auth.Options
 	o.Apply(opts...)
-	// ClusterResource is always needed for AWS as we need to extract the region.
-	region, _, err := parseCluster(o.ClusterResource)
-	if err != nil {
-		return nil, err
+	if o.AWSRegion == "" {
+		return nil, errors.New("AWS region is required")
 	}
-	return [][]auth.Option{{auth.WithSTSRegion(region)}}, nil
+	return [][]auth.Option{{auth.WithAWSRegion(o.AWSRegion)}}, nil
 }
 
 // NewRESTConfig implements auth.Provider.
@@ -351,11 +345,10 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	o.Apply(opts...)
 	hc := o.GetHTTPClient()
 
-	// ClusterResource is always needed for AWS as we need to extract the region.
-	cluster := o.ClusterResource
-	region, clusterName, err := parseCluster(cluster)
-	if err != nil {
-		return nil, err
+	region := o.AWSRegion
+	clusterName := o.AWSClusterName
+	if region == "" || clusterName == "" {
+		return nil, errors.New("AWS region and cluster name are required")
 	}
 
 	// Describe the cluster resource to get missing CA or endpoint.
@@ -372,7 +365,7 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		}
 		clusterResource, err := p.impl().DescribeCluster(ctx, describeInput, eksOpts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to describe EKS cluster '%s': %w", cluster, err)
+			return nil, fmt.Errorf("failed to describe EKS cluster '%s': %w", clusterName, err)
 		}
 
 		// Update host and CA with cluster details.
@@ -399,10 +392,7 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		Credentials: creds,
 		HTTPClient:  hc,
 	}
-	if e := o.STSEndpoint; e != "" {
-		if err := ValidateSTSEndpoint(e); err != nil {
-			return nil, err
-		}
+	if e := o.AWSSTSEndpoint; e != "" {
 		stsOpts.BaseEndpoint = &e
 	}
 	presignedReq, err := p.impl().PresignGetCallerIdentity(ctx, presignOpts, stsOpts)
@@ -450,7 +440,7 @@ func (Provider) GetAccessTokenOptionsForGitRepository(gitURL *url.URL) ([]auth.O
 	if err != nil {
 		return nil, err
 	}
-	return []auth.Option{auth.WithSTSRegion(region)}, nil
+	return []auth.Option{auth.WithAWSRegion(region)}, nil
 }
 
 // ParseGitRepository implements auth.GitCredentialsProvider.

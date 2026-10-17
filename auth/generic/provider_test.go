@@ -68,7 +68,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 		}
 		token, err := auth.GetAccessToken(ctx, generic.Provider{m},
 			auth.WithClient(envClient),
-			auth.WithAudiences("audience1", "audience2"))
+			auth.WithCredentialAudiences("audience1", "audience2"))
 		g.Expect(err).NotTo(HaveOccurred())
 		genericToken := token.(*generic.Token)
 		g.Expect(genericToken).NotTo(BeNil())
@@ -102,9 +102,6 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 	_, envClient, oidcClient := newTestEnv(t, ctx)
 
-	auth.EnableObjectLevelWorkloadIdentity()
-	t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-
 	// Create service account.
 	serviceAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
@@ -119,8 +116,8 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	token, err := auth.GetAccessToken(ctx, generic.Provider{},
 		auth.WithClient(envClient),
 		auth.WithServiceAccountName(serviceAccount.Name),
-		auth.WithServiceAccountNamespace(serviceAccount.Namespace),
-		auth.WithAudiences("audience1", "audience2"))
+		auth.WithObjectReference(auth.ObjectReference{Namespace: serviceAccount.Namespace}),
+		auth.WithCredentialAudiences("audience1", "audience2"))
 	g.Expect(err).NotTo(HaveOccurred())
 	genericToken := token.(*generic.Token)
 	g.Expect(genericToken).NotTo(BeNil())
@@ -147,12 +144,10 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
-	id, err := generic.Provider{}.GetIdentity(corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tenant",
-			Namespace: "default",
-		},
-	})
+	id, err := generic.Provider{}.GetIdentity(
+		auth.WithServiceAccountName("tenant"),
+		auth.WithObjectReference(auth.ObjectReference{Namespace: "default"}),
+	)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(id).To(Equal("system:serviceaccount:default:tenant"))
 }
@@ -210,7 +205,7 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			}
 
 			if len(tt.audiences) > 0 {
-				opts = append(opts, auth.WithAudiences(tt.audiences...))
+				opts = append(opts, auth.WithCredentialAudiences(tt.audiences...))
 			}
 
 			if tt.clusterAddress != "" {
@@ -266,9 +261,6 @@ func TestProvider_NewRESTConfig_EndToEnd(t *testing.T) {
 
 	envConfig, envClient, _ := newTestEnv(t, ctx)
 
-	auth.EnableObjectLevelWorkloadIdentity()
-	t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-
 	// Create service account.
 	const (
 		namespace = "default"
@@ -300,9 +292,11 @@ func TestProvider_NewRESTConfig_EndToEnd(t *testing.T) {
 
 	// Create the authenticated client.
 	fetcher := utils.GetRESTConfigFetcher(
-		auth.WithClient(envClient),
-		auth.WithClusterAddress(envConfig.Host),
-		auth.WithCAData(string(envConfig.CAData)))
+		utils.WithObjectLevelWorkloadIdentity(true),
+		utils.WithAuthOptions(
+			auth.WithClient(envClient),
+			auth.WithClusterAddress(envConfig.Host),
+			auth.WithCAData(string(envConfig.CAData))))
 	conf, err := fetcher(ctx, meta.KubeConfigReference{
 		ConfigMapRef: &meta.LocalObjectReference{
 			Name: cmName,
@@ -334,19 +328,19 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 		g.Expect(opts[0]).To(HaveLen(1))
 		var o auth.Options
 		o.Apply(opts[0]...)
-		g.Expect(o.Audiences).To(ConsistOf("https://example.com"))
+		g.Expect(o.CredentialAudiences).To(ConsistOf("https://example.com"))
 	})
 
 	t.Run("with audiences", func(t *testing.T) {
 		g := NewWithT(t)
 		opts, err := generic.Provider{}.GetAccessTokenOptionsForCluster(
 			auth.WithClusterAddress("https://example.com"),
-			auth.WithAudiences("audience1", "audience2"))
+			auth.WithCredentialAudiences("audience1", "audience2"))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(opts).To(HaveLen(1))
 		g.Expect(opts[0]).To(HaveLen(1))
 		var o auth.Options
 		o.Apply(opts[0]...)
-		g.Expect(o.Audiences).To(ConsistOf("audience1", "audience2"))
+		g.Expect(o.CredentialAudiences).To(ConsistOf("audience1", "audience2"))
 	})
 }

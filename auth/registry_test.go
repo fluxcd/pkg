@@ -26,7 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/cache"
@@ -112,10 +111,6 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 	}
 	err := kubeClient.Create(ctx, defaultServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
-	saRef := client.ObjectKey{
-		Name:      defaultServiceAccount.Name,
-		Namespace: defaultServiceAccount.Namespace,
-	}
 
 	now := time.Now()
 
@@ -124,8 +119,6 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 		provider           *mockProvider
 		artifactRepository string
 		opts               []auth.Option
-		disableObjectLevel bool
-		defaultSA          string
 		expectedCreds      *auth.ArtifactRegistryCredentials
 		expectedErr        string
 	}{
@@ -142,10 +135,10 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -171,12 +164,11 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -185,7 +177,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 		},
 		{
-			name: "registry token from access token from service account, works with lockdown",
+			name: "registry token from access token from explicit service account",
 			provider: &mockProvider{
 				returnName:          "mock-provider",
 				returnRegistryInput: "some-registry.io/some/artifact",
@@ -202,51 +194,17 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultSA: saRef.Name,
 			expectedCreds: &auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 			},
-		},
-		{
-			name: "registry token from access token from service account, works with lockdown and feature gate",
-			provider: &mockProvider{
-				returnName:          "mock-provider",
-				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
-				returnRegistryToken: &auth.ArtifactRegistryCredentials{
-					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
-				},
-				paramAudiences:          []string{"audience1", "audience2"},
-				paramServiceAccount:     *defaultServiceAccount,
-				paramOIDCTokenClient:    oidcClient,
-				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
-			},
-			artifactRepository: "some-registry.io/some/artifact",
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			defaultSA:          saRef.Name,
-			disableObjectLevel: true,
-			expectedCreds: &auth.ArtifactRegistryCredentials{
-				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
-			},
-			expectedErr: "ObjectLevelWorkloadIdentity feature gate is not enabled",
 		},
 		{
 			name: "all the options are taken into account in the cache key",
@@ -260,12 +218,11 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
@@ -310,40 +267,11 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			artifactRepository: "some-registry.io/some/artifact",
 			expectedErr:        "mock error",
 		},
-		{
-			name: "disable object level workload identity",
-			provider: &mockProvider{
-				paramServiceAccount: *defaultServiceAccount,
-			},
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			disableObjectLevel: true,
-			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
 			tt.provider.t = t
-
-			if !tt.disableObjectLevel {
-				auth.EnableObjectLevelWorkloadIdentity()
-				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-			}
-
-			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-			}
 
 			creds, err := auth.GetArtifactRegistryCredentials(ctx, tt.provider, tt.artifactRepository, tt.opts...)
 

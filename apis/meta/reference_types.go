@@ -164,16 +164,6 @@ type KubeConfigReference struct {
 	//    ServiceAccount in the same namespace that should be used
 	//    for authentication. If not specified, the controller
 	//    ServiceAccount will be used.
-	// - `audiences`: the optional audiences as a list of
-	//    line-break-separated strings for the Kubernetes ServiceAccount
-	//    token. Defaults to the `address` for the `generic` provider, or
-	//    to specific values for the other providers depending on the
-	//    provider. This field is now considered legacy on behalf of using
-	//    the ServiceAccount annotation `credential.auth.fluxcd.io/audiences`.
-	//    Forward compatibility for this field is denied when using the
-	//    *.fluxcd.io ServiceAccount annotations to force users to migrate
-	//    (backward compatibility with gcp.auth.fluxcd.io/workload-identity-provider
-	//    is maintained).
 	//
 	// Mutually exclusive with SecretRef.
 	//
