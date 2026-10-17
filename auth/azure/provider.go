@@ -32,7 +32,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -81,28 +80,32 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
+func (Provider) GetAudiences(context.Context, ...auth.Option) ([]string, error) {
 	return []string{"api://AzureADTokenExchange"}, nil
 }
 
 // GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	return getIdentity(serviceAccount)
+func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	if o.AzureTenantID == "" || o.AzureClientID == "" {
+		return "", fmt.Errorf("Azure tenant ID and client ID are required")
+	}
+	return fmt.Sprintf("%s/%s", o.AzureTenantID, o.AzureClientID), nil
 }
 
 // NewTokenForServiceAccount implements auth.Provider.
 func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+	opts ...auth.Option) (auth.Token, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	identity, err := getIdentity(serviceAccount)
-	if err != nil {
-		return nil, err
+	tenantID := o.AzureTenantID
+	clientID := o.AzureClientID
+	if tenantID == "" || clientID == "" {
+		return nil, fmt.Errorf("Azure tenant ID and client ID are required")
 	}
-	s := strings.Split(identity, "/")
-	tenantID, clientID := s[0], s[1]
 
 	azOpts := &azidentity.ClientAssertionCredentialOptions{
 		ClientOptions: azcore.ClientOptions{
@@ -304,10 +307,11 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	host := o.ClusterAddress
 	caData := []byte(o.CAData)
 	if host == "" || len(caData) == 0 {
-		cluster := o.ClusterResource
-		subscriptionID, resourceGroup, clusterName, err := parseCluster(cluster)
-		if err != nil {
-			return nil, err
+		subscriptionID := o.AzureSubscriptionID
+		resourceGroup := o.AzureResourceGroup
+		clusterName := o.AzureClusterName
+		if subscriptionID == "" || resourceGroup == "" || clusterName == "" {
+			return nil, fmt.Errorf("Azure subscription ID, resource group and cluster name are required")
 		}
 
 		// Create client for describing the cluster resource.
@@ -332,7 +336,7 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		if clusterResource.Properties.AADProfile == nil {
 			return nil, fmt.Errorf("AKS cluster %s does not have Microsoft Entra ID integration enabled. "+
 				"See docs for enabling: https://learn.microsoft.com/en-us/azure/aks/enable-authentication-microsoft-entra-id",
-				cluster)
+				clusterName)
 		}
 
 		// Parse specified cluster address.
@@ -371,10 +375,10 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		}
 		if restConfig == nil {
 			if canonicalHost == "" {
-				return nil, fmt.Errorf("no kubeconfig found for AKS cluster %s", cluster)
+				return nil, fmt.Errorf("no kubeconfig found for AKS cluster %s", clusterName)
 			}
 			return nil, fmt.Errorf("no kubeconfig found for AKS cluster %s matching the specified address '%s'. cluster addresses: [%s]",
-				cluster, o.ClusterAddress, strings.Join(addresses, ", "))
+				clusterName, o.ClusterAddress, strings.Join(addresses, ", "))
 		}
 
 		// Update host and CA with cluster details.

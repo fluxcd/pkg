@@ -25,7 +25,6 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/cache"
@@ -48,10 +47,6 @@ func TestGetGitCredentials(t *testing.T) {
 	}
 	err := kubeClient.Create(ctx, defaultServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
-	saRef := client.ObjectKey{
-		Name:      defaultServiceAccount.Name,
-		Namespace: defaultServiceAccount.Namespace,
-	}
 
 	gitURL, err := url.Parse("https://git.example.com/org/repo.git")
 	g.Expect(err).NotTo(HaveOccurred())
@@ -59,14 +54,12 @@ func TestGetGitCredentials(t *testing.T) {
 	now := time.Now()
 
 	for _, tt := range []struct {
-		name               string
-		provider           *mockProvider
-		gitURL             *url.URL
-		opts               []auth.Option
-		disableObjectLevel bool
-		defaultSA          string
-		expectedCreds      *auth.GitCredentials
-		expectedErr        string
+		name          string
+		provider      *mockProvider
+		gitURL        *url.URL
+		opts          []auth.Option
+		expectedCreds *auth.GitCredentials
+		expectedErr   string
 	}{
 		{
 			name: "git credentials from controller access token",
@@ -81,10 +74,10 @@ func TestGetGitCredentials(t *testing.T) {
 			},
 			gitURL: gitURL,
 			opts: []auth.Option{
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -111,12 +104,11 @@ func TestGetGitCredentials(t *testing.T) {
 			gitURL: gitURL,
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -126,7 +118,7 @@ func TestGetGitCredentials(t *testing.T) {
 			},
 		},
 		{
-			name: "git credentials from access token from service account, works with lockdown",
+			name: "git credentials from access token from explicit service account",
 			provider: &mockProvider{
 				returnName:        "mock-provider",
 				returnGitInput:    "git-cache-key",
@@ -144,54 +136,18 @@ func TestGetGitCredentials(t *testing.T) {
 			gitURL: gitURL,
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultSA: saRef.Name,
 			expectedCreds: &auth.GitCredentials{
 				Username: "user",
 				Password: "pass",
 			},
-		},
-		{
-			name: "git credentials from access token from service account, works with lockdown and feature gate",
-			provider: &mockProvider{
-				returnName:        "mock-provider",
-				returnGitInput:    "git-cache-key",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
-				returnGitCredentials: &auth.GitCredentials{
-					Username: "user",
-					Password: "pass",
-				},
-				paramAudiences:       []string{"audience1", "audience2"},
-				paramServiceAccount:  *defaultServiceAccount,
-				paramOIDCTokenClient: oidcClient,
-				paramGitURL:          gitURL,
-				paramAccessToken:     &mockToken{token: "mock-access-token"},
-			},
-			gitURL: gitURL,
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			defaultSA:          saRef.Name,
-			disableObjectLevel: true,
-			expectedCreds: &auth.GitCredentials{
-				Username: "user",
-				Password: "pass",
-			},
-			expectedErr: "ObjectLevelWorkloadIdentity feature gate is not enabled",
 		},
 		{
 			name: "all the options are taken into account in the cache key",
@@ -205,12 +161,11 @@ func TestGetGitCredentials(t *testing.T) {
 			gitURL: gitURL,
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
@@ -264,43 +219,11 @@ func TestGetGitCredentials(t *testing.T) {
 			gitURL:      gitURL,
 			expectedErr: "mock error",
 		},
-		{
-			name: "disable object level workload identity",
-			provider: &mockProvider{
-				paramServiceAccount: *defaultServiceAccount,
-				paramGitURL:         gitURL,
-				returnGitInput:      "git-cache-key",
-			},
-			gitURL: gitURL,
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			disableObjectLevel: true,
-			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
 			tt.provider.t = t
-
-			if !tt.disableObjectLevel {
-				auth.EnableObjectLevelWorkloadIdentity()
-				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-			}
-
-			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-			}
 
 			opts := tt.opts
 			if tt.gitURL != nil {

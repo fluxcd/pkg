@@ -3,6 +3,7 @@ module github.com/fluxcd/pkg/auth
 go 1.27.0
 
 replace (
+	github.com/fluxcd/pkg/apis/crypto => ../apis/crypto
 	github.com/fluxcd/pkg/apis/meta => ../apis/meta
 	github.com/fluxcd/pkg/cache => ../cache
 	github.com/fluxcd/pkg/ssh => ../ssh
@@ -23,6 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.49.0
 	github.com/aws/smithy-go/aws-http-auth v1.2.1
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/fluxcd/pkg/apis/crypto v0.4.0
 	github.com/fluxcd/pkg/apis/meta v1.36.0
 	github.com/fluxcd/pkg/cache v0.17.0
 	github.com/fluxcd/pkg/ssh v0.28.0
@@ -103,6 +105,7 @@ require (
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.9.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect

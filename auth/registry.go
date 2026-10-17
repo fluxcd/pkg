@@ -26,7 +26,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/cache"
 )
@@ -125,12 +124,8 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 	var audiences []string
 	if o.ShouldGetServiceAccountToken() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -141,16 +136,11 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 		fmt.Sprintf("accessTokenCacheKey=%s", accessTokenCacheKey),
 		fmt.Sprintf("artifactRepositoryCacheKey=%s", registryInput))
 
-	// Build involved object details.
-	kind := o.InvolvedObject.Kind
-	name := o.InvolvedObject.Name
-	namespace := o.InvolvedObject.Namespace
-	operation := o.InvolvedObject.Operation
-
 	// Get credentials from cache.
+	io := o.InvolvedObject()
 	creds, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
 		return newArtifactRegistryCredentials()
-	}, cache.WithInvolvedObject(kind, name, namespace, operation))
+	}, cache.WithInvolvedObject(io.Kind, io.Name, io.Namespace, io.Operation))
 	if err != nil {
 		return nil, err
 	}

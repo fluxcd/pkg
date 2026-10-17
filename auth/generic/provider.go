@@ -86,7 +86,7 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	// Create token.
 	tokenReq := &authnv1.TokenRequest{
 		Spec: authnv1.TokenRequestSpec{
-			Audiences: o.Audiences,
+			Audiences: o.CredentialAudiences,
 		},
 	}
 	if err := o.Client.SubResource("token").Create(ctx, &serviceAccount, tokenReq); err != nil {
@@ -107,19 +107,22 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.RESTConfigProvider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
+func (Provider) GetAudiences(context.Context, ...auth.Option) ([]string, error) {
 	// Use TokenRequest default audiences.
 	return nil, nil
 }
 
 // GetIdentity implements auth.RESTConfigProvider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	return fmt.Sprintf("system:serviceaccount:%s:%s", serviceAccount.Namespace, serviceAccount.Name), nil
+func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	sa := o.GetServiceAccount()
+	return fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name), nil
 }
 
 // NewTokenForServiceAccount implements auth.RESTConfigProvider.
 func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+	opts ...auth.Option) (auth.Token, error) {
 
 	exp, err := getExpirationFromToken(oidcToken)
 	if err != nil {
@@ -138,13 +141,13 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 	var o auth.Options
 	o.Apply(opts...)
 
-	audiences := o.Audiences
+	audiences := o.CredentialAudiences
 	if len(audiences) == 0 {
 		// Use cluster address as the default audience.
 		audiences = []string{o.ClusterAddress}
 	}
 
-	return [][]auth.Option{{auth.WithAudiences(audiences...)}}, nil
+	return [][]auth.Option{{auth.WithCredentialAudiences(audiences...)}}, nil
 }
 
 // NewRESTConfig implements auth.RESTConfigProvider.

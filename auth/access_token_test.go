@@ -25,7 +25,6 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/cache"
@@ -48,10 +47,6 @@ func TestGetAccessToken(t *testing.T) {
 	}
 	err := kubeClient.Create(ctx, defaultServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
-	saRef := client.ObjectKey{
-		Name:      defaultServiceAccount.Name,
-		Namespace: defaultServiceAccount.Namespace,
-	}
 
 	// Create a lockdown service account for testing lockdown functionality.
 	lockdownServiceAccount := &corev1.ServiceAccount{
@@ -64,13 +59,11 @@ func TestGetAccessToken(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	for _, tt := range []struct {
-		name               string
-		provider           *mockProvider
-		opts               []auth.Option
-		disableObjectLevel bool
-		defaultSA          string
-		expectedToken      auth.Token
-		expectedErr        string
+		name          string
+		provider      *mockProvider
+		opts          []auth.Option
+		expectedToken auth.Token
+		expectedErr   string
 	}{
 		{
 			name: "controller access token",
@@ -78,10 +71,10 @@ func TestGetAccessToken(t *testing.T) {
 				returnControllerToken: &mockToken{token: "mock-default-token"},
 			},
 			opts: []auth.Option{
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -94,10 +87,10 @@ func TestGetAccessToken(t *testing.T) {
 				paramAllowShellOut:    true,
 			},
 			opts: []auth.Option{
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				auth.WithAllowShellOut(),
@@ -105,7 +98,7 @@ func TestGetAccessToken(t *testing.T) {
 			expectedToken: &mockToken{token: "mock-default-token"},
 		},
 		{
-			name: "access token from service account using default - for lockdown support",
+			name: "access token from explicit service account",
 			provider: &mockProvider{
 				returnName:           "mock-provider",
 				returnAccessToken:    &mockToken{token: "mock-access-token"},
@@ -115,57 +108,15 @@ func TestGetAccessToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace("default"),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(lockdownServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultSA:     "lockdown-sa",
 			expectedToken: &mockToken{token: "mock-access-token"},
-		},
-		{
-			name: "access token from service account using default - for lockdown support, object level disabled",
-			provider: &mockProvider{
-				returnName:           "mock-provider",
-				returnAccessToken:    &mockToken{token: "mock-access-token"},
-				paramAudiences:       []string{"audience1", "audience2"},
-				paramServiceAccount:  *lockdownServiceAccount,
-				paramOIDCTokenClient: oidcClient,
-			},
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace("default"),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			defaultSA:          "lockdown-sa",
-			disableObjectLevel: true,
-			expectedToken:      &mockToken{token: "mock-access-token"},
-			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
-		},
-		{
-			name: "error when default service account does not exist - for lockdown support",
-			provider: &mockProvider{
-				returnName:           "mock-provider",
-				returnAccessToken:    &mockToken{token: "mock-access-token"},
-				paramAudiences:       []string{"audience1", "audience2"},
-				paramServiceAccount:  *lockdownServiceAccount,
-				paramOIDCTokenClient: oidcClient,
-			},
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace("default"),
-				auth.WithAudiences("audience1", "audience2"),
-			},
-			defaultSA:   "non-existent-sa",
-			expectedErr: "the specified default service account does not exist in the object namespace",
 		},
 		{
 			name: "access token from service account",
@@ -178,12 +129,11 @@ func TestGetAccessToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				// Exercise the code path where a cache is set but no token is
@@ -207,16 +157,14 @@ func TestGetAccessToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultSA:     "non-existent-sa",
 			expectedToken: &mockToken{token: "mock-access-token"},
 		},
 		{
@@ -230,11 +178,10 @@ func TestGetAccessToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
+				auth.WithServiceAccount(defaultServiceAccount),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -250,12 +197,11 @@ func TestGetAccessToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
@@ -284,16 +230,15 @@ func TestGetAccessToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			expectedErr: "failed to get provider identity from service account 'default/default' annotations: mock error",
+			expectedErr: "failed to get provider identity from service account 'default/default': mock error",
 		},
 		{
 			name: "error getting identity using cache",
@@ -303,12 +248,11 @@ func TestGetAccessToken(t *testing.T) {
 			},
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccount(defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
@@ -317,42 +261,13 @@ func TestGetAccessToken(t *testing.T) {
 					o.Cache = tokenCache
 				},
 			},
-			expectedErr: "failed to get provider identity from service account 'default/default' annotations: mock error",
-		},
-		{
-			name: "disable object level workload identity",
-			provider: &mockProvider{
-				paramServiceAccount: *defaultServiceAccount,
-			},
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			disableObjectLevel: true,
-			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
+			expectedErr: "failed to get provider identity from service account 'default/default': mock error",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
 			tt.provider.t = t
-
-			if !tt.disableObjectLevel {
-				auth.EnableObjectLevelWorkloadIdentity()
-				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-			}
-
-			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-			}
 
 			token, err := auth.GetAccessToken(ctx, tt.provider, tt.opts...)
 
@@ -386,17 +301,18 @@ func TestGetAccessToken_ControllerLevelAudienceCacheKey(t *testing.T) {
 	opts := func(audience string) []auth.Option {
 		provider.paramAudiences = []string{audience}
 		return []auth.Option{
-			auth.WithAudiences(audience),
+			auth.WithCredentialAudiences(audience),
 			auth.WithScopes("scope1", "scope2"),
-			auth.WithSTSRegion("us-east-1"),
-			auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+			auth.WithAWSRegion("us-east-1"),
+			auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 			auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 			auth.WithCAData("ca-data"),
-			auth.WithCache(*tokenCache, cache.InvolvedObject{
+			auth.WithObjectReference(auth.ObjectReference{
 				Kind:      "test",
 				Name:      "test",
 				Namespace: "test",
 			}),
+			auth.WithCache(*tokenCache),
 		}
 	}
 

@@ -76,17 +76,21 @@ func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Opti
 	return m.returnControllerToken, nil
 }
 
-func (m *mockProvider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
+func (m *mockProvider) GetAudiences(ctx context.Context, opts ...auth.Option) ([]string, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	var o auth.Options
+	o.Apply(opts...)
+	g.Expect(o.GetServiceAccount()).To(Equal(m.paramServiceAccount))
 	return []string{"mock-audience"}, nil
 }
 
-func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+func (m *mockProvider) GetIdentity(opts ...auth.Option) (string, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	var o auth.Options
+	o.Apply(opts...)
+	g.Expect(o.GetServiceAccount()).To(Equal(m.paramServiceAccount))
 	if m.returnIdentityErr != "" {
 		return "", errors.New(m.returnIdentityErr)
 	}
@@ -94,7 +98,7 @@ func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string
 }
 
 func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+	opts ...auth.Option) (auth.Token, error) {
 
 	m.t.Helper()
 	g := NewWithT(m.t)
@@ -118,7 +122,9 @@ func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken 
 		g.Expect(err).NotTo(HaveOccurred())
 	}
 
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	var o auth.Options
+	o.Apply(opts...)
+	g.Expect(o.GetServiceAccount()).To(Equal(m.paramServiceAccount))
 
 	m.checkOptions(opts...)
 
@@ -231,10 +237,10 @@ func (m *mockProvider) checkOptions(opts ...auth.Option) {
 	if m.paramAudiences != nil {
 		expectedAudiences = m.paramAudiences
 	}
-	g.Expect(o.Audiences).To(ConsistOf(expectedAudiences))
+	g.Expect(o.CredentialAudiences).To(ConsistOf(expectedAudiences))
 	g.Expect(o.Scopes).To(Equal(expectedScopes))
-	g.Expect(o.STSRegion).To(Equal("us-east-1"))
-	g.Expect(o.STSEndpoint).To(Equal("https://sts.some-cloud.io"))
+	g.Expect(o.AWSRegion).To(Equal("us-east-1"))
+	g.Expect(o.AWSSTSEndpoint).To(Equal("https://sts.some-cloud.io"))
 	g.Expect(o.ProxyURL).To(Equal(&url.URL{Scheme: "http", Host: "proxy.io:8080"}))
 	g.Expect(o.CAData).To(Equal("ca-data"))
 	g.Expect(o.AllowShellOut).To(Equal(m.paramAllowShellOut))

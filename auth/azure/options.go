@@ -20,66 +20,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	corev1 "k8s.io/api/core/v1"
 )
-
-func getIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	tenantID, err := getTenantID(serviceAccount)
-	if err != nil {
-		return "", err
-	}
-	clientID, err := getClientID(serviceAccount)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s/%s", tenantID, clientID), nil
-}
-
-func getTenantID(serviceAccount corev1.ServiceAccount) (string, error) {
-	const key = "azure.workload.identity/tenant-id"
-	if tenantID, ok := serviceAccount.Annotations[key]; ok {
-		return tenantID, nil
-	}
-	return "", fmt.Errorf("azure tenant ID is not set in the service account annotation %s", key)
-}
-
-func getClientID(serviceAccount corev1.ServiceAccount) (string, error) {
-	const key = "azure.workload.identity/client-id"
-	if clientID, ok := serviceAccount.Annotations[key]; ok {
-		return clientID, nil
-	}
-	return "", fmt.Errorf("azure client ID is not set in the service account annotation %s", key)
-}
-
-const clusterPattern = `(?i)^/subscriptions/([^/]{36})/resourceGroups/([^/]{1,200})/providers/Microsoft\.ContainerService/managedClusters/([^/]{1,200})$`
-
-var clusterRegex = regexp.MustCompile(clusterPattern)
-
-func parseCluster(cluster string) (string, string, string, error) {
-	m := clusterRegex.FindStringSubmatch(cluster)
-	if len(m) != 4 {
-		return "", "", "", fmt.Errorf("invalid AKS cluster ID: '%s'. must match %s",
-			cluster, clusterPattern)
-	}
-	subscriptionID := m[1]
-	resourceGroup := m[2]
-	clusterName := m[3]
-	return subscriptionID, resourceGroup, clusterName, nil
-}
 
 // envVarAzureEnvironmentFilepath is the environment variable name used to specify the path of the configuration file with custom Azure endpoints.
 const envVarAzureEnvironmentFilepath = "AZURE_ENVIRONMENT_FILEPATH"
 
-// Environment is used to read the Azure environment configuration from a JSON file, it is a subset of the struct defined in
+// environment is used to read the Azure environment configuration from a JSON file, it is a subset of the struct defined in
 // https://github.com/kubernetes-sigs/cloud-provider-azure/blob/e68bd888a7616d52f45f39238691f32821884120/pkg/azclient/cloud.go#L152-L185
 // with exact same field names and json annotations.
 // We define this struct here for two reasons:
 //  1. We are not aware of any libraries we could import this struct from.
 //  2. We don't use all the fields defined in the original struct.
-type Environment struct {
+type environment struct {
 	ContainerRegistryDNSSuffix string `json:"containerRegistryDNSSuffix,omitempty"`
 	ResourceManagerEndpoint    string `json:"resourceManagerEndpoint,omitempty"`
 	TokenAudience              string `json:"tokenAudience,omitempty"`
@@ -94,7 +48,7 @@ func hasEnvironmentFile() bool {
 // getEnvironmentConfig reads the Azure environment configuration from a JSON file
 // located at the path specified by the environment variable AZURE_ENVIRONMENT_FILEPATH.
 // Call hasEnvironmentFile() before calling this function to ensure the file exists.
-func getEnvironmentConfig() (*Environment, error) {
+func getEnvironmentConfig() (*environment, error) {
 	envFilePath := os.Getenv(envVarAzureEnvironmentFilepath)
 	if len(envFilePath) == 0 {
 		return nil, fmt.Errorf("environment variable %s is not set", envVarAzureEnvironmentFilepath)
@@ -103,7 +57,7 @@ func getEnvironmentConfig() (*Environment, error) {
 	if err != nil {
 		return nil, err
 	}
-	env := &Environment{}
+	env := &environment{}
 	if err = json.Unmarshal(content, env); err != nil {
 		return nil, err
 	}

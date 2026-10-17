@@ -54,8 +54,8 @@ func TestGetGitCredentials(t *testing.T) {
 		t.Setenv("AWS_REGION", region)
 		u, err := url.Parse(fmt.Sprintf("https://git-codecommit.%s.amazonaws.com/v1/repos/repo-name", region))
 		g.Expect(err).ToNot(HaveOccurred())
-		opts := []auth.Option{auth.WithGitURL(*u)}
-		p, err := authutils.GetGitCredentials(context.Background(), "aws", opts...)
+		p, err := authutils.GetGitCredentials(context.Background(), "aws",
+			authutils.WithAuthOptions(auth.WithGitURL(*u)))
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("failed to create provider access token"))
 		g.Expect(p).To(BeNil())
@@ -69,10 +69,10 @@ func TestGetGitCredentials(t *testing.T) {
 		region := "eu-west-1"
 		u, err := url.Parse(fmt.Sprintf("https://git-codecommit.%s.amazonaws.com/v1/repos/repo-name", region))
 		g.Expect(err).ToNot(HaveOccurred())
-		// No AWS_REGION env var set and no WithSTSRegion option – the region must
+		// No AWS_REGION env var set and no WithAWSRegion option – the region must
 		// be derived from the URL. The call still fails (no real AWS credentials)
-		opts := []auth.Option{auth.WithGitURL(*u)}
-		p, err := authutils.GetGitCredentials(context.Background(), "aws", opts...)
+		p, err := authutils.GetGitCredentials(context.Background(), "aws",
+			authutils.WithAuthOptions(auth.WithGitURL(*u)))
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).NotTo(ContainSubstring("an AWS region is required"))
 		g.Expect(p).To(BeNil())

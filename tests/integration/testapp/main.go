@@ -75,6 +75,7 @@ var (
 
 var (
 	authOpts   []auth.Option
+	wiSA       *corev1.ServiceAccount
 	kubeClient client.Client
 	proxyURL   *url.URL
 )
@@ -99,12 +100,16 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Configure object-level workload identity.
+	// Configure the base auth options. The object-level Workload Identity
+	// ServiceAccount, if any, is resolved and validated lazily by auth/utils
+	// for each test category.
+	authOpts = append(authOpts, auth.WithClient(kubeClient))
+
 	if *wiSAName != "" && *wiSANamespace != "" {
-		auth.EnableObjectLevelWorkloadIdentity()
-		authOpts = append(authOpts, auth.WithClient(kubeClient))
-		authOpts = append(authOpts, auth.WithServiceAccountName(*wiSAName))
-		authOpts = append(authOpts, auth.WithServiceAccountNamespace(*wiSANamespace))
+		wiSA = &corev1.ServiceAccount{}
+		if err := kubeClient.Get(ctx, client.ObjectKey{Name: *wiSAName, Namespace: *wiSANamespace}, wiSA); err != nil {
+			panic(err)
+		}
 	}
 
 	// Configure a token cache.
@@ -112,12 +117,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	authOpts = append(authOpts, auth.WithCache(*tokenCache, cache.InvolvedObject{
-		Kind:      "TestApp",
-		Name:      "testapp",
-		Namespace: "default",
-		Operation: "test",
-	}))
+	authOpts = append(authOpts,
+		auth.WithCache(*tokenCache),
+		auth.WithObjectReference(auth.ObjectReference{
+			Kind:      "TestApp",
+			Name:      "testapp",
+			Namespace: "default",
+		}),
+		auth.WithCacheOperation("test"))
 
 	// Create and configure a test proxy.
 	proxy := goproxy.NewProxyHttpServer()
@@ -161,6 +168,20 @@ func main() {
 	}
 }
 
+// utilsOptions returns the auth/utils options for the test. The object-level
+// Workload Identity ServiceAccount, if any, is resolved and validated by
+// auth/utils.
+func utilsOptions() []authutils.Option {
+	opts := []authutils.Option{
+		authutils.WithAuthOptions(authOpts...),
+		authutils.WithObjectLevelWorkloadIdentity(wiSA != nil),
+	}
+	if wiSA != nil {
+		opts = append(opts, authutils.WithDefaultServiceAccount(wiSA.Name))
+	}
+	return opts
+}
+
 func checkOci(ctx context.Context) {
 	if *repo == "" {
 		panic("must provide -repo value")
@@ -193,7 +214,7 @@ func checkOci(ctx context.Context) {
 	}
 	for _, provider := range providers {
 		if _, err = provider.ParseArtifactRepository(loginURL); err == nil {
-			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL, authOpts...)
+			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL, utilsOptions()...)
 			break
 		}
 	}
@@ -238,7 +259,8 @@ func checkGit(ctx context.Context) {
 		panic(err)
 	}
 	if !*gitSSH {
-		creds, err := authutils.GetGitCredentials(ctx, *provider, append(authOpts, auth.WithGitURL(*u))...)
+		creds, err := authutils.GetGitCredentials(ctx, *provider,
+			append(utilsOptions(), authutils.WithAuthOptions(auth.WithGitURL(*u)))...)
 		if err != nil {
 			panic(err)
 		}
@@ -288,7 +310,7 @@ func checkRESTConfig(ctx context.Context) {
 			Name: "kubeconfig",
 		},
 	}
-	provider := runtimeClient.ProviderRESTConfigFetcher(authutils.GetRESTConfigFetcher(authOpts...))
+	provider := runtimeClient.ProviderRESTConfigFetcher(authutils.GetRESTConfigFetcher(utilsOptions()...))
 	impersonatorOpts := []runtimeClient.ImpersonatorOption{
 		runtimeClient.WithPolling(engine.ClusterReaderFactoryFunc(clusterreader.NewDirectClusterReader)),
 		runtimeClient.WithKubeConfig(&kubeConfigRef, runtimeClient.KubeConfigOptions{}, namespace, provider),

@@ -31,8 +31,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
@@ -85,30 +83,25 @@ func TestProvider_NewControllerToken(t *testing.T) {
 
 func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		annotations map[string]string
-		err         string
+		name     string
+		tenantID string
+		clientID string
+		err      string
 	}{
 		{
-			name: "valid",
-			annotations: map[string]string{
-				"azure.workload.identity/tenant-id": "tenant-id",
-				"azure.workload.identity/client-id": "client-id",
-			},
+			name:     "valid",
+			tenantID: "tenant-id",
+			clientID: "client-id",
 		},
 		{
-			name: "tenant id missing",
-			annotations: map[string]string{
-				"azure.workload.identity/client-id": "client-id",
-			},
-			err: "azure tenant ID is not set in the service account annotation azure.workload.identity/tenant-id",
+			name:     "tenant id missing",
+			clientID: "client-id",
+			err:      "Azure tenant ID and client ID are required",
 		},
 		{
-			name: "client id missing",
-			annotations: map[string]string{
-				"azure.workload.identity/tenant-id": "tenant-id",
-			},
-			err: "azure client ID is not set in the service account annotation azure.workload.identity/client-id",
+			name:     "client id missing",
+			tenantID: "tenant-id",
+			err:      "Azure tenant ID and client ID are required",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,18 +118,19 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			oidcToken := "oidc-token"
-			serviceAccount := corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: tt.annotations,
-				},
-			}
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 				auth.WithScopes("scope1", "scope2"),
 			}
+			if tt.tenantID != "" {
+				opts = append(opts, auth.WithAzureTenantID(tt.tenantID))
+			}
+			if tt.clientID != "" {
+				opts = append(opts, auth.WithAzureClientID(tt.clientID))
+			}
 
 			provider := azure.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -155,7 +149,7 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 
 func TestProvider_GetAudiences(t *testing.T) {
 	g := NewWithT(t)
-	aud, err := azure.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
+	aud, err := azure.Provider{}.GetAudiences(context.Background())
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(aud).To(Equal([]string{"api://AzureADTokenExchange"}))
 }
@@ -163,14 +157,9 @@ func TestProvider_GetAudiences(t *testing.T) {
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
 
-	identity, err := azure.Provider{}.GetIdentity(corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				"azure.workload.identity/client-id": "client-id",
-				"azure.workload.identity/tenant-id": "tenant-id",
-			},
-		},
-	})
+	identity, err := azure.Provider{}.GetIdentity(
+		auth.WithAzureTenantID("tenant-id"),
+		auth.WithAzureClientID("client-id"))
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(identity).To(Equal("tenant-id/client-id"))
 }
@@ -543,17 +532,12 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
 				},
 			},
-			err: "no kubeconfig found for AKS cluster /subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster matching the specified address 'https://different-cluster.hcp.eastus.azmk8s.io:443'. cluster addresses: ['https://test-cluster-12345678.hcp.eastus.azmk8s.io:443']",
+			err: "no kubeconfig found for AKS cluster test-cluster matching the specified address 'https://different-cluster.hcp.eastus.azmk8s.io:443'. cluster addresses: ['https://test-cluster-12345678.hcp.eastus.azmk8s.io:443']",
 		},
 		{
 			name:    "cluster without AAD integration",
 			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
-			err:     "AKS cluster /subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster does not have Microsoft Entra ID integration enabled. See docs for enabling: https://learn.microsoft.com/en-us/azure/aks/enable-authentication-microsoft-entra-id",
-		},
-		{
-			name:    "invalid cluster ID",
-			cluster: "invalid-cluster-id",
-			err:     `invalid AKS cluster ID: 'invalid-cluster-id'. must match (?i)^/subscriptions/([^/]{36})/resourceGroups/([^/]{1,200})/providers/Microsoft\.ContainerService/managedClusters/([^/]{1,200})$`,
+			err:     "AKS cluster test-cluster does not have Microsoft Entra ID integration enabled. See docs for enabling: https://learn.microsoft.com/en-us/azure/aks/enable-authentication-microsoft-entra-id",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -592,7 +576,10 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			}
 
 			if tt.cluster != "" {
-				opts = append(opts, auth.WithClusterResource(tt.cluster))
+				opts = append(opts,
+					auth.WithAzureSubscriptionID("12345678-1234-1234-1234-123456789012"),
+					auth.WithAzureResourceGroup("test-rg"),
+					auth.WithAzureClusterName("test-cluster"))
 			}
 
 			if tt.clusterAddress != "" {

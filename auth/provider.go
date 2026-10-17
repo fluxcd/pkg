@@ -18,8 +18,6 @@ package auth
 
 import (
 	"context"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 // Provider contains the logic to retrieve security credentials
@@ -38,17 +36,15 @@ type Provider interface {
 	// ServiceAccounts should have. These are usually strings that represent
 	// the cloud provider's STS service, or some entity in the provider for
 	// which the OIDC tokens are targeted to.
-	GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error)
+	GetAudiences(ctx context.Context, opts ...Option) ([]string, error)
 
-	// GetIdentity takes a ServiceAccount and returns the identity which the
-	// ServiceAccount wants to impersonate, by looking at annotations.
-	GetIdentity(serviceAccount corev1.ServiceAccount) (string, error)
+	// GetIdentity returns the identity which the ServiceAccount wants to
+	// impersonate, as configured in the options.
+	GetIdentity(opts ...Option) (string, error)
 
-	// NewToken takes a ServiceAccount and its OIDC token and returns a token
-	// that can be used to authenticate with the cloud provider. The OIDC token is
-	// the JWT token that was issued for the ServiceAccount by the Kubernetes API.
-	// The implementation should exchange this token for a cloud provider access
-	// token through the provider's STS service.
-	NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-		serviceAccount corev1.ServiceAccount, opts ...Option) (Token, error)
+	// NewTokenForServiceAccount takes the OIDC token issued for the
+	// ServiceAccount and returns a token that can be used to authenticate
+	// with the cloud provider. The implementation should exchange this token
+	// for a cloud provider access token through the provider's STS service.
+	NewTokenForServiceAccount(ctx context.Context, oidcToken string, opts ...Option) (Token, error)
 }

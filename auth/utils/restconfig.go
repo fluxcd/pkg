@@ -21,12 +21,12 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	crypto "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/auth"
 )
@@ -40,7 +40,7 @@ type RESTConfigFetcher func(ctx context.Context, ref meta.KubeConfigReference,
 // runtime/client.(*Impersonator) to create controller-runtime clients. To keep
 // runtime decoupled from auth, this function closes over the controller-provided
 // options and returns a function that can be called by runtime without runtime
-// needing to know about the type auth.Option. Usage example:
+// needing to know about the option types. Usage example:
 //
 //	provider := authutils.GetRESTConfigFetcher(opts...)
 //	impersonatorOpts = append(impersonatorOpts,
@@ -48,7 +48,7 @@ type RESTConfigFetcher func(ctx context.Context, ref meta.KubeConfigReference,
 //
 // Controllers that don't use the runtime/client.(*Impersonator) can simply call
 // GetRESTConfig directly, passing the options as variadic arguments.
-func GetRESTConfigFetcher(opts ...auth.Option) RESTConfigFetcher {
+func GetRESTConfigFetcher(opts ...Option) RESTConfigFetcher {
 	return func(ctx context.Context, ref meta.KubeConfigReference,
 		namespace string, ctrlClient client.Client) (*rest.Config, error) {
 		return GetRESTConfig(ctx, ref, namespace, ctrlClient, opts...)
@@ -59,6 +59,12 @@ func GetRESTConfigFetcher(opts ...auth.Option) RESTConfigFetcher {
 // namespace, controller-runtime client and options. It's a convenience wrapper
 // for auth.GetRESTConfig so controllers can pass a meta.KubeConfigReference
 // object directly without converting it to auth.Option(s).
+//
+// It reads the kubeconfig ConfigMap and validates the configuration with the
+// github.com/fluxcd/pkg/apis/crypto package. When a ServiceAccount is
+// configured (either in the ConfigMap or via WithDefaultServiceAccount), it is
+// fetched and validated with its annotations; otherwise only the ConfigMap
+// inputs (e.g. the cluster resource) are validated.
 //
 // Additionally, the resulting *rest.Config will call auth.GetRESTConfig for every
 // HTTP request to the remote cluster. This is needed for long-running operations
@@ -72,7 +78,12 @@ func GetRESTConfigFetcher(opts ...auth.Option) RESTConfigFetcher {
 func GetRESTConfig(ctx context.Context,
 	kubeConfigRef meta.KubeConfigReference,
 	namespace string, ctrlClient client.Client,
-	opts ...auth.Option) (*rest.Config, error) {
+	opts ...Option) (*rest.Config, error) {
+
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 
 	// Get ConfigMap.
 	cmKey := client.ObjectKey{
@@ -85,40 +96,72 @@ func GetRESTConfig(ctx context.Context,
 	}
 
 	// Get provider by name.
-	provider, err := ProviderByName[auth.RESTConfigProvider](cm.Data[meta.KubeConfigKeyProvider])
+	providerName := cm.Data[meta.KubeConfigKeyProvider]
+	provider, err := ProviderByName[auth.RESTConfigProvider](providerName)
 	if err != nil {
 		return nil, err
 	}
 
-	// Configure options.
-	opts = slices.Clone(opts)
-	if c, ok := cm.Data[meta.KubeConfigKeyCluster]; ok {
-		opts = append(opts, auth.WithClusterResource(c))
+	// Resolve the object-level ServiceAccount, if any.
+	saName := cm.Data[meta.KubeConfigKeyServiceAccountName]
+	if saName == "" {
+		saName = o.defaultServiceAccount
 	}
-	if a, ok := cm.Data[meta.KubeConfigKeyAddress]; ok {
-		opts = append(opts, auth.WithClusterAddress(a))
-	}
-	if ca, ok := cm.Data[meta.KubeConfigKeyCACert]; ok {
-		opts = append(opts, auth.WithCAData(ca))
-	}
-	opts = append(opts, auth.WithClient(ctrlClient))
-	opts = append(opts, auth.WithServiceAccountNamespace(namespace))
-	if name, ok := cm.Data[meta.KubeConfigKeyServiceAccountName]; ok {
-		opts = append(opts, auth.WithServiceAccountName(name))
-	}
-	if a, ok := cm.Data[meta.KubeConfigKeyAudiences]; ok {
-		var audiences []string
-		for aud := range strings.SplitSeq(a, "\n") {
-			aud = strings.TrimSpace(aud)
-			if aud == "" {
-				continue
-			}
-			audiences = append(audiences, aud)
+	var sa *corev1.ServiceAccount
+	if saName != "" {
+		if !o.objectLevelWorkloadIdentity {
+			return nil, auth.ErrObjectLevelWorkloadIdentityNotEnabled
 		}
-		opts = append(opts, auth.WithAudiences(audiences...))
+		sa = &corev1.ServiceAccount{}
+		if err := ctrlClient.Get(ctx, client.ObjectKey{Name: saName, Namespace: namespace}, sa); err != nil {
+			return nil, fmt.Errorf("failed to get service account '%s/%s': %w", namespace, saName, err)
+		}
 	}
 
-	conf, err := auth.GetRESTConfig(ctx, provider, opts...)
+	// Validate the configuration. This is done even when no ServiceAccount is
+	// configured, as the kubeconfig ConfigMap cluster resource is validated and
+	// parsed regardless.
+	var annotations map[string]string
+	if sa != nil {
+		annotations = sa.Annotations
+	}
+	cfg, err := crypto.ValidateConfig(
+		append([]crypto.Option{
+			crypto.WithAnnotations(annotations),
+			crypto.WithServiceProvider(providerName),
+			crypto.WithKubeConfigCluster(cm.Data[meta.KubeConfigKeyCluster]),
+			crypto.WithKubeConfigAudiences(cm.Data[meta.KubeConfigKeyAudiences]),
+		}, o.cryptoOpts...)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate configuration: %w", err)
+	}
+
+	// Configure options.
+	authOpts := slices.Clone(o.authOpts)
+	authOpts = append(authOpts, auth.WithClient(ctrlClient))
+	authOpts = append(authOpts, auth.OptionsFromConfig(cfg)...)
+	if sa != nil {
+		authOpts = append(authOpts, auth.WithServiceAccount(sa))
+	}
+	if c := cm.Data[meta.KubeConfigKeyCluster]; c != "" {
+		authOpts = append(authOpts, auth.WithClusterResource(c))
+	}
+	if a := cm.Data[meta.KubeConfigKeyAddress]; a != "" {
+		authOpts = append(authOpts, auth.WithClusterAddress(a))
+	}
+	if ca := cm.Data[meta.KubeConfigKeyCACert]; ca != "" {
+		authOpts = append(authOpts, auth.WithCAData(ca))
+	}
+
+	// Ensure the object reference carries the namespace.
+	var current auth.Options
+	current.Apply(authOpts...)
+	ref := current.ObjectReference
+	ref.Namespace = namespace
+	authOpts = append(authOpts, auth.WithObjectReference(ref))
+
+	conf, err := auth.GetRESTConfig(ctx, provider, authOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +176,7 @@ func GetRESTConfig(ctx context.Context,
 		return &restConfigRoundTripper{
 			base:     base,
 			provider: provider,
-			opts:     opts,
+			opts:     authOpts,
 		}
 	})
 
