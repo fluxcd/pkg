@@ -20,14 +20,11 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/name"
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 )
 
@@ -64,20 +61,6 @@ type ArtifactRegistryCredentials struct {
 // GetDuration implements Token.
 func (a *ArtifactRegistryCredentials) GetDuration() time.Duration {
 	return time.Until(a.ExpiresAt)
-}
-
-// GetRegistryFromArtifactRepository returns the registry from the artifact repository.
-func GetRegistryFromArtifactRepository(artifactRepository string) (string, error) {
-	registry := strings.TrimSuffix(artifactRepository, "/")
-	if strings.ContainsRune(registry, '/') {
-		ref, err := name.ParseReference(registry)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse artifact repository '%s': %w",
-				artifactRepository, err)
-		}
-		return ref.Context().RegistryStr(), nil
-	}
-	return registry, nil
 }
 
 // GetArtifactRegistryCredentials retrieves the registry credentials for the
@@ -120,17 +103,13 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 	}
 
 	// Build cache key.
-	var serviceAccount *corev1.ServiceAccount
+	var serviceAccount *kubernetes.ServiceAccountReference
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	if o.ObjectLevelWorkloadIdentity() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -141,16 +120,10 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 		fmt.Sprintf("accessTokenCacheKey=%s", accessTokenCacheKey),
 		fmt.Sprintf("artifactRepositoryCacheKey=%s", registryInput))
 
-	// Build involved object details.
-	kind := o.InvolvedObject.Kind
-	name := o.InvolvedObject.Name
-	namespace := o.InvolvedObject.Namespace
-	operation := o.InvolvedObject.Operation
-
 	// Get credentials from cache.
 	creds, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
 		return newArtifactRegistryCredentials()
-	}, cache.WithInvolvedObject(kind, name, namespace, operation))
+	}, cache.WithInvolvedObject(o.involvedObject()))
 	if err != nil {
 		return nil, err
 	}

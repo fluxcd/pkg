@@ -18,9 +18,14 @@ package auth_test
 
 import (
 	"net/url"
+	"reflect"
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
 )
 
@@ -70,63 +75,21 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 	}
 }
 
-func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
+func TestOptions_ObjectLevelWorkloadIdentity(t *testing.T) {
 	tests := []struct {
-		name                string
-		opts                []auth.Option
-		defaultSA           string
-		defaultKubeConfigSA string
-		defaultDecryptionSA string
-		expected            bool
+		name     string
+		opts     []auth.Option
+		expected bool
 	}{
 		{
-			name: "both name and namespace provided",
+			name: "service account name provided",
 			opts: []auth.Option{
 				auth.WithServiceAccountName("test-sa"),
-				auth.WithServiceAccountNamespace("default"),
 			},
 			expected: true,
 		},
 		{
-			name: "only namespace provided - no global vars",
-			opts: []auth.Option{
-				auth.WithServiceAccountNamespace("default"),
-			},
-			expected: false,
-		},
-		{
-			name: "namespace and defaultServiceAccount",
-			opts: []auth.Option{
-				auth.WithServiceAccountNamespace("default"),
-			},
-			defaultSA: "default-sa",
-			expected:  true,
-		},
-		{
-			name: "namespace and defaultKubeConfigServiceAccount",
-			opts: []auth.Option{
-				auth.WithServiceAccountNamespace("default"),
-			},
-			defaultKubeConfigSA: "default-kubeconfig-sa",
-			expected:            true,
-		},
-		{
-			name: "namespace and defaultDecryptionServiceAccount - expect false! decryption is handled in kustomize-controller",
-			opts: []auth.Option{
-				auth.WithServiceAccountNamespace("default"),
-			},
-			defaultDecryptionSA: "default-decryption-sa",
-			expected:            false,
-		},
-		{
-			name: "only name provided",
-			opts: []auth.Option{
-				auth.WithServiceAccountName("test-sa"),
-			},
-			expected: false,
-		},
-		{
-			name:     "neither provided",
+			name:     "service account name not provided",
 			opts:     []auth.Option{},
 			expected: false,
 		},
@@ -134,28 +97,165 @@ func TestOptions_ShouldGetServiceAccountToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-			}
-
-			if tt.defaultKubeConfigSA != "" {
-				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
-				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
-			}
-
-			if tt.defaultDecryptionSA != "" {
-				auth.SetDefaultDecryptionServiceAccount(tt.defaultDecryptionSA)
-				t.Cleanup(func() { auth.SetDefaultDecryptionServiceAccount("") })
-			}
-
 			var o auth.Options
 			o.Apply(tt.opts...)
 
-			result := o.ShouldGetServiceAccountToken()
+			result := o.ObjectLevelWorkloadIdentity()
 			if result != tt.expected {
-				t.Errorf("ShouldGetServiceAccountToken() = %v, want %v", result, tt.expected)
+				t.Errorf("ObjectLevelWorkloadIdentity() = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestOptionsFromSpec(t *testing.T) {
+	tests := []struct {
+		name string
+		spec *cryptov1.AuthSpec
+		want auth.Options
+	}{
+		{
+			name: "nil spec",
+		},
+		{
+			name: "empty spec",
+			spec: &cryptov1.AuthSpec{},
+		},
+		{
+			name: "credential opted in",
+			spec: &cryptov1.AuthSpec{
+				Credential: &cryptov1.CredentialSpec{
+					Provider:   cryptov1.CredentialProviderSPIFFE,
+					Type:       cryptov1.CredentialTypeX509,
+					Expiration: 5 * time.Minute,
+					Audiences:  []string{"audience"},
+					Username:   "user",
+				},
+			},
+			want: auth.Options{
+				CredentialProvider:   cryptov1.CredentialProviderSPIFFE,
+				CredentialType:       cryptov1.CredentialTypeX509,
+				CredentialExpiration: 5 * time.Minute,
+				CredentialAudiences:  []string{"audience"},
+				CredentialUsername:   "user",
+			},
+		},
+		{
+			name: "credential not opted in with legacy audiences",
+			spec: &cryptov1.AuthSpec{
+				Credential: &cryptov1.CredentialSpec{
+					Audiences: []string{"audience"},
+				},
+			},
+			want: auth.Options{
+				CredentialAudiences: []string{"audience"},
+			},
+		},
+		{
+			name: "service-provider specs",
+			spec: &cryptov1.AuthSpec{
+				AWS: &cryptov1.AWSSpec{
+					RoleARN:     "arn:aws:iam::123456789012:role/role",
+					STSEndpoint: "https://sts.us-east-1.amazonaws.com",
+					Cluster: &cryptov1.AWSClusterSpec{
+						Region: "us-east-1",
+						Name:   "test-cluster",
+					},
+				},
+				Azure: &cryptov1.AzureSpec{
+					TenantID: "tenant-id",
+					ClientID: "client-id",
+					Cluster: &cryptov1.AzureClusterSpec{
+						SubscriptionID: "subscription-id",
+						ResourceGroup:  "resource-group",
+						Name:           "test-cluster",
+					},
+				},
+				GCP: &cryptov1.GCPSpec{
+					WorkloadIdentityProvider: "projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+					ServiceAccount:           "sa@project.iam.gserviceaccount.com",
+				},
+				DockerHub: &cryptov1.DockerHubSpec{
+					OIDCConnectionID: "connection-id",
+				},
+			},
+			want: auth.Options{
+				AWSRoleARN:                  "arn:aws:iam::123456789012:role/role",
+				AWSSTSEndpoint:              "https://sts.us-east-1.amazonaws.com",
+				AWSRegion:                   "us-east-1",
+				AWSClusterName:              "test-cluster",
+				AzureTenantID:               "tenant-id",
+				AzureClientID:               "client-id",
+				AzureSubscriptionID:         "subscription-id",
+				AzureResourceGroup:          "resource-group",
+				AzureClusterName:            "test-cluster",
+				GCPWorkloadIdentityProvider: "projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+				GCPServiceAccount:           "sa@project.iam.gserviceaccount.com",
+				DockerHubOIDCConnectionID:   "connection-id",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got auth.Options
+			got.Apply(auth.OptionsFromSpec(tt.spec)...)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("OptionsFromSpec() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOptions_ObjectReferences(t *testing.T) {
+	entitled := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "entitled",
+			Namespace: "namespace",
+			UID:       "entitled-uid",
+		},
+	}
+	involved := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "involved",
+			Namespace: "namespace",
+			UID:       "involved-uid",
+		},
+	}
+	wantEntitled := auth.ObjectReference{
+		APIGroup:  "source.toolkit.fluxcd.io",
+		Kind:      "GitRepository",
+		Name:      "entitled",
+		Namespace: "namespace",
+		UID:       "entitled-uid",
+	}
+	wantInvolved := auth.ObjectReference{
+		APIGroup:  "image.toolkit.fluxcd.io",
+		Kind:      "ImagePolicy",
+		Name:      "involved",
+		Namespace: "namespace",
+		UID:       "involved-uid",
+	}
+
+	var o auth.Options
+	o.Apply(
+		auth.WithObject(wantEntitled.APIGroup, wantEntitled.Kind, entitled),
+		auth.WithCacheOperation("reconcile"),
+	)
+
+	if o.ObjectReference != wantEntitled {
+		t.Errorf("ObjectReference = %+v, want %+v", o.ObjectReference, wantEntitled)
+	}
+	if o.InvolvedObjectReference != wantEntitled {
+		t.Errorf("InvolvedObjectReference = %+v, want %+v", o.InvolvedObjectReference, wantEntitled)
+	}
+
+	o.Apply(auth.WithInvolvedObject(wantInvolved.APIGroup, wantInvolved.Kind, involved))
+
+	if o.ObjectReference != wantEntitled {
+		t.Errorf("ObjectReference = %+v, want %+v", o.ObjectReference, wantEntitled)
+	}
+	if o.InvolvedObjectReference != wantInvolved {
+		t.Errorf("InvolvedObjectReference = %+v, want %+v", o.InvolvedObjectReference, wantInvolved)
 	}
 }

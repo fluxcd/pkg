@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Flux authors
+Copyright 2026 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generic
+package kubernetes
 
-import "os"
-
-// Implementation provides the required methods of the generic libraries.
-type Implementation interface {
-	ReadFile(name string) ([]byte, error)
+// ServiceAccountReference represents a reference to a Kubernetes ServiceAccount,
+// including its name and namespace.
+type ServiceAccountReference struct {
+	Name      string
+	Namespace string
 }
 
-type implementation struct{}
-
-func (implementation) ReadFile(name string) ([]byte, error) {
-	return os.ReadFile(name)
+// String implements the fmt.Stringer interface.
+func (r *ServiceAccountReference) String() string {
+	return r.Namespace + "/" + r.Name
 }

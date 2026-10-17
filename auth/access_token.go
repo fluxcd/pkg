@@ -21,11 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	authnv1 "k8s.io/api/authentication/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 )
 
@@ -45,46 +41,32 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 	}
 
 	// Update access token fetcher for a service account if specified.
-	var serviceAccount *corev1.ServiceAccount
+	var serviceAccount *kubernetes.ServiceAccountReference
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
-		// Fetch service account details.
+	if o.ObjectLevelWorkloadIdentity() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, opts...)
 		if err != nil {
 			return nil, err
 		}
 
 		// Update the function to create an access token using the service account.
 		newAccessToken = func() (Token, error) {
-			// Check the feature gate for object-level workload identity.
-			if !IsObjectLevelWorkloadIdentityEnabled() {
-				return nil, ErrObjectLevelWorkloadIdentityNotEnabled
-			}
-
 			// Issue Kubernetes OIDC token for the service account.
-			tokenReq := &authnv1.TokenRequest{
-				Spec: authnv1.TokenRequestSpec{
-					Audiences: audiences,
-				},
+			oidcToken, err := kubernetes.CreateJWT(ctx, o.Client, serviceAccount,
+				audiences, o.CredentialExpiration)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create kubernetes token for service account '%s': %w",
+					serviceAccount, err)
 			}
-			if err := o.Client.SubResource("token").Create(ctx, serviceAccount, tokenReq); err != nil {
-				return nil, fmt.Errorf("failed to create kubernetes token for service account '%s/%s': %w",
-					serviceAccount.Namespace, serviceAccount.Name, err)
-			}
-			oidcToken := tokenReq.Status.Token
 
 			// Exchange the Kubernetes OIDC token for a provider access token.
-			token, err := provider.NewTokenForServiceAccount(ctx, oidcToken, *serviceAccount, opts...)
+			token, err := provider.NewTokenForServiceAccount(ctx, oidcToken, opts...)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create provider access token for service account '%s/%s': %w",
-					serviceAccount.Namespace, serviceAccount.Name, err)
+				return nil, fmt.Errorf("failed to create provider access token for service account '%s': %w",
+					serviceAccount, err)
 			}
 
 			return token, nil
@@ -99,16 +81,10 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 	// Build cache key.
 	cacheKey := buildAccessTokenCacheKey(provider, audiences, providerIdentity, serviceAccount, opts...)
 
-	// Build involved object details.
-	kind := o.InvolvedObject.Kind
-	name := o.InvolvedObject.Name
-	namespace := o.InvolvedObject.Namespace
-	operation := o.InvolvedObject.Operation
-
 	// Get token from cache.
 	token, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
 		return newAccessToken()
-	}, cache.WithInvolvedObject(kind, name, namespace, operation))
+	}, cache.WithInvolvedObject(o.involvedObject()))
 	if err != nil {
 		return nil, err
 	}
@@ -116,55 +92,33 @@ func GetAccessToken(ctx context.Context, provider Provider, opts ...Option) (Tok
 	return token, nil
 }
 
-func getServiceAccountAndProviderInfo(ctx context.Context, provider Provider, client client.Client,
-	key client.ObjectKey, opts ...Option) (*corev1.ServiceAccount, []string, string, error) {
+func getServiceAccountAndProviderInfo(ctx context.Context, provider Provider,
+	opts ...Option) (*kubernetes.ServiceAccountReference, []string, string, error) {
 
 	var o Options
 	o.Apply(opts...)
 
-	defaultSA := getDefaultServiceAccount()
-	var setDefaultSA bool
+	sa := o.ServiceAccountRef()
 
-	// Apply multi-tenancy lockdown: use default service account when .serviceAccountName
-	// is not explicitly specified in the object. This results in Object-Level Workload Identity.
-	if key.Name == "" && defaultSA != "" {
-		key.Name = defaultSA
-		setDefaultSA = true
-	}
-
-	// Get service account.
-	var serviceAccount corev1.ServiceAccount
-	if err := client.Get(ctx, key, &serviceAccount); err != nil {
-		if errors.IsNotFound(err) && setDefaultSA {
-			return nil, nil, "", fmt.Errorf("failed to get service account '%s': %w",
-				key, ErrDefaultServiceAccountNotFound)
-		}
-		return nil, nil, "", fmt.Errorf("failed to get service account '%s': %w",
-			key, err)
-	}
-
-	// Get provider audience.
-	audiences := o.Audiences
-	if len(audiences) == 0 {
-		var err error
-		audiences, err = provider.GetAudiences(ctx, serviceAccount)
-		if err != nil {
-			return nil, nil, "", fmt.Errorf("failed to get provider audience: %w", err)
-		}
+	// Get provider audience. The provider decides whether any configured
+	// credential audiences are used.
+	audiences, err := provider.GetAudiences(ctx, opts...)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to get provider audience: %w", err)
 	}
 
 	// Get provider identity.
-	providerIdentity, err := provider.GetIdentity(serviceAccount)
+	providerIdentity, err := provider.GetIdentity(opts...)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("failed to get provider identity from service account '%s/%s' annotations: %w",
-			key.Namespace, key.Name, err)
+		return nil, nil, "", fmt.Errorf("failed to get provider identity from service account '%s': %w",
+			sa, err)
 	}
 
-	return &serviceAccount, audiences, providerIdentity, nil
+	return sa, audiences, providerIdentity, nil
 }
 
 func buildAccessTokenCacheKey(provider Provider, audiences []string, providerIdentity string,
-	serviceAccount *corev1.ServiceAccount, opts ...Option) string {
+	serviceAccount *kubernetes.ServiceAccountReference, opts ...Option) string {
 
 	var o Options
 	o.Apply(opts...)
@@ -174,7 +128,7 @@ func buildAccessTokenCacheKey(provider Provider, audiences []string, providerIde
 	parts = append(parts, fmt.Sprintf("provider=%s", provider.GetName()))
 
 	if len(audiences) == 0 {
-		audiences = o.Audiences
+		audiences = o.CredentialAudiences
 	}
 	if len(audiences) > 0 {
 		parts = append(parts, fmt.Sprintf("audiences=%s", strings.Join(audiences, ",")))
@@ -190,12 +144,12 @@ func buildAccessTokenCacheKey(provider Provider, audiences []string, providerIde
 		parts = append(parts, fmt.Sprintf("scopes=%s", strings.Join(o.Scopes, ",")))
 	}
 
-	if o.STSRegion != "" {
-		parts = append(parts, fmt.Sprintf("stsRegion=%s", o.STSRegion))
+	if o.AWSRegion != "" {
+		parts = append(parts, fmt.Sprintf("stsRegion=%s", o.AWSRegion))
 	}
 
-	if o.STSEndpoint != "" {
-		parts = append(parts, fmt.Sprintf("stsEndpoint=%s", o.STSEndpoint))
+	if o.AWSSTSEndpoint != "" {
+		parts = append(parts, fmt.Sprintf("stsEndpoint=%s", o.AWSSTSEndpoint))
 	}
 
 	if o.ProxyURL != nil {

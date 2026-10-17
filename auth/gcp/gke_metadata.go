@@ -35,7 +35,11 @@ type gkeMetadataLoader struct {
 
 var gkeMetadata gkeMetadataLoader
 
-func (g *gkeMetadataLoader) getAudience(ctx context.Context) (string, error) {
+func (g *gkeMetadataLoader) getTokenAudience(ctx context.Context) (string, error) {
+	return g.workloadIdentityPool(ctx)
+}
+
+func (g *gkeMetadataLoader) getExchangeAudience(ctx context.Context) (string, error) {
 	if err := g.load(ctx); err != nil {
 		return "", err
 	}

@@ -22,13 +22,14 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
 
 	"github.com/fluxcd/pkg/auth"
+	"github.com/fluxcd/pkg/auth/kubernetes"
 )
 
 type mockProvider struct {
@@ -50,8 +51,9 @@ type mockProvider struct {
 	returnRegistryOptions   []auth.Option
 	returnRegistryToken     *auth.ArtifactRegistryCredentials
 	paramAudiences          []string
-	paramServiceAccount     corev1.ServiceAccount
+	paramServiceAccount     *kubernetes.ServiceAccountReference
 	paramOIDCTokenClient    *http.Client
+	paramOIDCTokenExpiry    time.Duration
 	paramArtifactRepository string
 	paramGitURL             *url.URL
 	paramCluster            string
@@ -76,17 +78,24 @@ func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Opti
 	return m.returnControllerToken, nil
 }
 
-func (m *mockProvider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
+func (m *mockProvider) GetAudiences(ctx context.Context, opts ...auth.Option) ([]string, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	var o auth.Options
+	o.Apply(opts...)
+	g.Expect(o.ServiceAccountRef()).To(Equal(m.paramServiceAccount))
+	if len(o.CredentialAudiences) > 0 {
+		return o.CredentialAudiences, nil
+	}
 	return []string{"mock-audience"}, nil
 }
 
-func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
+func (m *mockProvider) GetIdentity(opts ...auth.Option) (string, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	var o auth.Options
+	o.Apply(opts...)
+	g.Expect(o.ServiceAccountRef()).To(Equal(m.paramServiceAccount))
 	if m.returnIdentityErr != "" {
 		return "", errors.New(m.returnIdentityErr)
 	}
@@ -94,7 +103,7 @@ func (m *mockProvider) GetIdentity(serviceAccount corev1.ServiceAccount) (string
 }
 
 func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+	opts ...auth.Option) (auth.Token, error) {
 
 	m.t.Helper()
 	g := NewWithT(m.t)
@@ -118,7 +127,18 @@ func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken 
 		g.Expect(err).NotTo(HaveOccurred())
 	}
 
-	g.Expect(serviceAccount).To(Equal(m.paramServiceAccount))
+	// Verify the OIDC token expiration, when an expiration is expected.
+	if m.paramOIDCTokenExpiry > 0 {
+		exp, err := token.Claims.GetExpirationTime()
+		g.Expect(err).NotTo(HaveOccurred())
+		iat, err := token.Claims.GetIssuedAt()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(exp.Sub(iat.Time)).To(BeNumerically("~", m.paramOIDCTokenExpiry, time.Minute))
+	}
+
+	var o auth.Options
+	o.Apply(opts...)
+	g.Expect(o.ServiceAccountRef()).To(Equal(m.paramServiceAccount))
 
 	m.checkOptions(opts...)
 
@@ -231,10 +251,10 @@ func (m *mockProvider) checkOptions(opts ...auth.Option) {
 	if m.paramAudiences != nil {
 		expectedAudiences = m.paramAudiences
 	}
-	g.Expect(o.Audiences).To(ConsistOf(expectedAudiences))
+	g.Expect(o.CredentialAudiences).To(ConsistOf(expectedAudiences))
 	g.Expect(o.Scopes).To(Equal(expectedScopes))
-	g.Expect(o.STSRegion).To(Equal("us-east-1"))
-	g.Expect(o.STSEndpoint).To(Equal("https://sts.some-cloud.io"))
+	g.Expect(o.AWSRegion).To(Equal("us-east-1"))
+	g.Expect(o.AWSSTSEndpoint).To(Equal("https://sts.some-cloud.io"))
 	g.Expect(o.ProxyURL).To(Equal(&url.URL{Scheme: "http", Host: "proxy.io:8080"}))
 	g.Expect(o.CAData).To(Equal("ca-data"))
 	g.Expect(o.AllowShellOut).To(Equal(m.paramAllowShellOut))

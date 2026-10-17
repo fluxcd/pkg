@@ -35,6 +35,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -45,6 +46,7 @@ import (
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/clusterreader"
 	"github.com/fluxcd/cli-utils/pkg/kstatus/polling/engine"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/aws"
@@ -75,6 +77,7 @@ var (
 
 var (
 	authOpts   []auth.Option
+	wiSA       *corev1.ServiceAccount
 	kubeClient client.Client
 	proxyURL   *url.URL
 )
@@ -99,12 +102,16 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Configure object-level workload identity.
+	// Configure the base auth options. The ServiceAccount is fetched once and
+	// reused by the test categories. Categories using auth/utils options leave
+	// the validation to auth/utils, while the OCI category validates it eagerly.
+	authOpts = append(authOpts, auth.WithClient(kubeClient))
+
 	if *wiSAName != "" && *wiSANamespace != "" {
-		auth.EnableObjectLevelWorkloadIdentity()
-		authOpts = append(authOpts, auth.WithClient(kubeClient))
-		authOpts = append(authOpts, auth.WithServiceAccountName(*wiSAName))
-		authOpts = append(authOpts, auth.WithServiceAccountNamespace(*wiSANamespace))
+		wiSA = &corev1.ServiceAccount{}
+		if err := kubeClient.Get(ctx, client.ObjectKey{Name: *wiSAName, Namespace: *wiSANamespace}, wiSA); err != nil {
+			panic(err)
+		}
 	}
 
 	// Configure a token cache.
@@ -112,12 +119,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	authOpts = append(authOpts, auth.WithCache(*tokenCache, cache.InvolvedObject{
-		Kind:      "TestApp",
-		Name:      "testapp",
-		Namespace: "default",
-		Operation: "test",
-	}))
+	authOpts = append(authOpts,
+		auth.WithCache(*tokenCache),
+		auth.WithObject("", "TestApp", &metav1.PartialObjectMetadata{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "testapp",
+				Namespace: "default",
+			},
+		}),
+		auth.WithCacheOperation("test"))
 
 	// Create and configure a test proxy.
 	proxy := goproxy.NewProxyHttpServer()
@@ -161,6 +171,48 @@ func main() {
 	}
 }
 
+// utilsOptions returns the auth/utils options for the test. The object-level
+// Workload Identity ServiceAccount, if any, is resolved and validated by
+// auth/utils. It is used by the REST config test category, which still resolves
+// the ServiceAccount internally.
+func utilsOptions() []authutils.Option {
+	opts := []authutils.Option{
+		authutils.WithAuthOptions(authOpts...),
+	}
+	if wiSA != nil {
+		opts = append(opts,
+			authutils.WithDefaultServiceAccount(wiSA.Name),
+			authutils.WithObjectLevelWorkloadIdentity())
+	}
+	return opts
+}
+
+// providerAuthOptions resolves the object-level Workload Identity
+// ServiceAccount, if any, validates the configuration for the given service
+// provider and returns the resulting auth options. Test categories that call
+// the auth/utils credential functions directly use this to resolve and validate
+// the ServiceAccount upfront.
+func providerAuthOptions(providerName string, cryptoOpts ...cryptov1.Option) []auth.Option {
+	var annotations map[string]string
+	if wiSA != nil {
+		annotations = wiSA.Annotations
+	}
+	validateOpts := append([]cryptov1.Option{
+		cryptov1.WithAnnotations(annotations),
+		cryptov1.WithServiceProvider(providerName),
+	}, cryptoOpts...)
+	spec, err := cryptov1.BuildSpec(validateOpts...)
+	if err != nil {
+		panic(err)
+	}
+	opts := append([]auth.Option{}, authOpts...)
+	opts = append(opts, auth.OptionsFromSpec(spec.Auth)...)
+	if wiSA != nil {
+		opts = append(opts, auth.WithServiceAccountName(wiSA.Name))
+	}
+	return opts
+}
+
 func checkOci(ctx context.Context) {
 	if *repo == "" {
 		panic("must provide -repo value")
@@ -193,7 +245,15 @@ func checkOci(ctx context.Context) {
 	}
 	for _, provider := range providers {
 		if _, err = provider.ParseArtifactRepository(loginURL); err == nil {
-			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL, authOpts...)
+			cryptoOpts := []cryptov1.Option{cryptov1.WithOCI()}
+			if wiSA != nil && len(wiSA.ImagePullSecrets) > 0 {
+				cryptoOpts = append(cryptoOpts, cryptov1.WithImagePullSecrets())
+			}
+			opts := providerAuthOptions(provider.GetName(), cryptoOpts...)
+			authenticator, err = authutils.GetArtifactRegistryCredentials(ctx, provider.GetName(), loginURL, opts...)
+			if err != nil {
+				panic(err)
+			}
 			break
 		}
 	}
@@ -238,7 +298,9 @@ func checkGit(ctx context.Context) {
 		panic(err)
 	}
 	if !*gitSSH {
-		creds, err := authutils.GetGitCredentials(ctx, *provider, append(authOpts, auth.WithGitURL(*u))...)
+		opts := providerAuthOptions(*provider)
+		opts = append(opts, auth.WithGitURL(*u))
+		creds, err := authutils.GetGitCredentials(ctx, *provider, opts...)
 		if err != nil {
 			panic(err)
 		}
@@ -288,7 +350,7 @@ func checkRESTConfig(ctx context.Context) {
 			Name: "kubeconfig",
 		},
 	}
-	provider := runtimeClient.ProviderRESTConfigFetcher(authutils.GetRESTConfigFetcher(authOpts...))
+	provider := runtimeClient.ProviderRESTConfigFetcher(authutils.GetRESTConfigFetcher(utilsOptions()...))
 	impersonatorOpts := []runtimeClient.ImpersonatorOption{
 		runtimeClient.WithPolling(engine.ClusterReaderFactoryFunc(clusterreader.NewDirectClusterReader)),
 		runtimeClient.WithKubeConfig(&kubeConfigRef, runtimeClient.KubeConfigOptions{}, namespace, provider),

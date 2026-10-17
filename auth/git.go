@@ -24,9 +24,7 @@ import (
 	"slices"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 )
 
@@ -115,17 +113,13 @@ func GetGitCredentials(ctx context.Context, provider GitCredentialsProvider,
 	}
 
 	// Build cache key.
-	var serviceAccount *corev1.ServiceAccount
+	var serviceAccount *kubernetes.ServiceAccountReference
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	if o.ObjectLevelWorkloadIdentity() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -136,16 +130,10 @@ func GetGitCredentials(ctx context.Context, provider GitCredentialsProvider,
 		fmt.Sprintf("accessTokenCacheKey=%s", accessTokenCacheKey),
 		fmt.Sprintf("gitRepositoryCacheKey=%s", gitInput))
 
-	// Build involved object details.
-	kind := o.InvolvedObject.Kind
-	name := o.InvolvedObject.Name
-	namespace := o.InvolvedObject.Namespace
-	operation := o.InvolvedObject.Operation
-
 	// Get credentials from cache.
 	creds, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
 		return newGitCredentials()
-	}, cache.WithInvolvedObject(kind, name, namespace, operation))
+	}, cache.WithInvolvedObject(o.involvedObject()))
 	if err != nil {
 		return nil, err
 	}

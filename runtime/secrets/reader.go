@@ -19,6 +19,7 @@ package secrets
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -67,22 +68,18 @@ func GitHubAppDataFromSecretRef(ctx context.Context, c client.Client, secretRef 
 	return GitHubAppDataFromSecret(ctx, secret)
 }
 
-// PullSecretsFromServiceAccountRef retrieves all image pull secrets referenced by a service account.
+// PullSecretsFromServiceAccount retrieves all image pull secrets referenced by a service account.
 //
 // The function resolves all secrets listed in the service account's imagePullSecrets field
 // and returns them as a slice. If any referenced secret cannot be found, an error is returned.
-func PullSecretsFromServiceAccountRef(ctx context.Context, c client.Client, saRef types.NamespacedName) ([]corev1.Secret, error) {
-	sa := &corev1.ServiceAccount{}
-	if err := c.Get(ctx, saRef, sa); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("serviceaccount '%s' not found", saRef)
-		}
-		return nil, fmt.Errorf("failed to get serviceaccount '%s': %w", saRef, err)
+func PullSecretsFromServiceAccount(ctx context.Context, c client.Client, sa *corev1.ServiceAccount) ([]corev1.Secret, error) {
+	if sa == nil {
+		return nil, errors.New("serviceaccount is nil")
 	}
 
 	secrets := make([]corev1.Secret, 0, len(sa.ImagePullSecrets))
 	for _, imagePullSecret := range sa.ImagePullSecrets {
-		secretRef := types.NamespacedName{Name: imagePullSecret.Name, Namespace: saRef.Namespace}
+		secretRef := types.NamespacedName{Name: imagePullSecret.Name, Namespace: sa.Namespace}
 		secret, err := getSecret(ctx, c, secretRef)
 		if err != nil {
 			saRef := client.ObjectKeyFromObject(sa)

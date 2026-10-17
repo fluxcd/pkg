@@ -3,6 +3,7 @@ module github.com/fluxcd/pkg/tests/integration
 go 1.27.0
 
 replace (
+	github.com/fluxcd/pkg/apis/crypto => ../../apis/crypto
 	github.com/fluxcd/pkg/apis/meta => ../../apis/meta
 	github.com/fluxcd/pkg/auth => ../../auth
 	github.com/fluxcd/pkg/cache => ../../cache
@@ -23,6 +24,7 @@ require (
 	github.com/aws/smithy-go v1.28.1
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fluxcd/cli-utils v1.4.0
+	github.com/fluxcd/pkg/apis/crypto v0.4.0
 	github.com/fluxcd/pkg/apis/meta v1.36.0
 	github.com/fluxcd/pkg/auth v0.63.0
 	github.com/fluxcd/pkg/cache v0.17.0
@@ -155,6 +157,7 @@ require (
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.9.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect

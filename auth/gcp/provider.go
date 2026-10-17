@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"regexp"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"golang.org/x/oauth2"
@@ -29,8 +28,8 @@ import (
 	"google.golang.org/api/container/v1"
 	"google.golang.org/api/option"
 	htransport "google.golang.org/api/transport/http"
-	corev1 "k8s.io/api/core/v1"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	auth "github.com/fluxcd/pkg/auth"
 )
 
@@ -70,52 +69,66 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 }
 
 // GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
-
-	// Check if a workload identity provider is specified in the service account.
-	// If so, the current cluster is not GKE and the audience is the provider itself.
-	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
-	if err != nil {
-		return nil, err
-	}
-	if audience != "" {
-		return []string{audience}, nil
-	}
-
-	// Assume we are in GKE. In this case, the audience is the workload identity pool.
-	audience, err = gkeMetadata.workloadIdentityPool(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return []string{audience}, nil
-}
-
-// GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	email, err := getServiceAccountEmail(serviceAccount)
-	if err != nil {
-		return "", err
-	}
-	return email, nil
-}
-
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+func (p Provider) GetAudiences(ctx context.Context, opts ...auth.Option) ([]string, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	// Check if a workload identity provider is specified in the service account.
-	// If so, the current cluster is not GKE and the audience is the provider itself.
-	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
-	if err != nil {
-		return nil, err
+	// GCP Workload Identity Federation is only possible without a configured
+	// provider if we are in GKE, which has a built-in one that only accepts
+	// a single specific audience. This audience can be computed from information
+	// provided by the GKE metadata server.
+	if o.GCPWorkloadIdentityProvider == "" {
+		audience, err := gkeMetadata.getTokenAudience(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return []string{audience}, nil
 	}
 
-	// Assume we are in GKE. In this case, retrieve the audience from the metadata.
-	if audience == "" {
-		audience, err = gkeMetadata.getAudience(ctx)
+	// With a configured workload identity provider, custom credential audiences
+	// can be used.
+	if len(o.CredentialAudiences) > 0 {
+		return o.CredentialAudiences, nil
+	}
+	return []string{cryptov1.GetDefaultAudienceGCP(o.GCPWorkloadIdentityProvider)}, nil
+}
+
+// GetIdentity implements auth.Provider.
+func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	return o.GCPServiceAccount, nil
+}
+
+// NewTokenForServiceAccount implements auth.Provider.
+func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
+	opts ...auth.Option) (auth.Token, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	// The STS exchange audience identifies the workload identity provider. It is
+	// intentionally not derived from the credential audiences option: the latter
+	// is the audience for the OIDC token, which the provider validates against
+	// its configured allowed audiences. The fundamental reason for this difference
+	// is that the STS exchange audience is used to look up the workload identity
+	// provider resource in the STS service, while the credential audiences are
+	// user-defined configuration stored *inside* that workload identity provider
+	// resource. After using the exchange audience to locate the workload identity
+	// provider resource, STS then validates the OIDC token audiences against the
+	// ones configured inside the resource.
+	var exchangeAudience string
+	if o.GCPWorkloadIdentityProvider != "" {
+		// The exchange audience is the workload identity provider resource name
+		// in its `//` form as defined in https://google.aip.dev/auth/4117.
+		exchangeAudience = fmt.Sprintf("//iam.googleapis.com/%s", o.GCPWorkloadIdentityProvider)
+	} else {
+		// Workload identity federation is only possible without a configured provider
+		// if we are in GKE, which has a built-in provider. In this case, the exchange
+		// audience can be computed from information provided by the GKE metadata server.
+		var err error
+		exchangeAudience, err = gkeMetadata.getExchangeAudience(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -123,17 +136,14 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 
 	conf := externalaccount.Config{
 		UniverseDomain:       "googleapis.com",
-		Audience:             audience,
+		Audience:             exchangeAudience,
 		SubjectTokenType:     "urn:ietf:params:oauth:token-type:jwt",
 		TokenURL:             "https://sts.googleapis.com/v1/token",
 		SubjectTokenSupplier: StaticTokenSupplier(oidcToken),
 		Scopes:               scopes,
 	}
 
-	email, err := getServiceAccountEmail(serviceAccount)
-	if err != nil {
-		return nil, err
-	}
+	email := o.GCPServiceAccount
 
 	if email != "" { // impersonation
 		conf.ServiceAccountImpersonationURL = fmt.Sprintf(
@@ -163,28 +173,9 @@ func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Optio
 	return nil, nil
 }
 
-// The docker.s3nsregistry.fr host is the S3NS sovereign cloud artifact
-// registry. Unlike regular GCP Artifact Registry, the host has no location
-// prefix. See https://github.com/fluxcd/pkg/pull/1201#issuecomment-4631628154
-const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev)|(docker\.s3nsregistry\.fr))$`
-
-var registryRegex = regexp.MustCompile(registryPattern)
-
 // ParseArtifactRepository implements auth.Provider.
 func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
-	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
-	if err != nil {
-		return "", err
-	}
-
-	if !registryRegex.MatchString(registry) {
-		return "", fmt.Errorf("invalid GCP registry: '%s'. must match %s",
-			registry, registryPattern)
-	}
-
-	// The artifact repository is irrelevant for issuing GCP registry credentials,
-	// just return the provider name for inclusion in the cache key.
-	return ProviderName, nil
+	return cryptov1.ParseArtifactRepository(ProviderName, artifactRepository)
 }
 
 // NewArtifactRegistryCredentials implements auth.Provider.
@@ -222,9 +213,6 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	caData := []byte(o.CAData)
 	if host == "" || len(caData) == 0 {
 		cluster := o.ClusterResource
-		if err := parseCluster(cluster); err != nil {
-			return nil, err
-		}
 
 		// Create client for describing the cluster resource.
 		baseTransport := http.DefaultTransport.(*http.Transport).Clone()

@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Flux authors
+Copyright 2026 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generic_test
+package kubernetes
 
 import (
 	"context"
@@ -73,5 +73,5 @@ func newTestEnv(t *testing.T, ctx context.Context) (*rest.Config, client.Client,
 	})
 	g.Expect(err).NotTo(HaveOccurred())
 
-	return testEnv.Config, envClient, oidcClient
+	return conf, envClient, oidcClient
 }

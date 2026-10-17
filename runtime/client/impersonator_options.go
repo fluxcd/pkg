@@ -34,9 +34,9 @@ import (
 type ImpersonatorOption func(*Impersonator)
 
 // ProviderRESTConfigFetcher is a function that retrieves a *rest.Config for a
-// given KubeConfigReference, a namespace, and a controller-runtime client.
+// given KubeConfigReference and a controller-runtime client.
 type ProviderRESTConfigFetcher func(ctx context.Context, ref meta.KubeConfigReference,
-	namespace string, ctrlClient client.Client) (*rest.Config, error)
+	ctrlClient client.Client) (*rest.Config, error)
 
 // WithScheme sets the scheme for the Impersonator.
 func WithScheme(scheme *runtime.Scheme) ImpersonatorOption {
@@ -54,7 +54,9 @@ func WithServiceAccount(defaultName, name, namespace string) ImpersonatorOption 
 	}
 }
 
-// WithKubeConfig sets the kubeconfig options for the Impersonator.
+// WithKubeConfig sets the kubeconfig options for the Impersonator. The
+// namespace is used to read a kubeconfig Secret; providers receive the
+// namespace through their own options.
 func WithKubeConfig(ref *meta.KubeConfigReference, opts KubeConfigOptions,
 	namespace string, provider ProviderRESTConfigFetcher) ImpersonatorOption {
 	return func(i *Impersonator) {

@@ -19,72 +19,17 @@ package auth_test
 import (
 	"context"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 )
-
-func TestParseClusterAddress(t *testing.T) {
-	tests := []struct {
-		address  string
-		expected string
-		err      string
-	}{
-		{
-			address:  "https://example.com:443",
-			expected: "https://example.com:443",
-		},
-		{
-			address:  "example.com",
-			expected: "https://example.com:443",
-		},
-		{
-			address:  "EXAMPLE.COM:8080",
-			expected: "https://example.com:8080",
-		},
-		{
-			address:  "34.44.60.80",
-			expected: "https://34.44.60.80:443",
-		},
-		{
-			address: "",
-			err:     "empty address",
-		},
-		{
-			address: "------------\t",
-			err:     "failed to parse Kubernetes API server address 'https://------------	':",
-		},
-		{
-			address: "http://example.com:443",
-			err:     "Kubernetes API server address 'http://example.com:443' must use https scheme",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(strings.ReplaceAll(tt.address, "/", ""), func(t *testing.T) {
-			g := NewWithT(t)
-
-			address, err := auth.ParseClusterAddress(tt.address)
-
-			if tt.err != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(tt.err))
-				g.Expect(address).To(BeEmpty())
-			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(address).To(Equal(tt.expected))
-			}
-		})
-	}
-}
 
 func TestGetRESTConfig(t *testing.T) {
 	g := NewWithT(t)
@@ -103,10 +48,6 @@ func TestGetRESTConfig(t *testing.T) {
 	}
 	err := kubeClient.Create(ctx, defaultServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
-	saRef := client.ObjectKey{
-		Name:      defaultServiceAccount.Name,
-		Namespace: defaultServiceAccount.Namespace,
-	}
 
 	// Create a lockdown service account for testing lockdown functionality.
 	lockdownServiceAccount := &corev1.ServiceAccount{
@@ -121,14 +62,12 @@ func TestGetRESTConfig(t *testing.T) {
 	now := time.Now()
 
 	for _, tt := range []struct {
-		name                string
-		provider            *mockProvider
-		cluster             string
-		opts                []auth.Option
-		disableObjectLevel  bool
-		defaultKubeConfigSA string
-		expectedCreds       *auth.RESTConfig
-		expectedErr         string
+		name          string
+		provider      *mockProvider
+		cluster       string
+		opts          []auth.Option
+		expectedCreds *auth.RESTConfig
+		expectedErr   string
 	}{
 		{
 			name: "restconfig from controller access token",
@@ -151,10 +90,10 @@ func TestGetRESTConfig(t *testing.T) {
 			},
 			cluster: "cluster/resource/name",
 			opts: []auth.Option{
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -175,7 +114,7 @@ func TestGetRESTConfig(t *testing.T) {
 					CAData:      []byte("ca-data"),
 				},
 				paramAudiences:       []string{"audience1", "audience2"},
-				paramServiceAccount:  *defaultServiceAccount,
+				paramServiceAccount:  &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
 				paramOIDCTokenClient: oidcClient,
 				paramCluster:         "cluster/resource/name",
 				paramFirstScopes:     []string{"first-token"},
@@ -190,12 +129,12 @@ func TestGetRESTConfig(t *testing.T) {
 			cluster: "cluster/resource/name",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccountName(defaultServiceAccount.Name),
+				auth.WithObject("", "ServiceAccount", defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -211,7 +150,7 @@ func TestGetRESTConfig(t *testing.T) {
 				returnName:          "mock-provider",
 				returnIdentity:      "mock-identity",
 				paramAudiences:      []string{"audience1", "audience2"},
-				paramServiceAccount: *defaultServiceAccount,
+				paramServiceAccount: &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
 				paramCluster:        "cluster/resource/name",
 				paramClusterAddress: "https://cluster/resource/name",
 				paramFirstScopes:    []string{"first-token"},
@@ -222,12 +161,12 @@ func TestGetRESTConfig(t *testing.T) {
 			cluster: "cluster/resource/name",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccountName(defaultServiceAccount.Name),
+				auth.WithObject("", "ServiceAccount", defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				auth.WithClusterResource("cluster/resource/name"),
@@ -288,7 +227,7 @@ func TestGetRESTConfig(t *testing.T) {
 			expectedErr: "mock error",
 		},
 		{
-			name: "restconfig from default kubeconfig service account using lockdown support",
+			name: "restconfig from explicit service account",
 			provider: &mockProvider{
 				returnName:        "mock-provider",
 				returnAccessToken: &mockToken{token: "mock-access-token"},
@@ -298,7 +237,7 @@ func TestGetRESTConfig(t *testing.T) {
 					CAData:      []byte("ca-data"),
 				},
 				paramAudiences:       []string{"audience1", "audience2"},
-				paramServiceAccount:  *lockdownServiceAccount,
+				paramServiceAccount:  &kubernetes.ServiceAccountReference{Name: lockdownServiceAccount.Name, Namespace: lockdownServiceAccount.Namespace},
 				paramOIDCTokenClient: oidcClient,
 				paramCluster:         "cluster/resource/name",
 				paramFirstScopes:     []string{"first-token"},
@@ -313,102 +252,26 @@ func TestGetRESTConfig(t *testing.T) {
 			cluster: "cluster/resource/name",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace("default"),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccountName(lockdownServiceAccount.Name),
+				auth.WithObject("", "ServiceAccount", lockdownServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultKubeConfigSA: "lockdown-sa",
 			expectedCreds: &auth.RESTConfig{
 				Host:        "https://cluster/resource/name",
 				BearerToken: "mock-bearer-token",
 				CAData:      []byte("ca-data"),
 			},
-		},
-		{
-			name: "restconfig from default kubeconfig service account using lockdown support - object level disabled",
-			provider: &mockProvider{
-				returnName:        "mock-provider",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
-				returnRESTConfig: &auth.RESTConfig{
-					Host:        "https://cluster/resource/name",
-					BearerToken: "mock-bearer-token",
-					CAData:      []byte("ca-data"),
-				},
-				paramAudiences:       []string{"audience1", "audience2"},
-				paramServiceAccount:  *lockdownServiceAccount,
-				paramOIDCTokenClient: oidcClient,
-				paramCluster:         "cluster/resource/name",
-				paramFirstScopes:     []string{"first-token"},
-				paramSecondScopes:    []string{"second-token"},
-				expectFirstScopes:    true,
-				expectSecondScopes:   true,
-				paramAccessTokens: []auth.Token{
-					&mockToken{token: "mock-access-token"},
-					&mockToken{token: "mock-access-token"},
-				},
-			},
-			cluster: "cluster/resource/name",
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace("default"),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			defaultKubeConfigSA: "lockdown-sa",
-			disableObjectLevel:  true,
-			expectedCreds: &auth.RESTConfig{
-				Host:        "https://cluster/resource/name",
-				BearerToken: "mock-bearer-token",
-				CAData:      []byte("ca-data"),
-			},
-			expectedErr: "ObjectLevelWorkloadIdentity feature gate is not enabled",
-		},
-		{
-			name: "disable object level workload identity",
-			provider: &mockProvider{
-				paramServiceAccount: *defaultServiceAccount,
-				paramFirstScopes:    []string{"first-token"},
-				paramSecondScopes:   []string{"second-token"},
-				expectFirstScopes:   true,
-				expectSecondScopes:  true,
-			},
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			disableObjectLevel: true,
-			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
 			tt.provider.t = t
-
-			if !tt.disableObjectLevel {
-				auth.EnableObjectLevelWorkloadIdentity()
-				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-			}
-
-			if tt.defaultKubeConfigSA != "" {
-				auth.SetDefaultKubeConfigServiceAccount(tt.defaultKubeConfigSA)
-				t.Cleanup(func() { auth.SetDefaultKubeConfigServiceAccount("") })
-			}
 
 			if tt.cluster != "" {
 				tt.opts = append(tt.opts, auth.WithClusterResource(tt.cluster))

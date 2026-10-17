@@ -18,16 +18,11 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/url"
 	"slices"
-	"strings"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 )
 
@@ -64,29 +59,6 @@ type RESTConfig struct {
 // GetDuration implements Token.
 func (r *RESTConfig) GetDuration() time.Duration {
 	return time.Until(r.ExpiresAt)
-}
-
-// ParseClusterAddress parses the given cluster address and returns
-// the canonical form https://<lowercase(host)>:<port>.
-func ParseClusterAddress(address string) (string, error) {
-	if address == "" {
-		return "", errors.New("empty address")
-	}
-	if !strings.HasPrefix(address, "http") {
-		address = fmt.Sprintf("https://%s", address)
-	}
-	u, err := url.Parse(address)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse Kubernetes API server address '%s': %w", address, err)
-	}
-	if u.Scheme != "https" {
-		return "", fmt.Errorf("the Kubernetes API server address '%s' must use https scheme", address)
-	}
-	host := u.Host
-	if u.Port() == "" {
-		host += ":443"
-	}
-	return fmt.Sprintf("https://%s", strings.ToLower(host)), nil
 }
 
 // GetRESTConfig retrieves the authentication and connection
@@ -128,17 +100,13 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	}
 
 	// Build cache key.
-	var serviceAccount *corev1.ServiceAccount
+	var serviceAccount *kubernetes.ServiceAccountReference
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	if o.ObjectLevelWorkloadIdentity() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -157,11 +125,7 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	cacheKey := buildCacheKey(cacheKeyParts...)
 
 	// Build involved object details.
-	cacheOpts := []cache.Options{cache.WithInvolvedObject(
-		o.InvolvedObject.Kind,
-		o.InvolvedObject.Name,
-		o.InvolvedObject.Namespace,
-		o.InvolvedObject.Operation)}
+	cacheOpts := []cache.Options{cache.WithInvolvedObject(o.involvedObject())}
 
 	// Get restconfig from cache.
 	token, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {

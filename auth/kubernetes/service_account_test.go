@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Flux authors
+Copyright 2026 The Flux authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generic_test
+package kubernetes
 
 import (
 	"testing"
@@ -22,15 +22,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-type mockImplementation struct {
-	t *testing.T
-
-	b []byte
-}
-
-func (m *mockImplementation) ReadFile(name string) ([]byte, error) {
-	m.t.Helper()
-	g := NewWithT(m.t)
-	g.Expect(name).To(Equal("/var/run/secrets/kubernetes.io/serviceaccount/token"))
-	return m.b, nil
+func TestServiceAccountReference_String(t *testing.T) {
+	g := NewWithT(t)
+	ref := &ServiceAccountReference{Name: "tenant", Namespace: "default"}
+	g.Expect(ref.String()).To(Equal("default/tenant"))
 }

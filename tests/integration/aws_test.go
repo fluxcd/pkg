@@ -159,7 +159,7 @@ func getGitTestConfigAWS(outputs map[string]*tfjson.StateOutput) (*gitTestConfig
 	}
 
 	creds, err := authutils.GetGitCredentials(context.Background(), aws.ProviderName,
-		auth.WithSTSRegion(region),
+		auth.WithAWSRegion(region),
 		auth.WithGitURL(*parsedRepoURL),
 	)
 	if err != nil {
