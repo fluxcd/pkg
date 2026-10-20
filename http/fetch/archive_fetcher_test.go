@@ -18,9 +18,13 @@ package fetch
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -174,6 +178,135 @@ func TestArchiveFetcher_FetchWithContext(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestArchiveFetcher_FetchBytes(t *testing.T) {
+	g := NewWithT(t)
+
+	testServer, err := testserver.NewTempArtifactServer()
+	g.Expect(err).NotTo(HaveOccurred(), "failed to create the test server")
+	defer testServer.Stop()
+	testServer.Start()
+
+	artifactName := "manifests.tgz"
+	artifactURL := fmt.Sprintf("%s/%s", testServer.URL(), artifactName)
+	artifactChecksum, err := testServer.ArtifactFromDir("testdata", artifactName)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	originContent, err := os.ReadFile(filepath.Join(testServer.Root(), artifactName))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tests := []struct {
+		name        string
+		url         string
+		digest      string
+		opts        []Option
+		wantErr     bool
+		wantErrType error
+	}{
+		{
+			name:   "fetches and verifies the digest",
+			url:    artifactURL,
+			digest: "sha256:" + artifactChecksum,
+		},
+		{
+			name:   "fetches and verifies the checksum",
+			url:    artifactURL,
+			digest: artifactChecksum,
+		},
+		{
+			name:    "breaches max download size",
+			url:     artifactURL,
+			digest:  "sha256:" + artifactChecksum,
+			opts:    []Option{WithMaxDownloadSize(1)},
+			wantErr: true,
+		},
+		{
+			name:    "fails to verify the digest",
+			url:     artifactURL,
+			digest:  "sha256:5c234ee52ff0e3dcc8528d6b9383cc235ad13a11658466f29df3be9eda6ee447",
+			wantErr: true,
+		},
+		{
+			name:        "fails with not found error",
+			url:         artifactURL + "1",
+			digest:      "sha256:" + artifactChecksum,
+			wantErr:     true,
+			wantErrType: ErrFileNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			fetcher := New(tt.opts...)
+			buf, err := fetcher.FetchBytes(context.Background(), tt.url, tt.digest)
+			if tt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				if tt.wantErrType != nil {
+					g.Expect(err).To(Equal(tt.wantErrType))
+				}
+				return
+			}
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(buf.Bytes()).To(Equal(originContent))
+		})
+	}
+}
+
+func TestArchiveFetcher_WithTLSConfig(t *testing.T) {
+	g := NewWithT(t)
+	tmpDir := t.TempDir()
+
+	testServer, err := testserver.NewTempArtifactServer()
+	g.Expect(err).NotTo(HaveOccurred(), "failed to create the test server")
+	defer testServer.Stop()
+
+	cert, err := os.ReadFile("../../tests/testdata/certs/server.pem")
+	g.Expect(err).NotTo(HaveOccurred())
+	key, err := os.ReadFile("../../tests/testdata/certs/server-key.pem")
+	g.Expect(err).NotTo(HaveOccurred())
+	ca, err := os.ReadFile("../../tests/testdata/certs/ca.pem")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(testServer.StartTLS(cert, key, ca, "example.com")).To(Succeed())
+
+	artifactName := "manifests.tgz"
+	artifactChecksum, err := testServer.ArtifactFromDir("testdata", artifactName)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Use an http:// URL to verify that WithTLSConfig upgrades the scheme to
+	// https.
+	artifactURL := strings.Replace(testServer.URL(), "https://", "http://", 1) + "/" + artifactName
+
+	caPool := x509.NewCertPool()
+	g.Expect(caPool.AppendCertsFromPEM(ca)).To(BeTrue())
+	tlsConfig := &tls.Config{
+		RootCAs:    caPool,
+		ServerName: "example.com",
+		MinVersion: tls.VersionTLS13,
+	}
+
+	fetcher := New(WithUntar(), WithTLSConfig(tlsConfig))
+	err = fetcher.FetchWithContext(context.Background(), artifactURL, "sha256:"+artifactChecksum, tmpDir)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	originContent, err := os.ReadFile("testdata/manifests.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+	fetchedContent, err := os.ReadFile(filepath.Join(tmpDir, "testdata/manifests.yaml"))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(string(fetchedContent)).To(BeIdenticalTo(string(originContent)))
+}
+
+func TestArchiveFetcher_WithTLSConfigTransport(t *testing.T) {
+	g := NewWithT(t)
+
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
+	fetcher := New(WithTLSConfig(tlsConfig))
+
+	transport, ok := fetcher.httpClient.HTTPClient.Transport.(*http.Transport)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(transport.TLSClientConfig).To(BeIdenticalTo(tlsConfig))
 }
 
 func TestArchiveFetcher_Fetch(t *testing.T) {
