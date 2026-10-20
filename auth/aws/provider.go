@@ -179,7 +179,8 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 }
 
 // GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
-func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]auth.Option, error) {
+func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+	_ ...auth.Option) ([]auth.Option, error) {
 	// AWS requires a region for getting access credentials. To avoid requiring
 	// two regions to be passed in the Flux APIs we leverage the region present
 	// in the ECR repository.

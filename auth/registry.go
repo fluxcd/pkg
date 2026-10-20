@@ -35,7 +35,8 @@ type ArtifactRegistryCredentialsProvider interface {
 
 	// GetAccessTokenOptionsForArtifactRepository returns the options that must be
 	// passed to the provider to retrieve access tokens for an artifact repository.
-	GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]Option, error)
+	GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+		opts ...Option) ([]Option, error)
 
 	// ParseArtifactRepository parses the artifact repository to verify
 	// it's a valid repository for the provider. As a result, it returns
@@ -75,7 +76,7 @@ func GetArtifactRegistryCredentials(ctx context.Context, provider ArtifactRegist
 
 	// First, we need an access token. This cannot be retrieved inside the
 	// cache lock, otherwise we reach a deadlock.
-	accessTokenOpts, err := provider.GetAccessTokenOptionsForArtifactRepository(artifactRepository)
+	accessTokenOpts, err := provider.GetAccessTokenOptionsForArtifactRepository(artifactRepository, opts...)
 	if err != nil {
 		return nil, err
 	}

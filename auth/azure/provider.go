@@ -129,7 +129,8 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 }
 
 // GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
-func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]auth.Option, error) {
+func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+	_ ...auth.Option) ([]auth.Option, error) {
 	// Azure requires scopes for getting access tokens. Here we compute
 	// the scope for ACR, which is based on the registry host.
 

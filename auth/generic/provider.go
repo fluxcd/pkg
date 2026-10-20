@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/go-containerregistry/pkg/authn"
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
@@ -99,6 +100,62 @@ func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
 	return &Token{
 		Token:     oidcToken,
 		ExpiresAt: *exp,
+	}, nil
+}
+
+// GetAccessTokenOptionsForArtifactRepository implements
+// auth.ArtifactRegistryCredentialsProvider.
+func (Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+	opts ...auth.Option) ([]auth.Option, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	audiences := o.CredentialAudiences
+	if len(audiences) == 0 {
+		// Use the registry host as the default audience.
+		registry, err := cryptov1.GetRegistryFromArtifactRepository(artifactRepository)
+		if err != nil {
+			return nil, err
+		}
+		audiences = []string{registry}
+	}
+
+	return []auth.Option{auth.WithCredentialAudiences(audiences...)}, nil
+}
+
+// ParseArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (Provider) ParseArtifactRepository(string) (string, error) {
+	// The artifact repository is irrelevant for issuing the ServiceAccount
+	// token, just return the provider name for inclusion in the cache key.
+	return ProviderName, nil
+}
+
+// NewArtifactRegistryCredentials implements
+// auth.ArtifactRegistryCredentialsProvider.
+func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
+	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	token := accessToken.(*Token)
+
+	// Authenticate with the token as the password and the configured username
+	// when one is provided, otherwise use the token as a bearer token.
+	var authenticator authn.Authenticator
+	if o.CredentialUsername != "" {
+		authenticator = authn.FromConfig(authn.AuthConfig{
+			Username: o.CredentialUsername,
+			Password: token.Token,
+		})
+	} else {
+		authenticator = &authn.Bearer{Token: token.Token}
+	}
+
+	return &auth.ArtifactRegistryCredentials{
+		Authenticator: authenticator,
+		ExpiresAt:     token.ExpiresAt,
 	}, nil
 }
 

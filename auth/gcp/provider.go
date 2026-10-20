@@ -168,7 +168,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 }
 
 // GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
-func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Option, error) {
+func (Provider) GetAccessTokenOptionsForArtifactRepository(string, ...auth.Option) ([]auth.Option, error) {
 	// GCP does not require any special options to retrieve access tokens.
 	return nil, nil
 }

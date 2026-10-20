@@ -155,7 +155,8 @@ func (m *mockProvider) ParseArtifactRepository(artifactRepository string) (strin
 	return m.returnRegistryInput, nil
 }
 
-func (m *mockProvider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string) ([]auth.Option, error) {
+func (m *mockProvider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+	_ ...auth.Option) ([]auth.Option, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(artifactRepository).To(Equal(m.paramArtifactRepository))

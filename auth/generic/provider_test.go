@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,6 +79,94 @@ func TestProvider_GetAudiences(t *testing.T) {
 		auth.WithCredentialAudiences("audience1", "audience2"))
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(audiences).To(ConsistOf("audience1", "audience2"))
+}
+
+func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
+	t.Run("registry host is the default audience", func(t *testing.T) {
+		g := NewWithT(t)
+
+		opts, err := generic.Provider{}.GetAccessTokenOptionsForArtifactRepository(
+			"my-zot-registry.com/owner/repo")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		var o auth.Options
+		o.Apply(opts...)
+		g.Expect(o.CredentialAudiences).To(ConsistOf("my-zot-registry.com"))
+	})
+
+	t.Run("explicit audiences are not overridden", func(t *testing.T) {
+		g := NewWithT(t)
+
+		opts, err := generic.Provider{}.GetAccessTokenOptionsForArtifactRepository(
+			"my-zot-registry.com/owner/repo",
+			auth.WithCredentialAudiences("audience1", "audience2"))
+		g.Expect(err).NotTo(HaveOccurred())
+
+		var o auth.Options
+		o.Apply(opts...)
+		g.Expect(o.CredentialAudiences).To(ConsistOf("audience1", "audience2"))
+	})
+
+	t.Run("invalid artifact repository", func(t *testing.T) {
+		g := NewWithT(t)
+
+		opts, err := generic.Provider{}.GetAccessTokenOptionsForArtifactRepository(
+			"registry.io/OWNER/repo")
+		g.Expect(err).To(MatchError(ContainSubstring("failed to parse artifact repository")))
+		g.Expect(opts).To(BeNil())
+	})
+}
+
+func TestProvider_ParseArtifactRepository(t *testing.T) {
+	p := generic.Provider{}
+	for _, repo := range []string{
+		"any-registry.io",
+		"ghcr.io/owner/repo",
+		"docker.io/library/nginx",
+	} {
+		t.Run(repo, func(t *testing.T) {
+			g := NewWithT(t)
+			parsed, err := p.ParseArtifactRepository(repo)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(parsed).To(Equal(generic.ProviderName))
+		})
+	}
+}
+
+func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
+	expiresAt := time.Now().Add(time.Hour)
+	token := &generic.Token{
+		Token:     "test-token",
+		ExpiresAt: expiresAt,
+	}
+
+	t.Run("bearer token", func(t *testing.T) {
+		g := NewWithT(t)
+
+		creds, err := generic.Provider{}.NewArtifactRegistryCredentials(
+			context.Background(), "any-registry.io", token)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
+			Authenticator: &authn.Bearer{Token: "test-token"},
+			ExpiresAt:     expiresAt,
+		}))
+	})
+
+	t.Run("username and password", func(t *testing.T) {
+		g := NewWithT(t)
+
+		creds, err := generic.Provider{}.NewArtifactRegistryCredentials(
+			context.Background(), "any-registry.io", token,
+			auth.WithCredentialUsername("user"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
+			Authenticator: authn.FromConfig(authn.AuthConfig{
+				Username: "user",
+				Password: "test-token",
+			}),
+			ExpiresAt: expiresAt,
+		}))
+	})
 }
 
 func TestProvider_GetIdentity(t *testing.T) {

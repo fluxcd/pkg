@@ -18,7 +18,6 @@ package auth_test
 
 import (
 	"net/url"
-	"reflect"
 	"testing"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestOptions_GetHTTPClient(t *testing.T) {
@@ -200,8 +200,8 @@ func TestOptionsFromSpec(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got auth.Options
 			got.Apply(auth.OptionsFromSpec(tt.spec)...)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("OptionsFromSpec() = %+v, want %+v", got, tt.want)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("OptionsFromSpec() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
