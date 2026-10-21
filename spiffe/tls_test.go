@@ -110,7 +110,7 @@ func TestBuildTLSConfigValidation(t *testing.T) {
 	source, _ := newTestSource(t, id)
 
 	_, err := fluxspiffe.BuildTLSConfig(nil, id.String())
-	g.Expect(err).To(MatchError("SPIFFE X.509 source is required"))
+	g.Expect(err).To(MatchError("SPIFFE TLS source is required"))
 
 	_, err = fluxspiffe.BuildTLSConfig(source)
 	g.Expect(err).To(MatchError("at least one SPIFFE peer is required"))

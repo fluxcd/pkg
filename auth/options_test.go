@@ -75,7 +75,7 @@ func TestOptions_GetHTTPClient(t *testing.T) {
 	}
 }
 
-func TestOptions_ObjectLevelWorkloadIdentity(t *testing.T) {
+func TestOptions_ServiceAccountRef(t *testing.T) {
 	tests := []struct {
 		name     string
 		opts     []auth.Option
@@ -100,9 +100,9 @@ func TestOptions_ObjectLevelWorkloadIdentity(t *testing.T) {
 			var o auth.Options
 			o.Apply(tt.opts...)
 
-			result := o.ObjectLevelWorkloadIdentity()
+			result := o.ServiceAccountRef() != nil
 			if result != tt.expected {
-				t.Errorf("ObjectLevelWorkloadIdentity() = %v, want %v", result, tt.expected)
+				t.Errorf("ServiceAccountRef() != nil = %v, want %v", result, tt.expected)
 			}
 		})
 	}

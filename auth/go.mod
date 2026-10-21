@@ -6,6 +6,7 @@ replace (
 	github.com/fluxcd/pkg/apis/crypto => ../apis/crypto
 	github.com/fluxcd/pkg/apis/meta => ../apis/meta
 	github.com/fluxcd/pkg/cache => ../cache
+	github.com/fluxcd/pkg/spiffe => ../spiffe
 	github.com/fluxcd/pkg/ssh => ../ssh
 )
 
@@ -27,6 +28,7 @@ require (
 	github.com/fluxcd/pkg/apis/crypto v0.4.0
 	github.com/fluxcd/pkg/apis/meta v1.36.0
 	github.com/fluxcd/pkg/cache v0.17.0
+	github.com/fluxcd/pkg/spiffe v0.0.0
 	github.com/fluxcd/pkg/ssh v0.28.0
 	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
@@ -35,6 +37,7 @@ require (
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/go-github/v87 v87.0.0
 	github.com/onsi/gomega v1.43.0
+	github.com/spiffe/go-spiffe/v2 v2.9.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
 	golang.org/x/net v0.61.0
 	golang.org/x/oauth2 v0.37.0
@@ -85,6 +88,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.27.1 // indirect
 	github.com/go-openapi/swag/typeutils v0.27.1 // indirect
 	github.com/go-openapi/swag/yamlutils v0.27.1 // indirect
+	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
@@ -105,7 +109,6 @@ require (
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/spiffe/go-spiffe/v2 v2.9.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect

@@ -50,7 +50,7 @@ func (Provider) GetName() string {
 }
 
 // NewControllerToken implements auth.Provider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -76,7 +76,7 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		return nil, err
 	}
 
-	return &Token{token}, nil
+	return &AccessToken{token}, nil
 }
 
 // GetAudiences implements auth.Provider.
@@ -96,12 +96,17 @@ func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
 	return fmt.Sprintf("%s/%s", o.AzureTenantID, o.AzureClientID), nil
 }
 
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	opts ...auth.Option) (auth.Token, error) {
+// NewAccessCredentialForIdentity implements auth.Provider.
+func (p Provider) NewAccessCredentialForIdentity(ctx context.Context, identity auth.Credential,
+	opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
+
+	jwtCredential, ok := identity.(*auth.JWTCredential)
+	if !ok {
+		return nil, fmt.Errorf("expected *auth.JWTCredential, got %T", identity)
+	}
 
 	tenantID := o.AzureTenantID
 	clientID := o.AzureClientID
@@ -113,7 +118,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	}
 
 	cred, err := p.impl().NewClientAssertionCredential(tenantID, clientID, func(context.Context) (string, error) {
-		return oidcToken, nil
+		return jwtCredential.Token, nil
 	}, azOpts)
 	if err != nil {
 		return nil, err
@@ -125,13 +130,13 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		return nil, err
 	}
 
-	return &Token{token}, nil
+	return &AccessToken{token}, nil
 }
 
-// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
-func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+// GetAccessCredentialOptionsForArtifactRepository implements auth.Provider.
+func (p Provider) GetAccessCredentialOptionsForArtifactRepository(artifactRepository string,
 	_ ...auth.Option) ([]auth.Option, error) {
-	// Azure requires scopes for getting access tokens. Here we compute
+	// Azure requires scopes for getting access credentials. Here we compute
 	// the scope for ACR, which is based on the registry host.
 
 	registry, err := cryptov1.GetRegistryFromArtifactRepository(artifactRepository)
@@ -196,7 +201,7 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 
 // NewArtifactRegistryCredentials implements auth.Provider.
 func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessCredential auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -213,11 +218,11 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 		return nil, err
 	}
 
-	// Exchange the access token for an ACR token.
+	// Exchange the access credential for an ACR token.
 	grantType := azcontainerregistry.PostContentSchemaGrantTypeAccessToken
 	service := registry
 	tokenOpts := &azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenOptions{
-		AccessToken: &accessToken.(*Token).Token,
+		AccessToken: &accessCredential.(*AccessToken).Token,
 	}
 	resp, err := p.impl().ExchangeAADAccessTokenForACRRefreshToken(ctx, client, grantType, service, tokenOpts)
 	if err != nil {
@@ -246,17 +251,17 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 	}, nil
 }
 
-// GetAccessTokenOptionsForCluster implements auth.Provider.
-func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
+// GetAccessCredentialOptionsForCluster implements auth.Provider.
+func (Provider) GetAccessCredentialOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
-	var atOpts [][]auth.Option
+	var acOpts [][]auth.Option
 
 	// Token used for impersonating the Managed Identity inside the AKS cluster.
 	const aksScope = "6dae42f8-4368-4678-94ff-3960e28e3630/.default"
 	aksTokenOpts := []auth.Option{auth.WithScopes(aksScope)}
-	atOpts = append(atOpts, aksTokenOpts)
+	acOpts = append(acOpts, aksTokenOpts)
 
 	// Token needed for looking up details of the cluster resource.
 	if o.ClusterAddress == "" || o.CAData == "" {
@@ -275,21 +280,21 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 		}
 		armScope := conf.Services[cloud.ResourceManager].Audience + "/.default"
 		armTokenOpts := []auth.Option{auth.WithScopes(armScope)}
-		atOpts = append(atOpts, armTokenOpts)
+		acOpts = append(acOpts, armTokenOpts)
 	}
 
-	return atOpts, nil
+	return acOpts, nil
 }
 
 // NewRESTConfig implements auth.Provider.
-func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (p Provider) NewRESTConfig(ctx context.Context, accessCredentials []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
-	aksToken := accessTokens[0].(*Token)
+	aksToken := accessCredentials[0].(*AccessToken)
 
-	var armToken *Token
-	if len(accessTokens) == 2 {
-		armToken = accessTokens[1].(*Token)
+	var armToken *AccessToken
+	if len(accessCredentials) == 2 {
+		armToken = accessCredentials[1].(*AccessToken)
 	}
 
 	var o auth.Options
@@ -391,15 +396,15 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	}, nil
 }
 
-// GetAccessTokenOptionsForGitRepository implements auth.GitCredentialsProvider.
-// Azure DevOps requires the DevOps scope for obtaining an access token that
+// GetAccessCredentialOptionsForGitRepository implements auth.GitCredentialsProvider.
+// Azure DevOps requires the DevOps scope for obtaining an access credential that
 // can be used as a bearer token against Azure Repos.
-func (Provider) GetAccessTokenOptionsForGitRepository(*url.URL) ([]auth.Option, error) {
+func (Provider) GetAccessCredentialOptionsForGitRepository(*url.URL) ([]auth.Option, error) {
 	return []auth.Option{auth.WithScopes(ScopeDevOps)}, nil
 }
 
 // ParseGitRepository implements auth.GitCredentialsProvider.
-// Azure DevOps access tokens are not bound to the Git repository URL,
+// Azure DevOps access credentials are not bound to the Git repository URL,
 // so this returns a constant input that does not affect the cache key.
 func (Provider) ParseGitRepository(*url.URL) (string, error) {
 	return "azure-devops", nil
@@ -407,15 +412,15 @@ func (Provider) ParseGitRepository(*url.URL) (string, error) {
 
 // NewGitCredentials implements auth.GitCredentialsProvider.
 func (Provider) NewGitCredentials(_ context.Context, _ string,
-	accessToken auth.Token, _ ...auth.Option) (*auth.GitCredentials, error) {
+	accessCredential auth.Credential, _ ...auth.Option) (*auth.GitCredentials, error) {
 
-	token, ok := accessToken.(*Token)
+	credential, ok := accessCredential.(*AccessToken)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast token to Azure token: %T", accessToken)
+		return nil, fmt.Errorf("failed to cast credential to Azure access token: %T", accessCredential)
 	}
 	return &auth.GitCredentials{
-		BearerToken: token.Token,
-		ExpiresAt:   token.ExpiresOn,
+		BearerToken: credential.Token,
+		ExpiresAt:   credential.ExpiresOn,
 	}, nil
 }
 

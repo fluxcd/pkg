@@ -26,11 +26,11 @@ type Provider interface {
 	// GetName returns the name of the cloud provider.
 	GetName() string
 
-	// NewControllerToken returns a token that can be used to authenticate
+	// NewControllerToken returns a credential that can be used to authenticate
 	// with the cloud provider retrieved from the default source, i.e. from
 	// the environment of the controller pod, e.g. files mounted in the pod,
 	// environment variables, local metadata services, etc.
-	NewControllerToken(ctx context.Context, opts ...Option) (Token, error)
+	NewControllerToken(ctx context.Context, opts ...Option) (Credential, error)
 
 	// GetAudiences returns the audiences the OIDC tokens issued by the
 	// credential provider should have. These are usually strings that represent
@@ -43,9 +43,9 @@ type Provider interface {
 	// impersonate, as configured in the options.
 	GetIdentity(opts ...Option) (string, error)
 
-	// NewTokenForServiceAccount takes the OIDC token issued for the
-	// ServiceAccount and returns a token that can be used to authenticate
-	// with the cloud provider. The implementation should exchange this token
-	// for a cloud provider access token through the provider's STS service.
-	NewTokenForServiceAccount(ctx context.Context, oidcToken string, opts ...Option) (Token, error)
+	// NewAccessCredentialForIdentity takes the identity credential and
+	// returns a credential that can be used to authenticate with the cloud
+	// provider. The implementation should exchange this credential for a
+	// cloud provider access credential through the provider's STS service.
+	NewAccessCredentialForIdentity(ctx context.Context, identity Credential, opts ...Option) (Credential, error)
 }

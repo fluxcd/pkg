@@ -19,6 +19,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -35,32 +36,35 @@ import (
 type mockProvider struct {
 	t *testing.T
 
-	returnName              string
-	returnIdentity          string
-	returnIdentityErr       string
-	returnRegistryErr       string
-	returnRegistryInput     string
-	returnGitErr            string
-	returnGitInput          string
-	returnGitOptions        []auth.Option
-	returnGitCredentials    *auth.GitCredentials
-	returnRESTConfig        *auth.RESTConfig
-	returnRESTConfigOptsErr string
-	returnControllerToken   auth.Token
-	returnAccessToken       auth.Token
-	returnRegistryOptions   []auth.Option
-	returnRegistryToken     *auth.ArtifactRegistryCredentials
-	paramAudiences          []string
-	paramServiceAccount     *kubernetes.ServiceAccountReference
-	paramOIDCTokenClient    *http.Client
-	paramOIDCTokenExpiry    time.Duration
-	paramArtifactRepository string
-	paramGitURL             *url.URL
-	paramCluster            string
-	paramClusterAddress     string
-	paramAccessToken        auth.Token
-	paramAccessTokens       []auth.Token
-	paramAllowShellOut      bool
+	returnName                 string
+	returnIdentity             string
+	returnIdentityErr          string
+	returnRegistryErr          string
+	returnRegistryInput        string
+	returnGitErr               string
+	returnGitInput             string
+	returnGitOptions           []auth.Option
+	returnGitCredentials       *auth.GitCredentials
+	returnRESTConfig           *auth.RESTConfig
+	returnRESTConfigOptsErr    string
+	returnControllerCredential auth.Credential
+	returnAccessCredential     auth.Credential
+	returnRegistryOptions      []auth.Option
+	returnRegistryToken        *auth.ArtifactRegistryCredentials
+	paramAudiences             []string
+	paramServiceAccount        *kubernetes.ServiceAccountReference
+	paramOIDCTokenClient       *http.Client
+	paramOIDCToken             string
+	paramOIDCTokenExpiry       time.Duration
+	paramCredentialProvider    string
+	paramArtifactRepository    string
+	paramGitURL                *url.URL
+	paramCluster               string
+	paramClusterAddress        string
+	paramAccessCredential      auth.Credential
+	paramAccessCredentials     []auth.Credential
+	paramAllowShellOut         bool
+	skipOIDCValidation         bool
 
 	// For multi-token flow (RESTConfig)
 	paramFirstScopes   []string
@@ -73,9 +77,9 @@ func (m *mockProvider) GetName() string {
 	return m.returnName
 }
 
-func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (m *mockProvider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 	m.checkOptions(opts...)
-	return m.returnControllerToken, nil
+	return m.returnControllerCredential, nil
 }
 
 func (m *mockProvider) GetAudiences(ctx context.Context, opts ...auth.Option) ([]string, error) {
@@ -102,38 +106,53 @@ func (m *mockProvider) GetIdentity(opts ...auth.Option) (string, error) {
 	return m.returnIdentity, nil
 }
 
-func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	opts ...auth.Option) (auth.Token, error) {
+func (m *mockProvider) NewAccessCredentialForIdentity(ctx context.Context, identity auth.Credential,
+	opts ...auth.Option) (auth.Credential, error) {
 
 	m.t.Helper()
 	g := NewWithT(m.t)
 
-	// Verify the OIDC token.
-	token, _, err := jwt.NewParser().ParseUnverified(oidcToken, jwt.MapClaims{})
-	g.Expect(err).NotTo(HaveOccurred())
-	iss, err := token.Claims.GetIssuer()
-	g.Expect(err).NotTo(HaveOccurred())
-	ctx = oidc.ClientContext(ctx, m.paramOIDCTokenClient)
-	jwks := oidc.NewRemoteKeySet(ctx, iss+"openid/v1/jwks")
-	clientIDs := m.paramAudiences
-	if len(clientIDs) == 0 {
-		clientIDs = []string{"mock-audience"}
+	jwtCredential, ok := identity.(*auth.JWTCredential)
+	if !ok {
+		return nil, fmt.Errorf("expected *auth.JWTCredential, got %T", identity)
 	}
-	for _, aud := range clientIDs {
-		_, err = oidc.NewVerifier(iss, jwks, &oidc.Config{
-			ClientID:             aud,
-			SupportedSigningAlgs: []string{token.Method.Alg()},
-		}).Verify(ctx, oidcToken)
-		g.Expect(err).NotTo(HaveOccurred())
+	oidcToken := jwtCredential.Token
+
+	if m.paramCredentialProvider != "" {
+		g.Expect(jwtCredential.Provider).To(Equal(m.paramCredentialProvider))
+	}
+	if m.paramOIDCToken != "" {
+		g.Expect(oidcToken).To(Equal(m.paramOIDCToken))
 	}
 
-	// Verify the OIDC token expiration, when an expiration is expected.
-	if m.paramOIDCTokenExpiry > 0 {
-		exp, err := token.Claims.GetExpirationTime()
+	// Verify the OIDC credential.
+	if !m.skipOIDCValidation {
+		token, _, err := jwt.NewParser().ParseUnverified(oidcToken, jwt.MapClaims{})
 		g.Expect(err).NotTo(HaveOccurred())
-		iat, err := token.Claims.GetIssuedAt()
+		iss, err := token.Claims.GetIssuer()
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(exp.Sub(iat.Time)).To(BeNumerically("~", m.paramOIDCTokenExpiry, time.Minute))
+		ctx = oidc.ClientContext(ctx, m.paramOIDCTokenClient)
+		jwks := oidc.NewRemoteKeySet(ctx, iss+"openid/v1/jwks")
+		clientIDs := m.paramAudiences
+		if len(clientIDs) == 0 {
+			clientIDs = []string{"mock-audience"}
+		}
+		for _, aud := range clientIDs {
+			_, err = oidc.NewVerifier(iss, jwks, &oidc.Config{
+				ClientID:             aud,
+				SupportedSigningAlgs: []string{token.Method.Alg()},
+			}).Verify(ctx, oidcToken)
+			g.Expect(err).NotTo(HaveOccurred())
+		}
+
+		// Verify the OIDC token expiration, when an expiration is expected.
+		if m.paramOIDCTokenExpiry > 0 {
+			exp, err := token.Claims.GetExpirationTime()
+			g.Expect(err).NotTo(HaveOccurred())
+			iat, err := token.Claims.GetIssuedAt()
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(exp.Sub(iat.Time)).To(BeNumerically("~", m.paramOIDCTokenExpiry, time.Minute))
+		}
 	}
 
 	var o auth.Options
@@ -142,7 +161,7 @@ func (m *mockProvider) NewTokenForServiceAccount(ctx context.Context, oidcToken 
 
 	m.checkOptions(opts...)
 
-	return m.returnAccessToken, nil
+	return m.returnAccessCredential, nil
 }
 
 func (m *mockProvider) ParseArtifactRepository(artifactRepository string) (string, error) {
@@ -155,7 +174,7 @@ func (m *mockProvider) ParseArtifactRepository(artifactRepository string) (strin
 	return m.returnRegistryInput, nil
 }
 
-func (m *mockProvider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+func (m *mockProvider) GetAccessCredentialOptionsForArtifactRepository(artifactRepository string,
 	_ ...auth.Option) ([]auth.Option, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
@@ -164,11 +183,11 @@ func (m *mockProvider) GetAccessTokenOptionsForArtifactRepository(artifactReposi
 }
 
 func (m *mockProvider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessCredential auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(registryInput).To(Equal(m.paramArtifactRepository))
-	g.Expect(accessToken).To(Equal(m.paramAccessToken))
+	g.Expect(accessCredential).To(Equal(m.paramAccessCredential))
 	m.checkOptions(opts...)
 	return m.returnRegistryToken, nil
 }
@@ -183,7 +202,7 @@ func (m *mockProvider) ParseGitRepository(gitURL *url.URL) (string, error) {
 	return m.returnGitInput, nil
 }
 
-func (m *mockProvider) GetAccessTokenOptionsForGitRepository(gitURL *url.URL) ([]auth.Option, error) {
+func (m *mockProvider) GetAccessCredentialOptionsForGitRepository(gitURL *url.URL) ([]auth.Option, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(gitURL).To(Equal(m.paramGitURL))
@@ -191,16 +210,16 @@ func (m *mockProvider) GetAccessTokenOptionsForGitRepository(gitURL *url.URL) ([
 }
 
 func (m *mockProvider) NewGitCredentials(ctx context.Context, gitInput string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.GitCredentials, error) {
+	accessCredential auth.Credential, opts ...auth.Option) (*auth.GitCredentials, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(gitInput).To(Equal(m.returnGitInput))
-	g.Expect(accessToken).To(Equal(m.paramAccessToken))
+	g.Expect(accessCredential).To(Equal(m.paramAccessCredential))
 	m.checkOptions(opts...)
 	return m.returnGitCredentials, nil
 }
 
-func (m *mockProvider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
+func (m *mockProvider) GetAccessCredentialOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	var o auth.Options
@@ -212,7 +231,7 @@ func (m *mockProvider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][
 	return [][]auth.Option{{auth.WithScopes("first-token")}, {auth.WithScopes("second-token")}}, nil
 }
 
-func (m *mockProvider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (m *mockProvider) NewRESTConfig(ctx context.Context, accessCredentials []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 	m.t.Helper()
 	g := NewWithT(m.t)
@@ -220,7 +239,7 @@ func (m *mockProvider) NewRESTConfig(ctx context.Context, accessTokens []auth.To
 	o.Apply(opts...)
 	g.Expect(o.ClusterResource).To(Equal(m.paramCluster))
 	g.Expect(o.ClusterAddress).To(Equal(m.paramClusterAddress))
-	g.Expect(accessTokens).To(Equal(m.paramAccessTokens))
+	g.Expect(accessCredentials).To(Equal(m.paramAccessCredentials))
 	m.checkOptions(opts...)
 	return m.returnRESTConfig, nil
 }

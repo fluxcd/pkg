@@ -30,9 +30,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/aws"
-	"github.com/fluxcd/pkg/auth/generic"
 )
 
 func TestProvider_NewControllerToken(t *testing.T) {
@@ -97,7 +97,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	}
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
 		roleARN            string
@@ -160,7 +160,10 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, opts...)
+			token, err := provider.NewAccessCredentialForIdentity(context.Background(), &auth.JWTCredential{
+				Provider: cryptov1.CredentialProviderKubernetes,
+				Token:    oidcToken,
+			}, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -267,10 +270,10 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 	}
 }
 
-func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForArtifactRepository(t *testing.T) {
 	g := NewWithT(t)
 
-	opts, err := aws.Provider{}.GetAccessTokenOptionsForArtifactRepository(
+	opts, err := aws.Provider{}.GetAccessCredentialOptionsForArtifactRepository(
 		"012345678901.dkr.ecr.us-east-1.amazonaws.com/foo:v1")
 	g.Expect(err).NotTo(HaveOccurred())
 
@@ -547,11 +550,11 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 	}
 }
 
-func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForCluster(t *testing.T) {
 	t.Run("with region", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := aws.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := aws.Provider{}.GetAccessCredentialOptionsForCluster(
 			auth.WithAWSRegion("us-west-2"),
 			auth.WithAWSClusterName("my-cluster"))
 		g.Expect(err).NotTo(HaveOccurred())
@@ -566,7 +569,7 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	t.Run("without region", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := aws.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := aws.Provider{}.GetAccessCredentialOptionsForCluster(
 			auth.WithAWSClusterName("my-cluster"))
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(Equal("AWS region is required"))
@@ -574,7 +577,7 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	})
 }
 
-func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForGitRepository(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		gitURL         string
@@ -619,15 +622,15 @@ func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
 				parsedURL, err = url.Parse(tt.gitURL)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
-			atOpts, err := aws.Provider{}.GetAccessTokenOptionsForGitRepository(parsedURL)
+			acOpts, err := aws.Provider{}.GetAccessCredentialOptionsForGitRepository(parsedURL)
 			if tt.err != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
-				g.Expect(atOpts).To(BeNil())
+				g.Expect(acOpts).To(BeNil())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				var o auth.Options
-				o.Apply(atOpts...)
+				o.Apply(acOpts...)
 				g.Expect(o.AWSRegion).To(Equal(tt.expectedRegion))
 			}
 		})
@@ -693,41 +696,41 @@ func TestProvider_ParseGitRepository(t *testing.T) {
 }
 
 func TestProvider_NewGitCredentials(t *testing.T) {
-	invalidToken := &generic.Token{Token: "invalid", ExpiresAt: time.Now().Add(time.Hour)}
+	invalidCredential := &auth.RESTConfig{Host: "invalid"}
 	proxyUrl := url.URL{Scheme: "http", Host: "proxy.example.com"}
 	awsRegion := "us-east-1"
 	for _, tt := range []struct {
-		name             string
-		gitURL           string
-		getAccessToken   bool
-		accessToken      auth.Token
-		expectedUsername string
-		err              string
+		name                string
+		gitURL              string
+		getAccessCredential bool
+		accessCredential    auth.Credential
+		expectedUsername    string
+		err                 string
 	}{
 		{
-			name:             "valid CodeCommit URL",
-			gitURL:           "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
-			getAccessToken:   true,
-			expectedUsername: "access-key-id%session-token",
+			name:                "valid CodeCommit URL",
+			gitURL:              "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			getAccessCredential: true,
+			expectedUsername:    "access-key-id%session-token",
 		},
 		{
-			name:             "valid CodeCommit FIPS URL",
-			gitURL:           "https://git-codecommit-fips.us-east-1.amazonaws.com/v1/repos/test-repo",
-			getAccessToken:   true,
-			expectedUsername: "access-key-id%session-token",
+			name:                "valid CodeCommit FIPS URL",
+			gitURL:              "https://git-codecommit-fips.us-east-1.amazonaws.com/v1/repos/test-repo",
+			getAccessCredential: true,
+			expectedUsername:    "access-key-id%session-token",
 		},
 		{
-			name:             "valid CodeCommit China URL",
-			gitURL:           "https://git-codecommit.cn-north-1.amazonaws.com.cn/v1/repos/test-repo",
-			getAccessToken:   true,
-			expectedUsername: "access-key-id%session-token",
+			name:                "valid CodeCommit China URL",
+			gitURL:              "https://git-codecommit.cn-north-1.amazonaws.com.cn/v1/repos/test-repo",
+			getAccessCredential: true,
+			expectedUsername:    "access-key-id%session-token",
 		},
 		{
-			name:           "invalid access token type",
-			gitURL:         "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
-			getAccessToken: false,
-			accessToken:    invalidToken,
-			err:            "failed to cast token to AWS token: *generic.Token",
+			name:                "invalid access credential type",
+			gitURL:              "https://git-codecommit.us-east-1.amazonaws.com/v1/repos/test-repo",
+			getAccessCredential: false,
+			accessCredential:    invalidCredential,
+			err:                 "failed to cast credential to AWS credential: *auth.RESTConfig",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -741,17 +744,17 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 			}
 
 			provider := aws.Provider{Implementation: impl}
-			accessToken := tt.accessToken
-			if tt.getAccessToken {
+			accessCredential := tt.accessCredential
+			if tt.getAccessCredential {
 				var err error
-				accessToken, err = auth.GetAccessToken(t.Context(), provider,
+				accessCredential, err = auth.NewAccessCredential(t.Context(), provider,
 					auth.WithAWSRegion(awsRegion),
 					auth.WithProxyURL(proxyUrl),
 				)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
 
-			creds, err := provider.NewGitCredentials(t.Context(), tt.gitURL, accessToken)
+			creds, err := provider.NewGitCredentials(t.Context(), tt.gitURL, accessCredential)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())

@@ -26,6 +26,7 @@ import (
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
+	"github.com/fluxcd/pkg/spiffe/broker"
 )
 
 // Option is a functional option for the auth package.
@@ -34,8 +35,9 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client client.Client
-	Cache  *cache.TokenCache
+	Client       client.Client
+	Cache        *cache.TokenCache
+	SPIFFEBroker broker.Interface
 
 	// Object entitled to the identity.
 	ObjectReference ObjectReference
@@ -190,6 +192,14 @@ func WithClient(client client.Client) Option {
 func WithCache(cache cache.TokenCache) Option {
 	return func(o *Options) {
 		o.Cache = &cache
+	}
+}
+
+// WithSPIFFEBroker sets the client used to fetch JWT-SVIDs for the `spiffe`
+// credential provider.
+func WithSPIFFEBroker(client broker.Interface) Option {
+	return func(o *Options) {
+		o.SPIFFEBroker = client
 	}
 }
 
@@ -412,30 +422,23 @@ func WithDockerHubOIDCConnectionID(connectionID string) Option {
 	}
 }
 
-// ObjectLevelWorkloadIdentity returns true if a ServiceAccount token should be
-// retrieved for object-level workload identity. The ServiceAccount is provided
-// by the caller, either as an object or as a name/namespace reference.
-func (o *Options) ObjectLevelWorkloadIdentity() bool {
-	return o.ServiceAccountName != ""
+// Apply applies the given slice of Option(s) to the Options struct.
+func (o *Options) Apply(opts ...Option) {
+	for _, opt := range opts {
+		opt(o)
+	}
 }
 
 // ServiceAccountRef returns the ServiceAccount object for the token. If the
 // object was not set explicitly, it is built from the configured name and
 // namespace.
 func (o *Options) ServiceAccountRef() *kubernetes.ServiceAccountReference {
-	if !o.ObjectLevelWorkloadIdentity() {
+	if !o.objectLevelWorkloadIdentity() {
 		return nil
 	}
 	return &kubernetes.ServiceAccountReference{
 		Name:      o.ServiceAccountName,
 		Namespace: o.ObjectReference.Namespace,
-	}
-}
-
-// Apply applies the given slice of Option(s) to the Options struct.
-func (o *Options) Apply(opts ...Option) {
-	for _, opt := range opts {
-		opt(o)
 	}
 }
 
@@ -452,6 +455,31 @@ func (o *Options) GetHTTPClient() *http.Client {
 		Transport: transport,
 		Timeout:   10 * time.Second,
 	}
+}
+
+// objectLevelWorkloadIdentity returns true if a ServiceAccount token should be
+// retrieved for object-level workload identity. The ServiceAccount is provided
+// by the caller, either as an object or as a name/namespace reference.
+func (o *Options) objectLevelWorkloadIdentity() bool {
+	return o.ServiceAccountName != ""
+}
+
+// credentialProvider returns the configured credential provider, defaulting to
+// Kubernetes for backward compatibility with RFC-0010.
+func (o *Options) credentialProvider() string {
+	if o.CredentialProvider == "" {
+		return cryptov1.CredentialProviderKubernetes
+	}
+	return o.CredentialProvider
+}
+
+// credentialType returns the configured credential type, defaulting to JWT for
+// backward compatibility with RFC-0010.
+func (o *Options) credentialType() string {
+	if o.CredentialType == "" {
+		return cryptov1.CredentialTypeJWT
+	}
+	return o.CredentialType
 }
 
 func newObjectReference(group, kind string, obj client.Object) ObjectReference {

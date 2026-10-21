@@ -69,7 +69,7 @@ func (Provider) GetName() string {
 }
 
 // NewControllerToken implements auth.Provider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
@@ -124,9 +124,9 @@ func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
 	return o.AWSRoleARN, nil
 }
 
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	opts ...auth.Option) (auth.Token, error) {
+// NewAccessCredentialForIdentity implements auth.Provider.
+func (p Provider) NewAccessCredentialForIdentity(ctx context.Context, identity auth.Credential,
+	opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -145,6 +145,11 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 
 	roleARN := o.AWSRoleARN
 
+	jwtCredential, ok := identity.(*auth.JWTCredential)
+	if !ok {
+		return nil, fmt.Errorf("expected *auth.JWTCredential, got %T", identity)
+	}
+
 	sa := o.ServiceAccountRef()
 	roleSessionName := cryptov1.GetAWSRoleSessionName(sa.Name, sa.Namespace, stsRegion)
 
@@ -160,7 +165,7 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	req := &sts.AssumeRoleWithWebIdentityInput{
 		RoleArn:          &roleARN,
 		RoleSessionName:  &roleSessionName,
-		WebIdentityToken: &oidcToken,
+		WebIdentityToken: &jwtCredential.Token,
 	}
 	resp, err := p.impl().AssumeRoleWithWebIdentity(ctx, req, stsOpts)
 	if err != nil {
@@ -178,8 +183,8 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 	return creds, nil
 }
 
-// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
-func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+// GetAccessCredentialOptionsForArtifactRepository implements auth.Provider.
+func (p Provider) GetAccessCredentialOptionsForArtifactRepository(artifactRepository string,
 	_ ...auth.Option) ([]auth.Option, error) {
 	// AWS requires a region for getting access credentials. To avoid requiring
 	// two regions to be passed in the Flux APIs we leverage the region present
@@ -208,7 +213,7 @@ func (Provider) ParseArtifactRepository(artifactRepository string) (string, erro
 
 // NewArtifactRegistryCredentials implements auth.Provider.
 func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryInput string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessCredential auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -220,7 +225,7 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryIn
 
 	conf := aws.Config{
 		Region:      cryptov1.GetAWSRegionFromArtifactRegistryInput(registryInput),
-		Credentials: accessToken.(*Credentials).provider(),
+		Credentials: accessCredential.(*Credentials).provider(),
 		HTTPClient:  o.GetHTTPClient(),
 	}
 
@@ -275,8 +280,8 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registryIn
 	}, nil
 }
 
-// GetAccessTokenOptionsForCluster implements auth.Provider.
-func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
+// GetAccessCredentialOptionsForCluster implements auth.Provider.
+func (Provider) GetAccessCredentialOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 	var o auth.Options
 	o.Apply(opts...)
 	if o.AWSRegion == "" {
@@ -289,14 +294,14 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 //
 // Reference:
 // https://docs.aws.amazon.com/eks/latest/best-practices/identity-and-access-management.html#_controlling_access_to_eks_clusters
-func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (p Provider) NewRESTConfig(ctx context.Context, accessCredentials []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
 	// The expiration for an EKS restconfig is always 15 minutes, see the reference above.
 	// Let's record time.Now() on the beginning of the procedure to be on the safe side.
 	expiresAt := time.Now().Add(15 * time.Minute)
 
-	creds := accessTokens[0].(*Credentials).provider()
+	creds := accessCredentials[0].(*Credentials).provider()
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -367,12 +372,12 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	}, nil
 }
 
-// GetAccessTokenOptionsForGitRepository implements auth.GitCredentialsProvider.
+// GetAccessCredentialOptionsForGitRepository implements auth.GitCredentialsProvider.
 // AWS requires a region for obtaining access credentials. To avoid requiring
 // callers to pass a region in addition to the CodeCommit URL, we extract the
 // region from the URL and inject it as AWSRegion so that object-level workload
 // identity (which requires an explicit region) works without extra config.
-func (Provider) GetAccessTokenOptionsForGitRepository(gitURL *url.URL) ([]auth.Option, error) {
+func (Provider) GetAccessCredentialOptionsForGitRepository(gitURL *url.URL) ([]auth.Option, error) {
 	if gitURL == nil {
 		return nil, fmt.Errorf("Git URL must be specified for AWS CodeCommit authentication")
 	}
@@ -396,7 +401,7 @@ func (Provider) ParseGitRepository(gitURL *url.URL) (string, error) {
 
 // NewGitCredentials implements auth.GitCredentialsProvider.
 func (Provider) NewGitCredentials(_ context.Context, gitInput string,
-	accessToken auth.Token, _ ...auth.Option) (*auth.GitCredentials, error) {
+	accessCredential auth.Credential, _ ...auth.Option) (*auth.GitCredentials, error) {
 
 	gitURL, err := url.Parse(gitInput)
 	if err != nil {
@@ -407,9 +412,9 @@ func (Provider) NewGitCredentials(_ context.Context, gitInput string,
 		return nil, err
 	}
 
-	creds, ok := accessToken.(*Credentials)
+	creds, ok := accessCredential.(*Credentials)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast token to AWS token: %T", accessToken)
+		return nil, fmt.Errorf("failed to cast credential to AWS credential: %T", accessCredential)
 	}
 
 	req, err := http.NewRequest("GIT", gitURL.String(), nil)

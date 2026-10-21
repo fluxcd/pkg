@@ -15,7 +15,7 @@
 ### Authentication & Security
 - **[github.com/fluxcd/pkg/auth](./auth)** - OIDC-based authentication with cloud providers (AWS, Azure, GCP)
 - **[github.com/fluxcd/pkg/masktoken](./masktoken)** - Token redaction utilities for secure logging
-- **[github.com/fluxcd/pkg/spiffe](./spiffe)** - SPIFFE Workload API X.509-SVID utilities for mutual TLS
+- **[github.com/fluxcd/pkg/spiffe](./spiffe)** - SPIFFE Workload and Broker API utilities
 - **[github.com/fluxcd/pkg/ssh](./ssh)** - SSH host key scanning and management
 
 ### Artifact Storage & Serving

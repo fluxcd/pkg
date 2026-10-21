@@ -70,9 +70,9 @@ func TestGetRESTConfig(t *testing.T) {
 		expectedErr   string
 	}{
 		{
-			name: "restconfig from controller access token",
+			name: "restconfig from controller access credential",
 			provider: &mockProvider{
-				returnControllerToken: &mockToken{token: "mock-default-token"},
+				returnControllerCredential: &mockCredential{token: "mock-default-token"},
 				returnRESTConfig: &auth.RESTConfig{
 					Host:        "https://cluster/resource/name",
 					BearerToken: "mock-bearer-token",
@@ -83,9 +83,9 @@ func TestGetRESTConfig(t *testing.T) {
 				paramSecondScopes:  []string{"second-token"},
 				expectFirstScopes:  true,
 				expectSecondScopes: true,
-				paramAccessTokens: []auth.Token{
-					&mockToken{token: "mock-default-token"},
-					&mockToken{token: "mock-default-token"},
+				paramAccessCredentials: []auth.Credential{
+					&mockCredential{token: "mock-default-token"},
+					&mockCredential{token: "mock-default-token"},
 				},
 			},
 			cluster: "cluster/resource/name",
@@ -104,10 +104,10 @@ func TestGetRESTConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "restconfig from access token from service account",
+			name: "restconfig from access credential from service account",
 			provider: &mockProvider{
-				returnName:        "mock-provider",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnName:             "mock-provider",
+				returnAccessCredential: &mockCredential{token: "mock-access-token"},
 				returnRESTConfig: &auth.RESTConfig{
 					Host:        "https://cluster/resource/name",
 					BearerToken: "mock-bearer-token",
@@ -121,9 +121,9 @@ func TestGetRESTConfig(t *testing.T) {
 				paramSecondScopes:    []string{"second-token"},
 				expectFirstScopes:    true,
 				expectSecondScopes:   true,
-				paramAccessTokens: []auth.Token{
-					&mockToken{token: "mock-access-token"},
-					&mockToken{token: "mock-access-token"},
+				paramAccessCredentials: []auth.Credential{
+					&mockCredential{token: "mock-access-token"},
+					&mockCredential{token: "mock-access-token"},
 				},
 			},
 			cluster: "cluster/resource/name",
@@ -175,37 +175,37 @@ func TestGetRESTConfig(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(3)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					accessTokenKey := "61f0d5d2ddd8c21ebcbab3686c5fe73234d7a825d02062baaa2951565eeb7398"
-					var token auth.Token = &mockToken{token: "cached-token"}
-					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
-						return token, nil
+					accessCredentialKey := "61f0d5d2ddd8c21ebcbab3686c5fe73234d7a825d02062baaa2951565eeb7398"
+					var credential auth.Credential = &mockCredential{token: "cached-token"}
+					cachedCredential, ok, err := tokenCache.GetOrSet(ctx, accessCredentialKey, func(ctx context.Context) (cache.Token, error) {
+						return credential, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(ok).To(BeFalse())
-					g.Expect(cachedToken).To(Equal(token))
+					g.Expect(cachedCredential).To(Equal(credential))
 
-					accessTokenKey = "583b0d84b5393b72396ad500503a74315e86b7044c3085d470c6597e751438af"
-					token = &mockToken{token: "cached-token"}
-					cachedToken, ok, err = tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
-						return token, nil
+					accessCredentialKey = "583b0d84b5393b72396ad500503a74315e86b7044c3085d470c6597e751438af"
+					credential = &mockCredential{token: "cached-token"}
+					cachedCredential, ok, err = tokenCache.GetOrSet(ctx, accessCredentialKey, func(ctx context.Context) (cache.Token, error) {
+						return credential, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(ok).To(BeFalse())
-					g.Expect(cachedToken).To(Equal(token))
+					g.Expect(cachedCredential).To(Equal(credential))
 
-					const restConfigKey = "c83bf9b221a0716e21acbda71d59f5502351c811512509f9c7c59090cab39153"
-					token = &auth.RESTConfig{
+					const restConfigKey = "8e65b5b906da5063a5d44023296bf6e83b72ab1f347b96c216a88e7175311f9e"
+					credential = &auth.RESTConfig{
 						Host:        "https://cluster/resource/name",
 						BearerToken: "mock-bearer-token",
 						CAData:      []byte("ca-data"),
 						ExpiresAt:   now.Add(time.Hour),
 					}
-					cachedToken, ok, err = tokenCache.GetOrSet(ctx, restConfigKey, func(ctx context.Context) (cache.Token, error) {
-						return token, nil
+					cachedCredential, ok, err = tokenCache.GetOrSet(ctx, restConfigKey, func(ctx context.Context) (cache.Token, error) {
+						return credential, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(ok).To(BeFalse())
-					g.Expect(cachedToken).To(Equal(token))
+					g.Expect(cachedCredential).To(Equal(credential))
 
 					o.Cache = tokenCache
 				},
@@ -218,7 +218,7 @@ func TestGetRESTConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "error getting access token options for cluster",
+			name: "error getting access credential options for cluster",
 			provider: &mockProvider{
 				paramCluster:            "cluster/resource/name",
 				returnRESTConfigOptsErr: "mock error",
@@ -229,8 +229,8 @@ func TestGetRESTConfig(t *testing.T) {
 		{
 			name: "restconfig from explicit service account",
 			provider: &mockProvider{
-				returnName:        "mock-provider",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnName:             "mock-provider",
+				returnAccessCredential: &mockCredential{token: "mock-access-token"},
 				returnRESTConfig: &auth.RESTConfig{
 					Host:        "https://cluster/resource/name",
 					BearerToken: "mock-bearer-token",
@@ -244,9 +244,9 @@ func TestGetRESTConfig(t *testing.T) {
 				paramSecondScopes:    []string{"second-token"},
 				expectFirstScopes:    true,
 				expectSecondScopes:   true,
-				paramAccessTokens: []auth.Token{
-					&mockToken{token: "mock-access-token"},
-					&mockToken{token: "mock-access-token"},
+				paramAccessCredentials: []auth.Credential{
+					&mockCredential{token: "mock-access-token"},
+					&mockCredential{token: "mock-access-token"},
 				},
 			},
 			cluster: "cluster/resource/name",

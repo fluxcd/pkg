@@ -47,12 +47,12 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	}
 
 	provider := gcp.Provider{Implementation: impl}
-	token, err := provider.NewControllerToken(context.Background(), opts...)
+	credential, err := provider.NewControllerToken(context.Background(), opts...)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(token).To(Equal(&gcp.Token{oauth2.Token{AccessToken: "access-token"}}))
+	g.Expect(credential).To(Equal(&gcp.AccessToken{oauth2.Token{AccessToken: "access-token"}}))
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 	startGKEMetadataServer(t)
 
 	for _, tt := range []struct {
@@ -149,15 +149,18 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			provider := gcp.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, opts...)
+			credential, err := provider.NewAccessCredentialForIdentity(context.Background(), &auth.JWTCredential{
+				Provider: cryptov1.CredentialProviderKubernetes,
+				Token:    oidcToken,
+			}, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&gcp.Token{oauth2.Token{AccessToken: "access-token"}}))
+				g.Expect(credential).To(Equal(&gcp.AccessToken{oauth2.Token{AccessToken: "access-token"}}))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
-				g.Expect(token).To(BeNil())
+				g.Expect(credential).To(BeNil())
 			}
 		})
 	}
@@ -173,6 +176,7 @@ func TestProvider_GetAudience(t *testing.T) {
 		wip                string
 		credentialAudience string
 		expected           string
+		err                string
 	}{
 		{
 			name:     "federation",
@@ -190,9 +194,10 @@ func TestProvider_GetAudience(t *testing.T) {
 			expected: "project-id.svc.id.goog",
 		},
 		{
-			name:               "gke with custom audience ignored",
+			name:               "gke with custom audience rejected",
 			credentialAudience: "my-audience",
 			expected:           "project-id.svc.id.goog",
+			err:                "cannot specify custom audiences for GKE workload identity",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -207,8 +212,13 @@ func TestProvider_GetAudience(t *testing.T) {
 			}
 
 			aud, err := gcp.Provider{}.GetAudiences(context.Background(), opts...)
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(aud).To(Equal([]string{tt.expected}))
+			if tt.err != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.err))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(aud).To(Equal([]string{tt.expected}))
+			}
 		})
 	}
 }
@@ -447,11 +457,11 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 	}
 }
 
-func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForCluster(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("with cluster resource", func(t *testing.T) {
-		opts, err := gcp.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := gcp.Provider{}.GetAccessCredentialOptionsForCluster(
 			auth.WithClusterResource("projects/test-project/locations/us-central1/clusters/test-cluster"))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(opts).To(HaveLen(1))
@@ -459,7 +469,7 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	})
 
 	t.Run("without cluster resource", func(t *testing.T) {
-		opts, err := gcp.Provider{}.GetAccessTokenOptionsForCluster()
+		opts, err := gcp.Provider{}.GetAccessCredentialOptionsForCluster()
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(opts).To(HaveLen(1))
 		g.Expect(opts[0]).To(HaveLen(0)) // Empty slice - no options needed for GCP

@@ -48,13 +48,13 @@ func (t *tokenCredential) GetToken(_ context.Context, tokenOpts policy.TokenRequ
 	if tokenOpts.Scopes != nil {
 		opts = append(opts, auth.WithScopes(tokenOpts.Scopes...))
 	}
-	token, err := auth.GetAccessToken(t.ctx, Provider{}, opts...)
+	credential, err := auth.NewAccessCredential(t.ctx, Provider{}, opts...)
 	if err != nil {
 		return azcore.AccessToken{}, err
 	}
-	azureToken, ok := token.(*Token)
+	azureCredential, ok := credential.(*AccessToken)
 	if !ok {
-		return azcore.AccessToken{}, fmt.Errorf("failed to cast token to Azure token: %T", token)
+		return azcore.AccessToken{}, fmt.Errorf("failed to cast credential to Azure credential: %T", credential)
 	}
-	return azureToken.AccessToken, nil
+	return azureCredential.AccessToken, nil
 }

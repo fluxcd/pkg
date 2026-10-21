@@ -10,6 +10,7 @@ replace (
 	github.com/fluxcd/pkg/git => ../../git
 	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
 	github.com/fluxcd/pkg/runtime => ../../runtime
+	github.com/fluxcd/pkg/spiffe => ../../spiffe
 	github.com/fluxcd/pkg/ssh => ../../ssh
 	github.com/fluxcd/pkg/version => ../../version
 )
@@ -89,6 +90,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fluxcd/pkg/spiffe v0.0.0 // indirect
 	github.com/fluxcd/pkg/ssh v0.28.0 // indirect
 	github.com/fluxcd/pkg/version v0.19.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
@@ -96,6 +98,7 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.2 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.5 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
@@ -113,6 +116,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.29.1 // indirect
 	github.com/go-openapi/swag/typeutils v0.29.1 // indirect
 	github.com/go-openapi/swag/yamlutils v0.29.1 // indirect
+	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/btree v1.1.3 // indirect

@@ -27,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/generic"
 )
@@ -39,7 +40,7 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	g.Expect(token).To(BeNil())
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 	signToken := func(t *testing.T, claims jwt.MapClaims) string {
 		t.Helper()
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -53,23 +54,44 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 	expiresAt := time.Now().Add(time.Hour).Truncate(time.Second)
 	validToken := signToken(t, jwt.MapClaims{"exp": expiresAt.Unix()})
 
-	t.Run("valid token", func(t *testing.T) {
+	t.Run("kubernetes identity", func(t *testing.T) {
 		g := NewWithT(t)
 
-		token, err := generic.Provider{}.NewTokenForServiceAccount(context.Background(), validToken)
-		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(token).To(Equal(&generic.Token{
+		identity := &auth.JWTCredential{
+			Provider:  cryptov1.CredentialProviderKubernetes,
 			Token:     validToken,
 			ExpiresAt: expiresAt,
-		}))
+		}
+		credential, err := generic.Provider{}.NewAccessCredentialForIdentity(context.Background(), identity)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(credential).To(Equal(identity))
 	})
 
-	t.Run("invalid token", func(t *testing.T) {
+	t.Run("spiffe identity disables caching", func(t *testing.T) {
 		g := NewWithT(t)
 
-		token, err := generic.Provider{}.NewTokenForServiceAccount(context.Background(), "not-a-token")
-		g.Expect(err).To(MatchError(ContainSubstring("failed to parse service account token")))
-		g.Expect(token).To(BeNil())
+		identity := &auth.JWTCredential{
+			Provider:  cryptov1.CredentialProviderSPIFFE,
+			Token:     validToken,
+			ExpiresAt: expiresAt,
+		}
+		credential, err := generic.Provider{}.NewAccessCredentialForIdentity(context.Background(), identity)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(credential).NotTo(BeIdenticalTo(identity))
+		g.Expect(credential).To(Equal(&auth.JWTCredential{
+			Provider: cryptov1.CredentialProviderSPIFFE,
+			Token:    validToken,
+		}))
+		g.Expect(identity.ExpiresAt).To(Equal(expiresAt))
+	})
+
+	t.Run("invalid identity type", func(t *testing.T) {
+		g := NewWithT(t)
+
+		credential, err := generic.Provider{}.NewAccessCredentialForIdentity(
+			context.Background(), &auth.RESTConfig{})
+		g.Expect(err).To(MatchError(ContainSubstring("expected *auth.JWTCredential")))
+		g.Expect(credential).To(BeNil())
 	})
 }
 
@@ -81,11 +103,11 @@ func TestProvider_GetAudiences(t *testing.T) {
 	g.Expect(audiences).To(ConsistOf("audience1", "audience2"))
 }
 
-func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForArtifactRepository(t *testing.T) {
 	t.Run("registry host is the default audience", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := generic.Provider{}.GetAccessTokenOptionsForArtifactRepository(
+		opts, err := generic.Provider{}.GetAccessCredentialOptionsForArtifactRepository(
 			"my-zot-registry.com/owner/repo")
 		g.Expect(err).NotTo(HaveOccurred())
 
@@ -97,7 +119,7 @@ func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
 	t.Run("explicit audiences are not overridden", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := generic.Provider{}.GetAccessTokenOptionsForArtifactRepository(
+		opts, err := generic.Provider{}.GetAccessCredentialOptionsForArtifactRepository(
 			"my-zot-registry.com/owner/repo",
 			auth.WithCredentialAudiences("audience1", "audience2"))
 		g.Expect(err).NotTo(HaveOccurred())
@@ -110,7 +132,7 @@ func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
 	t.Run("invalid artifact repository", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := generic.Provider{}.GetAccessTokenOptionsForArtifactRepository(
+		opts, err := generic.Provider{}.GetAccessCredentialOptionsForArtifactRepository(
 			"registry.io/OWNER/repo")
 		g.Expect(err).To(MatchError(ContainSubstring("failed to parse artifact repository")))
 		g.Expect(opts).To(BeNil())
@@ -135,7 +157,7 @@ func TestProvider_ParseArtifactRepository(t *testing.T) {
 
 func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 	expiresAt := time.Now().Add(time.Hour)
-	token := &generic.Token{
+	credential := &auth.JWTCredential{
 		Token:     "test-token",
 		ExpiresAt: expiresAt,
 	}
@@ -144,7 +166,7 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 		g := NewWithT(t)
 
 		creds, err := generic.Provider{}.NewArtifactRegistryCredentials(
-			context.Background(), "any-registry.io", token)
+			context.Background(), "any-registry.io", credential)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
 			Authenticator: &authn.Bearer{Token: "test-token"},
@@ -156,7 +178,7 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 		g := NewWithT(t)
 
 		creds, err := generic.Provider{}.NewArtifactRegistryCredentials(
-			context.Background(), "any-registry.io", token,
+			context.Background(), "any-registry.io", credential,
 			auth.WithCredentialUsername("user"))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(creds).To(Equal(&auth.ArtifactRegistryCredentials{
@@ -183,7 +205,7 @@ func TestProvider_GetIdentity(t *testing.T) {
 
 func TestProvider_NewRESTConfig(t *testing.T) {
 	expiresAt := time.Now().Add(time.Hour)
-	accessToken := &generic.Token{
+	accessCredential := &auth.JWTCredential{
 		Token:     "token",
 		ExpiresAt: expiresAt,
 	}
@@ -225,7 +247,7 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			}
 
 			conf, err := generic.Provider{}.NewRESTConfig(context.Background(),
-				[]auth.Token{accessToken}, opts...)
+				[]auth.Credential{accessCredential}, opts...)
 
 			if tt.err != "" {
 				g.Expect(err).To(HaveOccurred())
@@ -245,10 +267,10 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 	}
 }
 
-func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForCluster(t *testing.T) {
 	t.Run("without audiences", func(t *testing.T) {
 		g := NewWithT(t)
-		opts, err := generic.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := generic.Provider{}.GetAccessCredentialOptionsForCluster(
 			auth.WithClusterAddress("https://example.com"))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(opts).To(HaveLen(1))
@@ -260,7 +282,7 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 
 	t.Run("with audiences", func(t *testing.T) {
 		g := NewWithT(t)
-		opts, err := generic.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := generic.Provider{}.GetAccessCredentialOptionsForCluster(
 			auth.WithClusterAddress("https://example.com"),
 			auth.WithCredentialAudiences("audience1", "audience2"))
 		g.Expect(err).NotTo(HaveOccurred())

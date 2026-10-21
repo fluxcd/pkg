@@ -22,14 +22,14 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Token is the GCP token.
-type Token struct{ oauth2.Token }
+// AccessToken is the GCP access token.
+type AccessToken struct{ oauth2.Token }
 
-// GetDuration implements auth.Token.
-func (t *Token) GetDuration() time.Duration {
+// GetDuration implements auth.Credential.
+func (t *AccessToken) GetDuration() time.Duration {
 	return time.Until(t.Expiry)
 }
 
-func (t *Token) source() oauth2.TokenSource {
+func (t *AccessToken) source() oauth2.TokenSource {
 	return oauth2.StaticTokenSource(&t.Token)
 }

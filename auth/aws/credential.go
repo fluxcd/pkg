@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 )
 
-// Credentials is the AWS token.
+// Credentials is the AWS credential.
 type Credentials struct{ types.Credentials }
 
 func newTokenFromAWSCredentials(creds *aws.Credentials) *Credentials {
@@ -36,7 +36,7 @@ func newTokenFromAWSCredentials(creds *aws.Credentials) *Credentials {
 	}}
 }
 
-// GetDuration implements auth.Token.
+// GetDuration implements auth.Credential.
 func (c *Credentials) GetDuration() time.Duration {
 	return time.Until(*c.Expiration)
 }

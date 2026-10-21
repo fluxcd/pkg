@@ -29,9 +29,9 @@ import (
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 )
 
-// X509Source provides the X.509-SVID and trust bundles used to build a TLS
+// TLSSource provides the X.509-SVID and trust bundles used to build a TLS
 // configuration. It is implemented by *workloadapi.X509Source.
-type X509Source interface {
+type TLSSource interface {
 	x509svid.Source
 	x509bundle.Source
 }
@@ -48,9 +48,9 @@ type X509Source interface {
 // authorization in each direction should build a configuration for each
 // direction. The TLS hostname is not used for peer verification; the SPIFFE
 // identity is verified instead.
-func BuildTLSConfig(source X509Source, peers ...string) (*tls.Config, error) {
+func BuildTLSConfig(source TLSSource, peers ...string) (*tls.Config, error) {
 	if source == nil {
-		return nil, errors.New("SPIFFE X.509 source is required")
+		return nil, errors.New("SPIFFE TLS source is required")
 	}
 
 	authorizer, err := buildAuthorizer(source, peers)
@@ -69,7 +69,7 @@ func BuildTLSConfig(source X509Source, peers ...string) (*tls.Config, error) {
 	}, nil
 }
 
-func buildAuthorizer(source X509Source, peers []string) (tlsconfig.Authorizer, error) {
+func buildAuthorizer(source TLSSource, peers []string) (tlsconfig.Authorizer, error) {
 	if len(peers) == 0 {
 		return nil, errors.New("at least one SPIFFE peer is required")
 	}
@@ -89,7 +89,7 @@ func buildAuthorizer(source X509Source, peers []string) (tlsconfig.Authorizer, e
 	return tlsconfig.AdaptMatcher(matchAnyOf(matchers...)), nil
 }
 
-func peerMatcher(source X509Source, peer cryptov1.SPIFFEPeerAuthorization) (spiffeid.Matcher, error) {
+func peerMatcher(source TLSSource, peer cryptov1.SPIFFEPeerAuthorization) (spiffeid.Matcher, error) {
 	if peer.UseSelfTrustDomain {
 		svid, err := source.GetX509SVID()
 		if err != nil {

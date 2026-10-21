@@ -27,15 +27,15 @@ import (
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 )
 
-type fakeX509Source struct {
+type fakeTLSSource struct {
 	svid *x509svid.SVID
 }
 
-func (f fakeX509Source) GetX509SVID() (*x509svid.SVID, error) {
+func (f fakeTLSSource) GetX509SVID() (*x509svid.SVID, error) {
 	return f.svid, nil
 }
 
-func (f fakeX509Source) GetX509BundleForTrustDomain(spiffeid.TrustDomain) (*x509bundle.Bundle, error) {
+func (f fakeTLSSource) GetX509BundleForTrustDomain(spiffeid.TrustDomain) (*x509bundle.Bundle, error) {
 	return nil, nil
 }
 
@@ -47,7 +47,7 @@ func TestPeerMatcherInvalidAuthorization(t *testing.T) {
 }
 
 func TestPeerMatcherSelfInvalidTrustDomain(t *testing.T) {
-	source := fakeX509Source{svid: &x509svid.SVID{}}
+	source := fakeTLSSource{svid: &x509svid.SVID{}}
 	id := spiffeid.RequireFromString("spiffe://example.org/foo")
 	prefix := spiffeid.RequireFromString("spiffe://example.org/ns")
 

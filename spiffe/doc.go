@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package spiffe provides helpers for securing communication with SPIFFE
-// X.509-SVIDs acquired from the SPIFFE Workload API.
+// Package spiffe provides helpers for using the SPIFFE Workload
+// and Broker APIs.
 package spiffe

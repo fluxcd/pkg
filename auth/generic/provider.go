@@ -42,7 +42,7 @@ func (Provider) GetName() string {
 }
 
 // NewControllerToken implements auth.RESTConfigProvider.
-func (Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -67,7 +67,8 @@ func (Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (au
 		return nil, err
 	}
 
-	return &Token{
+	return &auth.JWTCredential{
+		Provider:  cryptov1.CredentialProviderKubernetes,
 		Token:     token,
 		ExpiresAt: *exp,
 	}, nil
@@ -88,24 +89,31 @@ func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
 	return fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name), nil
 }
 
-// NewTokenForServiceAccount implements auth.RESTConfigProvider.
-func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	opts ...auth.Option) (auth.Token, error) {
+// NewAccessCredentialForIdentity implements auth.RESTConfigProvider.
+func (Provider) NewAccessCredentialForIdentity(_ context.Context, identity auth.Credential,
+	_ ...auth.Option) (auth.Credential, error) {
 
-	exp, err := getExpirationFromToken(oidcToken)
-	if err != nil {
-		return nil, err
+	credential, ok := identity.(*auth.JWTCredential)
+	if !ok {
+		return nil, fmt.Errorf("expected *auth.JWTCredential, got %T", identity)
 	}
 
-	return &Token{
-		Token:     oidcToken,
-		ExpiresAt: *exp,
-	}, nil
+	// SPIFFE signing keys rotate frequently, and a JWT-SVID can stop being
+	// cryptographically verifiable before its expiration. Disable caching by
+	// zeroing the expiration time. SPIFFE runtimes normally cache credentials
+	// themselves.
+	if credential.Provider == cryptov1.CredentialProviderSPIFFE {
+		clone := *credential
+		clone.ExpiresAt = time.Time{}
+		return &clone, nil
+	}
+
+	return credential, nil
 }
 
-// GetAccessTokenOptionsForArtifactRepository implements
+// GetAccessCredentialOptionsForArtifactRepository implements
 // auth.ArtifactRegistryCredentialsProvider.
-func (Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository string,
+func (Provider) GetAccessCredentialOptionsForArtifactRepository(artifactRepository string,
 	opts ...auth.Option) ([]auth.Option, error) {
 
 	var o auth.Options
@@ -134,12 +142,12 @@ func (Provider) ParseArtifactRepository(string) (string, error) {
 // NewArtifactRegistryCredentials implements
 // auth.ArtifactRegistryCredentialsProvider.
 func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
-	accessToken auth.Token, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessCredential auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	token := accessToken.(*Token)
+	credential := accessCredential.(*auth.JWTCredential)
 
 	// Authenticate with the token as the password and the configured username
 	// when one is provided, otherwise use the token as a bearer token.
@@ -147,20 +155,20 @@ func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
 	if o.CredentialUsername != "" {
 		authenticator = authn.FromConfig(authn.AuthConfig{
 			Username: o.CredentialUsername,
-			Password: token.Token,
+			Password: credential.Token,
 		})
 	} else {
-		authenticator = &authn.Bearer{Token: token.Token}
+		authenticator = &authn.Bearer{Token: credential.Token}
 	}
 
 	return &auth.ArtifactRegistryCredentials{
 		Authenticator: authenticator,
-		ExpiresAt:     token.ExpiresAt,
+		ExpiresAt:     credential.ExpiresAt,
 	}, nil
 }
 
-// GetAccessTokenOptionsForCluster implements auth.RESTConfigProvider.
-func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
+// GetAccessCredentialOptionsForCluster implements auth.RESTConfigProvider.
+func (Provider) GetAccessCredentialOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -175,10 +183,10 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 }
 
 // NewRESTConfig implements auth.RESTConfigProvider.
-func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (Provider) NewRESTConfig(ctx context.Context, accessCredentials []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
-	token := accessTokens[0].(*Token)
+	credential := accessCredentials[0].(*auth.JWTCredential)
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -203,8 +211,8 @@ func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	return &auth.RESTConfig{
 		Host:        host,
 		CAData:      caData,
-		BearerToken: token.Token,
-		ExpiresAt:   token.ExpiresAt,
+		BearerToken: credential.Token,
+		ExpiresAt:   credential.ExpiresAt,
 	}, nil
 }
 

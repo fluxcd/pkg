@@ -20,10 +20,10 @@ import (
 	"time"
 )
 
-type mockToken struct {
+type mockCredential struct {
 	token string
 }
 
-func (m *mockToken) GetDuration() time.Duration {
+func (m *mockCredential) GetDuration() time.Duration {
 	return time.Hour
 }

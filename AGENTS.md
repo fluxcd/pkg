@@ -51,7 +51,7 @@ There is **no top-level `go.mod`**. Each directory is its own module:
 - `runtime/` — largest module. Sub-packages: `conditions`, `patch`, `reconcile`, `events`, `metrics`, `features`, `cel`, `acl`, `controller`, `dependency`, `errors`, `jitter`, `leaderelection`, `logger`, `object`, `predicates`, `probes`, `pprof`, `secrets`, `statusreaders`, `testenv`, `transform`, `client`.
 - `ssa/` — server-side apply engine (`ResourceManager`): apply, diff, wait, delete, change sets. Sub-packages: `jsondiff`, `normalize`, `errors`, `utils`.
 - `git/` — git operations. `gogit/` sub-package is the concrete go-git implementation. `repository/` defines `Reader`/`Writer` interfaces.
-- `auth/` — cloud workload identity: `aws/`, `azure/`, `gcp/`, `generic/`, `githubapp/`, `utils/`. Central `GetAccessToken()` with caching.
+- `auth/` — cloud workload identity: `aws/`, `azure/`, `gcp/`, `generic/`, `githubapp/`, `utils/`. Central `NewAccessCredential()` with caching.
 - `artifact/` — artifact storage: `config/`, `digest/`, `server/`, `storage/`.
 - `oci/` — OCI registry client (push, pull, tag, list, build, diff, delete).
 - `kustomize/` — kustomize generator and variable substitution. `filesys/` provides secure filesystem implementations.

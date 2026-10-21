@@ -63,15 +63,15 @@ func TestGetGitCredentials(t *testing.T) {
 		expectedErr   string
 	}{
 		{
-			name: "git credentials from controller access token",
+			name: "git credentials from controller access credential",
 			provider: &mockProvider{
-				returnGitInput:        "git-cache-key",
-				returnControllerToken: &mockToken{token: "mock-default-token"},
+				returnGitInput:             "git-cache-key",
+				returnControllerCredential: &mockCredential{token: "mock-default-token"},
 				returnGitCredentials: &auth.GitCredentials{
 					BearerToken: "mock-bearer-token",
 				},
-				paramGitURL:      gitURL,
-				paramAccessToken: &mockToken{token: "mock-default-token"},
+				paramGitURL:           gitURL,
+				paramAccessCredential: &mockCredential{token: "mock-default-token"},
 			},
 			gitURL: gitURL,
 			opts: []auth.Option{
@@ -87,20 +87,20 @@ func TestGetGitCredentials(t *testing.T) {
 			},
 		},
 		{
-			name: "git credentials from access token from service account",
+			name: "git credentials from access credential from service account",
 			provider: &mockProvider{
-				returnName:        "mock-provider",
-				returnGitInput:    "git-cache-key",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnName:             "mock-provider",
+				returnGitInput:         "git-cache-key",
+				returnAccessCredential: &mockCredential{token: "mock-access-token"},
 				returnGitCredentials: &auth.GitCredentials{
 					Username: "user",
 					Password: "pass",
 				},
-				paramAudiences:       []string{"audience1", "audience2"},
-				paramServiceAccount:  &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
-				paramOIDCTokenClient: oidcClient,
-				paramGitURL:          gitURL,
-				paramAccessToken:     &mockToken{token: "mock-access-token"},
+				paramAudiences:        []string{"audience1", "audience2"},
+				paramServiceAccount:   &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
+				paramOIDCTokenClient:  oidcClient,
+				paramGitURL:           gitURL,
+				paramAccessCredential: &mockCredential{token: "mock-access-token"},
 			},
 			gitURL: gitURL,
 			opts: []auth.Option{
@@ -120,20 +120,20 @@ func TestGetGitCredentials(t *testing.T) {
 			},
 		},
 		{
-			name: "git credentials from access token from explicit service account",
+			name: "git credentials from access credential from explicit service account",
 			provider: &mockProvider{
-				returnName:        "mock-provider",
-				returnGitInput:    "git-cache-key",
-				returnAccessToken: &mockToken{token: "mock-access-token"},
+				returnName:             "mock-provider",
+				returnGitInput:         "git-cache-key",
+				returnAccessCredential: &mockCredential{token: "mock-access-token"},
 				returnGitCredentials: &auth.GitCredentials{
 					Username: "user",
 					Password: "pass",
 				},
-				paramAudiences:       []string{"audience1", "audience2"},
-				paramServiceAccount:  &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
-				paramOIDCTokenClient: oidcClient,
-				paramGitURL:          gitURL,
-				paramAccessToken:     &mockToken{token: "mock-access-token"},
+				paramAudiences:        []string{"audience1", "audience2"},
+				paramServiceAccount:   &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
+				paramOIDCTokenClient:  oidcClient,
+				paramGitURL:           gitURL,
+				paramAccessCredential: &mockCredential{token: "mock-access-token"},
 			},
 			gitURL: gitURL,
 			opts: []auth.Option{
@@ -176,27 +176,27 @@ func TestGetGitCredentials(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(2)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const accessTokenKey = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
-					var token auth.Token = &mockToken{token: "cached-token"}
-					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
-						return token, nil
+					const accessCredentialKey = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
+					var credential auth.Credential = &mockCredential{token: "cached-token"}
+					cachedCredential, ok, err := tokenCache.GetOrSet(ctx, accessCredentialKey, func(ctx context.Context) (cache.Token, error) {
+						return credential, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(ok).To(BeFalse())
-					g.Expect(cachedToken).To(Equal(token))
+					g.Expect(cachedCredential).To(Equal(credential))
 
-					const gitCredentialsKey = "f78ca5404e02a7b139ceb6b925ac52344cb77f33e92197b153b9d87615e6b91b"
-					token = &auth.GitCredentials{
+					const gitCredentialsKey = "cfd18224b55020209fdff7f11efcdc2e73a57f791ea4bc33189c3ddb91182181"
+					credential = &auth.GitCredentials{
 						Username:  "cached-user",
 						Password:  "cached-pass",
 						ExpiresAt: now.Add(time.Hour),
 					}
-					cachedToken, ok, err = tokenCache.GetOrSet(ctx, gitCredentialsKey, func(ctx context.Context) (cache.Token, error) {
-						return token, nil
+					cachedCredential, ok, err = tokenCache.GetOrSet(ctx, gitCredentialsKey, func(ctx context.Context) (cache.Token, error) {
+						return credential, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(ok).To(BeFalse())
-					g.Expect(cachedToken).To(Equal(token))
+					g.Expect(cachedCredential).To(Equal(credential))
 
 					o.Cache = tokenCache
 				},

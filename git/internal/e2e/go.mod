@@ -7,6 +7,7 @@ replace (
 	github.com/fluxcd/pkg/cache => ../../../cache
 	github.com/fluxcd/pkg/git => ../../../git
 	github.com/fluxcd/pkg/gittestserver => ../../../gittestserver
+	github.com/fluxcd/pkg/spiffe => ../../../spiffe
 	github.com/fluxcd/pkg/ssh => ../../../ssh
 	github.com/fluxcd/pkg/version => ../../../version
 )
