@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"testing"
@@ -66,6 +67,10 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 				auth.WithScopes("scope1", "scope2"),
+				auth.WithArtifactRegistryHTTPClient(&http.Client{Transport: registryRoundTripper(func(*http.Request) (*http.Response, error) {
+					t.Fatal("registry client used for identity acquisition")
+					return nil, nil
+				})}),
 			}
 
 			if tt.shellOut {
@@ -133,6 +138,10 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 				auth.WithScopes("scope1", "scope2"),
+				auth.WithArtifactRegistryHTTPClient(&http.Client{Transport: registryRoundTripper(func(*http.Request) (*http.Response, error) {
+					t.Fatal("registry client used for identity acquisition")
+					return nil, nil
+				})}),
 			}
 
 			provider := azure.Provider{Implementation: impl}
@@ -220,6 +229,7 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 			artifactRepository := fmt.Sprintf("%s/repo", tt.registry)
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
+				auth.WithArtifactRegistryHTTPClient(nil),
 			}
 
 			creds, err := auth.GetArtifactRegistryCredentials(context.Background(), provider, artifactRepository, opts...)
