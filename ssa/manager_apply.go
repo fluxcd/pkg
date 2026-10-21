@@ -662,6 +662,11 @@ func applyDriftResult(target *unstructured.Unstructured, dr driftResult) error {
 		case driftStrip:
 			stripPaths = append(stripPaths, e.path)
 		case driftAdopt:
+			// A dry-run may default a field omitted from the payload. Skip
+			// adoption because JSON-patch replace requires the path to exist.
+			if _, ok, _ := lookupJSONPointer(target, e.path); !ok {
+				continue
+			}
 			adoptOps = append(adoptOps, jsondiff.ReplaceOp{
 				Path:  e.path,
 				Value: e.value,
