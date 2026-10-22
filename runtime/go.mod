@@ -15,7 +15,7 @@ require (
 	github.com/fluxcd/pkg/apis/acl v0.12.0
 	github.com/fluxcd/pkg/apis/event v0.32.0
 	github.com/fluxcd/pkg/apis/kustomize v1.23.0
-	github.com/fluxcd/pkg/apis/meta v1.36.0
+	github.com/fluxcd/pkg/apis/meta v1.37.0
 	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zapr v1.3.0
 	github.com/google/cel-go v0.29.2

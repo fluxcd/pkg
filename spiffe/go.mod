@@ -3,7 +3,7 @@ module github.com/fluxcd/pkg/spiffe
 go 1.27.0
 
 require (
-	github.com/fluxcd/pkg/apis/crypto v0.4.0
+	github.com/fluxcd/pkg/apis/crypto v0.5.0
 	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/gobuffalo/flect v1.0.3
 	github.com/onsi/gomega v1.43.0
