@@ -25,12 +25,12 @@ require (
 	github.com/aws/smithy-go v1.28.1
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fluxcd/cli-utils v1.4.0
-	github.com/fluxcd/pkg/apis/crypto v0.4.0
-	github.com/fluxcd/pkg/apis/meta v1.36.0
-	github.com/fluxcd/pkg/auth v0.63.0
-	github.com/fluxcd/pkg/cache v0.17.0
+	github.com/fluxcd/pkg/apis/crypto v0.5.0
+	github.com/fluxcd/pkg/apis/meta v1.37.0
+	github.com/fluxcd/pkg/auth v0.64.0
+	github.com/fluxcd/pkg/cache v0.18.0
 	github.com/fluxcd/pkg/git v0.55.0
-	github.com/fluxcd/pkg/runtime v0.120.0
+	github.com/fluxcd/pkg/runtime v0.121.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/google/go-containerregistry v0.22.1
@@ -90,7 +90,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fluxcd/pkg/spiffe v0.0.0 // indirect
+	github.com/fluxcd/pkg/spiffe v0.1.0 // indirect
 	github.com/fluxcd/pkg/ssh v0.28.0 // indirect
 	github.com/fluxcd/pkg/version v0.19.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
