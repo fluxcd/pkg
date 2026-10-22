@@ -23,5 +23,7 @@ const FeatureGateObjectLevelWorkloadIdentity = "ObjectLevelWorkloadIdentity"
 
 // FeatureGateObjectLevelWorkloadIdentityRetirementReason provides the reason why the
 // ObjectLevelWorkloadIdentity feature gate is retired.
-const FeatureGateObjectLevelWorkloadIdentityRetirementReason = "the feature is now always enabled. " +
-	"make sure to grant RBAC for the controller to create ServiceAccount tokens if using the feature."
+const FeatureGateObjectLevelWorkloadIdentityRetirementReason = "starting with Flux 2.10, the feature is now always enabled. " +
+	"make sure to grant the 'create' RBAC verb for the 'serviceaccounts/token' " +
+	"resource in a ClusterRoleBinding for the controller ServiceAccount to use " +
+	"the feature."
