@@ -3,12 +3,14 @@ module github.com/fluxcd/pkg/tests/integration
 go 1.27.0
 
 replace (
+	github.com/fluxcd/pkg/apis/crypto => ../../apis/crypto
 	github.com/fluxcd/pkg/apis/meta => ../../apis/meta
 	github.com/fluxcd/pkg/auth => ../../auth
 	github.com/fluxcd/pkg/cache => ../../cache
 	github.com/fluxcd/pkg/git => ../../git
 	github.com/fluxcd/pkg/gittestserver => ../../gittestserver
 	github.com/fluxcd/pkg/runtime => ../../runtime
+	github.com/fluxcd/pkg/spiffe => ../../spiffe
 	github.com/fluxcd/pkg/ssh => ../../ssh
 	github.com/fluxcd/pkg/version => ../../version
 )
@@ -23,6 +25,7 @@ require (
 	github.com/aws/smithy-go v1.28.1
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fluxcd/cli-utils v1.4.0
+	github.com/fluxcd/pkg/apis/crypto v0.4.0
 	github.com/fluxcd/pkg/apis/meta v1.36.0
 	github.com/fluxcd/pkg/auth v0.63.0
 	github.com/fluxcd/pkg/cache v0.17.0
@@ -87,6 +90,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fluxcd/pkg/spiffe v0.0.0 // indirect
 	github.com/fluxcd/pkg/ssh v0.28.0 // indirect
 	github.com/fluxcd/pkg/version v0.19.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
@@ -94,6 +98,7 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.2 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.5 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
@@ -111,6 +116,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.29.1 // indirect
 	github.com/go-openapi/swag/typeutils v0.29.1 // indirect
 	github.com/go-openapi/swag/yamlutils v0.29.1 // indirect
+	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/btree v1.1.3 // indirect
@@ -155,6 +161,7 @@ require (
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.9.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect

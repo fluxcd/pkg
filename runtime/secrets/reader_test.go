@@ -181,20 +181,18 @@ func TestProxyURLFromSecretRef(t *testing.T) {
 	}
 }
 
-func TestPullSecretsFromServiceAccountRef(t *testing.T) {
+func TestPullSecretsFromServiceAccount(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name           string
-		saRef          types.NamespacedName
 		serviceAccount *corev1.ServiceAccount
 		secrets        []*corev1.Secret
 		wantSecrets    []string
 		errMsg         string
 	}{
 		{
-			name:  "service account with multiple pull secrets",
-			saRef: types.NamespacedName{Name: "test-sa", Namespace: testNS},
+			name: "service account with multiple pull secrets",
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sa",
@@ -230,8 +228,7 @@ func TestPullSecretsFromServiceAccountRef(t *testing.T) {
 			wantSecrets: []string{"registry-secret-1", "registry-secret-2"},
 		},
 		{
-			name:  "service account with single pull secret",
-			saRef: types.NamespacedName{Name: "test-sa", Namespace: testNS},
+			name: "service account with single pull secret",
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sa",
@@ -253,8 +250,7 @@ func TestPullSecretsFromServiceAccountRef(t *testing.T) {
 			wantSecrets: []string{"registry-secret"},
 		},
 		{
-			name:  "service account with no pull secrets",
-			saRef: types.NamespacedName{Name: "test-sa", Namespace: testNS},
+			name: "service account with no pull secrets",
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sa",
@@ -266,14 +262,11 @@ func TestPullSecretsFromServiceAccountRef(t *testing.T) {
 			wantSecrets: []string{},
 		},
 		{
-			name:    "service account not found",
-			saRef:   types.NamespacedName{Name: "missing-sa", Namespace: testNS},
-			secrets: []*corev1.Secret{},
-			errMsg:  "serviceaccount 'default/missing-sa' not found",
+			name:   "nil service account",
+			errMsg: "serviceaccount is nil",
 		},
 		{
-			name:  "referenced secret not found",
-			saRef: types.NamespacedName{Name: "test-sa", Namespace: testNS},
+			name: "referenced secret not found",
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sa",
@@ -295,17 +288,14 @@ func TestPullSecretsFromServiceAccountRef(t *testing.T) {
 
 			ctx := context.Background()
 
-			objects := make([]client.Object, 0, 1+len(tt.secrets))
-			if tt.serviceAccount != nil {
-				objects = append(objects, tt.serviceAccount)
-			}
+			objects := make([]client.Object, 0, len(tt.secrets))
 			for _, secret := range tt.secrets {
 				objects = append(objects, secret)
 			}
 
 			c := fakeClient(objects...)
 
-			secretList, err := secrets.PullSecretsFromServiceAccountRef(ctx, c, tt.saRef)
+			secretList, err := secrets.PullSecretsFromServiceAccount(ctx, c, tt.serviceAccount)
 
 			if tt.errMsg != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.errMsg)))

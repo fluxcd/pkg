@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
+	"github.com/fluxcd/pkg/auth"
 	authutils "github.com/fluxcd/pkg/auth/utils"
 )
 
@@ -41,5 +42,18 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err).To(MatchError(ContainSubstring("context canceled")))
 		g.Expect(authConfig).To(BeNil())
+	})
+
+	t.Run("does not resolve the ServiceAccount", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// The caller resolves and validates the ServiceAccount before calling
+		// this function. Configuring only a name without a client must not fail
+		// during construction, as no resolution is attempted here.
+		artifactRepository := "012345678901.dkr.ecr.us-east-1.amazonaws.com/repo"
+		authenticator, err := authutils.GetArtifactRegistryCredentials(context.Background(),
+			"aws", artifactRepository, auth.WithServiceAccountName("sa"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(authenticator).NotTo(BeNil())
 	})
 }

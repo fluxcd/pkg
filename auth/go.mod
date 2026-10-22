@@ -3,8 +3,10 @@ module github.com/fluxcd/pkg/auth
 go 1.27.0
 
 replace (
+	github.com/fluxcd/pkg/apis/crypto => ../apis/crypto
 	github.com/fluxcd/pkg/apis/meta => ../apis/meta
 	github.com/fluxcd/pkg/cache => ../cache
+	github.com/fluxcd/pkg/spiffe => ../spiffe
 	github.com/fluxcd/pkg/ssh => ../ssh
 )
 
@@ -23,15 +25,19 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.49.0
 	github.com/aws/smithy-go/aws-http-auth v1.2.1
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/fluxcd/pkg/apis/crypto v0.4.0
 	github.com/fluxcd/pkg/apis/meta v1.36.0
 	github.com/fluxcd/pkg/cache v0.17.0
+	github.com/fluxcd/pkg/spiffe v0.0.0
 	github.com/fluxcd/pkg/ssh v0.28.0
 	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/go-github/v87 v87.0.0
 	github.com/onsi/gomega v1.43.0
+	github.com/spiffe/go-spiffe/v2 v2.9.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
 	golang.org/x/net v0.61.0
 	golang.org/x/oauth2 v0.37.0
@@ -82,8 +88,8 @@ require (
 	github.com/go-openapi/swag/stringutils v0.27.1 // indirect
 	github.com/go-openapi/swag/typeutils v0.27.1 // indirect
 	github.com/go-openapi/swag/yamlutils v0.27.1 // indirect
+	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect

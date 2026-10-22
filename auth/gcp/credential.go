@@ -1,0 +1,35 @@
+/*
+Copyright 2025 The Flux authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package gcp
+
+import (
+	"time"
+
+	"golang.org/x/oauth2"
+)
+
+// AccessToken is the GCP access token.
+type AccessToken struct{ oauth2.Token }
+
+// GetDuration implements auth.Credential.
+func (t *AccessToken) GetDuration() time.Duration {
+	return time.Until(t.Expiry)
+}
+
+func (t *AccessToken) source() oauth2.TokenSource {
+	return oauth2.StaticTokenSource(&t.Token)
+}

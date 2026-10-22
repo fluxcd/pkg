@@ -18,6 +18,7 @@ package events
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,6 +79,9 @@ type recorder struct {
 	// Retryable HTTP client.
 	client *retryablehttp.Client
 
+	// overrideSchemeToHTTPS forces the recorder to use HTTPS for the external event recorder.
+	overrideSchemeToHTTPS bool
+
 	// kube is the Kubernetes Event backend, resolved by NewRecorder after the
 	// options have been applied.
 	//
@@ -124,8 +128,11 @@ type RecorderOption func(*recorder)
 // instead, pass WithEventsAPI(EventsAPIEventsV1), noting the 1024-byte note
 // limit documented on kubeSink.
 func NewRecorder(log logr.Logger, webhook, reportingController string, opts ...RecorderOption) (Recorder, error) {
+	var webhookURL *url.URL
 	if webhook != "" {
-		if _, err := url.Parse(webhook); err != nil {
+		var err error
+		webhookURL, err = url.Parse(webhook)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -147,6 +154,12 @@ func NewRecorder(log logr.Logger, webhook, reportingController string, opts ...R
 	if err := r.resolveKubeSink(); err != nil {
 		return nil, err
 	}
+
+	if webhookURL != nil && r.overrideSchemeToHTTPS {
+		webhookURL.Scheme = "https"
+		r.webhook = webhookURL.String()
+	}
+
 	return r, nil
 }
 
@@ -256,6 +269,20 @@ func WithLegacyEventRecorder(er kuberecorder.EventRecorder) RecorderOption {
 func WithRetryMax(n int) RecorderOption {
 	return func(r *recorder) {
 		r.client.RetryMax = n
+	}
+}
+
+// WithTLSConfig configures the recorder with the given TLS configuration for the external event recorder.
+// When nil, the recorder uses plain HTTP.
+func WithTLSConfig(tlsConfig *tls.Config) RecorderOption {
+	return func(r *recorder) {
+		if tlsConfig == nil {
+			return
+		}
+		tr := r.client.HTTPClient.Transport.(*http.Transport).Clone()
+		tr.TLSClientConfig = tlsConfig
+		r.client.HTTPClient.Transport = tr
+		r.overrideSchemeToHTTPS = true
 	}
 }
 

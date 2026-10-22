@@ -17,6 +17,8 @@ limitations under the License.
 package probes
 
 import (
+	"errors"
+	"net/http"
 	"os"
 
 	"github.com/go-logr/logr"
@@ -45,5 +47,19 @@ func SetupChecks(mgr ctrl.Manager, log logr.Logger) {
 	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
 		log.Error(err, "unable to create health check")
 		os.Exit(1)
+	}
+}
+
+// LeaderElectedReadyz returns a readiness check that passes when the manager
+// has been elected leader. It is intended for readiness checks of servers that
+// are only started by the leader.
+func LeaderElectedReadyz(elected <-chan struct{}) healthz.Checker {
+	return func(*http.Request) error {
+		select {
+		case <-elected:
+			return nil
+		default:
+			return errors.New("manager is not the leader")
+		}
 	}
 }

@@ -24,9 +24,7 @@ import (
 	"slices"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 )
 
@@ -35,10 +33,10 @@ import (
 type GitCredentialsProvider interface {
 	Provider
 
-	// GetAccessTokenOptionsForGitRepository returns the options that must be
-	// passed to the provider to retrieve access tokens for the given Git
+	// GetAccessCredentialOptionsForGitRepository returns the options that must be
+	// passed to the provider to retrieve access credentials for the given Git
 	// repository URL.
-	GetAccessTokenOptionsForGitRepository(gitURL *url.URL) ([]Option, error)
+	GetAccessCredentialOptionsForGitRepository(gitURL *url.URL) ([]Option, error)
 
 	// ParseGitRepository parses the given Git repository URL to verify
 	// it's a valid repository URL for the provider. As a result it returns
@@ -50,10 +48,10 @@ type GitCredentialsProvider interface {
 	ParseGitRepository(gitURL *url.URL) (string, error)
 
 	// NewGitCredentials takes the input extracted by ParseGitRepository()
-	// and an access token and returns credentials that can be used to
+	// and an access credential and returns credentials that can be used to
 	// authenticate against the Git repository.
 	NewGitCredentials(ctx context.Context, gitInput string,
-		accessToken Token, opts ...Option) (*GitCredentials, error)
+		accessCredential Credential, opts ...Option) (*GitCredentials, error)
 }
 
 // GitCredentials contains authentication data needed in order to access a Git
@@ -65,7 +63,7 @@ type GitCredentials struct {
 	ExpiresAt   time.Time
 }
 
-// GetDuration implements Token.
+// GetDuration implements Credential.
 func (g *GitCredentials) GetDuration() time.Duration {
 	return time.Until(g.ExpiresAt)
 }
@@ -88,21 +86,21 @@ func GetGitCredentials(ctx context.Context, provider GitCredentialsProvider,
 		return nil, err
 	}
 
-	// First, we need an access token. This cannot be retrieved inside the
-	// cache lock, otherwise we reach a deadlock.
-	accessTokenOpts, err := provider.GetAccessTokenOptionsForGitRepository(gitURL)
+	// First, we need an access credential. This cannot be retrieved inside
+	// the cache lock, otherwise we reach a deadlock.
+	accessCredentialOpts, err := provider.GetAccessCredentialOptionsForGitRepository(gitURL)
 	if err != nil {
 		return nil, err
 	}
-	accessTokenOpts = append(slices.Clone(opts), accessTokenOpts...)
-	accessToken, err := GetAccessToken(ctx, provider, accessTokenOpts...)
+	accessCredentialOpts = append(slices.Clone(opts), accessCredentialOpts...)
+	accessCredential, err := NewAccessCredential(ctx, provider, accessCredentialOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get access token for Git repository: %w", err)
+		return nil, fmt.Errorf("failed to get access credential for Git repository: %w", err)
 	}
 
 	// Prepare a function to create new credentials.
 	newGitCredentials := func() (*GitCredentials, error) {
-		creds, err := provider.NewGitCredentials(ctx, gitInput, accessToken, opts...)
+		creds, err := provider.NewGitCredentials(ctx, gitInput, accessCredential, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Git credentials: %w", err)
 		}
@@ -115,37 +113,27 @@ func GetGitCredentials(ctx context.Context, provider GitCredentialsProvider,
 	}
 
 	// Build cache key.
-	var serviceAccount *corev1.ServiceAccount
+	var serviceAccount *kubernetes.ServiceAccountReference
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	if o.objectLevelWorkloadIdentity() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, opts...)
 		if err != nil {
 			return nil, err
 		}
 	}
-	accessTokenCacheKey := buildAccessTokenCacheKey(provider, audiences,
-		providerIdentity, serviceAccount, accessTokenOpts...)
+	accessCredentialCacheKey := buildAccessCredentialCacheKey(provider, audiences,
+		providerIdentity, serviceAccount, accessCredentialOpts...)
 	cacheKey := buildCacheKey(
-		fmt.Sprintf("accessTokenCacheKey=%s", accessTokenCacheKey),
+		fmt.Sprintf("accessCredentialCacheKey=%s", accessCredentialCacheKey),
 		fmt.Sprintf("gitRepositoryCacheKey=%s", gitInput))
-
-	// Build involved object details.
-	kind := o.InvolvedObject.Kind
-	name := o.InvolvedObject.Name
-	namespace := o.InvolvedObject.Namespace
-	operation := o.InvolvedObject.Operation
 
 	// Get credentials from cache.
 	creds, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
 		return newGitCredentials()
-	}, cache.WithInvolvedObject(kind, name, namespace, operation))
+	}, cache.WithInvolvedObject(o.involvedObject()))
 	if err != nil {
 		return nil, err
 	}

@@ -18,8 +18,6 @@ package auth
 
 import (
 	"context"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 // Provider contains the logic to retrieve security credentials
@@ -28,27 +26,26 @@ type Provider interface {
 	// GetName returns the name of the cloud provider.
 	GetName() string
 
-	// NewControllerToken returns a token that can be used to authenticate
+	// NewControllerToken returns a credential that can be used to authenticate
 	// with the cloud provider retrieved from the default source, i.e. from
 	// the environment of the controller pod, e.g. files mounted in the pod,
 	// environment variables, local metadata services, etc.
-	NewControllerToken(ctx context.Context, opts ...Option) (Token, error)
+	NewControllerToken(ctx context.Context, opts ...Option) (Credential, error)
 
-	// GetAudiences returns the audiences the OIDC tokens issued representing
-	// ServiceAccounts should have. These are usually strings that represent
+	// GetAudiences returns the audiences the OIDC tokens issued by the
+	// credential provider should have. These are usually strings that represent
 	// the cloud provider's STS service, or some entity in the provider for
-	// which the OIDC tokens are targeted to.
-	GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error)
+	// which the OIDC tokens are targeted to. The provider decides whether any
+	// caller-provided credential audiences are used.
+	GetAudiences(ctx context.Context, opts ...Option) ([]string, error)
 
-	// GetIdentity takes a ServiceAccount and returns the identity which the
-	// ServiceAccount wants to impersonate, by looking at annotations.
-	GetIdentity(serviceAccount corev1.ServiceAccount) (string, error)
+	// GetIdentity returns the identity which the ServiceAccount wants to
+	// impersonate, as configured in the options.
+	GetIdentity(opts ...Option) (string, error)
 
-	// NewToken takes a ServiceAccount and its OIDC token and returns a token
-	// that can be used to authenticate with the cloud provider. The OIDC token is
-	// the JWT token that was issued for the ServiceAccount by the Kubernetes API.
-	// The implementation should exchange this token for a cloud provider access
-	// token through the provider's STS service.
-	NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-		serviceAccount corev1.ServiceAccount, opts ...Option) (Token, error)
+	// NewAccessCredentialForIdentity takes the identity credential and
+	// returns a credential that can be used to authenticate with the cloud
+	// provider. The implementation should exchange this credential for a
+	// cloud provider access credential through the provider's STS service.
+	NewAccessCredentialForIdentity(ctx context.Context, identity Credential, opts ...Option) (Credential, error)
 }

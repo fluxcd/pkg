@@ -59,10 +59,7 @@ type Client struct {
 	proxyURL          *url.URL
 	httpClient        *http.Client
 	cache             *cache.TokenCache
-	kind              string
-	name              string
-	namespace         string
-	operation         string
+	involvedObject    cache.InvolvedObject
 	tlsConfig         *tls.Config
 	reflectSlug       bool
 }
@@ -165,13 +162,10 @@ func WithProxyURL(proxyURL *url.URL) OptFunc {
 
 // WithCache sets the token cache and the object involved in the operation for
 // recording cache events.
-func WithCache(cache *cache.TokenCache, kind, name, namespace, operation string) OptFunc {
+func WithCache(cache *cache.TokenCache, obj cache.InvolvedObject) OptFunc {
 	return func(p *Client) {
 		p.cache = cache
-		p.kind = kind
-		p.name = name
-		p.namespace = namespace
-		p.operation = operation
+		p.involvedObject = obj
 	}
 }
 
@@ -210,12 +204,8 @@ func (p *Client) GetToken(ctx context.Context) (*AppToken, error) {
 		return token.(*AppToken), nil
 	}
 
-	var opts []cache.Options
-	if p.kind != "" && p.name != "" && p.namespace != "" && p.operation != "" {
-		opts = append(opts, cache.WithInvolvedObject(p.kind, p.name, p.namespace, p.operation))
-	}
-
-	token, _, err := p.cache.GetOrSet(ctx, p.buildCacheKey(), newToken, opts...)
+	token, _, err := p.cache.GetOrSet(ctx, p.buildCacheKey(), newToken,
+		cache.WithInvolvedObject(p.involvedObject))
 	if err != nil {
 		return nil, err
 	}

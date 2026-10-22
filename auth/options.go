@@ -23,7 +23,10 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
+	"github.com/fluxcd/pkg/spiffe/broker"
 )
 
 // Option is a functional option for the auth package.
@@ -32,36 +35,203 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client                  client.Client
-	Cache                   *cache.TokenCache
-	ServiceAccountName      string
-	ServiceAccountNamespace string
-	InvolvedObject          cache.InvolvedObject
-	Audiences               []string
-	Scopes                  []string
-	STSRegion               string
-	STSEndpoint             string
-	ProxyURL                *url.URL
-	GitURL                  *url.URL
-	CAData                  string
-	ClusterResource         string
-	ClusterAddress          string
-	AllowShellOut           bool
+	Client       client.Client
+	Cache        *cache.TokenCache
+	SPIFFEBroker broker.Interface
+
+	// Object entitled to the identity.
+	ObjectReference ObjectReference
+
+	// Object involved in the operation, i.e. the object using the identity.
+	// It is used for cache entries.
+	InvolvedObjectReference ObjectReference
+	CacheOperation          string
+
+	// ServiceAccount for object-level workload identity.
+	ServiceAccountName string
+
+	// Credential acquisition.
+	CredentialProvider   string
+	CredentialType       string
+	CredentialExpiration time.Duration
+	CredentialUsername   string
+	CredentialAudiences  []string
+
+	// Request configuration.
+	Scopes        []string
+	ProxyURL      *url.URL
+	GitURL        *url.URL
+	AllowShellOut bool
+
+	// Remote Kubernetes cluster connection.
+	ClusterResource string
+	ClusterAddress  string
+	CAData          string
+
+	// AWS.
+	AWSRoleARN     string
+	AWSRegion      string
+	AWSSTSEndpoint string
+	AWSClusterName string
+
+	// Azure.
+	AzureTenantID       string
+	AzureClientID       string
+	AzureSubscriptionID string
+	AzureResourceGroup  string
+	AzureClusterName    string
+
+	// GCP.
+	GCPWorkloadIdentityProvider string
+	GCPServiceAccount           string
+
+	// Docker Hub.
+	DockerHubOIDCConnectionID string
 }
 
-// ShouldGetServiceAccountToken returns true if ServiceAccount token should be retrieved.
-func (o *Options) ShouldGetServiceAccountToken() bool {
-	// ServiceAccount namespace is required because ServiceAccounts are namespace-scoped resources.
-	// ServiceAccountName can be empty as it may be provided by defaultServiceAccount or by
-	// defaultKubeConfigServiceAccount.
-	return o.ServiceAccountNamespace != "" &&
-		(o.ServiceAccountName != "" || getDefaultServiceAccount() != "")
+// ObjectReference identifies the Flux object entitled to the identity. It is
+// used for resolving the ServiceAccount namespace and, later, for SPIFFE.
+type ObjectReference struct {
+	APIGroup  string
+	Kind      string
+	Name      string
+	Namespace string
+	UID       string
+}
+
+// involvedObject returns the cache involved object for the options.
+func (o *Options) involvedObject() cache.InvolvedObject {
+	return cache.InvolvedObject{
+		Kind:      o.InvolvedObjectReference.Kind,
+		Name:      o.InvolvedObjectReference.Name,
+		Namespace: o.InvolvedObjectReference.Namespace,
+		Operation: o.CacheOperation,
+	}
+}
+
+// OptionsFromSpec returns the options derived from a validated
+// authentication configuration produced by
+// github.com/fluxcd/pkg/apis/crypto.
+func OptionsFromSpec(authSpec *cryptov1.AuthSpec) []Option {
+	if authSpec == nil {
+		return nil
+	}
+	var opts []Option
+	if c := authSpec.Credential; c != nil {
+		if authSpec.OptedIn() {
+			opts = append(opts, WithCredentialProvider(c.Provider))
+			opts = append(opts, WithCredentialType(c.Type))
+		}
+		if c.Expiration != 0 {
+			opts = append(opts, WithCredentialExpiration(c.Expiration))
+		}
+		if c.Username != "" {
+			opts = append(opts, WithCredentialUsername(c.Username))
+		}
+		if len(c.Audiences) > 0 {
+			opts = append(opts, WithCredentialAudiences(c.Audiences...))
+		}
+	}
+	if a := authSpec.AWS; a != nil {
+		if a.RoleARN != "" {
+			opts = append(opts, WithAWSRoleARN(a.RoleARN))
+		}
+		if a.STSEndpoint != "" {
+			opts = append(opts, WithAWSSTSEndpoint(a.STSEndpoint))
+		}
+		if a.Cluster != nil {
+			if a.Cluster.Region != "" {
+				opts = append(opts, WithAWSRegion(a.Cluster.Region))
+			}
+			if a.Cluster.Name != "" {
+				opts = append(opts, WithAWSClusterName(a.Cluster.Name))
+			}
+		}
+	}
+	if a := authSpec.Azure; a != nil {
+		if a.TenantID != "" {
+			opts = append(opts, WithAzureTenantID(a.TenantID))
+		}
+		if a.ClientID != "" {
+			opts = append(opts, WithAzureClientID(a.ClientID))
+		}
+		if a.Cluster != nil {
+			if a.Cluster.SubscriptionID != "" {
+				opts = append(opts, WithAzureSubscriptionID(a.Cluster.SubscriptionID))
+			}
+			if a.Cluster.ResourceGroup != "" {
+				opts = append(opts, WithAzureResourceGroup(a.Cluster.ResourceGroup))
+			}
+			if a.Cluster.Name != "" {
+				opts = append(opts, WithAzureClusterName(a.Cluster.Name))
+			}
+		}
+	}
+	if g := authSpec.GCP; g != nil {
+		if g.WorkloadIdentityProvider != "" {
+			opts = append(opts, WithGCPWorkloadIdentityProvider(g.WorkloadIdentityProvider))
+		}
+		if g.ServiceAccount != "" {
+			opts = append(opts, WithGCPServiceAccount(g.ServiceAccount))
+		}
+	}
+	if d := authSpec.DockerHub; d != nil && d.OIDCConnectionID != "" {
+		opts = append(opts, WithDockerHubOIDCConnectionID(d.OIDCConnectionID))
+	}
+	return opts
 }
 
 // WithClient sets the controller-runtime client for the provider.
 func WithClient(client client.Client) Option {
 	return func(o *Options) {
 		o.Client = client
+	}
+}
+
+// WithCache sets the token cache.
+func WithCache(cache cache.TokenCache) Option {
+	return func(o *Options) {
+		o.Cache = &cache
+	}
+}
+
+// WithSPIFFEBroker sets the client used to fetch JWT-SVIDs for the `spiffe`
+// credential provider.
+func WithSPIFFEBroker(client broker.Interface) Option {
+	return func(o *Options) {
+		o.SPIFFEBroker = client
+	}
+}
+
+// WithObject sets the reference to the Flux object entitled to the identity.
+// The group and kind are provided explicitly because the object may not carry
+// its TypeMeta, e.g. when it was retrieved from the API server with its
+// concrete type. It also sets the involved object reference, unless overridden
+// by a later call to WithInvolvedObject.
+func WithObject(group, kind string, obj client.Object) Option {
+	return func(o *Options) {
+		ref := newObjectReference(group, kind, obj)
+		o.ObjectReference = ref
+		o.InvolvedObjectReference = ref
+	}
+}
+
+// WithInvolvedObject sets the reference to the Flux object involved in the
+// operation for cache entry purposes. It is used when the object entitled to
+// the identity is not the one using it, e.g. an ImagePolicy using an
+// ImageRepository's identity. The group and kind are provided explicitly
+// because the object may not carry its TypeMeta.
+func WithInvolvedObject(group, kind string, obj client.Object) Option {
+	return func(o *Options) {
+		o.InvolvedObjectReference = newObjectReference(group, kind, obj)
+	}
+}
+
+// WithCacheOperation sets the operation performed on the Flux object, for cache
+// entry purposes.
+func WithCacheOperation(operation string) Option {
+	return func(o *Options) {
+		o.CacheOperation = operation
 	}
 }
 
@@ -72,25 +242,40 @@ func WithServiceAccountName(name string) Option {
 	}
 }
 
-// WithServiceAccountNamespace sets the ServiceAccount namespace for the token.
-func WithServiceAccountNamespace(namespace string) Option {
+// WithCredentialProvider sets the credential provider, one of `kubernetes` or
+// `spiffe`.
+func WithCredentialProvider(provider string) Option {
 	return func(o *Options) {
-		o.ServiceAccountNamespace = namespace
+		o.CredentialProvider = provider
 	}
 }
 
-// WithCache sets the token cache and the involved object for recording events.
-func WithCache(cache cache.TokenCache, involvedObject cache.InvolvedObject) Option {
+// WithCredentialType sets the credential type, one of `jwt` or `x509`.
+func WithCredentialType(credentialType string) Option {
 	return func(o *Options) {
-		o.Cache = &cache
-		o.InvolvedObject = involvedObject
+		o.CredentialType = credentialType
 	}
 }
 
-// WithAudiences sets the audiences for the Kubernetes ServiceAccount token.
-func WithAudiences(audiences ...string) Option {
+// WithCredentialExpiration sets the requested credential expiration.
+func WithCredentialExpiration(expiration time.Duration) Option {
 	return func(o *Options) {
-		o.Audiences = audiences
+		o.CredentialExpiration = expiration
+	}
+}
+
+// WithCredentialUsername sets the optional username to authenticate with the
+// service.
+func WithCredentialUsername(username string) Option {
+	return func(o *Options) {
+		o.CredentialUsername = username
+	}
+}
+
+// WithCredentialAudiences sets the audiences for the Kubernetes ServiceAccount token.
+func WithCredentialAudiences(audiences ...string) Option {
+	return func(o *Options) {
+		o.CredentialAudiences = audiences
 	}
 }
 
@@ -98,21 +283,6 @@ func WithAudiences(audiences ...string) Option {
 func WithScopes(scopes ...string) Option {
 	return func(o *Options) {
 		o.Scopes = scopes
-	}
-}
-
-// WithSTSRegion sets the region for the STS service (some cloud providers
-// require a region, e.g. AWS).
-func WithSTSRegion(stsRegion string) Option {
-	return func(o *Options) {
-		o.STSRegion = stsRegion
-	}
-}
-
-// WithSTSEndpoint sets the endpoint for the STS service.
-func WithSTSEndpoint(stsEndpoint string) Option {
-	return func(o *Options) {
-		o.STSEndpoint = stsEndpoint
 	}
 }
 
@@ -130,11 +300,12 @@ func WithGitURL(gitURL url.URL) Option {
 	}
 }
 
-// WithCAData sets the CA data for credentials that require a CA,
-// e.g. for Kubernetes REST config.
-func WithCAData(caData string) Option {
+// WithAllowShellOut allows the provider to shell out to binary tools
+// for acquiring controller tokens. MUST be used only by the Flux CLI,
+// i.e. in the github.com/fluxcd/flux2 Git repository.
+func WithAllowShellOut() Option {
 	return func(o *Options) {
-		o.CAData = caData
+		o.AllowShellOut = true
 	}
 }
 
@@ -159,12 +330,95 @@ func WithClusterAddress(clusterAddress string) Option {
 	}
 }
 
-// WithAllowShellOut allows the provider to shell out to binary tools
-// for acquiring controller tokens. MUST be used only by the Flux CLI,
-// i.e. in the github.com/fluxcd/flux2 Git repository.
-func WithAllowShellOut() Option {
+// WithCAData sets the CA data for credentials that require a CA,
+// e.g. for Kubernetes REST config.
+func WithCAData(caData string) Option {
 	return func(o *Options) {
-		o.AllowShellOut = true
+		o.CAData = caData
+	}
+}
+
+// WithAWSRoleARN sets the AWS IAM Role ARN.
+func WithAWSRoleARN(roleARN string) Option {
+	return func(o *Options) {
+		o.AWSRoleARN = roleARN
+	}
+}
+
+// WithAWSRegion sets the region for the AWS STS service.
+func WithAWSRegion(stsRegion string) Option {
+	return func(o *Options) {
+		o.AWSRegion = stsRegion
+	}
+}
+
+// WithAWSSTSEndpoint sets the endpoint for the AWS STS service.
+func WithAWSSTSEndpoint(stsEndpoint string) Option {
+	return func(o *Options) {
+		o.AWSSTSEndpoint = stsEndpoint
+	}
+}
+
+// WithAWSClusterName sets the AWS EKS cluster name.
+func WithAWSClusterName(clusterName string) Option {
+	return func(o *Options) {
+		o.AWSClusterName = clusterName
+	}
+}
+
+// WithAzureTenantID sets the Microsoft Entra tenant ID.
+func WithAzureTenantID(tenantID string) Option {
+	return func(o *Options) {
+		o.AzureTenantID = tenantID
+	}
+}
+
+// WithAzureClientID sets the Microsoft Entra client ID.
+func WithAzureClientID(clientID string) Option {
+	return func(o *Options) {
+		o.AzureClientID = clientID
+	}
+}
+
+// WithAzureSubscriptionID sets the Azure subscription ID.
+func WithAzureSubscriptionID(subscriptionID string) Option {
+	return func(o *Options) {
+		o.AzureSubscriptionID = subscriptionID
+	}
+}
+
+// WithAzureResourceGroup sets the Azure resource group.
+func WithAzureResourceGroup(resourceGroup string) Option {
+	return func(o *Options) {
+		o.AzureResourceGroup = resourceGroup
+	}
+}
+
+// WithAzureClusterName sets the Azure AKS cluster name.
+func WithAzureClusterName(clusterName string) Option {
+	return func(o *Options) {
+		o.AzureClusterName = clusterName
+	}
+}
+
+// WithGCPWorkloadIdentityProvider sets the GCP Workload Identity Provider.
+func WithGCPWorkloadIdentityProvider(wip string) Option {
+	return func(o *Options) {
+		o.GCPWorkloadIdentityProvider = wip
+	}
+}
+
+// WithGCPServiceAccount sets the GCP Service Account email.
+func WithGCPServiceAccount(serviceAccount string) Option {
+	return func(o *Options) {
+		o.GCPServiceAccount = serviceAccount
+	}
+}
+
+// WithDockerHubOIDCConnectionID sets the Docker Hub OIDC connection ID.
+func WithDockerHubOIDCConnectionID(connectionID string) Option {
+	return func(o *Options) {
+		o.DockerHubOIDCConnectionID = connectionID
 	}
 }
 
@@ -172,6 +426,19 @@ func WithAllowShellOut() Option {
 func (o *Options) Apply(opts ...Option) {
 	for _, opt := range opts {
 		opt(o)
+	}
+}
+
+// ServiceAccountRef returns the ServiceAccount object for the token. If the
+// object was not set explicitly, it is built from the configured name and
+// namespace.
+func (o *Options) ServiceAccountRef() *kubernetes.ServiceAccountReference {
+	if !o.objectLevelWorkloadIdentity() {
+		return nil
+	}
+	return &kubernetes.ServiceAccountReference{
+		Name:      o.ServiceAccountName,
+		Namespace: o.ObjectReference.Namespace,
 	}
 }
 
@@ -187,5 +454,40 @@ func (o *Options) GetHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: transport,
 		Timeout:   10 * time.Second,
+	}
+}
+
+// objectLevelWorkloadIdentity returns true if a ServiceAccount token should be
+// retrieved for object-level workload identity. The ServiceAccount is provided
+// by the caller, either as an object or as a name/namespace reference.
+func (o *Options) objectLevelWorkloadIdentity() bool {
+	return o.ServiceAccountName != ""
+}
+
+// credentialProvider returns the configured credential provider, defaulting to
+// Kubernetes for backward compatibility with RFC-0010.
+func (o *Options) credentialProvider() string {
+	if o.CredentialProvider == "" {
+		return cryptov1.CredentialProviderKubernetes
+	}
+	return o.CredentialProvider
+}
+
+// credentialType returns the configured credential type, defaulting to JWT for
+// backward compatibility with RFC-0010.
+func (o *Options) credentialType() string {
+	if o.CredentialType == "" {
+		return cryptov1.CredentialTypeJWT
+	}
+	return o.CredentialType
+}
+
+func newObjectReference(group, kind string, obj client.Object) ObjectReference {
+	return ObjectReference{
+		APIGroup:  group,
+		Kind:      kind,
+		Name:      obj.GetName(),
+		Namespace: obj.GetNamespace(),
+		UID:       string(obj.GetUID()),
 	}
 }

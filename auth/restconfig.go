@@ -18,16 +18,11 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/url"
 	"slices"
-	"strings"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 )
 
@@ -36,23 +31,23 @@ import (
 type RESTConfigProvider interface {
 	Provider
 
-	// GetAccessTokenOptionsForCluster returns the options that must be
-	// passed to the provider to retrieve access tokens for a cluster.
-	// More than one access token may be required depending on the
+	// GetAccessCredentialOptionsForCluster returns the options that must be
+	// passed to the provider to retrieve access credentials for a cluster.
+	// More than one access credential may be required depending on the
 	// provider, with different options (e.g. scope). Hence the return
 	// type is a slice of []Option.
-	GetAccessTokenOptionsForCluster(opts ...Option) ([][]Option, error)
+	GetAccessCredentialOptionsForCluster(opts ...Option) ([][]Option, error)
 
 	// NewRESTConfig returns a new RESTConfig that can be used to authenticate
-	// with the Kubernetes API server. The access tokens are used for looking
-	// up connection details like the API server address and CA certificate
-	// data, and for accessing the cluster API server itself via the IAM
-	// system of the cloud provider. If it's just a single token or multiple,
-	// it depends on the provider.
-	NewRESTConfig(ctx context.Context, accessTokens []Token, opts ...Option) (*RESTConfig, error)
+	// with the Kubernetes API server. The access credentials are used for
+	// looking up connection details like the API server address and CA
+	// certificate data, and for accessing the cluster API server itself via
+	// the IAM system of the cloud provider. If it's just a single credential
+	// or multiple, it depends on the provider.
+	NewRESTConfig(ctx context.Context, accessCredentials []Credential, opts ...Option) (*RESTConfig, error)
 }
 
-// RESTConfig is a particular type implementing the Token interface
+// RESTConfig is a particular type implementing the Credential interface
 // for Kubernetes REST configurations.
 type RESTConfig struct {
 	Host        string
@@ -61,32 +56,9 @@ type RESTConfig struct {
 	ExpiresAt   time.Time
 }
 
-// GetDuration implements Token.
+// GetDuration implements Credential.
 func (r *RESTConfig) GetDuration() time.Duration {
 	return time.Until(r.ExpiresAt)
-}
-
-// ParseClusterAddress parses the given cluster address and returns
-// the canonical form https://<lowercase(host)>:<port>.
-func ParseClusterAddress(address string) (string, error) {
-	if address == "" {
-		return "", errors.New("empty address")
-	}
-	if !strings.HasPrefix(address, "http") {
-		address = fmt.Sprintf("https://%s", address)
-	}
-	u, err := url.Parse(address)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse Kubernetes API server address '%s': %w", address, err)
-	}
-	if u.Scheme != "https" {
-		return "", fmt.Errorf("the Kubernetes API server address '%s' must use https scheme", address)
-	}
-	host := u.Host
-	if u.Port() == "" {
-		host += ":443"
-	}
-	return fmt.Sprintf("https://%s", strings.ToLower(host)), nil
 }
 
 // GetRESTConfig retrieves the authentication and connection
@@ -97,25 +69,25 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	var o Options
 	o.Apply(opts...)
 
-	// First, we need the access tokens. They cannot be retrieved inside the
-	// cache lock, otherwise we reach a deadlock.
-	accessTokenOpts, err := provider.GetAccessTokenOptionsForCluster(opts...)
+	// First, we need the access credentials. They cannot be retrieved inside
+	// the cache lock, otherwise we reach a deadlock.
+	accessCredentialOpts, err := provider.GetAccessCredentialOptionsForCluster(opts...)
 	if err != nil {
 		return nil, err
 	}
-	accessTokens := make([]Token, 0, len(accessTokenOpts))
-	for i := range accessTokenOpts {
-		accessTokenOpts[i] = append(slices.Clone(opts), accessTokenOpts[i]...)
-		token, err := GetAccessToken(ctx, provider, accessTokenOpts[i]...)
+	accessCredentials := make([]Credential, 0, len(accessCredentialOpts))
+	for i := range accessCredentialOpts {
+		accessCredentialOpts[i] = append(slices.Clone(opts), accessCredentialOpts[i]...)
+		credential, err := NewAccessCredential(ctx, provider, accessCredentialOpts[i]...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get access token for cluster: %w", err)
+			return nil, fmt.Errorf("failed to get access credential for cluster: %w", err)
 		}
-		accessTokens = append(accessTokens, token)
+		accessCredentials = append(accessCredentials, credential)
 	}
 
 	// Prepare a function to create the restconfig if needed.
 	newRESTConfig := func() (*RESTConfig, error) {
-		conf, err := provider.NewRESTConfig(ctx, accessTokens, opts...)
+		conf, err := provider.NewRESTConfig(ctx, accessCredentials, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -128,25 +100,21 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	}
 
 	// Build cache key.
-	var serviceAccount *corev1.ServiceAccount
+	var serviceAccount *kubernetes.ServiceAccountReference
 	var providerIdentity string
 	var audiences []string
-	if o.ShouldGetServiceAccountToken() {
+	if o.objectLevelWorkloadIdentity() {
 		var err error
-		saRef := client.ObjectKey{
-			Name:      o.ServiceAccountName,
-			Namespace: o.ServiceAccountNamespace,
-		}
 		serviceAccount, audiences, providerIdentity, err =
-			getServiceAccountAndProviderInfo(ctx, provider, o.Client, saRef, opts...)
+			getServiceAccountAndProviderInfo(ctx, provider, opts...)
 		if err != nil {
 			return nil, err
 		}
 	}
 	var cacheKeyParts []string
-	for i, atOpts := range accessTokenOpts {
-		key := buildAccessTokenCacheKey(provider, audiences, providerIdentity, serviceAccount, atOpts...)
-		cacheKeyParts = append(cacheKeyParts, fmt.Sprintf("accessToken%dCacheKey=%s", i, key))
+	for i, acOpts := range accessCredentialOpts {
+		key := buildAccessCredentialCacheKey(provider, audiences, providerIdentity, serviceAccount, acOpts...)
+		cacheKeyParts = append(cacheKeyParts, fmt.Sprintf("accessCredential%dCacheKey=%s", i, key))
 	}
 	if c := o.ClusterResource; c != "" {
 		cacheKeyParts = append(cacheKeyParts, fmt.Sprintf("cluster=%s", c))
@@ -157,19 +125,15 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	cacheKey := buildCacheKey(cacheKeyParts...)
 
 	// Build involved object details.
-	cacheOpts := []cache.Options{cache.WithInvolvedObject(
-		o.InvolvedObject.Kind,
-		o.InvolvedObject.Name,
-		o.InvolvedObject.Namespace,
-		o.InvolvedObject.Operation)}
+	cacheOpts := []cache.Options{cache.WithInvolvedObject(o.involvedObject())}
 
-	// Get restconfig from cache.
-	token, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
+	// Get REST config from cache.
+	credential, _, err := o.Cache.GetOrSet(ctx, cacheKey, func(ctx context.Context) (cache.Token, error) {
 		return newRESTConfig()
 	}, cacheOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return token.(*RESTConfig), nil
+	return credential.(*RESTConfig), nil
 }

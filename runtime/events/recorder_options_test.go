@@ -17,6 +17,8 @@ limitations under the License.
 package events
 
 import (
+	"crypto/tls"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,6 +26,32 @@ import (
 	kuberecorder "k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
+
+func TestWithTLSConfig(t *testing.T) {
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
+
+	rec, err := NewRecorder(ctrl.Log, "http://example.com", "test-controller",
+		WithScheme(env.GetScheme()), WithTLSConfig(tlsConfig))
+	require.NoError(t, err)
+
+	r := rec.(*recorder)
+	transport, ok := r.client.HTTPClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.Same(t, tlsConfig, transport.TLSClientConfig)
+	require.True(t, r.overrideSchemeToHTTPS)
+	require.Equal(t, "https://example.com", r.webhook)
+
+	rec, err = NewRecorder(ctrl.Log, "http://example.com", "test-controller",
+		WithScheme(env.GetScheme()), WithTLSConfig(nil))
+	require.NoError(t, err)
+
+	r = rec.(*recorder)
+	transport, ok = r.client.HTTPClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.Nil(t, transport.TLSClientConfig)
+	require.False(t, r.overrideSchemeToHTTPS)
+	require.Equal(t, "http://example.com", r.webhook)
+}
 
 // TestNewRecorder_ResolveKubeSink verifies which Kubernetes Event backend
 // NewRecorder wires up for each combination of options, and that conflicting

@@ -26,10 +26,12 @@ import (
 	"github.com/fluxcd/pkg/artifact/config"
 )
 
-// Start starts a blocking HTTP file server using the provided configuration options.
-// It supports graceful shutdown via the provided context (e.g., from ctrl.SetupSignalHandler).
-// The Start function is meant to be run in a separate goroutine after the controller manager
-// receives leadership (e.g., <-mgr.Elected()).
+// Start starts a blocking HTTP or HTTPS file server using the provided
+// configuration options. When opts.TLSConfig is nil, the server serves plain
+// HTTP. It supports graceful shutdown via the provided context (e.g., from
+// ctrl.SetupSignalHandler). The Start function is meant to be run in a separate
+// goroutine after the controller manager receives leadership (e.g.,
+// <-mgr.Elected()).
 func Start(ctx context.Context, opts *config.Options) error {
 	if opts == nil {
 		return fmt.Errorf("options cannot be nil")
@@ -40,14 +42,21 @@ func Start(ctx context.Context, opts *config.Options) error {
 	mux.Handle("/", fs)
 
 	server := &http.Server{
-		Addr:    opts.StorageAddress,
-		Handler: mux,
+		Addr:      opts.StorageAddress,
+		Handler:   mux,
+		TLSConfig: opts.TLSConfig,
 	}
 
 	// Start server in goroutine
 	errCh := make(chan error, 1)
 	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		var err error
+		if opts.TLSConfig != nil {
+			err = server.ListenAndServeTLS("", "")
+		} else {
+			err = server.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 	}()

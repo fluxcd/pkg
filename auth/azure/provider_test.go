@@ -31,9 +31,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
 )
@@ -73,9 +72,9 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			}
 
 			provider := azure.Provider{Implementation: impl}
-			token, err := provider.NewControllerToken(context.Background(), opts...)
+			credential, err := provider.NewControllerToken(context.Background(), opts...)
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{
+			g.Expect(credential).To(Equal(&azure.AccessToken{AccessToken: azcore.AccessToken{
 				Token:     "access-token",
 				ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 			}}))
@@ -83,32 +82,17 @@ func TestProvider_NewControllerToken(t *testing.T) {
 	}
 }
 
-func TestProvider_NewTokenForServiceAccount(t *testing.T) {
+func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		annotations map[string]string
-		err         string
+		name     string
+		tenantID string
+		clientID string
+		err      string
 	}{
 		{
-			name: "valid",
-			annotations: map[string]string{
-				"azure.workload.identity/tenant-id": "tenant-id",
-				"azure.workload.identity/client-id": "client-id",
-			},
-		},
-		{
-			name: "tenant id missing",
-			annotations: map[string]string{
-				"azure.workload.identity/client-id": "client-id",
-			},
-			err: "azure tenant ID is not set in the service account annotation azure.workload.identity/tenant-id",
-		},
-		{
-			name: "client id missing",
-			annotations: map[string]string{
-				"azure.workload.identity/tenant-id": "tenant-id",
-			},
-			err: "azure client ID is not set in the service account annotation azure.workload.identity/client-id",
+			name:     "valid",
+			tenantID: "tenant-id",
+			clientID: "client-id",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,52 +109,61 @@ func TestProvider_NewTokenForServiceAccount(t *testing.T) {
 			}
 
 			oidcToken := "oidc-token"
-			serviceAccount := corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: tt.annotations,
-				},
-			}
 			opts := []auth.Option{
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 				auth.WithScopes("scope1", "scope2"),
 			}
+			if tt.tenantID != "" {
+				opts = append(opts, auth.WithAzureTenantID(tt.tenantID))
+			}
+			if tt.clientID != "" {
+				opts = append(opts, auth.WithAzureClientID(tt.clientID))
+			}
 
 			provider := azure.Provider{Implementation: impl}
-			token, err := provider.NewTokenForServiceAccount(context.Background(), oidcToken, serviceAccount, opts...)
+			credential, err := provider.NewAccessCredentialForIdentity(context.Background(), &auth.JWTCredential{
+				Provider: cryptov1.CredentialProviderKubernetes,
+				Token:    oidcToken,
+			}, opts...)
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&azure.Token{AccessToken: azcore.AccessToken{
+				g.Expect(credential).To(Equal(&azure.AccessToken{AccessToken: azcore.AccessToken{
 					Token:     "access-token",
 					ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 				}}))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
-				g.Expect(token).To(BeNil())
+				g.Expect(credential).To(BeNil())
 			}
 		})
 	}
 }
 
 func TestProvider_GetAudiences(t *testing.T) {
-	g := NewWithT(t)
-	aud, err := azure.Provider{}.GetAudiences(context.Background(), corev1.ServiceAccount{})
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(aud).To(Equal([]string{"api://AzureADTokenExchange"}))
+	t.Run("default", func(t *testing.T) {
+		g := NewWithT(t)
+		aud, err := azure.Provider{}.GetAudiences(context.Background())
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(aud).To(Equal([]string{"api://AzureADTokenExchange"}))
+	})
+
+	t.Run("custom", func(t *testing.T) {
+		g := NewWithT(t)
+		aud, err := azure.Provider{}.GetAudiences(context.Background(),
+			auth.WithCredentialAudiences("my-audience"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(aud).To(Equal([]string{"my-audience"}))
+	})
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
 	g := NewWithT(t)
 
-	identity, err := azure.Provider{}.GetIdentity(corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				"azure.workload.identity/client-id": "client-id",
-				"azure.workload.identity/tenant-id": "tenant-id",
-			},
-		},
-	})
+	identity, err := azure.Provider{}.GetIdentity(
+		auth.WithAzureTenantID("tenant-id"),
+		auth.WithAzureClientID("client-id"))
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(identity).To(Equal("tenant-id/client-id"))
 }
@@ -313,7 +306,7 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 	}
 }
 
-func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForArtifactRepository(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
 		artifactRepository string
@@ -361,7 +354,7 @@ func TestProvider_GetAccessTokenOptionsForArtifactRepository(t *testing.T) {
 			}
 
 			provider := azure.Provider{}
-			opts, err := provider.GetAccessTokenOptionsForArtifactRepository(tt.artifactRepository)
+			opts, err := provider.GetAccessCredentialOptionsForArtifactRepository(tt.artifactRepository)
 
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(opts).To(HaveLen(1))
@@ -543,17 +536,12 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 					Value: createKubeconfig("test-cluster", "https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
 				},
 			},
-			err: "no kubeconfig found for AKS cluster /subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster matching the specified address 'https://different-cluster.hcp.eastus.azmk8s.io:443'. cluster addresses: ['https://test-cluster-12345678.hcp.eastus.azmk8s.io:443']",
+			err: "no kubeconfig found for AKS cluster test-cluster matching the specified address 'https://different-cluster.hcp.eastus.azmk8s.io:443'. cluster addresses: ['https://test-cluster-12345678.hcp.eastus.azmk8s.io:443']",
 		},
 		{
 			name:    "cluster without AAD integration",
 			cluster: "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster",
-			err:     "AKS cluster /subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster does not have Microsoft Entra ID integration enabled. See docs for enabling: https://learn.microsoft.com/en-us/azure/aks/enable-authentication-microsoft-entra-id",
-		},
-		{
-			name:    "invalid cluster ID",
-			cluster: "invalid-cluster-id",
-			err:     `invalid AKS cluster ID: 'invalid-cluster-id'. must match (?i)^/subscriptions/([^/]{36})/resourceGroups/([^/]{1,200})/providers/Microsoft\.ContainerService/managedClusters/([^/]{1,200})$`,
+			err:     "AKS cluster test-cluster does not have Microsoft Entra ID integration enabled. See docs for enabling: https://learn.microsoft.com/en-us/azure/aks/enable-authentication-microsoft-entra-id",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -592,7 +580,10 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			}
 
 			if tt.cluster != "" {
-				opts = append(opts, auth.WithClusterResource(tt.cluster))
+				opts = append(opts,
+					auth.WithAzureSubscriptionID("12345678-1234-1234-1234-123456789012"),
+					auth.WithAzureResourceGroup("test-rg"),
+					auth.WithAzureClusterName("test-cluster"))
 			}
 
 			if tt.clusterAddress != "" {
@@ -626,11 +617,11 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 	}
 }
 
-func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForCluster(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("needs to fetch cluster", func(t *testing.T) {
-		opts, err := azure.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := azure.Provider{}.GetAccessCredentialOptionsForCluster(
 			auth.WithClusterResource("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster"))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(opts).To(HaveLen(2))
@@ -655,7 +646,7 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 		// Set the environment variable to point to the temp file
 		t.Setenv("AZURE_ENVIRONMENT_FILEPATH", tempFileName)
 
-		opts, err := azure.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := azure.Provider{}.GetAccessCredentialOptionsForCluster(
 			auth.WithClusterResource("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ContainerService/managedClusters/test-cluster"))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(opts).To(HaveLen(2))
@@ -672,7 +663,7 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	})
 
 	t.Run("no need to fetch cluster", func(t *testing.T) {
-		opts, err := azure.Provider{}.GetAccessTokenOptionsForCluster(
+		opts, err := azure.Provider{}.GetAccessCredentialOptionsForCluster(
 			auth.WithClusterAddress("https://test-cluster-12345678.hcp.eastus.azmk8s.io:443"),
 			auth.WithCAData("-----BEGIN CERTIFICATE-----"))
 		g.Expect(err).NotTo(HaveOccurred())
@@ -685,13 +676,13 @@ func TestProvider_GetAccessTokenOptionsForCluster(t *testing.T) {
 	})
 }
 
-func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
+func TestProvider_GetAccessCredentialOptionsForGitRepository(t *testing.T) {
 	g := NewWithT(t)
 
 	gitURL, err := url.Parse("https://dev.azure.com/myorg/myproject/_git/myrepo")
 	g.Expect(err).NotTo(HaveOccurred())
 
-	opts, err := azure.Provider{}.GetAccessTokenOptionsForGitRepository(gitURL)
+	opts, err := azure.Provider{}.GetAccessCredentialOptionsForGitRepository(gitURL)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(opts).To(HaveLen(1))
 
@@ -700,7 +691,7 @@ func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
 	g.Expect(o.Scopes).To(Equal([]string{azure.ScopeDevOps}))
 
 	// The URL is not used to compute the scope, so a nil URL must also work.
-	opts, err = azure.Provider{}.GetAccessTokenOptionsForGitRepository(nil)
+	opts, err = azure.Provider{}.GetAccessCredentialOptionsForGitRepository(nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(opts).To(HaveLen(1))
 	o = auth.Options{}
@@ -711,7 +702,7 @@ func TestProvider_GetAccessTokenOptionsForGitRepository(t *testing.T) {
 func TestProvider_ParseGitRepository(t *testing.T) {
 	g := NewWithT(t)
 
-	// Azure DevOps access tokens are not bound to the repository URL, so
+	// Azure DevOps access credentials are not bound to the repository URL, so
 	// ParseGitRepository must return a stable input regardless of the URL.
 	for _, raw := range []string{
 		"https://dev.azure.com/myorg/myproject/_git/myrepo",
@@ -736,14 +727,14 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 	expiresOn := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 
 	for _, tt := range []struct {
-		name        string
-		accessToken auth.Token
-		expected    *auth.GitCredentials
-		err         string
+		name             string
+		accessCredential auth.Credential
+		expected         *auth.GitCredentials
+		err              string
 	}{
 		{
-			name: "valid Azure access token is returned as bearer token",
-			accessToken: &azure.Token{AccessToken: azcore.AccessToken{
+			name: "valid Azure access credential is returned as bearer token",
+			accessCredential: &azure.AccessToken{AccessToken: azcore.AccessToken{
 				Token:     "aad-token",
 				ExpiresOn: expiresOn,
 			}},
@@ -753,16 +744,16 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 			},
 		},
 		{
-			name:        "wrong token type is rejected",
-			accessToken: &mockNonAzureToken{},
-			err:         "failed to cast token to Azure token: *azure_test.mockNonAzureToken",
+			name:             "wrong token type is rejected",
+			accessCredential: &mockNonAzureCredential{},
+			err:              "failed to cast credential to Azure access token: *azure_test.mockNonAzureCredential",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
 			creds, err := azure.Provider{}.NewGitCredentials(
-				context.Background(), "azure-devops", tt.accessToken)
+				context.Background(), "azure-devops", tt.accessCredential)
 
 			if tt.err != "" {
 				g.Expect(err).To(HaveOccurred())
@@ -776,9 +767,9 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 	}
 }
 
-type mockNonAzureToken struct{}
+type mockNonAzureCredential struct{}
 
-func (*mockNonAzureToken) GetDuration() time.Duration { return 0 }
+func (*mockNonAzureCredential) GetDuration() time.Duration { return 0 }
 
 func createKubeconfig(clusterName, serverURL string) []byte {
 	return []byte(fmt.Sprintf(`apiVersion: v1

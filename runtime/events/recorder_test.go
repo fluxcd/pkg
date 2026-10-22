@@ -18,6 +18,9 @@ package events
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -162,4 +165,34 @@ func TestEventRecorder_Webhook(t *testing.T) {
 
 	_, err = NewRecorder(ctrl.Log, "http://example.com", "test-controller", WithManager(env))
 	require.NoError(t, err)
+}
+
+func TestEventRecorder_WithTLSConfig(t *testing.T) {
+	var received atomic.Int32
+	sink := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		received.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(sink.Close)
+
+	// Trust the test server certificate the same way httptest's own client
+	// does, without disabling verification.
+	tlsConfig := sink.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+
+	// Pass an http:// webhook to verify that WithTLSConfig upgrades the
+	// scheme to https.
+	webhook := strings.Replace(sink.URL, "https://", "http://", 1)
+	eventRecorder, err := NewRecorder(ctrl.Log, webhook, "test-controller",
+		WithScheme(env.GetScheme()), WithTLSConfig(tlsConfig))
+	require.NoError(t, err)
+
+	obj := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "webapp",
+			Namespace: "gitops-system",
+		},
+	}
+
+	eventRecorder.AnnotatedEventf(obj, nil, nil, corev1.EventTypeNormal, "sync", testAction, "sync object")
+	require.Eventually(t, func() bool { return received.Load() == 1 }, time.Second, 10*time.Millisecond)
 }

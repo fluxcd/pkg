@@ -50,13 +50,20 @@ func (o *FeatureGates) WithLogger(l logr.Logger) *FeatureGates {
 }
 
 // SupportedFeatures sets the supported features and their default values.
-func (o *FeatureGates) SupportedFeatures(features map[string]bool) error {
+// The 'retired' map contains features gates that no longer change behavior.
+// The value is a human-readable explanation for why the feature gate is retired.
+func (o *FeatureGates) SupportedFeatures(features map[string]bool, retired map[string]string) error {
 	loaded = true
 	featureGates = features
 
 	for k, v := range o.cliFeatures {
 		if _, ok := featureGates[k]; ok {
 			featureGates[k] = v
+		} else if reason, ok := retired[k]; ok {
+			if o.log != nil {
+				o.log.Info("feature gate is now retired and no longer changes behavior",
+					"feature-gate", k, "reason", reason)
+			}
 		} else {
 			return fmt.Errorf("feature-gate '%s' not supported", k)
 		}

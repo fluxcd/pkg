@@ -23,16 +23,32 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/gomega"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/fluxcd/pkg/auth/internal/tokenfile"
 )
 
 func newTestEnv(t *testing.T, ctx context.Context) (client.Client, *http.Client) {
 	t.Helper()
 	g := NewWithT(t)
+
+	// Replace the controller token file with a fake one so that tokens can be
+	// issued without a ServiceAccount token mounted in the test process.
+	controllerToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": "system:serviceaccount:flux-system:controller",
+		"aud": []string{"https://kubernetes.default.svc.cluster.local"},
+	}).SignedString([]byte("test-secret"))
+	g.Expect(err).NotTo(HaveOccurred())
+	oldReadFile := tokenfile.ReadFile
+	tokenfile.ReadFile = func(string) ([]byte, error) {
+		return []byte(controllerToken), nil
+	}
+	t.Cleanup(func() { tokenfile.ReadFile = oldReadFile })
 
 	// Create test env.
 	testEnv := &envtest.Environment{}

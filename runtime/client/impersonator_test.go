@@ -393,7 +393,7 @@ func TestGetClient_ProviderError(t *testing.T) {
 	g := NewWithT(t)
 
 	providerCalled := false
-	provider := func(_ context.Context, _ meta.KubeConfigReference, _ string, _ rc.Client) (*rest.Config, error) {
+	provider := func(_ context.Context, _ meta.KubeConfigReference, _ rc.Client) (*rest.Config, error) {
 		providerCalled = true
 		return nil, fmt.Errorf("provider error for testing")
 	}
@@ -414,7 +414,7 @@ func TestGetClient_ProviderError(t *testing.T) {
 func TestGetClient_ProviderSuccess(t *testing.T) {
 	g := NewWithT(t)
 
-	provider := func(_ context.Context, _ meta.KubeConfigReference, _ string, _ rc.Client) (*rest.Config, error) {
+	provider := func(_ context.Context, _ meta.KubeConfigReference, _ rc.Client) (*rest.Config, error) {
 		return rest.CopyConfig(testEnv.Config), nil
 	}
 

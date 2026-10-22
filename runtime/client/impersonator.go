@@ -158,7 +158,7 @@ func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *pol
 	switch {
 	case i.kubeConfigProvider != nil:
 		getRESTConfigFromProvider := i.kubeConfigProvider
-		restConfig, err = getRESTConfigFromProvider(ctx, *i.kubeConfigRef, i.kubeConfigNamespace, i.client)
+		restConfig, err = getRESTConfigFromProvider(ctx, *i.kubeConfigRef, i.client)
 	case i.kubeConfigRef.SecretRef != nil:
 		restConfig, err = i.getRESTConfigFromSecret(ctx)
 	default:

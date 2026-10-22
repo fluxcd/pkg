@@ -26,74 +26,11 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/auth"
+	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 )
-
-func TestGetRegistryFromArtifactRepository(t *testing.T) {
-	for _, tt := range []struct {
-		name               string
-		artifactRepository string
-		expectedRegistry   string
-	}{
-		{
-			name:               "dot-less host with port",
-			artifactRepository: "localhost:5000",
-			expectedRegistry:   "localhost:5000",
-		},
-		{
-			name:               "dot-less host without port",
-			artifactRepository: "localhost",
-			expectedRegistry:   "localhost",
-		},
-		{
-			name:               "host with port",
-			artifactRepository: "registry.io:5000",
-			expectedRegistry:   "registry.io:5000",
-		},
-		{
-			name:               "host without port",
-			artifactRepository: "registry.io",
-			expectedRegistry:   "registry.io",
-		},
-		{
-			name:               "dot-less repo with port",
-			artifactRepository: "localhost:5000/repo",
-			expectedRegistry:   "localhost:5000",
-		},
-		{
-			name:               "dot-less repo without port",
-			artifactRepository: "localhost/repo",
-			expectedRegistry:   "localhost",
-		},
-		{
-			name:               "repo with port",
-			artifactRepository: "registry.io:5000/repo",
-			expectedRegistry:   "registry.io:5000",
-		},
-		{
-			name:               "repo without port",
-			artifactRepository: "registry.io/repo",
-			expectedRegistry:   "registry.io",
-		},
-		{
-			name:               "tag",
-			artifactRepository: "registry.io/repo:tag",
-			expectedRegistry:   "registry.io",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
-
-			reg, err := auth.GetRegistryFromArtifactRepository(tt.artifactRepository)
-
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(reg).To(Equal(tt.expectedRegistry))
-		})
-	}
-}
 
 func TestGetArtifactRegistryCredentials(t *testing.T) {
 	g := NewWithT(t)
@@ -112,10 +49,6 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 	}
 	err := kubeClient.Create(ctx, defaultServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
-	saRef := client.ObjectKey{
-		Name:      defaultServiceAccount.Name,
-		Namespace: defaultServiceAccount.Namespace,
-	}
 
 	now := time.Now()
 
@@ -124,28 +57,26 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 		provider           *mockProvider
 		artifactRepository string
 		opts               []auth.Option
-		disableObjectLevel bool
-		defaultSA          string
 		expectedCreds      *auth.ArtifactRegistryCredentials
 		expectedErr        string
 	}{
 		{
-			name: "registry token from controller access token",
+			name: "registry credential from controller access credential",
 			provider: &mockProvider{
-				returnRegistryInput:   "some-registry.io/some/artifact",
-				returnControllerToken: &mockToken{token: "mock-default-token"},
+				returnRegistryInput:        "some-registry.io/some/artifact",
+				returnControllerCredential: &mockCredential{token: "mock-default-token"},
 				returnRegistryToken: &auth.ArtifactRegistryCredentials{
 					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 				},
-				paramAccessToken:        &mockToken{token: "mock-default-token"},
+				paramAccessCredential:   &mockCredential{token: "mock-default-token"},
 				paramArtifactRepository: "some-registry.io/some/artifact",
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -154,29 +85,29 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 		},
 		{
-			name: "registry token from access token from service account",
+			name: "registry credential from access credential from service account",
 			provider: &mockProvider{
-				returnName:          "mock-provider",
-				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
+				returnName:             "mock-provider",
+				returnRegistryInput:    "some-registry.io/some/artifact",
+				returnAccessCredential: &mockCredential{token: "mock-access-token"},
 				returnRegistryToken: &auth.ArtifactRegistryCredentials{
 					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 				},
 				paramAudiences:          []string{"audience1", "audience2"},
-				paramServiceAccount:     *defaultServiceAccount,
+				paramServiceAccount:     &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
 				paramOIDCTokenClient:    oidcClient,
 				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
+				paramAccessCredential:   &mockCredential{token: "mock-access-token"},
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccountName(defaultServiceAccount.Name),
+				auth.WithObject("", "ServiceAccount", defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
@@ -185,68 +116,35 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			},
 		},
 		{
-			name: "registry token from access token from service account, works with lockdown",
+			name: "registry credential from access credential from explicit service account",
 			provider: &mockProvider{
-				returnName:          "mock-provider",
-				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
+				returnName:             "mock-provider",
+				returnRegistryInput:    "some-registry.io/some/artifact",
+				returnAccessCredential: &mockCredential{token: "mock-access-token"},
 				returnRegistryToken: &auth.ArtifactRegistryCredentials{
 					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 				},
 				paramAudiences:          []string{"audience1", "audience2"},
-				paramServiceAccount:     *defaultServiceAccount,
+				paramServiceAccount:     &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
 				paramOIDCTokenClient:    oidcClient,
 				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
+				paramAccessCredential:   &mockCredential{token: "mock-access-token"},
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccountName(defaultServiceAccount.Name),
+				auth.WithObject("", "ServiceAccount", defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 			},
-			defaultSA: saRef.Name,
 			expectedCreds: &auth.ArtifactRegistryCredentials{
 				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
 			},
-		},
-		{
-			name: "registry token from access token from service account, works with lockdown and feature gate",
-			provider: &mockProvider{
-				returnName:          "mock-provider",
-				returnRegistryInput: "some-registry.io/some/artifact",
-				returnAccessToken:   &mockToken{token: "mock-access-token"},
-				returnRegistryToken: &auth.ArtifactRegistryCredentials{
-					Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
-				},
-				paramAudiences:          []string{"audience1", "audience2"},
-				paramServiceAccount:     *defaultServiceAccount,
-				paramOIDCTokenClient:    oidcClient,
-				paramArtifactRepository: "some-registry.io/some/artifact",
-				paramAccessToken:        &mockToken{token: "mock-access-token"},
-			},
-			artifactRepository: "some-registry.io/some/artifact",
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			defaultSA:          saRef.Name,
-			disableObjectLevel: true,
-			expectedCreds: &auth.ArtifactRegistryCredentials{
-				Authenticator: authn.FromConfig(authn.AuthConfig{Username: "mock-registry-token"}),
-			},
-			expectedErr: "ObjectLevelWorkloadIdentity feature gate is not enabled",
 		},
 		{
 			name: "all the options are taken into account in the cache key",
@@ -254,44 +152,44 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 				returnName:              "mock-provider",
 				returnIdentity:          "mock-identity",
 				returnRegistryInput:     "artifact-cache-key",
-				paramServiceAccount:     *defaultServiceAccount,
+				paramServiceAccount:     &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
 				paramArtifactRepository: "some-registry.io/some/artifact",
 			},
 			artifactRepository: "some-registry.io/some/artifact",
 			opts: []auth.Option{
 				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
+				auth.WithServiceAccountName(defaultServiceAccount.Name),
+				auth.WithObject("", "ServiceAccount", defaultServiceAccount),
+				auth.WithCredentialAudiences("audience1", "audience2"),
 				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 				auth.WithCAData("ca-data"),
 				func(o *auth.Options) {
 					tokenCache, err := cache.NewTokenCache(2)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const accessTokenKey = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
-					var token auth.Token = &mockToken{token: "cached-token"}
-					cachedToken, ok, err := tokenCache.GetOrSet(ctx, accessTokenKey, func(ctx context.Context) (cache.Token, error) {
-						return token, nil
+					const accessCredentialKey = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
+					var credential auth.Credential = &mockCredential{token: "cached-token"}
+					cachedCredential, ok, err := tokenCache.GetOrSet(ctx, accessCredentialKey, func(ctx context.Context) (cache.Token, error) {
+						return credential, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(ok).To(BeFalse())
-					g.Expect(cachedToken).To(Equal(token))
+					g.Expect(cachedCredential).To(Equal(credential))
 
-					const artifactRegistryCredentialsKey = "99b73881085fc83b83913d3159fadefc1f304dbc0603629a77a0ced83132990d"
-					token = &auth.ArtifactRegistryCredentials{
+					const artifactRegistryCredentialsKey = "62a2203d6403324644e5d1024a6022eae313eedbdba1d21f71a8773488d2b40c"
+					credential = &auth.ArtifactRegistryCredentials{
 						Authenticator: authn.FromConfig(authn.AuthConfig{Username: "cached-registry-token"}),
 						ExpiresAt:     now.Add(time.Hour),
 					}
-					cachedToken, ok, err = tokenCache.GetOrSet(ctx, artifactRegistryCredentialsKey, func(ctx context.Context) (cache.Token, error) {
-						return token, nil
+					cachedCredential, ok, err = tokenCache.GetOrSet(ctx, artifactRegistryCredentialsKey, func(ctx context.Context) (cache.Token, error) {
+						return credential, nil
 					})
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(ok).To(BeFalse())
-					g.Expect(cachedToken).To(Equal(token))
+					g.Expect(cachedCredential).To(Equal(credential))
 
 					o.Cache = tokenCache
 				},
@@ -310,40 +208,11 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			artifactRepository: "some-registry.io/some/artifact",
 			expectedErr:        "mock error",
 		},
-		{
-			name: "disable object level workload identity",
-			provider: &mockProvider{
-				paramServiceAccount: *defaultServiceAccount,
-			},
-			opts: []auth.Option{
-				auth.WithClient(kubeClient),
-				auth.WithServiceAccountName(saRef.Name),
-				auth.WithServiceAccountNamespace(saRef.Namespace),
-				auth.WithAudiences("audience1", "audience2"),
-				auth.WithScopes("scope1", "scope2"),
-				auth.WithSTSRegion("us-east-1"),
-				auth.WithSTSEndpoint("https://sts.some-cloud.io"),
-				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
-				auth.WithCAData("ca-data"),
-			},
-			disableObjectLevel: true,
-			expectedErr:        "ObjectLevelWorkloadIdentity feature gate is not enabled",
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
 			tt.provider.t = t
-
-			if !tt.disableObjectLevel {
-				auth.EnableObjectLevelWorkloadIdentity()
-				t.Cleanup(auth.DisableObjectLevelWorkloadIdentity)
-			}
-
-			if tt.defaultSA != "" {
-				auth.SetDefaultServiceAccount(tt.defaultSA)
-				t.Cleanup(func() { auth.SetDefaultServiceAccount("") })
-			}
 
 			creds, err := auth.GetArtifactRegistryCredentials(ctx, tt.provider, tt.artifactRepository, tt.opts...)
 

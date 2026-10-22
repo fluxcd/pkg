@@ -21,26 +21,27 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/auth"
 )
 
 // RESTConfigFetcher is a function that retrieves a *rest.Config for a given
-// meta.KubeConfigReference, a namespace, and a controller-runtime client.
+// meta.KubeConfigReference and a controller-runtime client. The namespace is
+// read from the object reference in the auth options.
 type RESTConfigFetcher func(ctx context.Context, ref meta.KubeConfigReference,
-	namespace string, ctrlClient client.Client) (*rest.Config, error)
+	ctrlClient client.Client) (*rest.Config, error)
 
 // GetRESTConfigFetcher is a convenience function for controllers that use the
 // runtime/client.(*Impersonator) to create controller-runtime clients. To keep
 // runtime decoupled from auth, this function closes over the controller-provided
 // options and returns a function that can be called by runtime without runtime
-// needing to know about the type auth.Option. Usage example:
+// needing to know about the option types. Usage example:
 //
 //	provider := authutils.GetRESTConfigFetcher(opts...)
 //	impersonatorOpts = append(impersonatorOpts,
@@ -48,17 +49,27 @@ type RESTConfigFetcher func(ctx context.Context, ref meta.KubeConfigReference,
 //
 // Controllers that don't use the runtime/client.(*Impersonator) can simply call
 // GetRESTConfig directly, passing the options as variadic arguments.
-func GetRESTConfigFetcher(opts ...auth.Option) RESTConfigFetcher {
+func GetRESTConfigFetcher(opts ...Option) RESTConfigFetcher {
 	return func(ctx context.Context, ref meta.KubeConfigReference,
-		namespace string, ctrlClient client.Client) (*rest.Config, error) {
-		return GetRESTConfig(ctx, ref, namespace, ctrlClient, opts...)
+		ctrlClient client.Client) (*rest.Config, error) {
+		return GetRESTConfig(ctx, ref, ctrlClient, opts...)
 	}
 }
 
 // GetRESTConfig retrieves a *rest.Config for the given meta.KubeConfigReference,
-// namespace, controller-runtime client and options. It's a convenience wrapper
+// controller-runtime client and options. It's a convenience wrapper
 // for auth.GetRESTConfig so controllers can pass a meta.KubeConfigReference
 // object directly without converting it to auth.Option(s).
+//
+// The namespace of the kubeconfig ConfigMap and the ServiceAccount is read from
+// the object reference in the auth options, so it must be set, e.g. with
+// auth.WithObject.
+//
+// It reads the kubeconfig ConfigMap and validates the configuration with the
+// github.com/fluxcd/pkg/apis/crypto package. When a ServiceAccount is
+// configured (either in the ConfigMap or via WithDefaultServiceAccount), it is
+// fetched and validated with its annotations; otherwise only the ConfigMap
+// inputs (e.g. the cluster resource) are validated.
 //
 // Additionally, the resulting *rest.Config will call auth.GetRESTConfig for every
 // HTTP request to the remote cluster. This is needed for long-running operations
@@ -71,8 +82,19 @@ func GetRESTConfigFetcher(opts ...auth.Option) RESTConfigFetcher {
 // token will be created for every HTTP request sent to the remote cluster.
 func GetRESTConfig(ctx context.Context,
 	kubeConfigRef meta.KubeConfigReference,
-	namespace string, ctrlClient client.Client,
-	opts ...auth.Option) (*rest.Config, error) {
+	ctrlClient client.Client,
+	opts ...Option) (*rest.Config, error) {
+
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	// The namespace of the kubeconfig ConfigMap and the ServiceAccount is
+	// carried by the object reference in the auth options.
+	var authOptions auth.Options
+	authOptions.Apply(o.authOpts...)
+	namespace := authOptions.ObjectReference.Namespace
 
 	// Get ConfigMap.
 	cmKey := client.ObjectKey{
@@ -85,40 +107,51 @@ func GetRESTConfig(ctx context.Context,
 	}
 
 	// Get provider by name.
-	provider, err := ProviderByName[auth.RESTConfigProvider](cm.Data[meta.KubeConfigKeyProvider])
+	providerName := cm.Data[meta.KubeConfigKeyProvider]
+	provider, err := ProviderByName[auth.RESTConfigProvider](providerName)
 	if err != nil {
 		return nil, err
 	}
 
-	// Configure options.
-	opts = slices.Clone(opts)
-	if c, ok := cm.Data[meta.KubeConfigKeyCluster]; ok {
-		opts = append(opts, auth.WithClusterResource(c))
+	// Resolve the object-level ServiceAccount, if any.
+	saName := cm.Data[meta.KubeConfigKeyServiceAccountName]
+	if saName == "" {
+		saName = o.defaultServiceAccount
 	}
-	if a, ok := cm.Data[meta.KubeConfigKeyAddress]; ok {
-		opts = append(opts, auth.WithClusterAddress(a))
-	}
-	if ca, ok := cm.Data[meta.KubeConfigKeyCACert]; ok {
-		opts = append(opts, auth.WithCAData(ca))
-	}
-	opts = append(opts, auth.WithClient(ctrlClient))
-	opts = append(opts, auth.WithServiceAccountNamespace(namespace))
-	if name, ok := cm.Data[meta.KubeConfigKeyServiceAccountName]; ok {
-		opts = append(opts, auth.WithServiceAccountName(name))
-	}
-	if a, ok := cm.Data[meta.KubeConfigKeyAudiences]; ok {
-		var audiences []string
-		for aud := range strings.SplitSeq(a, "\n") {
-			aud = strings.TrimSpace(aud)
-			if aud == "" {
-				continue
-			}
-			audiences = append(audiences, aud)
+	var sa *corev1.ServiceAccount
+	if saName != "" {
+		sa = &corev1.ServiceAccount{}
+		if err := ctrlClient.Get(ctx, client.ObjectKey{Name: saName, Namespace: namespace}, sa); err != nil {
+			return nil, fmt.Errorf("failed to get service account '%s/%s': %w", namespace, saName, err)
 		}
-		opts = append(opts, auth.WithAudiences(audiences...))
 	}
 
-	conf, err := auth.GetRESTConfig(ctx, provider, opts...)
+	// Validate the configuration. This is done even when no ServiceAccount is
+	// configured, as the kubeconfig ConfigMap cluster resource is validated and
+	// parsed regardless.
+	cryptoSpec, err := validateKubeConfig(&cm, providerName, sa)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate configuration: %w", err)
+	}
+
+	// Configure options.
+	authOpts := slices.Clone(o.authOpts)
+	authOpts = append(authOpts, auth.WithClient(ctrlClient))
+	authOpts = append(authOpts, auth.OptionsFromSpec(cryptoSpec.Auth)...)
+	if sa != nil {
+		authOpts = append(authOpts, auth.WithServiceAccountName(sa.Name))
+	}
+	if c := cm.Data[meta.KubeConfigKeyCluster]; c != "" {
+		authOpts = append(authOpts, auth.WithClusterResource(c))
+	}
+	if a := cm.Data[meta.KubeConfigKeyAddress]; a != "" {
+		authOpts = append(authOpts, auth.WithClusterAddress(a))
+	}
+	if ca := cm.Data[meta.KubeConfigKeyCACert]; ca != "" {
+		authOpts = append(authOpts, auth.WithCAData(ca))
+	}
+
+	conf, err := auth.GetRESTConfig(ctx, provider, authOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,11 +166,30 @@ func GetRESTConfig(ctx context.Context,
 		return &restConfigRoundTripper{
 			base:     base,
 			provider: provider,
-			opts:     opts,
+			opts:     authOpts,
 		}
 	})
 
 	return restConfig, nil
+}
+
+// validateKubeConfig builds and validates the kubeconfig specification. The
+// legacy audiences key is ignored for controller-level GCP authentication
+// because the GKE built-in workload identity provider rejects custom audiences.
+// It is validated when an explicit ServiceAccount is configured, so the user
+// gets a clear error.
+func validateKubeConfig(cm *corev1.ConfigMap, providerName string, sa *corev1.ServiceAccount) (*cryptov1.Spec, error) {
+	opts := []cryptov1.Option{
+		cryptov1.WithServiceProvider(providerName),
+		cryptov1.WithKubeConfigCluster(cm.Data[meta.KubeConfigKeyCluster]),
+	}
+	if providerName != cryptov1.ProviderGCP || cm.Data[meta.KubeConfigKeyServiceAccountName] != "" {
+		opts = append(opts, cryptov1.WithKubeConfigAudiences(cm.Data[meta.KubeConfigKeyAudiences]))
+	}
+	if sa != nil {
+		opts = append(opts, cryptov1.WithAnnotations(sa.Annotations))
+	}
+	return cryptov1.BuildSpec(opts...)
 }
 
 // restConfigRoundTripper is an http.RoundTripper that wraps the base

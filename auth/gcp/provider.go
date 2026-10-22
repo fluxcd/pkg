@@ -19,9 +19,9 @@ package gcp
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"golang.org/x/oauth2"
@@ -29,8 +29,8 @@ import (
 	"google.golang.org/api/container/v1"
 	"google.golang.org/api/option"
 	htransport "google.golang.org/api/transport/http"
-	corev1 "k8s.io/api/core/v1"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	auth "github.com/fluxcd/pkg/auth"
 )
 
@@ -51,7 +51,7 @@ func (Provider) GetName() string {
 }
 
 // NewControllerToken implements auth.Provider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 	var o auth.Options
 	o.Apply(opts...)
 
@@ -66,56 +66,78 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		return nil, err
 	}
 
-	return &Token{*token}, nil
+	return &AccessToken{*token}, nil
 }
 
 // GetAudiences implements auth.Provider.
-func (Provider) GetAudiences(ctx context.Context, serviceAccount corev1.ServiceAccount) ([]string, error) {
-
-	// Check if a workload identity provider is specified in the service account.
-	// If so, the current cluster is not GKE and the audience is the provider itself.
-	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
-	if err != nil {
-		return nil, err
-	}
-	if audience != "" {
-		return []string{audience}, nil
-	}
-
-	// Assume we are in GKE. In this case, the audience is the workload identity pool.
-	audience, err = gkeMetadata.workloadIdentityPool(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return []string{audience}, nil
-}
-
-// GetIdentity implements auth.Provider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	email, err := getServiceAccountEmail(serviceAccount)
-	if err != nil {
-		return "", err
-	}
-	return email, nil
-}
-
-// NewTokenForServiceAccount implements auth.Provider.
-func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+func (p Provider) GetAudiences(ctx context.Context, opts ...auth.Option) ([]string, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	// Check if a workload identity provider is specified in the service account.
-	// If so, the current cluster is not GKE and the audience is the provider itself.
-	audience, err := getWorkloadIdentityProviderAudience(serviceAccount)
-	if err != nil {
-		return nil, err
+	// GCP Workload Identity Federation is only possible without a configured
+	// provider if we are in GKE, which has a built-in one that only accepts
+	// a single specific audience. This audience can be computed from information
+	// provided by the GKE metadata server.
+	if o.GCPWorkloadIdentityProvider == "" {
+		if len(o.CredentialAudiences) > 0 {
+			return nil, errors.New("cannot specify custom audiences for GKE workload identity")
+		}
+		audience, err := gkeMetadata.getTokenAudience(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return []string{audience}, nil
 	}
 
-	// Assume we are in GKE. In this case, retrieve the audience from the metadata.
-	if audience == "" {
-		audience, err = gkeMetadata.getAudience(ctx)
+	// With a configured workload identity provider, custom credential audiences
+	// can be used.
+	if len(o.CredentialAudiences) > 0 {
+		return o.CredentialAudiences, nil
+	}
+	return []string{cryptov1.GetDefaultAudienceGCP(o.GCPWorkloadIdentityProvider)}, nil
+}
+
+// GetIdentity implements auth.Provider.
+func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	return o.GCPServiceAccount, nil
+}
+
+// NewAccessCredentialForIdentity implements auth.Provider.
+func (p Provider) NewAccessCredentialForIdentity(ctx context.Context, identity auth.Credential,
+	opts ...auth.Option) (auth.Credential, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	jwtCredential, ok := identity.(*auth.JWTCredential)
+	if !ok {
+		return nil, fmt.Errorf("expected *auth.JWTCredential, got %T", identity)
+	}
+
+	// The STS exchange audience identifies the workload identity provider. It is
+	// intentionally not derived from the credential audiences option: the latter
+	// is the audience for the OIDC token, which the provider validates against
+	// its configured allowed audiences. The fundamental reason for this difference
+	// is that the STS exchange audience is used to look up the workload identity
+	// provider resource in the STS service, while the credential audiences are
+	// user-defined configuration stored *inside* that workload identity provider
+	// resource. After using the exchange audience to locate the workload identity
+	// provider resource, STS then validates the OIDC token audiences against the
+	// ones configured inside the resource.
+	var exchangeAudience string
+	if o.GCPWorkloadIdentityProvider != "" {
+		// The exchange audience is the workload identity provider resource name
+		// in its `//` form as defined in https://google.aip.dev/auth/4117.
+		exchangeAudience = fmt.Sprintf("//iam.googleapis.com/%s", o.GCPWorkloadIdentityProvider)
+	} else {
+		// Workload identity federation is only possible without a configured provider
+		// if we are in GKE, which has a built-in provider. In this case, the exchange
+		// audience can be computed from information provided by the GKE metadata server.
+		var err error
+		exchangeAudience, err = gkeMetadata.getExchangeAudience(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -123,17 +145,14 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 
 	conf := externalaccount.Config{
 		UniverseDomain:       "googleapis.com",
-		Audience:             audience,
+		Audience:             exchangeAudience,
 		SubjectTokenType:     "urn:ietf:params:oauth:token-type:jwt",
 		TokenURL:             "https://sts.googleapis.com/v1/token",
-		SubjectTokenSupplier: StaticTokenSupplier(oidcToken),
+		SubjectTokenSupplier: StaticTokenSupplier(jwtCredential.Token),
 		Scopes:               scopes,
 	}
 
-	email, err := getServiceAccountEmail(serviceAccount)
-	if err != nil {
-		return nil, err
-	}
+	email := o.GCPServiceAccount
 
 	if email != "" { // impersonation
 		conf.ServiceAccountImpersonationURL = fmt.Sprintf(
@@ -154,65 +173,46 @@ func (p Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken strin
 		return nil, err
 	}
 
-	return &Token{*token}, nil
+	return &AccessToken{*token}, nil
 }
 
-// GetAccessTokenOptionsForArtifactRepository implements auth.Provider.
-func (Provider) GetAccessTokenOptionsForArtifactRepository(string) ([]auth.Option, error) {
-	// GCP does not require any special options to retrieve access tokens.
+// GetAccessCredentialOptionsForArtifactRepository implements auth.Provider.
+func (Provider) GetAccessCredentialOptionsForArtifactRepository(string, ...auth.Option) ([]auth.Option, error) {
+	// GCP does not require any special options to retrieve access credentials.
 	return nil, nil
 }
 
-// The docker.s3nsregistry.fr host is the S3NS sovereign cloud artifact
-// registry. Unlike regular GCP Artifact Registry, the host has no location
-// prefix. See https://github.com/fluxcd/pkg/pull/1201#issuecomment-4631628154
-const registryPattern = `^(((.+\.)?gcr\.io)|(.+-docker\.pkg\.dev)|(docker\.s3nsregistry\.fr))$`
-
-var registryRegex = regexp.MustCompile(registryPattern)
-
 // ParseArtifactRepository implements auth.Provider.
 func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
-	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
-	if err != nil {
-		return "", err
-	}
-
-	if !registryRegex.MatchString(registry) {
-		return "", fmt.Errorf("invalid GCP registry: '%s'. must match %s",
-			registry, registryPattern)
-	}
-
-	// The artifact repository is irrelevant for issuing GCP registry credentials,
-	// just return the provider name for inclusion in the cache key.
-	return ProviderName, nil
+	return cryptov1.ParseArtifactRepository(ProviderName, artifactRepository)
 }
 
 // NewArtifactRegistryCredentials implements auth.Provider.
 func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
-	accessToken auth.Token, _ ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+	accessCredential auth.Credential, _ ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
 
-	t := accessToken.(*Token)
+	credential := accessCredential.(*AccessToken)
 
 	return &auth.ArtifactRegistryCredentials{
 		Authenticator: authn.FromConfig(authn.AuthConfig{
 			Username: "oauth2accesstoken",
-			Password: t.AccessToken,
+			Password: credential.AccessToken,
 		}),
-		ExpiresAt: t.Expiry,
+		ExpiresAt: credential.Expiry,
 	}, nil
 }
 
-// GetAccessTokenOptionsForCluster implements auth.Provider.
-func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
+// GetAccessCredentialOptionsForCluster implements auth.Provider.
+func (Provider) GetAccessCredentialOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
 	// A single token is needed. No options.
 	return [][]auth.Option{{}}, nil
 }
 
 // NewRESTConfig implements auth.Provider.
-func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (p Provider) NewRESTConfig(ctx context.Context, accessCredentials []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
-	token := accessTokens[0].(*Token)
+	credential := accessCredentials[0].(*AccessToken)
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -222,16 +222,13 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	caData := []byte(o.CAData)
 	if host == "" || len(caData) == 0 {
 		cluster := o.ClusterResource
-		if err := parseCluster(cluster); err != nil {
-			return nil, err
-		}
 
 		// Create client for describing the cluster resource.
 		baseTransport := http.DefaultTransport.(*http.Transport).Clone()
 		if p := o.ProxyURL; p != nil {
 			baseTransport.Proxy = http.ProxyURL(p)
 		}
-		transport, err := htransport.NewTransport(ctx, baseTransport, option.WithTokenSource(token.source()))
+		transport, err := htransport.NewTransport(ctx, baseTransport, option.WithTokenSource(credential.source()))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create google http transport for describing GKE cluster: %w", err)
 		}
@@ -261,9 +258,9 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	// Build and return the REST config.
 	return &auth.RESTConfig{
 		Host:        host,
-		BearerToken: token.AccessToken,
+		BearerToken: credential.AccessToken,
 		CAData:      caData,
-		ExpiresAt:   token.Expiry,
+		ExpiresAt:   credential.Expiry,
 	}, nil
 }
 

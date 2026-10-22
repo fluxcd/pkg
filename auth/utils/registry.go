@@ -37,6 +37,13 @@ func (d *delegatedAuthenticator) Authorization() (*authn.AuthConfig, error) {
 
 // GetArtifactRegistryCredentials retrieves the registry credentials for the
 // specified artifact repository and provider.
+//
+// The caller is responsible for resolving the ServiceAccount and validating
+// its configuration with github.com/fluxcd/pkg/apis/crypto before calling this
+// function, including cryptov1.WithOCI(true). When object-level workload
+// identity is in use, the ServiceAccount and the options derived from the
+// validated configuration must be passed through opts, e.g. with
+// auth.WithServiceAccount and auth.OptionsFromSpec.
 func GetArtifactRegistryCredentials(ctx context.Context, providerName string,
 	artifactRepository string, opts ...auth.Option) (authn.Authenticator, error) {
 

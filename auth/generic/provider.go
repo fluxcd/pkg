@@ -20,31 +20,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	authnv1 "k8s.io/api/authentication/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/google/go-containerregistry/pkg/authn"
 
+	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
+	"github.com/fluxcd/pkg/auth/kubernetes"
 )
 
 // ProviderName is the name of the generic authentication provider.
 const ProviderName = "generic"
 
 // Provider implements the auth.Provider interface for generic authentication.
-type Provider struct{ Implementation }
+type Provider struct{}
 
 // GetName implements auth.RESTConfigProvider.
-func (p Provider) GetName() string {
+func (Provider) GetName() string {
 	return ProviderName
 }
 
 // NewControllerToken implements auth.RESTConfigProvider.
-func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Token, error) {
+func (Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (auth.Credential, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -53,105 +51,142 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 		return nil, errors.New("client is required to create a controller token")
 	}
 
-	// Like all providers, this one should fetch controller-level credentials
-	// from the environment. In this case, this means opening the well-known
-	// Kubernetes service account token file and parsing it to figure out
-	// the controller's identity.
-	const tokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	b, err := p.impl().ReadFile(tokenFile)
+	// For kubernetes.CreateJWT(), a nil saRef means creating
+	// the token for the controller ServiceAccount.
+	var controllerSARef *kubernetes.ServiceAccountReference
+	var tokenDuration time.Duration // Default expiration (annotation not supported).
+	token, err := kubernetes.CreateJWT(ctx, o.Client, controllerSARef,
+		o.CredentialAudiences, tokenDuration)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read service account token file %s: %w", tokenFile, err)
+		return nil, fmt.Errorf("failed to create kubernetes token for controller service account: %w", err)
 	}
 
-	// Get controller service account from token subject.
-	tok, _, err := jwt.NewParser().ParseUnverified(string(b), jwt.MapClaims{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse service account token: %w", err)
-	}
-	sub, err := tok.Claims.GetSubject()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subject from service account token: %w", err)
-	}
-	parts := strings.Split(sub, ":")
-	if len(parts) != 4 {
-		return nil, fmt.Errorf("invalid subject format in service account token: %s", sub)
-	}
-	serviceAccount := corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      parts[3],
-			Namespace: parts[2],
-		},
-	}
-
-	// Create token.
-	tokenReq := &authnv1.TokenRequest{
-		Spec: authnv1.TokenRequestSpec{
-			Audiences: o.Audiences,
-		},
-	}
-	if err := o.Client.SubResource("token").Create(ctx, &serviceAccount, tokenReq); err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes token for controller service account '%s': %w",
-			client.ObjectKeyFromObject(&serviceAccount), err)
-	}
-	token := tokenReq.Status.Token
-
+	// Get the effective expiration from the token.
 	exp, err := getExpirationFromToken(token)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Token{
+	return &auth.JWTCredential{
+		Provider:  cryptov1.CredentialProviderKubernetes,
 		Token:     token,
 		ExpiresAt: *exp,
 	}, nil
 }
 
 // GetAudiences implements auth.RESTConfigProvider.
-func (Provider) GetAudiences(context.Context, corev1.ServiceAccount) ([]string, error) {
-	// Use TokenRequest default audiences.
-	return nil, nil
+func (Provider) GetAudiences(_ context.Context, opts ...auth.Option) ([]string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	return o.CredentialAudiences, nil
 }
 
 // GetIdentity implements auth.RESTConfigProvider.
-func (Provider) GetIdentity(serviceAccount corev1.ServiceAccount) (string, error) {
-	return fmt.Sprintf("system:serviceaccount:%s:%s", serviceAccount.Namespace, serviceAccount.Name), nil
+func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
+	var o auth.Options
+	o.Apply(opts...)
+	sa := o.ServiceAccountRef()
+	return fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name), nil
 }
 
-// NewTokenForServiceAccount implements auth.RESTConfigProvider.
-func (Provider) NewTokenForServiceAccount(ctx context.Context, oidcToken string,
-	serviceAccount corev1.ServiceAccount, opts ...auth.Option) (auth.Token, error) {
+// NewAccessCredentialForIdentity implements auth.RESTConfigProvider.
+func (Provider) NewAccessCredentialForIdentity(_ context.Context, identity auth.Credential,
+	_ ...auth.Option) (auth.Credential, error) {
 
-	exp, err := getExpirationFromToken(oidcToken)
-	if err != nil {
-		return nil, err
+	credential, ok := identity.(*auth.JWTCredential)
+	if !ok {
+		return nil, fmt.Errorf("expected *auth.JWTCredential, got %T", identity)
 	}
 
-	return &Token{
-		Token:     oidcToken,
-		ExpiresAt: *exp,
-	}, nil
+	// SPIFFE signing keys rotate frequently, and a JWT-SVID can stop being
+	// cryptographically verifiable before its expiration. Disable caching by
+	// zeroing the expiration time. SPIFFE runtimes normally cache credentials
+	// themselves.
+	if credential.Provider == cryptov1.CredentialProviderSPIFFE {
+		clone := *credential
+		clone.ExpiresAt = time.Time{}
+		return &clone, nil
+	}
+
+	return credential, nil
 }
 
-// GetAccessTokenOptionsForCluster implements auth.RESTConfigProvider.
-func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
+// GetAccessCredentialOptionsForArtifactRepository implements
+// auth.ArtifactRegistryCredentialsProvider.
+func (Provider) GetAccessCredentialOptionsForArtifactRepository(artifactRepository string,
+	opts ...auth.Option) ([]auth.Option, error) {
 
 	var o auth.Options
 	o.Apply(opts...)
 
-	audiences := o.Audiences
+	audiences := o.CredentialAudiences
+	if len(audiences) == 0 {
+		// Use the registry host as the default audience.
+		registry, err := cryptov1.GetRegistryFromArtifactRepository(artifactRepository)
+		if err != nil {
+			return nil, err
+		}
+		audiences = []string{registry}
+	}
+
+	return []auth.Option{auth.WithCredentialAudiences(audiences...)}, nil
+}
+
+// ParseArtifactRepository implements auth.ArtifactRegistryCredentialsProvider.
+func (Provider) ParseArtifactRepository(string) (string, error) {
+	// The artifact repository is irrelevant for issuing the ServiceAccount
+	// token, just return the provider name for inclusion in the cache key.
+	return ProviderName, nil
+}
+
+// NewArtifactRegistryCredentials implements
+// auth.ArtifactRegistryCredentialsProvider.
+func (Provider) NewArtifactRegistryCredentials(_ context.Context, _ string,
+	accessCredential auth.Credential, opts ...auth.Option) (*auth.ArtifactRegistryCredentials, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	credential := accessCredential.(*auth.JWTCredential)
+
+	// Authenticate with the token as the password and the configured username
+	// when one is provided, otherwise use the token as a bearer token.
+	var authenticator authn.Authenticator
+	if o.CredentialUsername != "" {
+		authenticator = authn.FromConfig(authn.AuthConfig{
+			Username: o.CredentialUsername,
+			Password: credential.Token,
+		})
+	} else {
+		authenticator = &authn.Bearer{Token: credential.Token}
+	}
+
+	return &auth.ArtifactRegistryCredentials{
+		Authenticator: authenticator,
+		ExpiresAt:     credential.ExpiresAt,
+	}, nil
+}
+
+// GetAccessCredentialOptionsForCluster implements auth.RESTConfigProvider.
+func (Provider) GetAccessCredentialOptionsForCluster(opts ...auth.Option) ([][]auth.Option, error) {
+
+	var o auth.Options
+	o.Apply(opts...)
+
+	audiences := o.CredentialAudiences
 	if len(audiences) == 0 {
 		// Use cluster address as the default audience.
 		audiences = []string{o.ClusterAddress}
 	}
 
-	return [][]auth.Option{{auth.WithAudiences(audiences...)}}, nil
+	return [][]auth.Option{{auth.WithCredentialAudiences(audiences...)}}, nil
 }
 
 // NewRESTConfig implements auth.RESTConfigProvider.
-func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
+func (Provider) NewRESTConfig(ctx context.Context, accessCredentials []auth.Credential,
 	opts ...auth.Option) (*auth.RESTConfig, error) {
 
-	token := accessTokens[0].(*Token)
+	credential := accessCredentials[0].(*auth.JWTCredential)
 
 	var o auth.Options
 	o.Apply(opts...)
@@ -162,7 +197,7 @@ func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 		return nil, errors.New("cluster address is required to create a REST config")
 	}
 	var err error
-	host, err = auth.ParseClusterAddress(host)
+	host, err = cryptov1.ParseClusterAddress(host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse cluster address %s: %w", o.ClusterAddress, err)
 	}
@@ -176,16 +211,9 @@ func (Provider) NewRESTConfig(ctx context.Context, accessTokens []auth.Token,
 	return &auth.RESTConfig{
 		Host:        host,
 		CAData:      caData,
-		BearerToken: token.Token,
-		ExpiresAt:   token.ExpiresAt,
+		BearerToken: credential.Token,
+		ExpiresAt:   credential.ExpiresAt,
 	}, nil
-}
-
-func (p Provider) impl() Implementation {
-	if p.Implementation == nil {
-		return implementation{}
-	}
-	return p.Implementation
 }
 
 func getExpirationFromToken(token string) (*time.Time, error) {

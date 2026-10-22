@@ -27,6 +27,7 @@ func TestSupportedFeatures(t *testing.T) {
 	tests := []struct {
 		name              string
 		supportedFeatures map[string]bool
+		retiredFeatures   map[string]string
 		commandLine       []string
 		wantErr           string
 	}{
@@ -51,6 +52,24 @@ func TestSupportedFeatures(t *testing.T) {
 			supportedFeatures: map[string]bool{},
 			wantErr:           "feature-gate 'time-travel' not supported",
 		},
+		{
+			name:              "retired feature gate is ignored",
+			commandLine:       []string{"--feature-gates=time-travel=true"},
+			supportedFeatures: map[string]bool{},
+			retiredFeatures:   map[string]string{"time-travel": "replaced by a default behavior"},
+		},
+		{
+			name:              "supported feature gate takes precedence over retired",
+			commandLine:       []string{"--feature-gates=time-travel=true"},
+			supportedFeatures: map[string]bool{"time-travel": false},
+			retiredFeatures:   map[string]string{"time-travel": "replaced by a default behavior"},
+		},
+		{
+			name:              "retired feature gate not set on the command line",
+			commandLine:       []string{"--feature-gates=invisible-messages=true"},
+			supportedFeatures: map[string]bool{"invisible-messages": false},
+			retiredFeatures:   map[string]string{"time-travel": "replaced by a default behavior"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -63,7 +82,7 @@ func TestSupportedFeatures(t *testing.T) {
 			features.BindFlags(fs)
 			fs.Parse(tt.commandLine)
 
-			err := features.SupportedFeatures(tt.supportedFeatures)
+			err := features.SupportedFeatures(tt.supportedFeatures, tt.retiredFeatures)
 			if tt.wantErr == "" {
 				g.Expect(err).ToNot(HaveOccurred())
 			} else {
@@ -72,6 +91,27 @@ func TestSupportedFeatures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSupportedFeatures_RetiredGateNotEnabled(t *testing.T) {
+	g := NewWithT(t)
+
+	loaded = false
+	fs := pflag.NewFlagSet("", pflag.ContinueOnError)
+
+	features := FeatureGates{}
+	features.BindFlags(fs)
+	g.Expect(fs.Parse([]string{"--feature-gates=time-travel=true"})).To(Succeed())
+
+	g.Expect(features.SupportedFeatures(
+		map[string]bool{"invisible-messages": false},
+		map[string]string{"time-travel": "replaced by a default behavior"},
+	)).To(Succeed())
+
+	// A retired feature gate is ignored, so it is not registered and cannot be
+	// queried through Enabled.
+	_, err := Enabled("time-travel")
+	g.Expect(err).To(MatchError(ContainSubstring("feature-gate 'time-travel' not supported")))
 }
 
 func TestEnabled(t *testing.T) {
@@ -135,7 +175,7 @@ func TestEnabled(t *testing.T) {
 			fs.Parse(tt.commandLine)
 
 			if tt.setSupportedFeatures {
-				err := features.SupportedFeatures(tt.supportedFeatures)
+				err := features.SupportedFeatures(tt.supportedFeatures, nil)
 				g.Expect(err).ToNot(HaveOccurred())
 			}
 

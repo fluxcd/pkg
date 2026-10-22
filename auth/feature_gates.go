@@ -16,43 +16,12 @@ limitations under the License.
 
 package auth
 
-import (
-	"fmt"
-)
-
 // FeatureGateObjectLevelWorkloadIdentity is a feature gate that enables the use of
-// object-level workload identity for authentication.
+// object-level workload identity for authentication. Controllers register this
+// feature gate and are responsible for evaluating it.
 const FeatureGateObjectLevelWorkloadIdentity = "ObjectLevelWorkloadIdentity"
 
-// ErrObjectLevelWorkloadIdentityNotEnabled is returned when object-level
-// workload identity is attempted but not enabled.
-var ErrObjectLevelWorkloadIdentityNotEnabled = fmt.Errorf(
-	"%s feature gate is not enabled", FeatureGateObjectLevelWorkloadIdentity)
-
-// SetFeatureGates sets the default values for the feature gates.
-func SetFeatureGates(features map[string]bool) {
-	// opt-in from Flux v2.6.
-	features[FeatureGateObjectLevelWorkloadIdentity] = false
-}
-
-// enableObjectLevelWorkloadIdentity enables the use of object-level workload
-// identity for authentication.
-var enableObjectLevelWorkloadIdentity bool
-
-// EnableObjectLevelWorkloadIdentity enables the use of object-level workload
-// identity for authentication.
-func EnableObjectLevelWorkloadIdentity() {
-	enableObjectLevelWorkloadIdentity = true
-}
-
-// DisableObjectLevelWorkloadIdentity disables the use of object-level workload
-// identity for authentication.
-func DisableObjectLevelWorkloadIdentity() {
-	enableObjectLevelWorkloadIdentity = false
-}
-
-// IsObjectLevelWorkloadIdentityEnabled returns true if the object-level
-// workload identity feature gate is enabled.
-func IsObjectLevelWorkloadIdentityEnabled() bool {
-	return enableObjectLevelWorkloadIdentity
-}
+// FeatureGateObjectLevelWorkloadIdentityRetirementReason provides the reason why the
+// ObjectLevelWorkloadIdentity feature gate is retired.
+const FeatureGateObjectLevelWorkloadIdentityRetirementReason = "the feature is now always enabled. " +
+	"make sure to grant RBAC for the controller to create ServiceAccount tokens if using the feature."

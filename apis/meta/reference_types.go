@@ -139,8 +139,7 @@ const (
 
 // KubeConfigReference contains enough information build a kubeconfig
 // in memory for connecting to remote Kubernetes clusters.
-// +kubebuilder:validation:XValidation:rule="has(self.configMapRef) || has(self.secretRef)", message="exactly one of spec.kubeConfig.configMapRef or spec.kubeConfig.secretRef must be specified"
-// +kubebuilder:validation:XValidation:rule="!has(self.configMapRef) || !has(self.secretRef)", message="exactly one of spec.kubeConfig.configMapRef or spec.kubeConfig.secretRef must be specified"
+// +kubebuilder:validation:XValidation:rule="has(self.configMapRef) != has(self.secretRef)", message="exactly one of spec.kubeConfig.configMapRef or spec.kubeConfig.secretRef must be specified"
 type KubeConfigReference struct {
 	// ConfigMapRef holds an optional name of a ConfigMap that contains
 	// the following keys:
@@ -164,16 +163,11 @@ type KubeConfigReference struct {
 	//    ServiceAccount in the same namespace that should be used
 	//    for authentication. If not specified, the controller
 	//    ServiceAccount will be used.
-	// - `audiences`: the optional audiences as a list of
-	//    line-break-separated strings for the Kubernetes ServiceAccount
+	// - `audiences`: the optional audiences as a list of string separated by
+	//    commas and/or whitespaces/newlines for the Kubernetes ServiceAccount
 	//    token. Defaults to the `address` for the `generic` provider, or
 	//    to specific values for the other providers depending on the
-	//    provider. This field is now considered legacy on behalf of using
-	//    the ServiceAccount annotation `credential.auth.fluxcd.io/audiences`.
-	//    Forward compatibility for this field is denied when using the
-	//    *.fluxcd.io ServiceAccount annotations to force users to migrate
-	//    (backward compatibility with gcp.auth.fluxcd.io/workload-identity-provider
-	//    is maintained).
+	//    provider.
 	//
 	// Mutually exclusive with SecretRef.
 	//

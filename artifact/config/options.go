@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -42,6 +43,10 @@ type Options struct {
 
 	// ArtifactDigestAlgo is the hashing algorithm used to calculate the digest of artifacts.
 	ArtifactDigestAlgo string `json:"artifactDigestAlgo"`
+
+	// TLSConfig is the TLS configuration used by the artifact server. When
+	// nil, the server serves plain HTTP.
+	TLSConfig *tls.Config `json:"-"`
 }
 
 // GetAdvertisedAddress returns the address the artifact server will advertise to clients.

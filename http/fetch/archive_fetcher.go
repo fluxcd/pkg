@@ -17,9 +17,11 @@ limitations under the License.
 package fetch
 
 import (
+	"bytes"
 	"context"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -52,6 +54,7 @@ type ArchiveFetcher struct {
 	logger            any
 
 	httpClient *retryablehttp.Client
+	tlsConfig  *tls.Config
 }
 
 // Option is an option for constructing the ArchiveFetcher.
@@ -113,6 +116,13 @@ func WithFileMode(fileMode fs.FileMode) Option {
 	}
 }
 
+// WithTLSConfig sets the TLS configuration for the HTTP client.
+func WithTLSConfig(tlsConfig *tls.Config) Option {
+	return func(a *ArchiveFetcher) {
+		a.tlsConfig = tlsConfig
+	}
+}
+
 // New creates an *ArchiveFetcher accepting options.
 func New(opts ...Option) *ArchiveFetcher {
 	a := &ArchiveFetcher{
@@ -132,6 +142,11 @@ func New(opts ...Option) *ArchiveFetcher {
 		a.httpClient.Logger = newErrorLogger(a.logger.(logr.Logger))
 	default:
 		a.httpClient.Logger = a.logger
+	}
+	if a.tlsConfig != nil {
+		tr := a.httpClient.HTTPClient.Transport.(*http.Transport).Clone()
+		tr.TLSClientConfig = a.tlsConfig
+		a.httpClient.HTTPClient.Transport = tr
 	}
 
 	return a
@@ -157,42 +172,104 @@ func NewArchiveFetcherWithLogger(retries, maxDownloadSize, maxUntarSize int, hos
 		WithLogger(logger), WithUntar(tar.WithMaxUntarSize(maxUntarSize)))
 }
 
-// Fetch downloads, verifies and extracts the tarball content to the specified directory.
-// If the file server responds with 5xx errors, the download operation is retried.
-// If the file server responds with 404, the returned error is of type ErrFileNotFound.
-// If the file server is unavailable for more than 3 minutes, the returned error contains the original status code.
+// Fetch is the same as FetchWithContext but uses a background context.
+//
+// Deprecated: Use FetchWithContext instead.
 func (r *ArchiveFetcher) Fetch(archiveURL, digest, dir string) error {
 	return r.FetchWithContext(context.Background(), archiveURL, digest, dir)
 }
 
-// FetchWithContext is the same as Fetch but accepts a context.
-func (r *ArchiveFetcher) FetchWithContext(ctx context.Context, archiveURL, digest, dir string) (err error) {
-	if r.hostnameOverwrite != "" {
+// FetchBytes is the same as FetchWithContext but returns the content of the archive
+// as a bytes.Buffer instead of writing it to a directory. Untar options are
+// ignored.
+func (r *ArchiveFetcher) FetchBytes(ctx context.Context, archiveURL, digest string) (bytes.Buffer, error) {
+	resp, err := r.download(ctx, archiveURL)
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+	defer resp.Body.Close()
+
+	var buf bytes.Buffer
+	if err := r.copyResponse(&buf, resp); err != nil {
+		return bytes.Buffer{}, err
+	}
+	if err := r.verifyDigest(digest, bytes.NewReader(buf.Bytes())); err != nil {
+		return bytes.Buffer{}, fmt.Errorf("failed to verify archive: %w", err)
+	}
+	return buf, nil
+}
+
+// download performs the HTTP request and validates the response status.
+func (r *ArchiveFetcher) download(ctx context.Context, archiveURL string) (*http.Response, error) {
+	if r.hostnameOverwrite != "" || r.tlsConfig != nil {
 		u, err := url.Parse(archiveURL)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		u.Host = r.hostnameOverwrite
+		if r.hostnameOverwrite != "" {
+			u.Host = r.hostnameOverwrite
+		}
+		if r.tlsConfig != nil {
+			u.Scheme = "https"
+		}
 		archiveURL = u.String()
 	}
 
 	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, archiveURL, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create a new request: %w", err)
+		return nil, fmt.Errorf("failed to create a new request: %w", err)
 	}
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to download archive: %w", err)
+		return nil, fmt.Errorf("failed to download archive: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if code := resp.StatusCode; code != http.StatusOK {
+		_ = resp.Body.Close()
 		if code == http.StatusNotFound {
-			return ErrFileNotFound
+			return nil, ErrFileNotFound
 		}
-		return fmt.Errorf("failed to download archive from %s (status: %s)", archiveURL, resp.Status)
+		return nil, fmt.Errorf("failed to download archive from %s (status: %s)", archiveURL, resp.Status)
 	}
+	return resp, nil
+}
+
+// copyResponse copies the response body to the given writer, enforcing the
+// configured maximum download size.
+func (r *ArchiveFetcher) copyResponse(dst io.Writer, resp *http.Response) error {
+	if r.maxDownloadSize > 0 {
+		// Headers can lie, so instead of trusting resp.ContentLength,
+		// limit the download to the max download size and error in case
+		// there are still bytes left.
+		// Note that discarding of remaining bytes in resp.Body is a
+		// requirement for Go to effectively reuse HTTP connections.
+		if _, err := io.Copy(dst, io.LimitReader(resp.Body, int64(r.maxDownloadSize))); err != nil {
+			return fmt.Errorf("failed to copy archive contents: %w", err)
+		}
+		n, _ := io.Copy(io.Discard, resp.Body)
+		if n > 0 {
+			return fmt.Errorf("artifact is %d bytes greater than the max download size of %d bytes", n, r.maxDownloadSize)
+		}
+		return nil
+	}
+
+	if _, err := io.Copy(dst, resp.Body); err != nil {
+		return fmt.Errorf("failed to copy archive contents: %w", err)
+	}
+	return nil
+}
+
+// FetchWithContext downloads, verifies and extracts the tarball content to the specified directory.
+// If the file server responds with 5xx errors, the download operation is retried.
+// If the file server responds with 404, the returned error is of type ErrFileNotFound.
+// If the file server is unavailable for more than 3 minutes, the returned error contains the original status code.
+func (r *ArchiveFetcher) FetchWithContext(ctx context.Context, archiveURL, digest, dir string) (err error) {
+	resp, err := r.download(ctx, archiveURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 
 	// Create a file for storing the archive.
 	var f *os.File
@@ -227,22 +304,8 @@ func (r *ArchiveFetcher) FetchWithContext(ctx context.Context, archiveURL, diges
 	}()
 
 	// Save temporary file, but limit download to the max download size.
-	if r.maxDownloadSize > 0 {
-		// Headers can lie, so instead of trusting resp.ContentLength,
-		// limit the download to the max download size and error in case
-		// there are still bytes left.
-		// Note that discarding of remaining bytes in resp.Body is a
-		// requirement for Go to effectively reuse HTTP connections.
-		_, err = io.Copy(f, io.LimitReader(resp.Body, int64(r.maxDownloadSize)))
-		n, _ := io.Copy(io.Discard, resp.Body)
-		if n > 0 {
-			return fmt.Errorf("artifact is %d bytes greater than the max download size of %d bytes", n, r.maxDownloadSize)
-		}
-	} else {
-		_, err = io.Copy(f, resp.Body)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to copy temp contents: %w", err)
+	if err := r.copyResponse(f, resp); err != nil {
+		return err
 	}
 
 	// We have just filled the file, to be able to read it from
