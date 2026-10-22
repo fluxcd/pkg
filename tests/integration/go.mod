@@ -27,7 +27,7 @@ require (
 	github.com/fluxcd/cli-utils v1.4.0
 	github.com/fluxcd/pkg/apis/crypto v0.5.0
 	github.com/fluxcd/pkg/apis/meta v1.37.0
-	github.com/fluxcd/pkg/auth v0.64.0
+	github.com/fluxcd/pkg/auth v0.65.0
 	github.com/fluxcd/pkg/cache v0.18.0
 	github.com/fluxcd/pkg/git v0.55.0
 	github.com/fluxcd/pkg/runtime v0.121.0
