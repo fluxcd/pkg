@@ -24,9 +24,8 @@ import (
 type Option func(*options)
 
 type options struct {
-	defaultServiceAccount       string
-	objectLevelWorkloadIdentity bool
-	authOpts                    []auth.Option
+	defaultServiceAccount string
+	authOpts              []auth.Option
 }
 
 // WithDefaultServiceAccount sets the default ServiceAccount name to use for
@@ -36,14 +35,6 @@ type options struct {
 func WithDefaultServiceAccount(name string) Option {
 	return func(o *options) {
 		o.defaultServiceAccount = name
-	}
-}
-
-// WithObjectLevelWorkloadIdentity indicates whether object-level workload
-// identity is enabled.
-func WithObjectLevelWorkloadIdentity() Option {
-	return func(o *options) {
-		o.objectLevelWorkloadIdentity = true
 	}
 }
 

@@ -61,7 +61,7 @@ func (o *FeatureGates) SupportedFeatures(features map[string]bool, retired map[s
 			featureGates[k] = v
 		} else if reason, ok := retired[k]; ok {
 			if o.log != nil {
-				o.log.Info("feature gate is now retired and ignored",
+				o.log.Info("feature gate is now retired and no longer changes behavior",
 					"feature-gate", k, "reason", reason)
 			}
 		} else {

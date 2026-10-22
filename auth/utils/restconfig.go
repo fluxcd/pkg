@@ -120,9 +120,6 @@ func GetRESTConfig(ctx context.Context,
 	}
 	var sa *corev1.ServiceAccount
 	if saName != "" {
-		if !o.objectLevelWorkloadIdentity {
-			return nil, auth.ErrObjectLevelWorkloadIdentityNotEnabled
-		}
 		sa = &corev1.ServiceAccount{}
 		if err := ctrlClient.Get(ctx, client.ObjectKey{Name: saName, Namespace: namespace}, sa); err != nil {
 			return nil, fmt.Errorf("failed to get service account '%s/%s': %w", namespace, saName, err)

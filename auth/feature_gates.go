@@ -16,16 +16,12 @@ limitations under the License.
 
 package auth
 
-import (
-	"fmt"
-)
-
 // FeatureGateObjectLevelWorkloadIdentity is a feature gate that enables the use of
 // object-level workload identity for authentication. Controllers register this
 // feature gate and are responsible for evaluating it.
 const FeatureGateObjectLevelWorkloadIdentity = "ObjectLevelWorkloadIdentity"
 
-// ErrObjectLevelWorkloadIdentityNotEnabled is returned when object-level
-// workload identity is attempted but not enabled.
-var ErrObjectLevelWorkloadIdentityNotEnabled = fmt.Errorf(
-	"%s feature gate is not enabled", FeatureGateObjectLevelWorkloadIdentity)
+// FeatureGateObjectLevelWorkloadIdentityRetirementReason provides the reason why the
+// ObjectLevelWorkloadIdentity feature gate is retired.
+const FeatureGateObjectLevelWorkloadIdentityRetirementReason = "the feature is now always enabled. " +
+	"make sure to grant RBAC for the controller to create ServiceAccount tokens if using the feature."

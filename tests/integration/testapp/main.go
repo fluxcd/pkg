@@ -180,9 +180,7 @@ func utilsOptions() []authutils.Option {
 		authutils.WithAuthOptions(authOpts...),
 	}
 	if wiSA != nil {
-		opts = append(opts,
-			authutils.WithDefaultServiceAccount(wiSA.Name),
-			authutils.WithObjectLevelWorkloadIdentity())
+		opts = append(opts, authutils.WithDefaultServiceAccount(wiSA.Name))
 	}
 	return opts
 }
