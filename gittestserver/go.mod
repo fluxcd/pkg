@@ -3,7 +3,7 @@ module github.com/fluxcd/pkg/gittestserver
 go 1.27.0
 
 require (
-	github.com/cyphar/filepath-securejoin v0.6.1
+	github.com/cyphar/filepath-securejoin v0.7.0
 	github.com/fluxcd/gitkit v0.6.0
 	github.com/go-git/go-billy/v5 v5.9.2
 	github.com/go-git/go-git/v5 v5.19.3

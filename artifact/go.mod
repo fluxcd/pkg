@@ -12,15 +12,15 @@ replace (
 )
 
 require (
-	github.com/cyphar/filepath-securejoin v0.6.1
+	github.com/cyphar/filepath-securejoin v0.7.0
 	github.com/fluxcd/pkg/apis/meta v1.37.0
 	github.com/fluxcd/pkg/lockedfile v0.9.0
 	github.com/fluxcd/pkg/oci v0.72.0
 	github.com/fluxcd/pkg/sourceignore v0.21.0
 	github.com/fluxcd/pkg/tar v1.3.0
-	github.com/onsi/gomega v1.43.0
+	github.com/onsi/gomega v1.44.0
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/go-digest/blake3 v0.0.0-20250813155314-89707e38ad1a
+	github.com/opencontainers/go-digest/blake3 v0.0.0-20261015205711-63db54280247
 	github.com/spf13/pflag v1.0.10
 	k8s.io/apimachinery v0.37.1
 )
