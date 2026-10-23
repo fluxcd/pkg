@@ -521,6 +521,133 @@ func TestClone_cloneSemVer(t *testing.T) {
 	}
 }
 
+func TestClone_depth(t *testing.T) {
+	g := NewWithT(t)
+
+	repo, path, err := initRepo(t.TempDir())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Three commits on master, oldest first, with an annotated tag on the tip.
+	var commits []plumbing.Hash
+	for i := 1; i <= 3; i++ {
+		h, err := commitFile(repo, "depth", fmt.Sprintf("commit %d", i), time.Now())
+		g.Expect(err).ToNot(HaveOccurred())
+		commits = append(commits, h)
+	}
+	tip := commits[len(commits)-1]
+	_, err = tag(repo, tip, true, "v1.0.0", time.Now())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	tests := []struct {
+		name         string
+		strategy     repository.CheckoutStrategy
+		shallowClone bool
+		depth        int
+		// wantCommits is the number of commits, counted from the tip,
+		// expected to be present in the clone.
+		wantCommits int
+		wantErr     string
+	}{
+		{
+			name:        "branch with Depth",
+			strategy:    repository.CheckoutStrategy{Branch: "master"},
+			depth:       2,
+			wantCommits: 2,
+		},
+		{
+			name:         "branch with Depth takes precedence over ShallowClone",
+			strategy:     repository.CheckoutStrategy{Branch: "master"},
+			shallowClone: true,
+			depth:        2,
+			wantCommits:  2,
+		},
+		{
+			name:         "branch with ShallowClone only",
+			strategy:     repository.CheckoutStrategy{Branch: "master"},
+			shallowClone: true,
+			wantCommits:  1,
+		},
+		{
+			name:        "branch without Depth or ShallowClone",
+			strategy:    repository.CheckoutStrategy{Branch: "master"},
+			wantCommits: 3,
+		},
+		{
+			name:        "tag with Depth",
+			strategy:    repository.CheckoutStrategy{Tag: "v1.0.0"},
+			depth:       2,
+			wantCommits: 2,
+		},
+		{
+			name:        "semver with Depth",
+			strategy:    repository.CheckoutStrategy{SemVer: ">=1.0.0"},
+			depth:       2,
+			wantCommits: 2,
+		},
+		{
+			name:        "branch reference name with Depth",
+			strategy:    repository.CheckoutStrategy{RefName: "refs/heads/master"},
+			depth:       2,
+			wantCommits: 2,
+		},
+		{
+			name:        "tag reference name with Depth",
+			strategy:    repository.CheckoutStrategy{RefName: "refs/tags/v1.0.0"},
+			depth:       2,
+			wantCommits: 2,
+		},
+		{
+			name:     "negative Depth",
+			strategy: repository.CheckoutStrategy{Branch: "master"},
+			depth:    -1,
+			wantErr:  "invalid clone depth -1: must not be negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			tmpDir := t.TempDir()
+			ggc, err := NewClient(tmpDir, &git.AuthOptions{Transport: git.HTTP})
+			g.Expect(err).ToNot(HaveOccurred())
+
+			cc, err := ggc.Clone(context.TODO(), path, repository.CloneConfig{
+				CheckoutStrategy: tt.strategy,
+				ShallowClone:     tt.shallowClone,
+				Depth:            tt.depth,
+			})
+			if tt.wantErr != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
+				g.Expect(cc).To(BeNil())
+				g.Expect(filepath.Join(tmpDir, ".git")).ToNot(BeAnExistingFile())
+				return
+			}
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(cc.Hash.String()).To(Equal(tip.String()))
+			g.Expect(filepath.Join(tmpDir, "depth")).To(BeARegularFile())
+
+			for i, h := range commits {
+				_, err := ggc.repository.CommitObject(h)
+				if len(commits)-i <= tt.wantCommits {
+					g.Expect(err).ToNot(HaveOccurred(), "commit %d should be present", i+1)
+				} else {
+					g.Expect(errors.Is(err, plumbing.ErrObjectNotFound)).To(BeTrue(), "commit %d should be absent, got: %v", i+1, err)
+				}
+			}
+
+			shallow, err := ggc.repository.Storer.Shallow()
+			g.Expect(err).ToNot(HaveOccurred())
+			if tt.wantCommits < len(commits) {
+				g.Expect(shallow).To(Equal([]plumbing.Hash{commits[len(commits)-tt.wantCommits]}))
+			} else {
+				g.Expect(shallow).To(BeEmpty())
+			}
+		})
+	}
+}
+
 func TestClone_cloneRefName(t *testing.T) {
 	g := NewWithT(t)
 

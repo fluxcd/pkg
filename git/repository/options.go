@@ -52,6 +52,14 @@ type CloneConfig struct {
 	// not supported by all implementations
 	ShallowClone bool
 
+	// Depth limits the history of a clone by branch, tag or semver range to
+	// the given number of commits along each parent chain from the tip, so
+	// a merge history may contain more commits than the depth. With a semver
+	// range it applies to every fetched tag. It takes precedence over
+	// ShallowClone, which is equivalent to a Depth of 1. A negative value is
+	// rejected. Not supported by all implementations.
+	Depth int
+
 	// SparseCheckoutDirectories defines a list of directories to sparse-checkout
 	// when cloning the repository. If provided, only listed directories are checked out.
 	SparseCheckoutDirectories []string
