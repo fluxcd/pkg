@@ -4,17 +4,16 @@ go 1.27.0
 
 require (
 	github.com/fluxcd/pkg/apis/crypto v0.5.0
-	github.com/go-jose/go-jose/v4 v4.1.5
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/gobuffalo/flect v1.0.3
-	github.com/onsi/gomega v1.43.0
+	github.com/onsi/gomega v1.44.0
 	github.com/spiffe/go-spiffe/v2 v2.9.0
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 )
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.22.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect

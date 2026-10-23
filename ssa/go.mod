@@ -5,10 +5,10 @@ go 1.27.0
 require (
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fluxcd/cli-utils v1.4.0
-	github.com/go-openapi/jsonpointer v1.0.0
+	github.com/go-openapi/jsonpointer v1.0.2
 	github.com/google/go-cmp v0.7.0
-	github.com/onsi/gomega v1.43.0
-	github.com/wI2L/jsondiff v0.6.1
+	github.com/onsi/gomega v1.44.0
+	github.com/wI2L/jsondiff v0.7.1
 	golang.org/x/sync v0.24.0
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1
