@@ -26,10 +26,10 @@ require (
 	github.com/aws/smithy-go/aws-http-auth v1.2.1
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/fluxcd/pkg/apis/crypto v0.5.0
-	github.com/fluxcd/pkg/apis/meta v1.37.0
-	github.com/fluxcd/pkg/cache v0.18.0
-	github.com/fluxcd/pkg/spiffe v0.1.0
-	github.com/fluxcd/pkg/ssh v0.28.0
+	github.com/fluxcd/pkg/apis/meta v1.38.0
+	github.com/fluxcd/pkg/cache v0.19.0
+	github.com/fluxcd/pkg/spiffe v0.2.0
+	github.com/fluxcd/pkg/ssh v0.29.0
 	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-jwt/jwt/v5 v5.3.1

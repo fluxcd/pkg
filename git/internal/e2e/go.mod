@@ -14,10 +14,10 @@ replace (
 
 require (
 	github.com/fluxcd/go-git-providers v0.29.0
-	github.com/fluxcd/pkg/auth v0.65.0
-	github.com/fluxcd/pkg/git v0.55.0
-	github.com/fluxcd/pkg/gittestserver v0.32.0
-	github.com/fluxcd/pkg/ssh v0.28.0
+	github.com/fluxcd/pkg/auth v0.66.0
+	github.com/fluxcd/pkg/git v0.56.0
+	github.com/fluxcd/pkg/gittestserver v0.33.0
+	github.com/fluxcd/pkg/ssh v0.29.0
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/go-logr/logr v1.4.4
 	github.com/google/go-github/v87 v87.0.0
@@ -36,8 +36,8 @@ require (
 	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fluxcd/gitkit v0.6.0 // indirect
-	github.com/fluxcd/pkg/cache v0.18.0 // indirect
-	github.com/fluxcd/pkg/version v0.19.0 // indirect
+	github.com/fluxcd/pkg/cache v0.19.0 // indirect
+	github.com/fluxcd/pkg/version v0.20.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.2 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
