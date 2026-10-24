@@ -28,9 +28,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/go-containerregistry/pkg/v1/types"
@@ -159,7 +160,11 @@ func Test_Push_Pull(t *testing.T) {
 					return err
 				}
 
-				err = crane.Push(img, url, c.optionsWithContext(ctx)...)
+				ref, err := name.ParseReference(url)
+				if err != nil {
+					return err
+				}
+				err = remote.Write(ref, img, c.optionsWithContext(ctx)...)
 				if err != nil {
 					return err
 				}
@@ -196,7 +201,11 @@ func Test_Push_Pull(t *testing.T) {
 				}
 
 				dst := fmt.Sprintf("%s/%s:%s", dockerReg, repo, "not-flux")
-				err = crane.Push(img, dst, c.optionsWithContext(ctx)...)
+				ref, err := name.ParseReference(dst)
+				if err != nil {
+					return err
+				}
+				err = remote.Write(ref, img, c.optionsWithContext(ctx)...)
 				if err != nil {
 					return err
 				}
@@ -236,12 +245,18 @@ func Test_Push_Pull(t *testing.T) {
 
 			g.Expect(err).To(Not(HaveOccurred()))
 			// Verify that the artifact and its tag is present in the registry
-			tags, err := crane.ListTags(fmt.Sprintf("%s/%s", dockerReg, repo))
+			repoRef, err := name.NewRepository(fmt.Sprintf("%s/%s", dockerReg, repo))
+			g.Expect(err).ToNot(HaveOccurred())
+			tags, err := remote.List(repoRef, c.optionsWithContext(ctx)...)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(tags).To(ContainElement(tt.tag))
 
 			// Pull the artifact from registry
-			image, err := crane.Pull(fmt.Sprintf("%s/%s:%s", dockerReg, repo, tt.tag))
+			imgRef, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", dockerReg, repo, tt.tag))
+			g.Expect(err).ToNot(HaveOccurred())
+			desc, err := remote.Get(imgRef, c.optionsWithContext(ctx)...)
+			g.Expect(err).ToNot(HaveOccurred())
+			image, err := desc.Image()
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Extract the manifest from the pulled artifact
@@ -345,7 +360,11 @@ func Test_PushCreatedAnnotationOverridesConfigCreated(t *testing.T) {
 	_, err := c.Push(ctx, url, "testdata/artifact", WithPushMetadata(metadata))
 	g.Expect(err).ToNot(HaveOccurred())
 
-	image, err := crane.Pull(url)
+	imgRef, err := name.ParseReference(url)
+	g.Expect(err).ToNot(HaveOccurred())
+	desc, err := remote.Get(imgRef)
+	g.Expect(err).ToNot(HaveOccurred())
+	image, err := desc.Image()
 	g.Expect(err).ToNot(HaveOccurred())
 
 	manifest, err := image.Manifest()
@@ -375,7 +394,11 @@ func Test_PushEmptyCreatedAnnotationUsesDefaultCreated(t *testing.T) {
 	_, err := c.Push(ctx, url, "testdata/artifact", WithPushMetadata(metadata))
 	g.Expect(err).ToNot(HaveOccurred())
 
-	image, err := crane.Pull(url)
+	imgRef, err := name.ParseReference(url)
+	g.Expect(err).ToNot(HaveOccurred())
+	desc, err := remote.Get(imgRef)
+	g.Expect(err).ToNot(HaveOccurred())
+	image, err := desc.Image()
 	g.Expect(err).ToNot(HaveOccurred())
 
 	manifest, err := image.Manifest()

@@ -22,9 +22,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	. "github.com/onsi/gomega"
@@ -53,7 +54,9 @@ func Test_PullAnyTarball(t *testing.T) {
 	img, err = mutate.Append(img, mutate.Addendum{Layer: layer})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	g.Expect(crane.Push(img, dst, c.optionsWithContext(ctx)...)).ToNot(HaveOccurred())
+	ref, err := name.ParseReference(dst)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(remote.Write(ref, img, c.optionsWithContext(ctx)...)).ToNot(HaveOccurred())
 
 	extractTo := filepath.Join(t.TempDir(), "artifact")
 	m, err := c.Pull(ctx, dst, extractTo)

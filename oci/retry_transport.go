@@ -26,14 +26,13 @@ import (
 	"syscall"
 
 	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 )
 
-// WithRetryTransport returns a crane.Option for setting transport that uses the  backoff for retries
+// WithRetryTransport returns a remote.Option for setting transport that uses the backoff for retries
 //
 // Most parts(including the functions below) are copied from https://github.com/google/go-containerregistry/blob/v0.14.0/pkg/v1/remote/options.go#L152
 // so we have the same transport used in the library but with a different retry backoff.
@@ -42,7 +41,7 @@ func WithRetryTransport(ctx context.Context,
 	auth authn.Authenticator,
 	backoff remote.Backoff,
 	scopes []string,
-	insecure bool) (crane.Option, error) {
+	insecure bool) (remote.Option, error) {
 	httpTransport := remote.DefaultTransport.(*http.Transport).Clone()
 	if insecure {
 		if httpTransport.TLSClientConfig == nil {
@@ -73,7 +72,7 @@ func WithRetryTransport(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	return crane.WithTransport(t), nil
+	return remote.WithTransport(t), nil
 }
 
 var defaultRetryPredicate = func(err error) bool {

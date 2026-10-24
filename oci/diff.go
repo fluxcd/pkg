@@ -25,14 +25,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
 // Diff compares the files included in an OCI image with the local files in the given path
 // and returns an error if the contents is different
 func (c *Client) Diff(ctx context.Context, url, dir string, ignorePaths []string) error {
-	_, err := name.ParseReference(url)
+	ref, err := name.ParseReference(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
@@ -65,9 +65,14 @@ func (c *Client) Diff(ctx context.Context, url, dir string, ignorePaths []string
 		return fmt.Errorf("calculating artifact hash failed: %w", err)
 	}
 
-	img, err := crane.Pull(url, c.optionsWithContext(ctx)...)
+	desc, err := remote.Get(ref, c.optionsWithContext(ctx)...)
 	if err != nil {
 		return err
+	}
+
+	img, err := desc.Image()
+	if err != nil {
+		return fmt.Errorf("parsing image failed: %w", err)
 	}
 
 	layers, err := img.Layers()

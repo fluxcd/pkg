@@ -20,17 +20,17 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
 // Delete deletes a particular image from an OCI repository
 // If the url has no tag, the latest image is deleted
 func (c *Client) Delete(ctx context.Context, url string) error {
-	_, err := name.ParseReference(url)
+	ref, err := name.ParseReference(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	return crane.Delete(url, c.optionsWithContext(ctx)...)
+	return remote.Delete(ref, c.optionsWithContext(ctx)...)
 }
