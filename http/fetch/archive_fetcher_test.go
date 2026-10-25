@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -140,6 +141,7 @@ func TestArchiveFetcher_FetchWithContext(t *testing.T) {
 			fetchedContentPath: filepath.Join(tmpDir, manifestsFileName),
 			opts:               []Option{WithUntar()},
 			wantErr:            true,
+			wantErrType:        ErrDigestMismatch,
 		},
 		{
 			name:               "fails with not found error",
@@ -163,7 +165,12 @@ func TestArchiveFetcher_FetchWithContext(t *testing.T) {
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				if tt.wantErrType != nil {
-					g.Expect(err).To(Equal(tt.wantErrType))
+					g.Expect(err).To(MatchError(tt.wantErrType))
+				}
+				if tt.wantErrType == ErrDigestMismatch {
+					g.Expect(err.Error()).To(ContainSubstring("computed digest doesn't match provided"))
+				} else {
+					g.Expect(errors.Is(err, ErrDigestMismatch)).To(BeFalse())
 				}
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
@@ -222,10 +229,11 @@ func TestArchiveFetcher_FetchBytes(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "fails to verify the digest",
-			url:     artifactURL,
-			digest:  "sha256:5c234ee52ff0e3dcc8528d6b9383cc235ad13a11658466f29df3be9eda6ee447",
-			wantErr: true,
+			name:        "fails to verify the digest",
+			url:         artifactURL,
+			digest:      "sha256:5c234ee52ff0e3dcc8528d6b9383cc235ad13a11658466f29df3be9eda6ee447",
+			wantErr:     true,
+			wantErrType: ErrDigestMismatch,
 		},
 		{
 			name:        "fails with not found error",
@@ -245,7 +253,12 @@ func TestArchiveFetcher_FetchBytes(t *testing.T) {
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				if tt.wantErrType != nil {
-					g.Expect(err).To(Equal(tt.wantErrType))
+					g.Expect(err).To(MatchError(tt.wantErrType))
+				}
+				if tt.wantErrType == ErrDigestMismatch {
+					g.Expect(err.Error()).To(ContainSubstring("computed digest doesn't match provided"))
+				} else {
+					g.Expect(errors.Is(err, ErrDigestMismatch)).To(BeFalse())
 				}
 				return
 			}
@@ -390,6 +403,7 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 			maxDownloadSize: -1,
 			maxUntarSize:    -1,
 			wantErr:         true,
+			wantErrType:     ErrDigestMismatch,
 		},
 		{
 			name:            "fails with not found error",
@@ -412,7 +426,12 @@ func TestArchiveFetcher_Fetch(t *testing.T) {
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				if tt.wantErrType != nil {
-					g.Expect(err).To(Equal(tt.wantErrType))
+					g.Expect(err).To(MatchError(tt.wantErrType))
+				}
+				if tt.wantErrType == ErrDigestMismatch {
+					g.Expect(err.Error()).To(ContainSubstring("computed digest doesn't match provided"))
+				} else {
+					g.Expect(errors.Is(err, ErrDigestMismatch)).To(BeFalse())
 				}
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
