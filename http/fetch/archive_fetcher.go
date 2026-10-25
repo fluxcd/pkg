@@ -63,6 +63,11 @@ type Option func(a *ArchiveFetcher)
 // ErrFileNotFound is an error type used to signal 404 HTTP status code responses.
 var ErrFileNotFound = errors.New("file not found")
 
+// ErrDigestMismatch is an error type used to signal that the downloaded content
+// doesn't match the expected digest, e.g. because the artifact changed between
+// reading the source status and downloading it.
+var ErrDigestMismatch = errors.New("computed digest doesn't match")
+
 // WithRetries sets the maximum amount of retries the HTTP client will be allowed to make.
 func WithRetries(retries int) Option {
 	return func(a *ArchiveFetcher) {
@@ -263,6 +268,7 @@ func (r *ArchiveFetcher) copyResponse(dst io.Writer, resp *http.Response) error 
 // FetchWithContext downloads, verifies and extracts the tarball content to the specified directory.
 // If the file server responds with 5xx errors, the download operation is retried.
 // If the file server responds with 404, the returned error is of type ErrFileNotFound.
+// If the digest of the downloaded content doesn't match, the returned error wraps ErrDigestMismatch.
 // If the file server is unavailable for more than 3 minutes, the returned error contains the original status code.
 func (r *ArchiveFetcher) FetchWithContext(ctx context.Context, archiveURL, digest, dir string) (err error) {
 	resp, err := r.download(ctx, archiveURL)
@@ -360,7 +366,7 @@ func (r *ArchiveFetcher) verifyDigest(dig string, reader io.Reader) error {
 		return err
 	}
 	if !verifier.Verified() {
-		return fmt.Errorf("computed digest doesn't match provided '%s' (check whether file size exceeds max download size)", dig)
+		return fmt.Errorf("%w provided '%s'", ErrDigestMismatch, dig)
 	}
 	return nil
 }
