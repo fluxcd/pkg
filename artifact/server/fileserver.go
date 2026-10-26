@@ -26,6 +26,34 @@ import (
 	"github.com/fluxcd/pkg/artifact/config"
 )
 
+const (
+	// readHeaderTimeout bounds the TLS handshake and the reading of the
+	// request headers.
+	readHeaderTimeout = 10 * time.Second
+
+	// idleTimeout bounds how long a keep-alive connection is kept open
+	// between requests. It is longer than the 90s idle timeout of the Flux
+	// HTTP clients, so that clients usually close idle connections first.
+	idleTimeout = 120 * time.Second
+)
+
+// newServer returns the HTTP server for the given options. The server sets
+// no read or write timeout for the whole request, so that large artifacts
+// can be downloaded by slow clients.
+func newServer(opts *config.Options) *http.Server {
+	fs := http.FileServer(http.Dir(opts.StoragePath))
+	mux := http.NewServeMux()
+	mux.Handle("/", fs)
+
+	return &http.Server{
+		Addr:              opts.StorageAddress,
+		Handler:           mux,
+		TLSConfig:         opts.TLSConfig,
+		ReadHeaderTimeout: readHeaderTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+}
+
 // Start starts a blocking HTTP or HTTPS file server using the provided
 // configuration options. When opts.TLSConfig is nil, the server serves plain
 // HTTP. It supports graceful shutdown via the provided context (e.g., from
@@ -37,15 +65,7 @@ func Start(ctx context.Context, opts *config.Options) error {
 		return fmt.Errorf("options cannot be nil")
 	}
 
-	fs := http.FileServer(http.Dir(opts.StoragePath))
-	mux := http.NewServeMux()
-	mux.Handle("/", fs)
-
-	server := &http.Server{
-		Addr:      opts.StorageAddress,
-		Handler:   mux,
-		TLSConfig: opts.TLSConfig,
-	}
+	server := newServer(opts)
 
 	// Start server in goroutine
 	errCh := make(chan error, 1)
