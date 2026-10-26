@@ -44,6 +44,10 @@ const (
 // extraction unless WithSkipSymlinks is set, in which case they are
 // silently dropped.
 //
+// Hardlink entries are recreated as hardlinks to a regular file extracted
+// earlier from the same archive; a hardlink whose target is missing, is not
+// a regular file, or escapes dir is rejected.
+//
 // If dir is a relative path, it cannot ascend from the current working
 // directory. If dir exists, it must be a directory; otherwise it is
 // created.
@@ -119,6 +123,33 @@ func Untar(r io.Reader, dir string, inOpts ...Option) error {
 		}
 
 		switch {
+		case f.Typeflag == tar.TypeLink:
+			// Hardlink entries carry no data of their own, they reference a
+			// file extracted earlier in the archive. Link names are relative
+			// to the root of the archive, not to the entry itself.
+			if !validRelPath(f.Linkname) {
+				return fmt.Errorf("tar file entry %s has invalid hardlink target %q", f.Name, f.Linkname)
+			}
+			target, err := securejoin.SecureJoin(dir, filepath.FromSlash(f.Linkname))
+			if err != nil {
+				return fmt.Errorf("tar file entry %s has invalid hardlink target %q: %w", f.Name, f.Linkname, err)
+			}
+			if ti, err := os.Lstat(target); err != nil || !ti.Mode().IsRegular() {
+				return fmt.Errorf("tar file entry %s is a hardlink to %q, which is not an extracted regular file", f.Name, f.Linkname)
+			}
+			parentDir := filepath.Dir(abs)
+			if !madeDir[parentDir] {
+				if err := os.MkdirAll(parentDir, 0o750); err != nil {
+					return err
+				}
+				madeDir[parentDir] = true
+			}
+			if err := os.Remove(abs); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return err
+			}
+			if err := os.Link(target, abs); err != nil {
+				return fmt.Errorf("error creating hardlink %s: %w", abs, err)
+			}
 		case mode.IsRegular():
 			// Make the directory. This is redundant because it should
 			// already be made by a directory entry in the tar
