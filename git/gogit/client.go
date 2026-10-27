@@ -169,7 +169,10 @@ func WithDiskStorage() ClientOption {
 		if resolved, err := filepath.EvalSymlinks(path); err == nil {
 			path = resolved
 		}
-		wt := osfs.New(path, osfs.WithBoundOS())
+		wt, err := newBoundWorktreeFS(path)
+		if err != nil {
+			return err
+		}
 		dot := osfs.New(filepath.Join(path, extgogit.GitDirName), osfs.WithBoundOS())
 
 		c.storer = filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
