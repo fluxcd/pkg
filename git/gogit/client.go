@@ -22,7 +22,9 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-git/go-billy/v5"
@@ -329,6 +331,23 @@ func (g *Client) writeFile(path string, reader io.Reader) error {
 		return git.ErrNoGitRepository
 	}
 
+	// BoundOS follows symlinks, so a tracked link could redirect the write
+	// into the repository's .git directory.
+	if bfs, ok := g.worktreeFS.(*boundWorktreeFS); ok {
+		rel, err := bfs.resolve(path)
+		if err != nil {
+			return err
+		}
+		first, _, _ := strings.Cut(rel, string(filepath.Separator))
+		gitDir, err := isGitDir(bfs.Root(), first)
+		if err != nil {
+			return err
+		}
+		if gitDir {
+			return fmt.Errorf("cannot write %q: path resolves inside %s", path, extgogit.GitDirName)
+		}
+	}
+
 	f, err := g.worktreeFS.Create(path)
 	if err != nil {
 		return err
@@ -337,6 +356,29 @@ func (g *Client) writeFile(path string, reader io.Reader) error {
 
 	_, err = io.Copy(f, reader)
 	return err
+}
+
+// isGitDir reports whether name, an entry of root, is the .git directory.
+// It compares file identity to also match aliases such as NTFS short names.
+func isGitDir(root, name string) (bool, error) {
+	if strings.EqualFold(name, extgogit.GitDirName) {
+		return true, nil
+	}
+	gfi, err := os.Stat(filepath.Join(root, extgogit.GitDirName))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	fi, err := os.Stat(filepath.Join(root, name))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(fi, gfi), nil
 }
 
 func (g *Client) Commit(info git.Commit, commitOpts ...repository.CommitOption) (string, error) {

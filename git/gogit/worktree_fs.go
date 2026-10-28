@@ -118,11 +118,14 @@ func (fs *boundWorktreeFS) entry(name string) (string, bool, error) {
 		}
 		name = trimmed
 	}
-	if clean := filepath.Clean(name); clean == "." || clean == filepath.Clean(base) {
+	if filepath.Clean(name) == "." {
 		return "", false, nil
 	}
 
 	for {
+		if filepath.Clean(name) == filepath.Clean(base) {
+			return "", false, nil
+		}
 		dir, leaf := filepath.Split(name)
 		if leaf == "" || leaf == "." || leaf == ".." {
 			return "", false, nil
@@ -147,6 +150,29 @@ func (fs *boundWorktreeFS) entry(name string) (string, bool, error) {
 			return "", false, err
 		}
 		return rel, true, nil
+	}
+}
+
+// resolve returns the root-relative path that BoundOS opens for name,
+// following all symlinks. It mirrors BoundOS.abs.
+func (fs *boundWorktreeFS) resolve(name string) (string, error) {
+	base := fs.Root()
+	name = fs.expandDot(name)
+	for {
+		if name == base {
+			name = string(filepath.Separator)
+		}
+		path, err := securejoin.SecureJoin(base, name)
+		if err != nil {
+			return "", err
+		}
+		vol := filepath.VolumeName(base)
+		dup := filepath.Join(base, base[len(vol):])
+		if strings.HasPrefix(path, dup+string(filepath.Separator)) {
+			name = path[len(dup):]
+			continue
+		}
+		return filepath.Rel(base, path)
 	}
 }
 

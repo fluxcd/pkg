@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -353,7 +354,7 @@ func TestBoundWorktreeFS_RemoveRoot(t *testing.T) {
 	writeTestFile(t, filepath.Join(base, "f"), "x")
 	wfs := newTestWorktreeFS(t, base)
 
-	for _, name := range []string{"", ".", "./", "..", "../", "/", base, base + "/", "a/.."} {
+	for _, name := range []string{"", ".", "./", "..", "../", "/", base, base + "/", "a/..", base + base} {
 		g.Expect(wfs.Remove(name)).To(MatchError(osfs.ErrBaseDirCannotBeRemoved), "Remove(%q)", name)
 		g.Expect(wfs.RemoveAll(name)).To(MatchError(osfs.ErrBaseDirCannotBeRemoved), "RemoveAll(%q)", name)
 	}
@@ -830,4 +831,192 @@ func writeTestTree(t *testing.T, st storer.Storer, tree testTree) plumbing.Hash 
 		t.Fatal(err)
 	}
 	return hash
+}
+
+func TestCommit_symlinkIntoGitDir(t *testing.T) {
+	tests := []struct {
+		name    string
+		from    testTree
+		write   string // "<root>" is replaced with the worktree root
+		want    testTree
+		wantErr bool
+	}{
+		{
+			name:    "symlink to git config",
+			from:    testTree{"s": {link: ".git/config"}},
+			write:   "s",
+			wantErr: true,
+		},
+		{
+			name:    "absolute symlink to git config",
+			from:    testTree{"s": {link: "/.git/config"}},
+			write:   "s",
+			wantErr: true,
+		},
+		{
+			name:    "nested symlink to git config",
+			from:    testTree{"d/s": {link: "../.git/config"}},
+			write:   "d/s",
+			wantErr: true,
+		},
+		{
+			name:    "symlink to git dir in leading path",
+			from:    testTree{"s": {link: ".git"}},
+			write:   "s/config",
+			wantErr: true,
+		},
+		{
+			name:    "dangling symlink into git dir",
+			from:    testTree{"s": {link: ".git/hooks/x"}},
+			write:   "s",
+			wantErr: true,
+		},
+		{
+			name:    "chained symlinks to git config",
+			from:    testTree{"a": {link: "b"}, "b": {link: ".git/config"}},
+			write:   "a",
+			wantErr: true,
+		},
+		{
+			name:    "absolute name",
+			from:    testTree{"s": {link: ".git/config"}},
+			write:   "/s",
+			wantErr: true,
+		},
+		{
+			name:    "name above the root",
+			from:    testTree{"s": {link: ".git/config"}},
+			write:   "../s",
+			wantErr: true,
+		},
+		{
+			name:    "name with duplicated root",
+			from:    testTree{"s": {link: ".git/config"}},
+			write:   "<root>/s",
+			wantErr: true,
+		},
+		{
+			name:    "git dir",
+			from:    testTree{"a.txt": {content: "A"}},
+			write:   ".git/config",
+			wantErr: true,
+		},
+		{
+			name:  "symlink to tracked file",
+			from:  testTree{"a.txt": {content: "A"}, "s": {link: "a.txt"}},
+			write: "s",
+			want:  testTree{"a.txt": {content: "new"}, "s": {link: "a.txt"}},
+		},
+		{
+			name:  "symlink to tracked dir in leading path",
+			from:  testTree{"d/f": {content: "F"}, "s": {link: "d"}},
+			write: "s/f",
+			want:  testTree{"d/f": {content: "new"}, "s": {link: "d"}},
+		},
+		{
+			name:  "file with git prefix",
+			from:  testTree{"a.txt": {content: "A"}},
+			write: ".gitignore",
+			want:  testTree{"a.txt": {content: "A"}, ".gitignore": {content: "new"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			server, err := gittestserver.NewTempGitServer()
+			g.Expect(err).ToNot(HaveOccurred())
+			defer os.RemoveAll(server.Root())
+			g.Expect(server.InitRepo("../testdata/git/repo", git.DefaultBranch, "test.git")).To(Succeed())
+			g.Expect(server.StartHTTP()).To(Succeed())
+			defer server.StopHTTP()
+
+			remote, err := extgogit.PlainOpen(filepath.Join(server.Root(), "test.git"))
+			g.Expect(err).ToNot(HaveOccurred())
+			setBranch(t, remote.Storer, "from", tt.from)
+
+			// WithDiskStorage resolves symlinks in the path.
+			path := filepath.Join(t.TempDir(), "alias")
+			symlinkTest(t, t.TempDir(), path)
+			ggc, err := NewClient(path, &git.AuthOptions{Transport: git.HTTP}, WithDiskStorage())
+			g.Expect(err).ToNot(HaveOccurred())
+
+			_, err = ggc.Clone(context.TODO(), server.HTTPAddress()+"/test.git", repository.CloneConfig{
+				CheckoutStrategy: repository.CheckoutStrategy{Branch: "from"},
+			})
+			g.Expect(err).ToNot(HaveOccurred())
+
+			resolved, err := filepath.EvalSymlinks(path)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(worktreeContent(t, resolved)).To(Equal(tt.from))
+			gitDir := filepath.Join(resolved, ".git")
+			before := dirContent(t, gitDir)
+
+			name := strings.ReplaceAll(tt.write, "<root>", strings.TrimPrefix(resolved, string(filepath.Separator)))
+			_, err = ggc.Commit(git.Commit{
+				Author:  git.Signature{Name: "Test User", Email: "test@example.com"},
+				Message: "write",
+			}, repository.WithFiles(map[string]io.Reader{name: strings.NewReader("new")}))
+
+			if tt.wantErr {
+				g.Expect(err).To(MatchError(ContainSubstring("path resolves inside .git")))
+				g.Expect(dirContent(t, gitDir)).To(Equal(before))
+				g.Expect(worktreeContent(t, resolved)).To(Equal(tt.from))
+				return
+			}
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(worktreeContent(t, resolved)).To(Equal(tt.want))
+			clean, err := ggc.IsClean()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(clean).To(BeTrue())
+		})
+	}
+}
+
+// dirContent returns the content of every regular file under dir.
+func dirContent(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	got := map[string]string{}
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || !d.Type().IsRegular() {
+			return err
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		got[p] = string(b)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
+}
+
+func TestIsGitDir(t *testing.T) {
+	g := NewWithT(t)
+	root := resolvedTempDir(t)
+	g.Expect(os.Mkdir(filepath.Join(root, "meta"), 0o755)).To(Succeed())
+	g.Expect(os.Mkdir(filepath.Join(root, "other"), 0o755)).To(Succeed())
+
+	ok, err := isGitDir(root, "meta")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(ok).To(BeFalse(), "no .git")
+
+	// An alias of the .git directory under a different name.
+	g.Expect(os.Symlink("meta", filepath.Join(root, ".git"))).To(Succeed())
+	for name, want := range map[string]bool{
+		".git":    true,
+		".GIT":    true,
+		"meta":    true,
+		"other":   false,
+		"missing": false,
+		".":       false,
+	} {
+		ok, err := isGitDir(root, name)
+		g.Expect(err).ToNot(HaveOccurred(), name)
+		g.Expect(ok).To(Equal(want), name)
+	}
 }
