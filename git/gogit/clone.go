@@ -269,6 +269,23 @@ func (g *Client) cloneCommit(ctx context.Context, url, commit string, opts repos
 		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(opts.Branch)
 	}
 
+	// A commit does not move, so if it was observed before there is
+	// nothing to fetch and the remote does not need to be contacted.
+	if lastObserved := git.TransformRevision(opts.LastObservedCommit); lastObserved != "" {
+		ref := cloneOpts.ReferenceName
+		if opts.RefName != "" {
+			ref = plumbing.ReferenceName(opts.RefName)
+		}
+		// Construct a non-concrete commit with the existing information.
+		c := &git.Commit{
+			Hash:      git.Hash(commit),
+			Reference: ref.String(),
+		}
+		if lastObserved == c.String() || lastObserved == c.AbsoluteReference() {
+			return c, nil
+		}
+	}
+
 	repo, err := extgogit.CloneContext(ctx, g.storer, g.worktreeFS, cloneOpts)
 	if err != nil {
 		if err == transport.ErrEmptyRemoteRepository || err == transport.ErrRepositoryNotFound ||

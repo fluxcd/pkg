@@ -403,6 +403,114 @@ func TestClone_cloneCommit(t *testing.T) {
 	}
 }
 
+func TestClone_cloneCommit_lastObserved(t *testing.T) {
+	repo, path, err := initRepo(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstCommit, err := commitFile(repo, "commit", "init", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = createBranch(repo, "other-branch"); err != nil {
+		t.Fatal(err)
+	}
+	secondCommit, err := commitFile(repo, "commit", "second", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := git.Hash(firstCommit.String()).Digest()
+	second := git.Hash(secondCommit.String()).Digest()
+
+	tests := []struct {
+		name                   string
+		commit                 string
+		branch                 string
+		refName                string
+		lastRevision           string
+		expectedCommit         string
+		expectedConcreteCommit bool
+	}{
+		{
+			name:                   "Commit, matching last revision",
+			commit:                 firstCommit.String(),
+			lastRevision:           first,
+			expectedCommit:         first,
+			expectedConcreteCommit: false,
+		},
+		{
+			name:                   "Commit, different last revision",
+			commit:                 firstCommit.String(),
+			lastRevision:           second,
+			expectedCommit:         first,
+			expectedConcreteCommit: true,
+		},
+		{
+			name:                   "Commit in branch, matching last revision",
+			commit:                 secondCommit.String(),
+			branch:                 "other-branch",
+			lastRevision:           "other-branch@" + second,
+			expectedCommit:         "other-branch@" + second,
+			expectedConcreteCommit: false,
+		},
+		{
+			name:                   "Commit in branch, matching legacy last revision",
+			commit:                 secondCommit.String(),
+			branch:                 "other-branch",
+			lastRevision:           "other-branch/" + secondCommit.String(),
+			expectedCommit:         "other-branch@" + second,
+			expectedConcreteCommit: false,
+		},
+		{
+			name:                   "Commit in branch, last revision of other branch",
+			commit:                 secondCommit.String(),
+			branch:                 "other-branch",
+			lastRevision:           "master@" + second,
+			expectedCommit:         "other-branch@" + second,
+			expectedConcreteCommit: true,
+		},
+		{
+			name:                   "Commit with ref name, matching last revision",
+			commit:                 secondCommit.String(),
+			refName:                "refs/heads/other-branch",
+			lastRevision:           "refs/heads/other-branch@" + second,
+			expectedCommit:         "other-branch@" + second,
+			expectedConcreteCommit: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			url := path
+			if !tt.expectedConcreteCommit {
+				// The remote must not be contacted.
+				url = filepath.Join(t.TempDir(), "missing")
+			}
+			tmpDir := t.TempDir()
+			opts := repository.CloneConfig{
+				CheckoutStrategy: repository.CheckoutStrategy{
+					Branch:  tt.branch,
+					Commit:  tt.commit,
+					RefName: tt.refName,
+				},
+				ShallowClone:       true,
+				LastObservedCommit: tt.lastRevision,
+			}
+			ggc, err := NewClient(tmpDir, nil)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			cc, err := ggc.Clone(context.TODO(), url, opts)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(cc.String()).To(Equal(tt.expectedCommit))
+			g.Expect(git.IsConcreteCommit(*cc)).To(Equal(tt.expectedConcreteCommit))
+			if !tt.expectedConcreteCommit {
+				g.Expect(filepath.Join(tmpDir, "commit")).ToNot(BeAnExistingFile())
+			}
+		})
+	}
+}
+
 func TestClone_cloneSemVer(t *testing.T) {
 	now := time.Now()
 
