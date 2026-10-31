@@ -183,6 +183,92 @@ other: values
 			},
 		},
 		{
+			name: "every target path takes precedence over values",
+			resources: []runtime.Object{
+				mockSecret("values", map[string][]byte{"token": []byte("real")}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:       kindSecret,
+					Name:       "values",
+					ValuesKey:  "token",
+					TargetPath: "config.a.token",
+				},
+				{
+					Kind:       kindSecret,
+					Name:       "values",
+					ValuesKey:  "token",
+					TargetPath: "config.b.token",
+				},
+			},
+			values: `
+config:
+  a:
+    token: placeholder
+  b:
+    token: placeholder
+`,
+			want: common.Values{
+				"config": map[string]interface{}{
+					"a": map[string]interface{}{"token": "real"},
+					"b": map[string]interface{}{"token": "real"},
+				},
+			},
+		},
+		{
+			name: "top level target path takes precedence over values",
+			resources: []runtime.Object{
+				mockSecret("values", map[string][]byte{"token": []byte("real")}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:       kindSecret,
+					Name:       "values",
+					ValuesKey:  "token",
+					TargetPath: "token",
+				},
+			},
+			values: `
+token: placeholder
+`,
+			want: common.Values{
+				"token": "real",
+			},
+		},
+		{
+			name: "later target path wins over earlier target path",
+			resources: []runtime.Object{
+				mockSecret("values", map[string][]byte{
+					"first":  []byte("one"),
+					"second": []byte("two"),
+				}),
+				mockConfigMap("values", map[string]string{
+					"values.yaml": "config:\n  token: configmap\n",
+				}),
+			},
+			references: []meta.ValuesReference{
+				{
+					Kind:       kindSecret,
+					Name:       "values",
+					ValuesKey:  "first",
+					TargetPath: "config.token",
+				},
+				{
+					Kind:       kindSecret,
+					Name:       "values",
+					ValuesKey:  "second",
+					TargetPath: "config.token",
+				},
+				{
+					Kind: kindConfigMap,
+					Name: "values",
+				},
+			},
+			want: common.Values{
+				"config": map[string]interface{}{"token": "two"},
+			},
+		},
+		{
 			name: "values reference to non existing secret",
 			references: []meta.ValuesReference{
 				{
@@ -439,6 +525,40 @@ invalid`,
 			g.Expect(got).To(Equal(tt.want))
 		})
 	}
+}
+
+func TestChartValuesFromReferences_DoesNotModifyValues(t *testing.T) {
+	g := NewWithT(t)
+
+	c := fake.NewClientBuilder().WithScheme(testScheme()).WithRuntimeObjects(
+		mockSecret("values", map[string][]byte{"token": []byte("real")}),
+	).Build()
+	values, err := common.ReadValues([]byte(`
+config:
+  token: placeholder
+  list:
+  - placeholder
+`))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	refs := []meta.ValuesReference{
+		{Kind: kindSecret, Name: "values", ValuesKey: "token", TargetPath: "config.token"},
+		{Kind: kindSecret, Name: "values", ValuesKey: "token", TargetPath: "config.list[0]"},
+	}
+	got, err := ChartValuesFromReferences(context.TODO(), logr.Discard(), c, "", values, refs...)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(got).To(Equal(common.Values{
+		"config": map[string]interface{}{
+			"token": "real",
+			"list":  []interface{}{"real"},
+		},
+	}))
+	g.Expect(values).To(Equal(common.Values{
+		"config": map[string]interface{}{
+			"token": "placeholder",
+			"list":  []interface{}{"placeholder"},
+		},
+	}))
 }
 
 // This tests compatability with the formats described in:
