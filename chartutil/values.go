@@ -156,6 +156,16 @@ func ChartValuesFromReferences(ctx context.Context, log logr.Logger, client kube
 	result := common.Values{}
 	resources := make(map[string]kubeclient.Object)
 
+	// References with a targetPath are applied after everything else has
+	// been merged, so each of them takes precedence over the values map and
+	// over references without a targetPath.
+	type pathValue struct {
+		ref  meta.ValuesReference
+		name types.NamespacedName
+		data string
+	}
+	var pathValues []pathValue
+
 	for _, ref := range refs {
 		namespacedName := types.NamespacedName{Namespace: namespace, Name: ref.Name}
 		var valuesData []byte
@@ -231,28 +241,65 @@ func ChartValuesFromReferences(ctx context.Context, log logr.Logger, client kube
 		}
 
 		if ref.TargetPath != "" {
-			result = MergeMaps(result, values)
-
-			// TODO(hidde): this is a bit of hack, as it mimics the way the option string is passed
-			// 	to Helm from a CLI perspective. Given the parser is however not publicly accessible
-			// 	while it contains all logic around parsing the target path, it is a fair trade-off.
-			merger := ReplacePathValue
-			if ref.Literal {
-				merger = ReplacePathLiteralValue
-			}
-			if err := merger(result, ref.TargetPath, string(valuesData)); err != nil {
-				return nil, NewErrValuesReference(namespacedName, ref, ErrValueMerge, err)
-			}
+			pathValues = append(pathValues, pathValue{ref: ref, name: namespacedName, data: string(valuesData)})
 			continue
 		}
 
-		values, err := common.ReadValues(valuesData)
+		refValues, err := common.ReadValues(valuesData)
 		if err != nil {
 			return nil, NewErrValuesReference(namespacedName, ref, ErrValuesDataRead, err)
 		}
-		result = MergeMaps(result, values)
+		result = MergeMaps(result, refValues)
 	}
-	return MergeMaps(result, values), nil
+	result = MergeMaps(result, values)
+
+	if len(pathValues) == 0 {
+		return result, nil
+	}
+
+	// MergeMaps shares nested maps and slices with its inputs. Copy them
+	// before writing to target paths, so the given values are not modified.
+	result = deepCopyValues(result)
+	for _, pv := range pathValues {
+		// TODO(hidde): this is a bit of hack, as it mimics the way the option string is passed
+		// 	to Helm from a CLI perspective. Given the parser is however not publicly accessible
+		// 	while it contains all logic around parsing the target path, it is a fair trade-off.
+		merger := ReplacePathValue
+		if pv.ref.Literal {
+			merger = ReplacePathLiteralValue
+		}
+		if err := merger(result, pv.ref.TargetPath, pv.data); err != nil {
+			return nil, NewErrValuesReference(pv.name, pv.ref, ErrValueMerge, err)
+		}
+	}
+	return result, nil
+}
+
+// deepCopyValues returns a copy of values in which nested maps and slices
+// are copied as well.
+func deepCopyValues(values map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(values))
+	for k, v := range values {
+		out[k] = deepCopyValue(v)
+	}
+	return out
+}
+
+func deepCopyValue(v interface{}) interface{} {
+	switch v := v.(type) {
+	case map[string]interface{}:
+		return deepCopyValues(v)
+	case common.Values:
+		return common.Values(deepCopyValues(v))
+	case []interface{}:
+		out := make([]interface{}, len(v))
+		for i := range v {
+			out[i] = deepCopyValue(v[i])
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 // ReplacePathValue replaces the value at the dot notation path with the given
