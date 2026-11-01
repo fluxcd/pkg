@@ -22,11 +22,14 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/gomega"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	corev1 "k8s.io/api/core/v1"
@@ -34,6 +37,7 @@ import (
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
+	"github.com/fluxcd/pkg/auth/actionsoidc"
 	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/spiffe/broker"
@@ -491,6 +495,148 @@ func TestNewAccessCredentialSPIFFERequiresBroker(t *testing.T) {
 	opts := spiffeOptions(object, nil)
 	_, err := auth.NewAccessCredential(ctx, spiffeMockProvider(t), opts...)
 	g.Expect(err).To(MatchError("SPIFFE Broker client is required for the SPIFFE credential provider"))
+}
+
+func TestNewAccessCredentialActionsOIDC(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	idToken := newTestJWT(t, time.Now().Add(time.Hour))
+
+	var gotAudiences []string
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAudiences = r.URL.Query()["audience"]
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"value":"` + idToken + `"}`))
+	}))
+	defer srv.Close()
+
+	t.Setenv(actionsoidc.EnvRequestURL, srv.URL+"/token?api-version=2.0")
+	t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+
+	object := actionsOIDCObject("object")
+	credential, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, idToken),
+		actionsOIDCOptions(object)...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+	g.Expect(gotAudiences).To(Equal([]string{"audience1", "audience2"}))
+	g.Expect(gotAuth).To(Equal("bearer request-token"))
+}
+
+func TestNewAccessCredentialActionsOIDCErrors(t *testing.T) {
+	ctx := context.Background()
+	object := actionsOIDCObject("object")
+
+	t.Run("missing environment variables", func(t *testing.T) {
+		g := NewWithT(t)
+		t.Setenv(actionsoidc.EnvRequestURL, "")
+		t.Setenv(actionsoidc.EnvRequestToken, "")
+
+		_, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, ""),
+			actionsOIDCOptions(object)...)
+		g.Expect(err).To(MatchError(ContainSubstring("failed to fetch Actions OIDC ID token")))
+	})
+
+	t.Run("token endpoint error", func(t *testing.T) {
+		g := NewWithT(t)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte("denied"))
+		}))
+		defer srv.Close()
+
+		t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
+		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+
+		_, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, ""),
+			actionsOIDCOptions(object)...)
+		g.Expect(err).To(MatchError(ContainSubstring("failed to fetch Actions OIDC ID token: " +
+			"OIDC token request failed with status 403")))
+	})
+}
+
+func TestNewAccessCredentialActionsOIDCCache(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	idToken := newTestJWT(t, time.Now().Add(time.Hour))
+
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"value":"` + idToken + `"}`))
+	}))
+	defer srv.Close()
+
+	t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
+	t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := actionsOIDCMockProvider(t, idToken)
+	opts := append(actionsOIDCOptions(actionsOIDCObject("object")), auth.WithCache(*tokenCache))
+
+	// The first call fetches a token, the second is served from the cache.
+	for range 2 {
+		credential, err := auth.NewAccessCredential(ctx, provider, opts...)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+	}
+	g.Expect(calls).To(Equal(1))
+}
+
+func actionsOIDCObject(name string) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "flux-system",
+			UID:       "object-uid",
+		},
+	}
+}
+
+func actionsOIDCMockProvider(t *testing.T, idToken string) *mockProvider {
+	return &mockProvider{
+		t:                       t,
+		returnName:              "mock-provider",
+		returnIdentity:          "mock-identity",
+		returnAccessCredential:  &mockCredential{token: "mock-access-token"},
+		paramAudiences:          []string{"audience1", "audience2"},
+		paramServiceAccount:     &kubernetes.ServiceAccountReference{Name: "actions-sa", Namespace: "flux-system"},
+		paramCredentialProvider: cryptov1.CredentialProviderActionsOIDC,
+		paramOIDCToken:          idToken,
+		skipOIDCValidation:      true,
+	}
+}
+
+func actionsOIDCOptions(object *corev1.ServiceAccount) []auth.Option {
+	return []auth.Option{
+		auth.WithServiceAccountName("actions-sa"),
+		auth.WithObject("source.toolkit.fluxcd.io", "OCIRepository", object),
+		auth.WithCredentialProvider(cryptov1.CredentialProviderActionsOIDC),
+		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
+		auth.WithCredentialAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAWSRegion("us-east-1"),
+		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+	}
+}
+
+// newTestJWT mints an unsigned-but-parseable JWT carrying the given exp claim.
+func newTestJWT(t *testing.T, exp time.Time) string {
+	t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"exp": exp.Unix()})
+	signed, err := token.SignedString([]byte("test-secret"))
+	if err != nil {
+		t.Fatalf("failed to mint test JWT: %v", err)
+	}
+	return signed
 }
 
 func spiffeMockProvider(t *testing.T) *mockProvider {
