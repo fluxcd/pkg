@@ -238,8 +238,8 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 				fmt.Sprintf("objectUID=%s", o.ObjectReference.UID),
 			)
 		case cryptov1.CredentialProviderActionsOIDC:
-			// We cannot choose an identity for OIDC tokens, they always have
-			// the same identity
+			// We cannot choose an identity for Actions OIDC tokens, they always have
+			// the same identity.
 		}
 	}
 
