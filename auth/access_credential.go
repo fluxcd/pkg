@@ -52,7 +52,7 @@ func NewAccessCredential(ctx context.Context, provider Provider, opts ...Option)
 	var serviceAccount *kubernetes.ServiceAccountReference
 	var providerIdentity string
 	var audiences []string
-	if o.objectLevelWorkloadIdentity() {
+	if o.performCredentialExchange {
 		var err error
 		serviceAccount, audiences, providerIdentity, err =
 			getServiceAccountAndProviderInfo(ctx, provider, opts...)
@@ -70,8 +70,11 @@ func NewAccessCredential(ctx context.Context, provider Provider, opts ...Option)
 			// Exchange the identity credential for a provider access credential.
 			credential, err := provider.NewAccessCredentialForIdentity(ctx, identity, opts...)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create provider access credential for service account '%s': %w",
-					serviceAccount, err)
+				if serviceAccount != nil {
+					return nil, fmt.Errorf("failed to create provider access credential for service account '%s': %w",
+						serviceAccount, err)
+				}
+				return nil, fmt.Errorf("failed to create provider access credential: %w", err)
 			}
 
 			return credential, nil
@@ -187,8 +190,11 @@ func getServiceAccountAndProviderInfo(ctx context.Context, provider Provider,
 	// Get provider identity.
 	providerIdentity, err := provider.GetIdentity(opts...)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("failed to get provider identity from service account '%s': %w",
-			sa, err)
+		if sa != nil {
+			return nil, nil, "", fmt.Errorf("failed to get provider identity from service account '%s': %w",
+				sa, err)
+		}
+		return nil, nil, "", fmt.Errorf("failed to get provider identity: %w", err)
 	}
 
 	return sa, audiences, providerIdentity, nil
@@ -216,7 +222,7 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 		parts = append(parts, fmt.Sprintf("audiences=%s", strings.Join(audiences, ",")))
 	}
 
-	if serviceAccount != nil {
+	if o.performCredentialExchange {
 		parts = append(parts, fmt.Sprintf("providerIdentity=%s", providerIdentity))
 		switch o.credentialProvider() {
 		case cryptov1.CredentialProviderKubernetes:
@@ -238,8 +244,9 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 				fmt.Sprintf("objectUID=%s", o.ObjectReference.UID),
 			)
 		case cryptov1.CredentialProviderActionsOIDC:
-			// We cannot choose an identity for Actions OIDC tokens, they always have
-			// the same identity.
+			// Actions OIDC does not allow choosing a credential identity like
+			// Kubernetes TokenRequest API and SPIFFE Broker API, so there's
+			// nothing to add to the cache key for Actions OIDC.
 		}
 	}
 

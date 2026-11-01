@@ -606,7 +606,6 @@ func actionsOIDCMockProvider(t *testing.T, idToken string) *mockProvider {
 		returnIdentity:          "mock-identity",
 		returnAccessCredential:  &mockCredential{token: "mock-access-token"},
 		paramAudiences:          []string{"audience1", "audience2"},
-		paramServiceAccount:     &kubernetes.ServiceAccountReference{Name: "actions-sa", Namespace: "flux-system"},
 		paramCredentialProvider: cryptov1.CredentialProviderActionsOIDC,
 		paramOIDCToken:          idToken,
 		skipOIDCValidation:      true,
@@ -615,8 +614,8 @@ func actionsOIDCMockProvider(t *testing.T, idToken string) *mockProvider {
 
 func actionsOIDCOptions(object *corev1.ServiceAccount) []auth.Option {
 	return []auth.Option{
-		auth.WithServiceAccountName("actions-sa"),
 		auth.WithObject("source.toolkit.fluxcd.io", "OCIRepository", object),
+		auth.WithIdentity("flux-mirror"),
 		auth.WithCredentialProvider(cryptov1.CredentialProviderActionsOIDC),
 		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
 		auth.WithCredentialAudiences("audience1", "audience2"),

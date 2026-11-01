@@ -150,8 +150,7 @@ func (p Provider) NewAccessCredentialForIdentity(ctx context.Context, identity a
 		return nil, fmt.Errorf("expected *auth.JWTCredential, got %T", identity)
 	}
 
-	sa := o.ServiceAccountRef()
-	roleSessionName := cryptov1.GetAWSRoleSessionName(sa.Name, sa.Namespace, stsRegion)
+	roleSessionName := cryptov1.GetAWSRoleSessionName(o.AWSRoleSessionSubdomain())
 
 	stsOpts := sts.Options{
 		Region:     stsRegion,

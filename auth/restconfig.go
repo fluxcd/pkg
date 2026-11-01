@@ -103,7 +103,7 @@ func GetRESTConfig(ctx context.Context, provider RESTConfigProvider, opts ...Opt
 	var serviceAccount *kubernetes.ServiceAccountReference
 	var providerIdentity string
 	var audiences []string
-	if o.objectLevelWorkloadIdentity() {
+	if o.performCredentialExchange {
 		var err error
 		serviceAccount, audiences, providerIdentity, err =
 			getServiceAccountAndProviderInfo(ctx, provider, opts...)

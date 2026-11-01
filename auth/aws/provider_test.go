@@ -104,6 +104,9 @@ func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 		stsEndpoint        string
 		artifactRepository string
 		skipSTSRegion      bool
+		skipServiceAccount bool
+		roleSessionName    string
+		extraOpts          []auth.Option
 		err                string
 	}{
 		{
@@ -117,6 +120,17 @@ func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 			stsEndpoint: "https://sts.amazonaws.com",
 		},
 		{
+			name:               "explicit role session name",
+			roleARN:            "arn:aws:iam::1234567890:role/some-role",
+			stsEndpoint:        "https://sts.amazonaws.com",
+			skipServiceAccount: true,
+			roleSessionName:    "flux-mirror.fluxcd.io",
+			extraOpts: []auth.Option{
+				auth.WithIdentity("flux-mirror"),
+				auth.WithCredentialProvider(cryptov1.CredentialProviderActionsOIDC),
+			},
+		},
+		{
 			name:          "missing region",
 			roleARN:       "arn:aws:iam::1234567890:role/some-role",
 			stsEndpoint:   "https://sts.amazonaws.com",
@@ -128,11 +142,15 @@ func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
+			roleSessionName := tt.roleSessionName
+			if roleSessionName == "" {
+				roleSessionName = "test-sa.test-ns.us-east-1.fluxcd.io"
+			}
 			impl := &mockImplementation{
 				t:                  t,
 				argRegion:          "us-east-1",
 				argRoleARN:         tt.roleARN,
-				argRoleSessionName: "test-sa.test-ns.us-east-1.fluxcd.io",
+				argRoleSessionName: roleSessionName,
 				argOIDCToken:       "oidc-token",
 				argProxyURL:        &url.URL{Scheme: "http", Host: "proxy.example.com"},
 				argSTSEndpoint:     "https://sts.amazonaws.com",
@@ -151,9 +169,14 @@ func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 				auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.example.com"}),
 				auth.WithAWSSTSEndpoint(tt.stsEndpoint),
 				auth.WithAWSRoleARN(tt.roleARN),
-				auth.WithServiceAccountName(serviceAccount.Name),
-				auth.WithObject("", "ServiceAccount", serviceAccount),
 			}
+			if !tt.skipServiceAccount {
+				opts = append(opts,
+					auth.WithServiceAccountName(serviceAccount.Name),
+					auth.WithObject("", "ServiceAccount", serviceAccount),
+				)
+			}
+			opts = append(opts, tt.extraOpts...)
 
 			if !tt.skipSTSRegion {
 				opts = append(opts, auth.WithAWSRegion("us-east-1"))

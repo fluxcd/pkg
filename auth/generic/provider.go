@@ -85,8 +85,7 @@ func (Provider) GetAudiences(_ context.Context, opts ...auth.Option) ([]string, 
 func (Provider) GetIdentity(opts ...auth.Option) (string, error) {
 	var o auth.Options
 	o.Apply(opts...)
-	sa := o.ServiceAccountRef()
-	return fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name), nil
+	return o.GenericProviderIdentity(), nil
 }
 
 // NewAccessCredentialForIdentity implements auth.RESTConfigProvider.

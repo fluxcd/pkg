@@ -24,11 +24,11 @@ import (
 )
 
 // GetAWSRoleSessionName returns the AWS IAM Role session name for the given
-// ServiceAccount and region. It has the following format:
+// subdomain. It has the following format:
 //
-//	`<serviceaccount>.<namespace>.<region>.fluxcd.io`
-func GetAWSRoleSessionName(sa, ns, region string) string {
-	return fmt.Sprintf("%s.%s.%s.%s", sa, ns, region, GroupCore)
+//	`<subdomain>.fluxcd.io`
+func GetAWSRoleSessionName(subdomain string) string {
+	return fmt.Sprintf("%s.%s", subdomain, GroupCore)
 }
 
 // GetDefaultAudienceGCP returns the default audience for the OIDC token that is
