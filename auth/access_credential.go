@@ -26,6 +26,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
+	"github.com/fluxcd/pkg/auth/actionsoidc"
 	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/spiffe/broker"
@@ -97,8 +98,9 @@ func NewAccessCredential(ctx context.Context, provider Provider, opts ...Option)
 }
 
 // oidcCredential returns the OIDC credential used to obtain a provider access
-// credential for the object. Kubernetes issues a ServiceAccount token, while
-// SPIFFE fetches a JWT-SVID for the object from the SPIFFE Broker.
+// credential for the object. Kubernetes issues a ServiceAccount token,
+// SPIFFE fetches a JWT-SVID for the object from the SPIFFE Broker, and Actions OIDC
+// fetches an OIDC ID token from the Github/Forgejo Actions token endpoint.
 func (o *Options) oidcCredential(ctx context.Context, audiences []string) (Credential, error) {
 	switch o.credentialProvider() {
 	case cryptov1.CredentialProviderKubernetes:
@@ -135,6 +137,12 @@ func (o *Options) oidcCredential(ctx context.Context, audiences []string) (Crede
 		}
 		return newJWTCredential(cryptov1.CredentialProviderSPIFFE, svid.Marshal())
 
+	case cryptov1.CredentialProviderActionsOIDC:
+		token, err := actionsoidc.FetchToken(ctx, audiences)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch Actions OIDC ID token: %w", err)
+		}
+		return newJWTCredential(cryptov1.CredentialProviderActionsOIDC, token)
 	default:
 		return nil, fmt.Errorf("credential provider '%s' is not supported", o.credentialProvider())
 	}
@@ -210,7 +218,13 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 
 	if serviceAccount != nil {
 		parts = append(parts, fmt.Sprintf("providerIdentity=%s", providerIdentity))
-		if o.credentialProvider() == cryptov1.CredentialProviderSPIFFE {
+		switch o.credentialProvider() {
+		case cryptov1.CredentialProviderKubernetes:
+			parts = append(parts,
+				fmt.Sprintf("serviceAccountName=%s", serviceAccount.Name),
+				fmt.Sprintf("serviceAccountNamespace=%s", serviceAccount.Namespace),
+			)
+		case cryptov1.CredentialProviderSPIFFE:
 			// Even if the object shares its SPIFFE ID with others in pratice,
 			// Flux has to assume it doesn't, so the full object reference must
 			// be included in the cache key for SPIFFE. This means different
@@ -223,11 +237,9 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 				fmt.Sprintf("objectName=%s", o.ObjectReference.Name),
 				fmt.Sprintf("objectUID=%s", o.ObjectReference.UID),
 			)
-		} else {
-			parts = append(parts,
-				fmt.Sprintf("serviceAccountName=%s", serviceAccount.Name),
-				fmt.Sprintf("serviceAccountNamespace=%s", serviceAccount.Namespace),
-			)
+		case cryptov1.CredentialProviderActionsOIDC:
+			// We cannot choose an identity for OIDC tokens, they always have
+			// the same identity
 		}
 	}
 
