@@ -248,6 +248,7 @@ func TestNewAccessCredential(t *testing.T) {
 				auth.WithServiceAccountName(defaultServiceAccount.Name),
 				auth.WithObject("", "ServiceAccount", defaultServiceAccount),
 				auth.WithCredentialAudiences("audience1", "audience2"),
+				auth.WithGCPWorkloadIdentityProvider("projects/123/locations/global/workloadIdentityPools/pool/providers/provider"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithAWSRegion("us-east-1"),
 				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
@@ -257,7 +258,7 @@ func TestNewAccessCredential(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const key = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
+					const key = "a7cbadbe888ba3edd588bb67b83153bc69505b2761cc9b93467bfa607e447c07"
 					token := &mockCredential{token: "cached-token"}
 					cachedCredential, ok, err := tokenCache.GetOrSet(ctx, key, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -386,6 +387,137 @@ func TestNewAccessCredential_ControllerLevelAudienceCacheKey(t *testing.T) {
 	got, err = auth.NewAccessCredential(ctx, provider, opts("audience-a")...)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(got).To(Equal(&mockCredential{token: "token-audience-a"}))
+}
+
+// TestNewAccessCredential_CredentialUsernameCacheKey is a regression test for a
+// credential cache collision: the credential username changes how providers
+// authenticate (for example, HTTP Basic instead of a bearer token for artifact
+// registries), so a cached access credential must not be reused after the
+// username changes or is removed.
+func TestNewAccessCredential_CredentialUsernameCacheKey(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := &mockProvider{t: t, returnName: "mock-provider"}
+
+	// Controller-level options (no service account). The non-username options
+	// exist only to satisfy the mock provider's checks.
+	opts := func(username string) []auth.Option {
+		opts := []auth.Option{
+			auth.WithCredentialAudiences("audience1", "audience2"),
+			auth.WithScopes("scope1", "scope2"),
+			auth.WithAWSRegion("us-east-1"),
+			auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+			auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+			auth.WithCAData("ca-data"),
+			auth.WithCache(*tokenCache),
+		}
+		if username != "" {
+			opts = append(opts, auth.WithCredentialUsername(username))
+		}
+		return opts
+	}
+
+	// Mint and cache a controller credential for the first username.
+	provider.returnControllerCredential = &mockCredential{token: "token-user-a"}
+	got, err := auth.NewAccessCredential(ctx, provider, opts("user-a")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-user-a"}))
+
+	// A different username must NOT reuse the first username's cached credential.
+	provider.returnControllerCredential = &mockCredential{token: "token-user-b"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts("user-b")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-user-b"}))
+
+	// Removing the username must NOT reuse the credentials cached for it.
+	provider.returnControllerCredential = &mockCredential{token: "token-no-user"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts("")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-no-user"}))
+
+	// The first username still returns its own cached credential; the refreshed
+	// controller credential must not be minted.
+	provider.returnControllerCredential = &mockCredential{token: "token-user-a-fresh"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts("user-a")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-user-a"}))
+}
+
+// TestNewAccessCredential_GCPWorkloadIdentityProviderCacheKey verifies that
+// changing the GCP workload identity provider does not reuse cached access
+// credentials. The provider determines the STS exchange audience, and thus the
+// identity of the exchanged credential.
+func TestNewAccessCredential_GCPWorkloadIdentityProviderCacheKey(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+
+	kubeClient, oidcClient := newTestEnv(t, ctx)
+
+	defaultServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: "default",
+		},
+	}
+	err := kubeClient.Create(ctx, defaultServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := &mockProvider{
+		t:                    t,
+		returnName:           "mock-provider",
+		returnIdentity:       "mock-identity",
+		paramAudiences:       []string{"audience1"},
+		paramServiceAccount:  &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
+		paramOIDCTokenClient: oidcClient,
+	}
+
+	opts := func(wip string) []auth.Option {
+		return []auth.Option{
+			auth.WithClient(kubeClient),
+			auth.WithServiceAccountName(defaultServiceAccount.Name),
+			auth.WithObject("", "ServiceAccount", defaultServiceAccount),
+			auth.WithCredentialAudiences("audience1"),
+			auth.WithGCPWorkloadIdentityProvider(wip),
+			auth.WithScopes("scope1", "scope2"),
+			auth.WithAWSRegion("us-east-1"),
+			auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+			auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+			auth.WithCAData("ca-data"),
+			auth.WithCache(*tokenCache),
+		}
+	}
+
+	const (
+		wipA = "projects/123/locations/global/workloadIdentityPools/pool/providers/provider-a"
+		wipB = "projects/123/locations/global/workloadIdentityPools/pool/providers/provider-b"
+	)
+
+	// Mint and cache an access credential for the first workload identity provider.
+	provider.returnAccessCredential = &mockCredential{token: "token-wip-a"}
+	got, err := auth.NewAccessCredential(ctx, provider, opts(wipA)...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-wip-a"}))
+
+	// A different workload identity provider must NOT reuse the cached credential.
+	provider.returnAccessCredential = &mockCredential{token: "token-wip-b"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts(wipB)...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-wip-b"}))
+
+	// The first workload identity provider still returns its cached credential.
+	provider.returnAccessCredential = &mockCredential{token: "token-wip-a-fresh"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts(wipA)...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-wip-a"}))
 }
 
 type mockBrokerAPIClient struct {

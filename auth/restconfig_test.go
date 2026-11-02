@@ -175,7 +175,7 @@ func TestGetRESTConfig(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(3)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					accessCredentialKey := "61f0d5d2ddd8c21ebcbab3686c5fe73234d7a825d02062baaa2951565eeb7398"
+					accessCredentialKey := "24cfb7c3ce5f2d92af4ba8d027d8648f72fe6c4826063210472a853d41a2aa25"
 					var credential auth.Credential = &mockCredential{token: "cached-token"}
 					cachedCredential, ok, err := tokenCache.GetOrSet(ctx, accessCredentialKey, func(ctx context.Context) (cache.Token, error) {
 						return credential, nil
@@ -184,7 +184,7 @@ func TestGetRESTConfig(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedCredential).To(Equal(credential))
 
-					accessCredentialKey = "583b0d84b5393b72396ad500503a74315e86b7044c3085d470c6597e751438af"
+					accessCredentialKey = "79595a16fef40f6b575f75f1a75303e3b30b464b31e6c96c9b41ff4c85f22056"
 					credential = &mockCredential{token: "cached-token"}
 					cachedCredential, ok, err = tokenCache.GetOrSet(ctx, accessCredentialKey, func(ctx context.Context) (cache.Token, error) {
 						return credential, nil
@@ -193,7 +193,7 @@ func TestGetRESTConfig(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedCredential).To(Equal(credential))
 
-					const restConfigKey = "8e65b5b906da5063a5d44023296bf6e83b72ab1f347b96c216a88e7175311f9e"
+					const restConfigKey = "795675e5def6192eeabd24e9fe7365f3d75af47ce9ca10b2ad7c0d42a741b3fa"
 					credential = &auth.RESTConfig{
 						Host:        "https://cluster/resource/name",
 						BearerToken: "mock-bearer-token",
