@@ -27,7 +27,7 @@ import (
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
-	"github.com/fluxcd/pkg/spiffe/broker"
+	"github.com/fluxcd/pkg/spiffe/brokerapi"
 )
 
 // Option is a functional option for the auth package.
@@ -36,9 +36,9 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client       client.Client
-	Cache        *cache.TokenCache
-	SPIFFEBroker broker.Interface
+	Client          client.Client
+	Cache           *cache.TokenCache
+	SPIFFEBrokerAPI brokerapi.Interface
 
 	// Object entitled to the identity.
 	ObjectReference ObjectReference
@@ -206,11 +206,12 @@ func WithCache(cache cache.TokenCache) Option {
 	}
 }
 
-// WithSPIFFEBroker sets the client used to fetch JWT-SVIDs for the `spiffe`
-// credential provider.
-func WithSPIFFEBroker(client broker.Interface) Option {
+// WithSPIFFEBrokerAPI sets the client used to fetch JWT-SVIDs for the `spiffe`
+// credential provider. When unset, JWT-SVIDs are fetched from the SPIFFE
+// Workload API instead.
+func WithSPIFFEBrokerAPI(client brokerapi.Interface) Option {
 	return func(o *Options) {
-		o.SPIFFEBroker = client
+		o.SPIFFEBrokerAPI = client
 	}
 }
 

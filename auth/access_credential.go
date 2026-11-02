@@ -24,12 +24,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth/actionsoidc"
 	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
-	"github.com/fluxcd/pkg/spiffe/broker"
+	"github.com/fluxcd/pkg/spiffe/brokerapi"
 )
 
 // NewAccessCredential returns an access credential for accessing resources in
@@ -62,7 +64,7 @@ func NewAccessCredential(ctx context.Context, provider Provider, opts ...Option)
 
 		// Update the function to create an access credential using the service account.
 		newAccessCredential = func() (Credential, error) {
-			identity, err := o.oidcCredential(ctx, audiences)
+			identity, err := o.newIdentityCredential(ctx, audiences)
 			if err != nil {
 				return nil, err
 			}
@@ -100,13 +102,19 @@ func NewAccessCredential(ctx context.Context, provider Provider, opts ...Option)
 	return credential, nil
 }
 
-// oidcCredential returns the OIDC credential used to obtain a provider access
-// credential for the object. Kubernetes issues a ServiceAccount token,
-// SPIFFE fetches a JWT-SVID for the object from the SPIFFE Broker, and Actions OIDC
-// fetches an OIDC ID token from the Github/Forgejo Actions token endpoint.
-func (o *Options) oidcCredential(ctx context.Context, audiences []string) (Credential, error) {
-	switch o.credentialProvider() {
-	case cryptov1.CredentialProviderKubernetes:
+// newIdentityCredential returns the identity credential used to obtain a
+// provider access credential for the object. Kubernetes issues a ServiceAccount
+// token, SPIFFE fetches a JWT-SVID either from the SPIFFE Broker API or from
+// the SPIFFE Workload API, and Actions OIDC fetches an OIDC ID token from the
+// Github/Forgejo Actions token endpoint.
+func (o *Options) newIdentityCredential(ctx context.Context, audiences []string) (Credential, error) {
+	credProvider := o.credentialProvider()
+	if credProvider == cryptov1.CredentialProviderSPIFFE && o.credentialType() != cryptov1.CredentialTypeJWT {
+		return nil, fmt.Errorf("credential type '%s' for the %s credential provider is not implemented yet",
+			o.credentialType(), credProvider)
+	}
+	switch {
+	case credProvider == cryptov1.CredentialProviderKubernetes:
 		sa := o.ServiceAccountRef()
 		token, err := kubernetes.CreateJWT(ctx, o.Client, sa, audiences, o.CredentialExpiration)
 		if err != nil {
@@ -114,41 +122,59 @@ func (o *Options) oidcCredential(ctx context.Context, audiences []string) (Crede
 		}
 		return newJWTCredential(cryptov1.CredentialProviderKubernetes, token)
 
-	case cryptov1.CredentialProviderSPIFFE:
-		if o.credentialType() != cryptov1.CredentialTypeJWT {
-			return nil, fmt.Errorf("credential type '%s' for the %s credential provider is not implemented yet",
-				o.credentialType(), o.credentialProvider())
-		}
-		if o.SPIFFEBroker == nil {
-			return nil, errors.New("SPIFFE Broker client is required for the SPIFFE credential provider")
-		}
-		if o.ObjectReference.Kind == "" {
-			return nil, errors.New("object reference is required for the SPIFFE credential provider")
-		}
+	case credProvider == cryptov1.CredentialProviderSPIFFE && o.SPIFFEBrokerAPI != nil:
+		return o.spiffeBrokerAPICredential(ctx, audiences)
 
-		svid, err := o.SPIFFEBroker.FetchJWTSVID(ctx, broker.KubernetesObjectReference{
-			Group:     o.ObjectReference.APIGroup,
-			Kind:      o.ObjectReference.Kind,
-			Namespace: o.ObjectReference.Namespace,
-			Name:      o.ObjectReference.Name,
-			UID:       o.ObjectReference.UID,
-		}, audiences)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch SPIFFE JWT-SVID for object '%s/%s %s/%s': %w",
-				o.ObjectReference.APIGroup, o.ObjectReference.Kind,
-				o.ObjectReference.Namespace, o.ObjectReference.Name, err)
-		}
-		return newJWTCredential(cryptov1.CredentialProviderSPIFFE, svid.Marshal())
+	case credProvider == cryptov1.CredentialProviderSPIFFE:
+		return o.spiffeWorkloadAPICredential(ctx, audiences)
 
-	case cryptov1.CredentialProviderActionsOIDC:
+	case credProvider == cryptov1.CredentialProviderActionsOIDC:
 		token, err := actionsoidc.FetchToken(ctx, audiences)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch Actions OIDC ID token: %w", err)
 		}
 		return newJWTCredential(cryptov1.CredentialProviderActionsOIDC, token)
+
 	default:
-		return nil, fmt.Errorf("credential provider '%s' is not supported", o.credentialProvider())
+		return nil, fmt.Errorf("credential provider '%s' is not supported", credProvider)
 	}
+}
+
+// spiffeBrokerAPICredential fetches a JWT-SVID for the entitled object from the
+// SPIFFE Broker API.
+func (o *Options) spiffeBrokerAPICredential(ctx context.Context, audiences []string) (Credential, error) {
+	if o.ObjectReference.Kind == "" {
+		return nil, errors.New("object reference is required for the SPIFFE credential provider with the SPIFFE Broker API")
+	}
+
+	svid, err := o.SPIFFEBrokerAPI.FetchJWTSVID(ctx, brokerapi.KubernetesObjectReference{
+		Group:     o.ObjectReference.APIGroup,
+		Kind:      o.ObjectReference.Kind,
+		Namespace: o.ObjectReference.Namespace,
+		Name:      o.ObjectReference.Name,
+		UID:       o.ObjectReference.UID,
+	}, audiences)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch SPIFFE JWT-SVID for object '%s/%s %s/%s': %w",
+			o.ObjectReference.APIGroup, o.ObjectReference.Kind,
+			o.ObjectReference.Namespace, o.ObjectReference.Name, err)
+	}
+	return newJWTCredential(cryptov1.CredentialProviderSPIFFE, svid.Marshal())
+}
+
+// spiffeWorkloadAPICredential fetches a JWT-SVID for the current workload from
+// the SPIFFE Workload API.
+func (o *Options) spiffeWorkloadAPICredential(ctx context.Context, audiences []string) (Credential, error) {
+	var params jwtsvid.Params
+	if len(audiences) > 0 {
+		params.Audience = audiences[0]
+		params.ExtraAudiences = audiences[1:]
+	}
+	svid, err := workloadapi.FetchJWTSVID(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch SPIFFE JWT-SVID from the Workload API: %w", err)
+	}
+	return newJWTCredential(cryptov1.CredentialProviderSPIFFE, svid.Marshal())
 }
 
 // newJWTCredential returns a JWTCredential for the given provider and
@@ -224,13 +250,14 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 
 	if o.performCredentialExchange {
 		parts = append(parts, fmt.Sprintf("providerIdentity=%s", providerIdentity))
-		switch o.credentialProvider() {
-		case cryptov1.CredentialProviderKubernetes:
+		credProvider := o.credentialProvider()
+		switch {
+		case credProvider == cryptov1.CredentialProviderKubernetes:
 			parts = append(parts,
 				fmt.Sprintf("serviceAccountName=%s", serviceAccount.Name),
 				fmt.Sprintf("serviceAccountNamespace=%s", serviceAccount.Namespace),
 			)
-		case cryptov1.CredentialProviderSPIFFE:
+		case credProvider == cryptov1.CredentialProviderSPIFFE && o.SPIFFEBrokerAPI != nil:
 			// Even if the object shares its SPIFFE ID with others in pratice,
 			// Flux has to assume it doesn't, so the full object reference must
 			// be included in the cache key for SPIFFE. This means different
@@ -243,10 +270,13 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 				fmt.Sprintf("objectName=%s", o.ObjectReference.Name),
 				fmt.Sprintf("objectUID=%s", o.ObjectReference.UID),
 			)
-		case cryptov1.CredentialProviderActionsOIDC:
+		case credProvider == cryptov1.CredentialProviderSPIFFE:
+			// The Workload API issues the JWT-SVID for the current workload,
+			// not for an object, so there is nothing to add to the cache key.
+		case credProvider == cryptov1.CredentialProviderActionsOIDC:
 			// Actions OIDC does not allow choosing a credential identity like
 			// Kubernetes TokenRequest API and SPIFFE Broker API, so there's
-			// nothing to add to the cache key for Actions OIDC.
+			// nothing to add to the cache key.
 		}
 	}
 

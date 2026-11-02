@@ -22,16 +22,23 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/gomega"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,7 +47,7 @@ import (
 	"github.com/fluxcd/pkg/auth/actionsoidc"
 	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
-	"github.com/fluxcd/pkg/spiffe/broker"
+	"github.com/fluxcd/pkg/spiffe/brokerapi"
 )
 
 func TestNewAccessCredential(t *testing.T) {
@@ -381,19 +388,19 @@ func TestNewAccessCredential_ControllerLevelAudienceCacheKey(t *testing.T) {
 	g.Expect(got).To(Equal(&mockCredential{token: "token-audience-a"}))
 }
 
-type mockBrokerClient struct {
+type mockBrokerAPIClient struct {
 	t        *testing.T
 	token    string
 	calls    int
-	refs     []broker.KubernetesObjectReference
+	refs     []brokerapi.KubernetesObjectReference
 	requests [][]string
 }
 
-func (m *mockBrokerClient) Close() error {
+func (m *mockBrokerAPIClient) Close() error {
 	return nil
 }
 
-func (m *mockBrokerClient) FetchJWTSVID(_ context.Context, ref broker.KubernetesObjectReference,
+func (m *mockBrokerAPIClient) FetchJWTSVID(_ context.Context, ref brokerapi.KubernetesObjectReference,
 	audiences []string) (*jwtsvid.SVID, error) {
 
 	m.t.Helper()
@@ -401,6 +408,59 @@ func (m *mockBrokerClient) FetchJWTSVID(_ context.Context, ref broker.Kubernetes
 	m.refs = append(m.refs, ref)
 	m.requests = append(m.requests, audiences)
 	return jwtsvid.ParseInsecure(m.token, audiences)
+}
+
+type fakeWorkloadAPI struct {
+	workload.UnimplementedSpiffeWorkloadAPIServer
+
+	mu       sync.Mutex
+	token    string
+	requests [][]string
+}
+
+func (f *fakeWorkloadAPI) FetchJWTSVID(_ context.Context,
+	req *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
+
+	f.mu.Lock()
+	f.requests = append(f.requests, req.Audience)
+	f.mu.Unlock()
+	return &workload.JWTSVIDResponse{
+		Svids: []*workload.JWTSVID{{
+			SpiffeId: "spiffe://example.org/workload",
+			Svid:     f.token,
+		}},
+	}, nil
+}
+
+func (f *fakeWorkloadAPI) Requests() [][]string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([][]string(nil), f.requests...)
+}
+
+func startFakeWorkloadAPI(t *testing.T, fake *fakeWorkloadAPI) {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("", "flux-spiffe")
+	if err != nil {
+		t.Fatalf("failed to create temporary directory: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	socketPath := filepath.Join(dir, "api.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to listen on socket: %v", err)
+	}
+	server := grpc.NewServer()
+	workload.RegisterSpiffeWorkloadAPIServer(server, fake)
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() {
+		server.Stop()
+		_ = listener.Close()
+	})
+
+	t.Setenv(workloadapi.SocketEnv, "unix://"+socketPath)
 }
 
 func TestNewAccessCredentialSPIFFE(t *testing.T) {
@@ -414,26 +474,26 @@ func TestNewAccessCredentialSPIFFE(t *testing.T) {
 			UID:       "object-uid",
 		},
 	}
-	brokerClient := &mockBrokerClient{
+	brokerAPIClient := &mockBrokerAPIClient{
 		t:     t,
 		token: newSPIFFEJWTSVID(t, []string{"audience1", "audience2"}, time.Hour),
 	}
 	provider := spiffeMockProvider(t)
-	provider.paramOIDCToken = brokerClient.token
+	provider.paramOIDCToken = brokerAPIClient.token
 
-	opts := spiffeOptions(object, brokerClient)
+	opts := spiffeOptions(object, brokerAPIClient)
 	credential, err := auth.NewAccessCredential(ctx, provider, opts...)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
-	g.Expect(brokerClient.calls).To(Equal(1))
-	g.Expect(brokerClient.refs).To(Equal([]broker.KubernetesObjectReference{{
+	g.Expect(brokerAPIClient.calls).To(Equal(1))
+	g.Expect(brokerAPIClient.refs).To(Equal([]brokerapi.KubernetesObjectReference{{
 		Group:     "source.toolkit.fluxcd.io",
 		Kind:      "OCIRepository",
 		Namespace: "flux-system",
 		Name:      "object",
 		UID:       "object-uid",
 	}}))
-	g.Expect(brokerClient.requests).To(Equal([][]string{{"audience1", "audience2"}}))
+	g.Expect(brokerAPIClient.requests).To(Equal([][]string{{"audience1", "audience2"}}))
 }
 
 func TestNewAccessCredentialSPIFFECacheKey(t *testing.T) {
@@ -443,7 +503,7 @@ func TestNewAccessCredentialSPIFFECacheKey(t *testing.T) {
 	tokenCache, err := cache.NewTokenCache(3)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	brokerClient := &mockBrokerClient{
+	brokerAPIClient := &mockBrokerAPIClient{
 		t:     t,
 		token: newSPIFFEJWTSVID(t, []string{"audience1", "audience2"}, time.Hour),
 	}
@@ -467,34 +527,80 @@ func TestNewAccessCredentialSPIFFECacheKey(t *testing.T) {
 	// Same object: the second call is served from the cache.
 	for range 2 {
 		_, err := auth.NewAccessCredential(ctx, provider,
-			spiffeOptionsWithCache(objectA, brokerClient, tokenCache)...)
+			spiffeOptionsWithCache(objectA, brokerAPIClient, tokenCache)...)
 		g.Expect(err).NotTo(HaveOccurred())
 	}
-	g.Expect(brokerClient.calls).To(Equal(1))
+	g.Expect(brokerAPIClient.calls).To(Equal(1))
 
 	// Same ServiceAccount, different object: a new SPIFFE JWT-SVID is fetched.
 	_, err = auth.NewAccessCredential(ctx, provider,
-		spiffeOptionsWithCache(objectB, brokerClient, tokenCache)...)
+		spiffeOptionsWithCache(objectB, brokerAPIClient, tokenCache)...)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(brokerClient.calls).To(Equal(2))
-	g.Expect(brokerClient.refs[1].UID).To(Equal("object-b-uid"))
+	g.Expect(brokerAPIClient.calls).To(Equal(2))
+	g.Expect(brokerAPIClient.refs[1].UID).To(Equal("object-b-uid"))
 }
 
-func TestNewAccessCredentialSPIFFERequiresBroker(t *testing.T) {
+func TestNewAccessCredentialSPIFFEWorkloadAPI(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
 
-	object := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "object",
-			Namespace: "flux-system",
-			UID:       "object-uid",
-		},
+	token := newSPIFFEJWTSVID(t, []string{"audience1", "audience2"}, time.Hour)
+	fake := &fakeWorkloadAPI{token: token}
+	startFakeWorkloadAPI(t, fake)
+
+	provider := spiffeWorkloadAPIMockProvider(t)
+	provider.paramOIDCToken = token
+
+	credential, err := auth.NewAccessCredential(ctx, provider,
+		auth.WithIdentity("spiffe-workload"),
+		auth.WithCredentialProvider(cryptov1.CredentialProviderSPIFFE),
+		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
+		auth.WithCredentialAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAWSRegion("us-east-1"),
+		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+	g.Expect(fake.Requests()).To(Equal([][]string{{"audience1", "audience2"}}))
+}
+
+func TestNewAccessCredentialSPIFFEWorkloadAPICache(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	token := newSPIFFEJWTSVID(t, []string{"audience1", "audience2"}, time.Hour)
+	fake := &fakeWorkloadAPI{token: token}
+	startFakeWorkloadAPI(t, fake)
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := spiffeWorkloadAPIMockProvider(t)
+	provider.paramOIDCToken = token
+
+	opts := []auth.Option{
+		auth.WithIdentity("spiffe-workload"),
+		auth.WithCredentialProvider(cryptov1.CredentialProviderSPIFFE),
+		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
+		auth.WithCredentialAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAWSRegion("us-east-1"),
+		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+		auth.WithCache(*tokenCache),
 	}
 
-	opts := spiffeOptions(object, nil)
-	_, err := auth.NewAccessCredential(ctx, spiffeMockProvider(t), opts...)
-	g.Expect(err).To(MatchError("SPIFFE Broker client is required for the SPIFFE credential provider"))
+	// The first call fetches a JWT-SVID, the second is served from the cache.
+	for range 2 {
+		credential, err := auth.NewAccessCredential(ctx, provider, opts...)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+	}
+	g.Expect(fake.Requests()).To(HaveLen(1))
 }
 
 func TestNewAccessCredentialActionsOIDC(t *testing.T) {
@@ -653,14 +759,25 @@ func spiffeMockProvider(t *testing.T) *mockProvider {
 	}
 }
 
-func spiffeOptions(object *corev1.ServiceAccount, brokerClient broker.Interface) []auth.Option {
+func spiffeWorkloadAPIMockProvider(t *testing.T) *mockProvider {
+	return &mockProvider{
+		t:                      t,
+		returnName:             "mock-provider",
+		returnIdentity:         "mock-identity",
+		returnAccessCredential: &mockCredential{token: "mock-access-token"},
+		paramAudiences:         []string{"audience1", "audience2"},
+		skipOIDCValidation:     true,
+	}
+}
+
+func spiffeOptions(object *corev1.ServiceAccount, brokerAPIClient brokerapi.Interface) []auth.Option {
 	return []auth.Option{
 		auth.WithServiceAccountName("spiffe-sa"),
 		auth.WithObject("source.toolkit.fluxcd.io", "OCIRepository", object),
 		auth.WithCredentialProvider(cryptov1.CredentialProviderSPIFFE),
 		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
 		auth.WithCredentialAudiences("audience1", "audience2"),
-		auth.WithSPIFFEBroker(brokerClient),
+		auth.WithSPIFFEBrokerAPI(brokerAPIClient),
 		auth.WithScopes("scope1", "scope2"),
 		auth.WithAWSRegion("us-east-1"),
 		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
@@ -669,9 +786,9 @@ func spiffeOptions(object *corev1.ServiceAccount, brokerClient broker.Interface)
 	}
 }
 
-func spiffeOptionsWithCache(object *corev1.ServiceAccount, brokerClient broker.Interface,
+func spiffeOptionsWithCache(object *corev1.ServiceAccount, brokerAPIClient brokerapi.Interface,
 	tokenCache *cache.TokenCache) []auth.Option {
-	return append(spiffeOptions(object, brokerClient), auth.WithCache(*tokenCache))
+	return append(spiffeOptions(object, brokerAPIClient), auth.WithCache(*tokenCache))
 }
 
 func newSPIFFEJWTSVID(t *testing.T, audiences []string, ttl time.Duration) string {

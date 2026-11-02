@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package broker_test
+package brokerapi_test
 
 import (
 	"context"
@@ -36,7 +36,7 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/onsi/gomega"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
-	brokerapi "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
+	brokerpb "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"google.golang.org/grpc"
@@ -45,7 +45,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	fluxspiffe "github.com/fluxcd/pkg/spiffe"
-	fluxbroker "github.com/fluxcd/pkg/spiffe/broker"
+	"github.com/fluxcd/pkg/spiffe/brokerapi"
 )
 
 type testCA struct {
@@ -139,10 +139,10 @@ func (s *staticTLSSource) GetX509BundleForTrustDomain(trustDomain spiffeid.Trust
 }
 
 type fakeBrokerAPI struct {
-	brokerapi.UnimplementedAPIServer
+	brokerpb.UnimplementedAPIServer
 
 	mtx sync.Mutex
-	jwt *brokerapi.FetchJWTSVIDResponse
+	jwt *brokerpb.FetchJWTSVIDResponse
 	err error
 
 	jwtFetches atomic.Int64
@@ -151,8 +151,8 @@ type fakeBrokerAPI struct {
 func (f *fakeBrokerAPI) setJWT(token string) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
-	f.jwt = &brokerapi.FetchJWTSVIDResponse{
-		Svids: []*brokerapi.JWTSVID{{Svid: token}},
+	f.jwt = &brokerpb.FetchJWTSVIDResponse{
+		Svids: []*brokerpb.JWTSVID{{Svid: token}},
 	}
 	f.err = nil
 }
@@ -164,7 +164,7 @@ func (f *fakeBrokerAPI) setError(err error) {
 }
 
 func (f *fakeBrokerAPI) FetchJWTSVID(context.Context,
-	*brokerapi.FetchJWTSVIDRequest) (*brokerapi.FetchJWTSVIDResponse, error) {
+	*brokerpb.FetchJWTSVIDRequest) (*brokerpb.FetchJWTSVIDResponse, error) {
 
 	f.jwtFetches.Add(1)
 	f.mtx.Lock()
@@ -183,7 +183,7 @@ func startBrokerAPI(t *testing.T, handler *fakeBrokerAPI, serverTLS *tls.Config)
 		t.Fatalf("failed to listen: %v", err)
 	}
 	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(serverTLS)))
-	brokerapi.RegisterAPIServer(server, handler)
+	brokerpb.RegisterAPIServer(server, handler)
 	go func() { _ = server.Serve(listener) }()
 
 	t.Cleanup(func() {
@@ -193,8 +193,8 @@ func startBrokerAPI(t *testing.T, handler *fakeBrokerAPI, serverTLS *tls.Config)
 	return listener.Addr()
 }
 
-func newClientFixture(t *testing.T) (client fluxbroker.Client, handler *fakeBrokerAPI,
-	ref fluxbroker.KubernetesObjectReference) {
+func newClientFixture(t *testing.T) (client brokerapi.Client, handler *fakeBrokerAPI,
+	ref brokerapi.KubernetesObjectReference) {
 
 	t.Helper()
 
@@ -216,13 +216,13 @@ func newClientFixture(t *testing.T) (client fluxbroker.Client, handler *fakeBrok
 	// allowed Broker ID, so this also exercises multiple --spiffe-broker-id
 	// values.
 	brokerIDs := []string{"spiffe://example.org/other-spire-agent", brokerID.String()}
-	client, err = fluxbroker.New(listenerAddr.String(), brokerIDs, clientSource)
+	client, err = brokerapi.New(listenerAddr.String(), brokerIDs, clientSource)
 	if err != nil {
 		t.Fatalf("failed to create Broker client: %v", err)
 	}
 	t.Cleanup(func() { _ = client.Close() })
 
-	ref = fluxbroker.KubernetesObjectReference{
+	ref = brokerapi.KubernetesObjectReference{
 		Group:     "source.toolkit.fluxcd.io",
 		Kind:      "OCIRepository",
 		Namespace: "flux-system",
@@ -235,10 +235,10 @@ func newClientFixture(t *testing.T) (client fluxbroker.Client, handler *fakeBrok
 func TestNewValidatesBrokerIDs(t *testing.T) {
 	g := gomega.NewWithT(t)
 
-	_, err := fluxbroker.New("127.0.0.1:1", nil, nil)
+	_, err := brokerapi.New("127.0.0.1:1", nil, nil)
 	g.Expect(err).To(gomega.MatchError("at least one SPIFFE Broker ID is required"))
 
-	_, err = fluxbroker.New("127.0.0.1:1", []string{"spiffe://example.org/agent", ""}, nil)
+	_, err = brokerapi.New("127.0.0.1:1", []string{"spiffe://example.org/agent", ""}, nil)
 	g.Expect(err).To(gomega.MatchError("SPIFFE Broker ID at index 1 is empty"))
 }
 
