@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -26,7 +27,7 @@ import (
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
-	"github.com/fluxcd/pkg/spiffe/broker"
+	"github.com/fluxcd/pkg/spiffe/brokerapi"
 )
 
 // Option is a functional option for the auth package.
@@ -35,9 +36,9 @@ type Option func(*Options)
 // Options contains options for configuring the behavior of the provider methods.
 // Not all providers/methods support all options.
 type Options struct {
-	Client       client.Client
-	Cache        *cache.TokenCache
-	SPIFFEBroker broker.Interface
+	Client          client.Client
+	Cache           *cache.TokenCache
+	SPIFFEBrokerAPI brokerapi.Interface
 
 	// Object entitled to the identity.
 	ObjectReference ObjectReference
@@ -47,8 +48,18 @@ type Options struct {
 	InvolvedObjectReference ObjectReference
 	CacheOperation          string
 
-	// ServiceAccount for object-level workload identity.
+	// ServiceAccount for the Kubernetes credential provider.
 	ServiceAccountName string
+
+	// Whether to exchange a workload credential for a provider access
+	// credential instead of using the controller's own identity. The workload
+	// may be an object or the environment.
+	performCredentialExchange bool
+
+	// Identity for credentials that are not backed by a ServiceAccount. When
+	// set, these take precedence over the ServiceAccount-derived identity.
+	genericProviderIdentity string
+	awsRoleSessionName      string
 
 	// Credential acquisition.
 	CredentialProvider   string
@@ -195,11 +206,12 @@ func WithCache(cache cache.TokenCache) Option {
 	}
 }
 
-// WithSPIFFEBroker sets the client used to fetch JWT-SVIDs for the `spiffe`
-// credential provider.
-func WithSPIFFEBroker(client broker.Interface) Option {
+// WithSPIFFEBrokerAPI sets the client used to fetch JWT-SVIDs for the `spiffe`
+// credential provider. When unset, JWT-SVIDs are fetched from the SPIFFE
+// Workload API instead.
+func WithSPIFFEBrokerAPI(client brokerapi.Interface) Option {
 	return func(o *Options) {
-		o.SPIFFEBroker = client
+		o.SPIFFEBrokerAPI = client
 	}
 }
 
@@ -235,15 +247,31 @@ func WithCacheOperation(operation string) Option {
 	}
 }
 
-// WithServiceAccountName sets the ServiceAccount name for the token.
+// WithServiceAccountName sets the ServiceAccount name for the token and
+// enables credential exchange.
 func WithServiceAccountName(name string) Option {
 	return func(o *Options) {
 		o.ServiceAccountName = name
+		o.performCredentialExchange = true
 	}
 }
 
-// WithCredentialProvider sets the credential provider, one of `kubernetes` or
-// `spiffe`.
+// WithIdentity sets the identity for credential providers that are not backed
+// by a ServiceAccount, e.g. the `actionsoidc` credential provider, and enables
+// credential exchange.
+//
+// The identity is used to identify the workload in provider-specific contexts,
+// such as provider identities and other provider-specific identifiers.
+func WithIdentity(identity string) Option {
+	return func(o *Options) {
+		o.genericProviderIdentity = identity
+		o.awsRoleSessionName = identity
+		o.performCredentialExchange = true
+	}
+}
+
+// WithCredentialProvider sets the credential provider, one of `kubernetes`,
+// `spiffe` or `actionsoidc`.
 func WithCredentialProvider(provider string) Option {
 	return func(o *Options) {
 		o.CredentialProvider = provider
@@ -433,13 +461,39 @@ func (o *Options) Apply(opts ...Option) {
 // object was not set explicitly, it is built from the configured name and
 // namespace.
 func (o *Options) ServiceAccountRef() *kubernetes.ServiceAccountReference {
-	if !o.objectLevelWorkloadIdentity() {
+	if o.ServiceAccountName == "" {
 		return nil
 	}
 	return &kubernetes.ServiceAccountReference{
 		Name:      o.ServiceAccountName,
 		Namespace: o.ObjectReference.Namespace,
 	}
+}
+
+// GenericProviderIdentity returns the identity used by the generic service
+// provider. When not set explicitly, it falls back to the ServiceAccount
+// identity.
+func (o *Options) GenericProviderIdentity() string {
+	if o.genericProviderIdentity != "" {
+		return o.genericProviderIdentity
+	}
+	if sa := o.ServiceAccountRef(); sa != nil {
+		return fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name)
+	}
+	return ""
+}
+
+// AWSRoleSessionSubdomain returns the AWS role session name subdomain. When
+// not set explicitly, it falls back to the ServiceAccount identity, including
+// the AWS region to identify the EKS cluster.
+func (o *Options) AWSRoleSessionSubdomain() string {
+	if o.awsRoleSessionName != "" {
+		return o.awsRoleSessionName
+	}
+	if sa := o.ServiceAccountRef(); sa != nil {
+		return fmt.Sprintf("%s.%s.%s", sa.Name, sa.Namespace, o.AWSRegion)
+	}
+	return ""
 }
 
 // GetHTTPClient returns a *http.Client with appropriate timeouts and proxy settings.
@@ -455,13 +509,6 @@ func (o *Options) GetHTTPClient() *http.Client {
 		Transport: transport,
 		Timeout:   10 * time.Second,
 	}
-}
-
-// objectLevelWorkloadIdentity returns true if a ServiceAccount token should be
-// retrieved for object-level workload identity. The ServiceAccount is provided
-// by the caller, either as an object or as a name/namespace reference.
-func (o *Options) objectLevelWorkloadIdentity() bool {
-	return o.ServiceAccountName != ""
 }
 
 // credentialProvider returns the configured credential provider, defaulting to

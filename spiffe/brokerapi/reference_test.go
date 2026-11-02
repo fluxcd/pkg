@@ -14,15 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package broker
+package brokerapi
 
 import (
 	"testing"
 
-	brokerapi "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
+	brokerpb "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 )
 
-func TestBrokerTarget(t *testing.T) {
+func TestBrokerAPITarget(t *testing.T) {
 	tests := []struct {
 		endpoint string
 		want     string
@@ -34,8 +34,8 @@ func TestBrokerTarget(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.endpoint, func(t *testing.T) {
-			if got := brokerTarget(tt.endpoint); got != tt.want {
-				t.Fatalf("brokerTarget(%q) = %q, want %q", tt.endpoint, got, tt.want)
+			if got := brokerAPITarget(tt.endpoint); got != tt.want {
+				t.Fatalf("brokerAPITarget(%q) = %q, want %q", tt.endpoint, got, tt.want)
 			}
 		})
 	}
@@ -52,7 +52,7 @@ func TestKubernetesObjectReference(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var obj brokerapi.KubernetesObjectReference
+	var obj brokerpb.KubernetesObjectReference
 	if err := ref.GetReference().UnmarshalTo(&obj); err != nil {
 		t.Fatalf("failed to unmarshal reference: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestKubernetesObjectReferenceKind(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			var obj brokerapi.KubernetesObjectReference
+			var obj brokerpb.KubernetesObjectReference
 			if err := ref.GetReference().UnmarshalTo(&obj); err != nil {
 				t.Fatalf("failed to unmarshal reference: %v", err)
 			}

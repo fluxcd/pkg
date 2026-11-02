@@ -28,7 +28,7 @@ import (
 //
 // The caller is responsible for resolving the ServiceAccount and validating
 // its configuration with github.com/fluxcd/pkg/apis/crypto before calling this
-// function. When object-level workload identity is in use, the ServiceAccount
+// function. When object identity is in use, the ServiceAccount
 // and the options derived from the validated configuration must be passed
 // through opts, e.g. with auth.WithServiceAccount and auth.OptionsFromSpec.
 func GetGitCredentials(ctx context.Context, providerName string,

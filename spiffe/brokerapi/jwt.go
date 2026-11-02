@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package broker
+package brokerapi
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	brokerapi "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
+	brokerpb "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -30,13 +30,13 @@ import (
 )
 
 const (
-	// defaultBrokerFetchTimeout bounds a single Broker API fetch, including
+	// defaultBrokerAPIFetchTimeout bounds a single Broker API fetch, including
 	// retries, unless the caller's context has an earlier deadline.
-	defaultBrokerFetchTimeout = 30 * time.Second
+	defaultBrokerAPIFetchTimeout = 30 * time.Second
 )
 
 // FetchJWTSVID fetches a JWT-SVID for ref and the given audiences from the
-// Broker. The first returned JWT-SVID is used. It retries transient failures
+// Broker API. The first returned JWT-SVID is used. It retries transient failures
 // with backoff until the context is done or the fetch timeout elapses.
 // Permanent errors, such as PermissionDenied, are returned immediately.
 func (c *client) FetchJWTSVID(ctx context.Context, ref KubernetesObjectReference,
@@ -53,7 +53,7 @@ func (c *client) FetchJWTSVID(ctx context.Context, ref KubernetesObjectReference
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultBrokerFetchTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultBrokerAPIFetchTimeout)
 	defer cancel()
 
 	for attempt := 1; ; attempt++ {
@@ -73,12 +73,12 @@ func (c *client) FetchJWTSVID(ctx context.Context, ref KubernetesObjectReference
 	}
 }
 
-func (c *client) fetchJWTSVID(ctx context.Context, workload *brokerapi.WorkloadReference,
+func (c *client) fetchJWTSVID(ctx context.Context, workload *brokerpb.WorkloadReference,
 	audiences []string) (*jwtsvid.SVID, error) {
 
 	// The Broker API requires this header on every request as an SSRF mitigation.
 	ctx = metadata.AppendToOutgoingContext(ctx, "broker.spiffe.io", "true")
-	resp, err := c.api.FetchJWTSVID(ctx, &brokerapi.FetchJWTSVIDRequest{
+	resp, err := c.api.FetchJWTSVID(ctx, &brokerpb.FetchJWTSVIDRequest{
 		Reference: workload,
 		Audience:  audiences,
 	})
@@ -86,7 +86,7 @@ func (c *client) fetchJWTSVID(ctx context.Context, workload *brokerapi.WorkloadR
 		return nil, err
 	}
 	if len(resp.GetSvids()) == 0 {
-		return nil, permanentError{errors.New("SPIFFE Broker returned no JWT-SVIDs")}
+		return nil, permanentError{errors.New("SPIFFE Broker API returned no JWT-SVIDs")}
 	}
 
 	svid, err := jwtsvid.ParseInsecure(resp.GetSvids()[0].GetSvid(), audiences)
