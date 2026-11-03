@@ -449,3 +449,101 @@ func TestUntar_withFilterDirectory(t *testing.T) {
 		t.Errorf("keep/data.txt: got %q, want %q", string(got), "public")
 	}
 }
+
+func TestUntar_hardlinks(t *testing.T) {
+	content := []byte("apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n")
+
+	type entry struct {
+		hdr  tar.Header
+		body []byte
+	}
+
+	tests := []struct {
+		name    string
+		entries []entry
+		wantErr string
+		want    map[string][]byte
+	}{
+		{
+			name: "hardlink to a previously extracted file",
+			entries: []entry{
+				{
+					hdr:  tar.Header{Name: "a/kustomization.yaml", Typeflag: tar.TypeReg, Mode: 0o644, Size: int64(len(content))},
+					body: content,
+				},
+				{
+					hdr: tar.Header{Name: "b/kustomization.yaml", Typeflag: tar.TypeLink, Linkname: "a/kustomization.yaml", Mode: 0o644},
+				},
+			},
+			want: map[string][]byte{
+				"a/kustomization.yaml": content,
+				"b/kustomization.yaml": content,
+			},
+		},
+		{
+			name: "hardlink target escapes the destination",
+			entries: []entry{
+				{
+					hdr: tar.Header{Name: "b/kustomization.yaml", Typeflag: tar.TypeLink, Linkname: "../outside.yaml", Mode: 0o644},
+				},
+			},
+			wantErr: "hardlink",
+		},
+		{
+			name: "hardlink target does not exist",
+			entries: []entry{
+				{
+					hdr: tar.Header{Name: "b/kustomization.yaml", Typeflag: tar.TypeLink, Linkname: "a/missing.yaml", Mode: 0o644},
+				},
+			},
+			wantErr: "hardlink",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			gw := gzip.NewWriter(&buf)
+			tw := tar.NewWriter(gw)
+			for _, e := range tt.entries {
+				hdr := e.hdr
+				if err := tw.WriteHeader(&hdr); err != nil {
+					t.Fatalf("cannot write header: %v", err)
+				}
+				if len(e.body) > 0 {
+					if _, err := tw.Write(e.body); err != nil {
+						t.Fatalf("cannot write body: %v", err)
+					}
+				}
+			}
+			if err := tw.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := gw.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			dir := t.TempDir()
+			err := Untar(&buf, dir)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("expected error containing %q, got: %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			for name, want := range tt.want {
+				got, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+				if err != nil {
+					t.Fatalf("cannot read %s: %v", name, err)
+				}
+				if !bytes.Equal(got, want) {
+					t.Errorf("%s: got %d bytes, want %d bytes", name, len(got), len(want))
+				}
+			}
+		})
+	}
+}
