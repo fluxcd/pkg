@@ -17,6 +17,8 @@ limitations under the License.
 package controller_test
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -26,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/controller"
@@ -229,4 +233,204 @@ func TestGetWatchConfigsPredicate(t *testing.T) {
 			g.Expect(ok).To(Equal(tt.shouldMatchHelm))
 		})
 	}
+}
+
+func TestGetWatchLabelSelector(t *testing.T) {
+	t.Run("empty selector", func(t *testing.T) {
+		g := NewWithT(t)
+
+		opts := controller.WatchOptions{}
+		ls, err := controller.GetWatchLabelSelector(opts)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(ls).To(BeNil())
+
+		sel, err := controller.GetWatchSelector(opts)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(sel).To(Equal(labels.Everything()))
+	})
+
+	t.Run("valid selector", func(t *testing.T) {
+		g := NewWithT(t)
+
+		opts := controller.WatchOptions{
+			LabelSelector: "sharding.fluxcd.io/shard in (shard1,shard2)",
+		}
+		ls, err := controller.GetWatchLabelSelector(opts)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(ls).NotTo(BeNil())
+
+		sel, err := controller.GetWatchSelector(opts)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(sel.Matches(labels.Set{
+			"sharding.fluxcd.io/shard": "shard2",
+		})).To(BeTrue())
+		g.Expect(sel.Matches(labels.Set{
+			"sharding.fluxcd.io/shard": "shard3",
+		})).To(BeFalse())
+	})
+
+	t.Run("invalid selector", func(t *testing.T) {
+		g := NewWithT(t)
+
+		opts := controller.WatchOptions{
+			LabelSelector: "sharding.fluxcd.io/shard in (shard1",
+		}
+		_, err := controller.GetWatchLabelSelector(opts)
+		g.Expect(err).To(HaveOccurred())
+
+		_, err = controller.GetWatchSelector(opts)
+		g.Expect(err).To(HaveOccurred())
+	})
+}
+
+func TestGetWatchConfigsPredicateInvalidSelector(t *testing.T) {
+	g := NewWithT(t)
+
+	opts := controller.WatchOptions{
+		ConfigsLabelSelector: "owner in (helm",
+	}
+	pred, err := controller.GetWatchConfigsPredicate(opts)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(pred).To(BeNil())
+}
+
+// expectPredicateMatches asserts that the predicate allows or filters out the
+// given object for every event type.
+func expectPredicateMatches(g *WithT, pred predicate.Predicate, obj client.Object, expected bool) {
+	g.ExpectWithOffset(1, pred.Create(event.CreateEvent{Object: obj})).To(Equal(expected))
+	g.ExpectWithOffset(1, pred.Update(event.UpdateEvent{ObjectOld: obj, ObjectNew: obj})).To(Equal(expected))
+	g.ExpectWithOffset(1, pred.Delete(event.DeleteEvent{Object: obj})).To(Equal(expected))
+	g.ExpectWithOffset(1, pred.Generic(event.GenericEvent{Object: obj})).To(Equal(expected))
+}
+
+func TestWatchedObjects(t *testing.T) {
+	newConfigMap := func(namespace, name string) *corev1.ConfigMap {
+		return &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+			},
+		}
+	}
+
+	var (
+		objA      = newConfigMap("ns1", "a")
+		objB      = newConfigMap("ns2", "a")
+		watcher1  = newConfigMap("ns1", "watcher1")
+		watcher2  = newConfigMap("ns1", "watcher2")
+		watcher1K = client.ObjectKeyFromObject(watcher1)
+		watcher2K = client.ObjectKeyFromObject(watcher2)
+	)
+
+	t.Run("nothing is watched initially", func(t *testing.T) {
+		g := NewWithT(t)
+
+		w, pred := controller.NewWatchedObjects()
+		g.Expect(w).NotTo(BeNil())
+		g.Expect(pred).NotTo(BeNil())
+
+		expectPredicateMatches(g, pred, objA, false)
+		expectPredicateMatches(g, pred, objB, false)
+		g.Expect(w.ReconcileRequests(objA)).To(BeEmpty())
+	})
+
+	t.Run("watch adds object and requests", func(t *testing.T) {
+		g := NewWithT(t)
+
+		w, pred := controller.NewWatchedObjects()
+		w.Watch(objA, watcher1)
+
+		expectPredicateMatches(g, pred, objA, true)
+		// Objects are tracked by namespace and name.
+		expectPredicateMatches(g, pred, objB, false)
+		g.Expect(w.ReconcileRequests(objA)).To(ConsistOf(
+			reconcile.Request{NamespacedName: watcher1K},
+		))
+		g.Expect(w.ReconcileRequests(objB)).To(BeEmpty())
+	})
+
+	t.Run("multiple watchers for the same object", func(t *testing.T) {
+		g := NewWithT(t)
+
+		w, _ := controller.NewWatchedObjects()
+		w.Watch(objA, watcher1)
+		w.Watch(objA, watcher2)
+		// Registering the same watcher twice is a no-op.
+		w.Watch(objA, watcher1)
+
+		g.Expect(w.ReconcileRequests(objA)).To(ConsistOf(
+			reconcile.Request{NamespacedName: watcher1K},
+			reconcile.Request{NamespacedName: watcher2K},
+		))
+	})
+
+	t.Run("unwatch removes watcher and object", func(t *testing.T) {
+		g := NewWithT(t)
+
+		w, pred := controller.NewWatchedObjects()
+		w.Watch(objA, watcher1)
+		w.Watch(objA, watcher2)
+
+		w.Unwatch(objA, watcher1)
+		expectPredicateMatches(g, pred, objA, true)
+		g.Expect(w.ReconcileRequests(objA)).To(ConsistOf(
+			reconcile.Request{NamespacedName: watcher2K},
+		))
+
+		w.Unwatch(objA, watcher2)
+		expectPredicateMatches(g, pred, objA, false)
+		g.Expect(w.ReconcileRequests(objA)).To(BeEmpty())
+
+		// Unwatching unknown objects or watchers is a no-op.
+		w.Unwatch(objA, watcher2)
+		w.Unwatch(objB, watcher1)
+		g.Expect(w.ReconcileRequests(objB)).To(BeEmpty())
+	})
+
+	t.Run("remove watcher from all objects", func(t *testing.T) {
+		g := NewWithT(t)
+
+		w, pred := controller.NewWatchedObjects()
+		w.Watch(objA, watcher1)
+		w.Watch(objA, watcher2)
+		w.Watch(objB, watcher1)
+
+		w.RemoveWatcher(watcher1)
+		expectPredicateMatches(g, pred, objA, true)
+		expectPredicateMatches(g, pred, objB, false)
+		g.Expect(w.ReconcileRequests(objA)).To(ConsistOf(
+			reconcile.Request{NamespacedName: watcher2K},
+		))
+		g.Expect(w.ReconcileRequests(objB)).To(BeEmpty())
+
+		w.RemoveWatcher(watcher2)
+		expectPredicateMatches(g, pred, objA, false)
+		g.Expect(w.ReconcileRequests(objA)).To(BeEmpty())
+
+		// Removing an unknown watcher is a no-op.
+		w.RemoveWatcher(watcher1)
+	})
+
+	t.Run("concurrent access", func(t *testing.T) {
+		g := NewWithT(t)
+
+		w, _ := controller.NewWatchedObjects()
+		var wg sync.WaitGroup
+		for i := 0; i < 10; i++ {
+			watcher := newConfigMap("ns1", fmt.Sprintf("watcher%d", i))
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 100; j++ {
+					w.Watch(objA, watcher)
+					_ = w.ReconcileRequests(objA)
+					w.Unwatch(objA, watcher)
+					w.RemoveWatcher(watcher)
+				}
+			}()
+		}
+		wg.Wait()
+
+		g.Expect(w.ReconcileRequests(objA)).To(BeEmpty())
+	})
 }

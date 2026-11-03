@@ -17,11 +17,14 @@ limitations under the License.
 package controller
 
 import (
+	"sync"
+
 	"github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/fluxcd/pkg/apis/meta"
 )
@@ -101,4 +104,82 @@ func GetWatchConfigsPredicate(opts WatchOptions) (predicate.Predicate, error) {
 	return predicate.NewPredicateFuncs(func(o client.Object) bool {
 		return selector.Matches(labels.Set(o.GetLabels()))
 	}), nil
+}
+
+// WatchedObjects keeps track of which objects are being watched and by which watchers.
+type WatchedObjects struct {
+	watches map[WatchedObject]map[WatcherObject]struct{}
+	mu      sync.RWMutex
+}
+
+// WatchedObject represents a WatchedObject object, e.g. a ConfigMap or Secret.
+type WatchedObject = client.ObjectKey
+
+// WatcherObject represents an object that watches other objects, e.g. a Flux object.
+type WatcherObject = client.ObjectKey
+
+// NewWatchedObjects returns a new WatchedObjects instance and a corresponding predicate.Predicate.
+// The predicate will only allow events for objects that are currently being watched. The WatchedObjects
+// instance can be used to add or remove objects from the watch list.
+func NewWatchedObjects() (*WatchedObjects, predicate.Predicate) {
+	w := &WatchedObjects{
+		watches: make(map[WatchedObject]map[WatcherObject]struct{}),
+	}
+	return w, predicate.NewPredicateFuncs(w.isWatched)
+}
+
+// isWatched checks if an object is currently being watched.
+func (w *WatchedObjects) isWatched(obj client.Object) bool {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	_, exists := w.watches[client.ObjectKeyFromObject(obj)]
+	return exists
+}
+
+// ReconcileRequests returns the list of watchers for a given watched object.
+func (w *WatchedObjects) ReconcileRequests(obj client.Object) []reconcile.Request {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	watchers := w.watches[client.ObjectKeyFromObject(obj)]
+	result := make([]reconcile.Request, 0, len(watchers))
+	for watcher := range watchers {
+		result = append(result, reconcile.Request{NamespacedName: watcher})
+	}
+	return result
+}
+
+// Watch adds an object to the watch list.
+func (w *WatchedObjects) Watch(obj, watcher client.Object) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	key := client.ObjectKeyFromObject(obj)
+	if w.watches[key] == nil {
+		w.watches[key] = make(map[WatcherObject]struct{})
+	}
+	w.watches[key][client.ObjectKeyFromObject(watcher)] = struct{}{}
+}
+
+// Unwatch removes an object from the watch list.
+func (w *WatchedObjects) Unwatch(obj, watcher client.Object) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	key := client.ObjectKeyFromObject(obj)
+	if watchers, exists := w.watches[key]; exists {
+		delete(watchers, client.ObjectKeyFromObject(watcher))
+		if len(watchers) == 0 {
+			delete(w.watches, key)
+		}
+	}
+}
+
+// RemoveWatcher removes a watcher from all watched objects.
+func (w *WatchedObjects) RemoveWatcher(watcher client.Object) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for obj, watchers := range w.watches {
+		delete(watchers, client.ObjectKeyFromObject(watcher))
+		if len(watchers) == 0 {
+			delete(w.watches, obj)
+		}
+	}
 }
