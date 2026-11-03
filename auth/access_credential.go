@@ -201,11 +201,15 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 		parts = append(parts, fmt.Sprintf("credentialType=%s", o.credentialType()))
 	}
 
+	if o.CredentialUsername != "" {
+		parts = append(parts, fmt.Sprintf("credentialUsername=%s", o.CredentialUsername))
+	}
+
 	if len(audiences) == 0 {
 		audiences = o.CredentialAudiences
 	}
 	if len(audiences) > 0 {
-		parts = append(parts, fmt.Sprintf("audiences=%s", strings.Join(audiences, ",")))
+		parts = append(parts, fmt.Sprintf("credentialAudiences=%s", strings.Join(audiences, ",")))
 	}
 
 	if serviceAccount != nil {
@@ -249,6 +253,10 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 
 	if o.CAData != "" {
 		parts = append(parts, fmt.Sprintf("caData=%s", o.CAData))
+	}
+
+	if o.GCPWorkloadIdentityProvider != "" {
+		parts = append(parts, fmt.Sprintf("gcpWorkloadIdentityProvider=%s", o.GCPWorkloadIdentityProvider))
 	}
 
 	return buildCacheKey(parts...)
