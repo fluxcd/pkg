@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sort"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -175,6 +176,13 @@ func (db *inMemoryHostKeyDB) hostKeyAlgorithms() []string {
 	for k := range uniq {
 		algos = append(algos, k)
 	}
+
+	// Ranging over a map returns a different order on every call. The
+	// result is used as the client's host key algorithm preference, so a
+	// random order makes negotiation non-deterministic. Sorting also keeps
+	// ssh-rsa behind the stronger algorithms, avoiding SHA-1 handshake
+	// failures in FIPS 140 mode when another host key type is available.
+	sort.Strings(algos)
 
 	return algos
 }
