@@ -20,13 +20,16 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"crypto/sha1"
-	"crypto/sha256"
+	_ "crypto/sha256"
+	_ "crypto/sha512"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	digest "github.com/opencontainers/go-digest"
 )
 
 // NewTempArtifactServer returns an ArtifactServer with a newly created temp
@@ -90,26 +93,60 @@ func (s *ArtifactServer) ArtifactFromFiles(files []File) (string, error) {
 // ArtifactFromDir creates a tar.gz artifact from the source directory into the destination dir
 // and returns the artifact SHA256 checksum.
 func (s *ArtifactServer) ArtifactFromDir(source, destination string) (string, error) {
-	if f, err := os.Stat(source); os.IsNotExist(err) || !f.IsDir() {
+	d, err := s.ArtifactFromDirWithDigest(source, destination, digest.SHA256)
+	if err != nil {
+		return "", err
+	}
+	return d.Encoded(), nil
+}
+
+// ArtifactFromDirWithDigest creates a tar.gz artifact using the given algorithm
+// and returns its digest. The algorithm must be registered and available; callers
+// can import github.com/opencontainers/go-digest/blake3 to register BLAKE3.
+// The destination is relative to the server root.
+func (s *ArtifactServer) ArtifactFromDirWithDigest(source, destination string, algorithm digest.Algorithm) (d digest.Digest, retErr error) {
+	if !algorithm.Available() {
+		return "", fmt.Errorf("%w: %s", digest.ErrDigestUnsupported, algorithm)
+	}
+	info, err := os.Stat(source)
+	if err != nil {
+		return "", fmt.Errorf("invalid source path %s: %w", source, err)
+	}
+	if !info.IsDir() {
 		return "", fmt.Errorf("invalid source path: %s", source)
 	}
-	f, err := os.Create(filepath.Join(s.Root(), destination))
+	root, err := os.OpenRoot(s.Root())
 	if err != nil {
 		return "", err
 	}
 	defer func() {
-		if err != nil {
-			os.Remove(f.Name())
+		retErr = errors.Join(retErr, root.Close())
+		if retErr != nil {
+			d = ""
 		}
 	}()
+	f, err := root.Create(destination)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		retErr = errors.Join(retErr, f.Close())
+		if retErr != nil {
+			d = ""
+			retErr = errors.Join(retErr, root.Remove(destination))
+		}
+	}()
+	if err := f.Chmod(0o600); err != nil {
+		return "", err
+	}
 
-	h := sha256.New()
+	digester := algorithm.Digester()
 
-	mw := io.MultiWriter(h, f)
+	mw := io.MultiWriter(digester.Hash(), f)
 	gw := gzip.NewWriter(mw)
 	tw := tar.NewWriter(gw)
 
-	if err = filepath.Walk(source, func(p string, fi os.FileInfo, err error) error {
+	retErr = filepath.Walk(source, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -142,36 +179,17 @@ func (s *ArtifactServer) ArtifactFromDir(source, destination string) (string, er
 
 		f, err := os.Open(p)
 		if err != nil {
-			f.Close()
 			return err
 		}
-		if _, err := io.Copy(tw, f); err != nil {
-			f.Close()
-			return err
-		}
-		return f.Close()
-	}); err != nil {
-		return "", err
+		_, err = io.Copy(tw, f)
+		return errors.Join(err, f.Close())
+	})
+	retErr = errors.Join(retErr, tw.Close(), gw.Close())
+	if retErr != nil {
+		return "", retErr
 	}
 
-	if err := tw.Close(); err != nil {
-		gw.Close()
-		f.Close()
-		return "", err
-	}
-	if err := gw.Close(); err != nil {
-		f.Close()
-		return "", err
-	}
-	if err := f.Close(); err != nil {
-		return "", err
-	}
-
-	if err := os.Chmod(f.Name(), 0o600); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+	return digester.Digest(), nil
 }
 
 // URLForFile returns the URL the given file can be reached at or
