@@ -103,11 +103,15 @@ func NewAccessCredential(ctx context.Context, provider Provider, opts ...Option)
 }
 
 // newIdentityCredential returns the identity credential used to obtain a
-// provider access credential for the object. Kubernetes issues a ServiceAccount
-// token, SPIFFE fetches a JWT-SVID either from the SPIFFE Broker API or from
-// the SPIFFE Workload API, and Actions OIDC fetches an OIDC ID token from the
+// provider access credential for the object. A caller-provided credential takes
+// precedence. Otherwise Kubernetes issues a ServiceAccount token, SPIFFE
+// fetches a JWT-SVID either from the SPIFFE Broker API or from the SPIFFE
+// Workload API, and Actions OIDC fetches an OIDC ID token from the
 // Github/Forgejo Actions token endpoint.
 func (o *Options) newIdentityCredential(ctx context.Context, audiences []string) (Credential, error) {
+	if o.JWTCredential != nil {
+		return o.JWTCredential, nil
+	}
 	credProvider := o.credentialProvider()
 	if credProvider == cryptov1.CredentialProviderSPIFFE && o.credentialType() != cryptov1.CredentialTypeJWT {
 		return nil, fmt.Errorf("credential type '%s' for the %s credential provider is not implemented yet",
@@ -253,9 +257,22 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 	}
 
 	if o.performCredentialExchange {
+		// Append the provider identity.
 		parts = append(parts, fmt.Sprintf("providerIdentity=%s", providerIdentity))
+		// Append the credential identity.
 		credProvider := o.credentialProvider()
 		switch {
+		case o.JWTCredential != nil:
+			// The credential is a caller-provided input, so its fingerprint is
+			// known before the exchange. The key covers the exact credential,
+			// so a cache hit only reuses credentials obtained by exchanging
+			// that exact credential. A different credential is never allowed
+			// to reuse a cached access credential and is always forced to be
+			// revalidated by the provider in a new exchange.
+			//
+			// For credentials acquired internally this would be circular: the
+			// credential does not exist until after the cache key is built.
+			parts = append(parts, fmt.Sprintf("credentialIdentity=%s", o.JWTCredential.Identity()))
 		case credProvider == cryptov1.CredentialProviderKubernetes:
 			parts = append(parts,
 				fmt.Sprintf("serviceAccountName=%s", serviceAccount.Name),

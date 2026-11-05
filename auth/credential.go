@@ -17,6 +17,8 @@ limitations under the License.
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"time"
 )
 
@@ -53,4 +55,19 @@ var _ Credential = (*JWTCredential)(nil)
 // GetDuration implements Credential.
 func (c *JWTCredential) GetDuration() time.Duration {
 	return time.Until(c.ExpiresAt)
+}
+
+// Identity returns a fingerprint of the exact credential, including the JWT
+// signature and all claims. It is used for cache scoping so that a cached
+// result is only reused for the exact same credential. Reusing cached results
+// across different credentials would mean the caller's credential is never
+// exchanged with the provider, which is what verifies trust in it. This
+// deliberately trades reuse across credential rotations for safety.
+func (c *JWTCredential) Identity() string {
+	return hashString(c.Token)
+}
+
+func hashString(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
 }

@@ -827,6 +827,43 @@ func TestNewAccessCredentialActionsOIDCCache(t *testing.T) {
 	g.Expect(calls).To(Equal(1))
 }
 
+func TestNewAccessCredentialProvidedJWT(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	expiresAt := time.Now().Add(time.Hour)
+	token := newTestJWT(t, expiresAt)
+	provided := auth.JWTCredential{
+		Provider:  cryptov1.CredentialProviderSPIFFE,
+		Token:     token,
+		ExpiresAt: expiresAt,
+	}
+
+	provider := &mockProvider{
+		t:                          t,
+		returnName:                 "mock-provider",
+		returnControllerCredential: &mockCredential{token: "controller-token"},
+		returnAccessCredential:     &mockCredential{token: "access-token"},
+		returnIdentity:             "mock-identity",
+		paramAudiences:             []string{"audience1", "audience2"},
+		paramCredentialProvider:    cryptov1.CredentialProviderSPIFFE,
+		paramOIDCToken:             token,
+		skipOIDCValidation:         true,
+	}
+
+	credential, err := auth.NewAccessCredential(ctx, provider,
+		auth.WithJWTCredential(provided),
+		auth.WithCredentialAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAWSRegion("us-east-1"),
+		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(credential).To(Equal(&mockCredential{token: "access-token"}))
+}
+
 func actionsOIDCObject(name string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
