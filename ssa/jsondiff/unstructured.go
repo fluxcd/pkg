@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-openapi/jsonpointer"
 	"github.com/wI2L/jsondiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -119,7 +120,10 @@ func UnstructuredList(ctx context.Context, c client.Client, objs []*unstructured
 //
 // It accepts a list of ResourceOption, which can be used to exclude an
 // object using an ExclusionSelector, or to ignore specific JSON pointers
-// within the object using IgnorePaths.
+// within the object using IgnorePaths. Ignored paths present in both the desired
+// and existing objects retain their existing values during the dry-run, before
+// being excluded from the comparison. Paths missing from either object and
+// creation of missing resources retain the normal dry-run behavior.
 //
 // The DiffType of the returned Diff is DiffTypeNone if the dry-run object is
 // identical to the original object, DiffTypeCreate if the dry-run object
@@ -156,6 +160,11 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	}
 
 	dryRunObj := obj.DeepCopy()
+	if existingObj.GetResourceVersion() != "" {
+		if err := preserveIgnoredFields(dryRunObj, existingObj, o.IgnorePaths); err != nil {
+			return nil, err
+		}
+	}
 	patchOpts := []client.PatchOption{
 		client.DryRunAll,
 		client.ForceOwnership,
@@ -287,4 +296,26 @@ func removeMetadataAndStatus(obj *unstructured.Unstructured) *unstructured.Unstr
 	unstructured.RemoveNestedField(c.Object, "metadata")
 	unstructured.RemoveNestedField(c.Object, "status")
 	return c
+}
+
+// preserveIgnoredFields retains live values in the dry-run request so admission
+// validation does not reject changes to ignored fields. Paths absent from either
+// object are left unchanged. The caller must pass a copy of the desired object.
+func preserveIgnoredFields(desired, existing *unstructured.Unstructured, paths []string) error {
+	var replacements []ReplaceOp
+	for _, path := range paths {
+		pointer, err := jsonpointer.New(path)
+		if err != nil {
+			return fmt.Errorf("invalid ignore path %q: %w", path, err)
+		}
+		if _, _, err := pointer.Get(desired.Object); err != nil {
+			continue
+		}
+		value, _, err := pointer.Get(existing.Object)
+		if err != nil {
+			continue
+		}
+		replacements = append(replacements, ReplaceOp{Path: path, Value: value})
+	}
+	return ApplyPatchToUnstructured(desired, GenerateReplacePatch(replacements...))
 }
