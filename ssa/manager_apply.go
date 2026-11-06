@@ -894,11 +894,12 @@ func parseManagedFieldsApply(obj *unstructured.Unstructured) []parsedManagedFiel
 		if mf.Subresource != "" || mf.Operation != metav1.ManagedFieldsOperationApply {
 			continue
 		}
-		if mf.FieldsV1 == nil || len(mf.FieldsV1.Raw) == 0 {
+		raw := mf.FieldsV1.GetRawBytes()
+		if len(raw) == 0 {
 			continue
 		}
 		var fields map[string]any
-		if err := json.Unmarshal(mf.FieldsV1.Raw, &fields); err != nil {
+		if err := json.Unmarshal(raw, &fields); err != nil {
 			continue
 		}
 		result = append(result, parsedManagedField{
