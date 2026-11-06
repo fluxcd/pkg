@@ -141,7 +141,7 @@ func runFieldManagersBeforeDryRunScenario(t *testing.T, id string, apply applyFu
 				continue
 			}
 			var raw map[string]interface{}
-			if err := json.Unmarshal(e.FieldsV1.Raw, &raw); err != nil {
+			if err := json.Unmarshal(e.FieldsV1.GetRawBytes(), &raw); err != nil {
 				t.Fatal(err)
 			}
 			pdh := digPath(raw, "f:spec", "f:template", "f:spec", "f:containers", `k:{"name":"pdh"}`)
@@ -325,7 +325,7 @@ func runFieldManagersBeforeDryRunMutatesEvenOnUnrelatedFailureScenario(t *testin
 				continue
 			}
 			var raw map[string]interface{}
-			if err := json.Unmarshal(e.FieldsV1.Raw, &raw); err != nil {
+			if err := json.Unmarshal(e.FieldsV1.GetRawBytes(), &raw); err != nil {
 				t.Fatal(err)
 			}
 			if digPath(raw, "f:metadata", "f:annotations", "f:"+noteKey) != nil {
@@ -464,7 +464,7 @@ func runFieldManagersBeforeDryRunReclaimsUnrelatedFieldsScenario(t *testing.T, i
 				continue
 			}
 			var raw map[string]interface{}
-			if err := json.Unmarshal(e.FieldsV1.Raw, &raw); err != nil {
+			if err := json.Unmarshal(e.FieldsV1.GetRawBytes(), &raw); err != nil {
 				t.Fatal(err)
 			}
 			if digPath(raw, "f:metadata", "f:annotations", "f:"+noteKey) != nil {
