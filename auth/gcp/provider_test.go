@@ -287,8 +287,13 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 func TestProvider_ParseArtifactRegistry(t *testing.T) {
 	for _, tt := range []struct {
 		artifactRepository string
+		extraHosts         string
 		expectValid        bool
 	}{
+		{
+			artifactRepository: "",
+			expectValid:        false,
+		},
 		{
 			artifactRepository: "gcr.io",
 			expectValid:        true,
@@ -333,9 +338,38 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 			artifactRepository: "a.docker.s3nsregistry.fr",
 			expectValid:        false,
 		},
+		{
+			artifactRepository: "docker.pkg-u-france-east1.example.fr",
+			extraHosts:         "docker.pkg-u-france-east1.example.fr",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "docker.pkg-u-france-east1.example.fr/project/repo/image:v1",
+			extraHosts:         "docker.pkg-u-france-east1.example.fr",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "docker.pkg-b.example.fr/repo/image",
+			extraHosts:         "docker.pkg-a.example.fr,docker.pkg-b.example.fr",
+			expectValid:        true,
+		},
+		{
+			artifactRepository: "sub.docker.pkg-u-france-east1.example.fr/repo/image",
+			extraHosts:         "docker.pkg-u-france-east1.example.fr",
+			expectValid:        false,
+		},
+		{
+			artifactRepository: "docker.pkg-other.example.fr/repo/image",
+			extraHosts:         "docker.pkg-u-france-east1.example.fr",
+			expectValid:        false,
+		},
 	} {
 		t.Run(tt.artifactRepository, func(t *testing.T) {
 			g := NewWithT(t)
+
+			if tt.extraHosts != "" {
+				t.Setenv("GCP_ARTIFACT_REGISTRY_HOSTS", tt.extraHosts)
+			}
 
 			cacheKey, err := gcp.Provider{}.ParseArtifactRepository(tt.artifactRepository)
 
@@ -344,6 +378,7 @@ func TestProvider_ParseArtifactRegistry(t *testing.T) {
 				g.Expect(cacheKey).To(Equal("gcp"))
 			} else {
 				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("GCP_ARTIFACT_REGISTRY_HOSTS"))
 				g.Expect(cacheKey).To(BeEmpty())
 			}
 		})
