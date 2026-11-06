@@ -25,8 +25,9 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/fluxcd/pkg/version"
 )
@@ -45,7 +46,13 @@ type ListOptions struct {
 // List fetches the tags and their manifests for a given OCI repository.
 func (c *Client) List(ctx context.Context, url string, opts ListOptions) ([]Metadata, error) {
 	metas := make([]Metadata, 0)
-	tags, err := crane.ListTags(url, c.options...)
+
+	repo, err := name.NewRepository(url)
+	if err != nil {
+		return nil, fmt.Errorf("parsing repository failed: %w", err)
+	}
+
+	tags, err := remote.List(repo, c.optionsWithContext(ctx)...)
 	if err != nil {
 		return nil, fmt.Errorf("listing tags failed: %w", err)
 	}
@@ -94,12 +101,13 @@ func (c *Client) List(ctx context.Context, url string, opts ListOptions) ([]Meta
 			URL: fmt.Sprintf("%s:%s", url, tag),
 		}
 
-		manifestJSON, err := crane.Manifest(meta.URL, c.optionsWithContext(ctx)...)
+		tagRef := repo.Tag(tag)
+		desc, err := remote.Get(tagRef, c.optionsWithContext(ctx)...)
 		if err != nil {
 			return nil, fmt.Errorf("fetching manifest failed: %w", err)
 		}
 
-		manifest, err := gcrv1.ParseManifest(bytes.NewReader(manifestJSON))
+		manifest, err := gcrv1.ParseManifest(bytes.NewReader(desc.Manifest))
 		if err != nil {
 			return nil, fmt.Errorf("parsing manifest failed: %w", err)
 		}
@@ -109,11 +117,7 @@ func (c *Client) List(ctx context.Context, url string, opts ListOptions) ([]Meta
 		meta.Source = manifestMetadata.Source
 		meta.Created = manifestMetadata.Created
 
-		digest, err := crane.Digest(meta.URL, c.optionsWithContext(ctx)...)
-		if err != nil {
-			return nil, fmt.Errorf("fetching digest failed: %w", err)
-		}
-		meta.Digest = digest
+		meta.Digest = desc.Digest.String()
 
 		metas = append(metas, meta)
 	}
