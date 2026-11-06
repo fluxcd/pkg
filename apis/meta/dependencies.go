@@ -16,7 +16,10 @@ limitations under the License.
 
 package meta
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 // ObjectWithDependencies describes a Kubernetes resource object with dependencies.
 // +k8s:deepcopy-gen=false
@@ -27,10 +30,14 @@ type ObjectWithDependencies interface {
 
 // MakeDependsOn parses a list of dependency strings into DependencyReference
 // objects. Each dependency string can be in one of the following formats:
-//   - "name" - a dependency in the same namespace with no CEL expression
-//   - "namespace/name" - a dependency in a specific namespace
-//   - "name@readyExpr" - a dependency with a CEL readiness expression
-//   - "namespace/name@readyExpr" - a dependency in a specific namespace with a CEL expression
+//   - "name" - a Flux Applier API (Kustomization or HelmRelease) dependency in the same namespace
+//   - "namespace/name" - a Flux Applier API (Kustomization or HelmRelease) dependency in a specific namespace
+//   - "name@readyExpr" - a Flux Applier API (Kustomization or HelmRelease) dependency with a CEL readiness expression
+//   - "namespace/name@readyExpr" - a Flux Applier API (Kustomization or HelmRelease) dependency in a specific namespace with a CEL expression
+//   - "apiVersion/Kind/name" - a Kubernetes resource dependency in the same namespace
+//   - "apiVersion/Kind/name@readyExpr" - a Kubernetes resource dependency with a CEL readiness expression
+//   - "apiVersion/Kind/namespace/name" - a Kubernetes resource dependency in a specific namespace
+//   - "apiVersion/Kind/namespace/name@readyExpr" - a Kubernetes resource dependency in a specific namespace with a CEL readiness expression
 //
 // The @ symbol is used to separate the resource reference from the CEL expression.
 // Note that @ cannot be part of resource names or namespaces per Kubernetes naming conventions:
@@ -48,11 +55,35 @@ func MakeDependsOn(deps []string) []DependencyReference {
 			dep = dep[:idx]
 		}
 
-		// Split the namespace/name.
-		if parts := strings.SplitN(dep, "/", 2); len(parts) == 2 {
+		// Parse the apiVersion/Kind/namespace/name dependency string into DependencyReference objects.
+		parts := strings.SplitN(dep, "/", 5)
+		switch len(parts) {
+		case 5:
+			ref.APIVersion = parts[0] + "/" + parts[1]
+			ref.Kind = parts[2]
+			ref.Namespace = parts[3]
+			ref.Name = parts[4]
+		case 4:
+			// parts[1] starts with uppercase → core API ("v1/Pod/namespace/name")
+			// parts[1] starts with lowercase → group/version ("apps/v1/Deployment/name")
+			if unicode.IsUpper(rune(parts[1][0])) {
+				ref.APIVersion = parts[0]
+				ref.Kind = parts[1]
+				ref.Namespace = parts[2]
+				ref.Name = parts[3]
+			} else {
+				ref.APIVersion = parts[0] + "/" + parts[1]
+				ref.Kind = parts[2]
+				ref.Name = parts[3]
+			}
+		case 3:
+			ref.APIVersion = parts[0]
+			ref.Kind = parts[1]
+			ref.Name = parts[2]
+		case 2:
 			ref.Namespace = parts[0]
 			ref.Name = parts[1]
-		} else {
+		case 1:
 			ref.Name = dep
 		}
 
