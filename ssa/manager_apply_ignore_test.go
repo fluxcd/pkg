@@ -101,7 +101,7 @@ func TestApply_DriftIgnoreRules_OptionalFields(t *testing.T) {
 			if entry.Manager == manager.owner.Field && entry.Operation == metav1.ManagedFieldsOperationApply {
 				fluxFound = true
 				if entry.FieldsV1 != nil {
-					fieldsJSON := string(entry.FieldsV1.Raw)
+					fieldsJSON := entry.FieldsV1.GetRawString()
 					if !strings.Contains(fieldsJSON, "f:replicas") {
 						t.Errorf("expected Flux to own spec.replicas after create, but it does not")
 					}
@@ -217,7 +217,7 @@ func TestApply_DriftIgnoreRules_OptionalFields(t *testing.T) {
 		for _, entry := range existing.GetManagedFields() {
 			if entry.Manager == "vpa-controller" && entry.Operation == metav1.ManagedFieldsOperationApply {
 				if entry.FieldsV1 != nil {
-					fieldsJSON := string(entry.FieldsV1.Raw)
+					fieldsJSON := entry.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "f:replicas") {
 						vpaOwnsReplicas = true
 					}
@@ -225,7 +225,7 @@ func TestApply_DriftIgnoreRules_OptionalFields(t *testing.T) {
 			}
 			if entry.Manager == "monitoring-controller" && entry.Operation == metav1.ManagedFieldsOperationApply {
 				if entry.FieldsV1 != nil {
-					fieldsJSON := string(entry.FieldsV1.Raw)
+					fieldsJSON := entry.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "f:prometheus.io/scrape") {
 						monOwnsAnnotations = true
 					}
@@ -271,7 +271,7 @@ func TestApply_DriftIgnoreRules_OptionalFields(t *testing.T) {
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 				if mf.FieldsV1 != nil {
-					fieldsJSON := string(mf.FieldsV1.Raw)
+					fieldsJSON := mf.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "f:replicas") {
 						t.Errorf("expected Flux to no longer own spec.replicas")
 					}
@@ -462,7 +462,7 @@ func TestApply_DriftIgnoreRules_ImmutableField(t *testing.T) {
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 				if mf.FieldsV1 != nil {
-					fieldsJSON := string(mf.FieldsV1.Raw)
+					fieldsJSON := mf.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "f:selector") {
 						fluxOwnsSelector = true
 					}
@@ -524,7 +524,7 @@ func TestApply_DriftIgnoreRules_ImmutableField(t *testing.T) {
 		fluxOwnsSelector := false
 		for _, entry := range existing.GetManagedFields() {
 			if entry.FieldsV1 != nil {
-				fieldsJSON := string(entry.FieldsV1.Raw)
+				fieldsJSON := entry.FieldsV1.GetRawString()
 				if strings.Contains(fieldsJSON, "f:selector") {
 					if entry.Manager == "selector-controller" && entry.Operation == metav1.ManagedFieldsOperationApply {
 						selectorControllerOwns = true
@@ -577,7 +577,7 @@ func TestApply_DriftIgnoreRules_ImmutableField(t *testing.T) {
 		selectorControllerOwns := false
 		for _, mf := range existing.GetManagedFields() {
 			if mf.FieldsV1 != nil {
-				fieldsJSON := string(mf.FieldsV1.Raw)
+				fieldsJSON := mf.FieldsV1.GetRawString()
 				if strings.Contains(fieldsJSON, "f:selector") {
 					if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 						fluxOwnsSelector = true
@@ -763,7 +763,7 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 		fluxOwnsImage := false
 		for _, entry := range existing.GetManagedFields() {
 			if entry.FieldsV1 != nil {
-				fieldsJSON := string(entry.FieldsV1.Raw)
+				fieldsJSON := entry.FieldsV1.GetRawString()
 				if strings.Contains(fieldsJSON, "\"f:image\":") {
 					if entry.Manager == "image-policy-controller" && entry.Operation == metav1.ManagedFieldsOperationApply {
 						imgControllerOwnsImage = true
@@ -817,7 +817,7 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 				if mf.FieldsV1 != nil {
-					fieldsJSON := string(mf.FieldsV1.Raw)
+					fieldsJSON := mf.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "\"f:image\":") {
 						t.Errorf("expected Flux to no longer own container image, but it does")
 					}
@@ -830,7 +830,7 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == "image-policy-controller" && mf.Operation == metav1.ManagedFieldsOperationApply {
 				if mf.FieldsV1 != nil {
-					fieldsJSON := string(mf.FieldsV1.Raw)
+					fieldsJSON := mf.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "\"f:image\":") {
 						imgControllerOwnsImage = true
 					}
@@ -904,7 +904,7 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == "image-policy-controller" && mf.Operation == metav1.ManagedFieldsOperationApply {
 				if mf.FieldsV1 != nil {
-					fieldsJSON := string(mf.FieldsV1.Raw)
+					fieldsJSON := mf.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "\"f:image\":") {
 						imgControllerOwnsImage = true
 					}
@@ -1168,7 +1168,7 @@ func TestApply_DriftIgnoreRules_SelectorAndPaths(t *testing.T) {
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 				if mf.FieldsV1 != nil {
-					fieldsJSON := string(mf.FieldsV1.Raw)
+					fieldsJSON := mf.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "f:replicas") {
 						t.Errorf("expected Flux to not own spec.replicas")
 					}
@@ -1327,7 +1327,7 @@ func TestApply_DriftIgnoreRules_SelectorAndPaths(t *testing.T) {
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 				if mf.FieldsV1 != nil {
-					fieldsJSON := string(mf.FieldsV1.Raw)
+					fieldsJSON := mf.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "f:replicas") {
 						t.Errorf("expected Flux to not own spec.replicas (drifted, should be stripped)")
 					}
@@ -1430,7 +1430,7 @@ func TestApply_DriftIgnoreRules_SelectorAndPaths(t *testing.T) {
 		for _, mf := range existingDeploy.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 				if mf.FieldsV1 != nil {
-					fieldsJSON := string(mf.FieldsV1.Raw)
+					fieldsJSON := mf.FieldsV1.GetRawString()
 					if strings.Contains(fieldsJSON, "f:replicas") {
 						t.Errorf("expected Flux to not own Deployment spec.replicas after ApplyAll")
 					}
@@ -1727,7 +1727,7 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 			// Flux should no longer own replicas.
 			for _, mf := range existing.GetManagedFields() {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-					if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+					if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 						t.Errorf("expected Flux to not own spec.replicas")
 					}
 				}
@@ -1963,7 +1963,7 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 			fluxOwnsReplicas := false
 			for _, mf := range existing.GetManagedFields() {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-					if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+					if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 						fluxOwnsReplicas = true
 					}
 				}
@@ -1997,7 +1997,7 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 			}
 			for _, mf := range existing.GetManagedFields() {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-					if mf.FieldsV1 != nil && !strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+					if mf.FieldsV1 != nil && !strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 						t.Errorf("expected Flux to still own spec.replicas")
 					}
 				}
@@ -2025,7 +2025,7 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 			}
 			for _, mf := range existing.GetManagedFields() {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-					if mf.FieldsV1 != nil && !strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+					if mf.FieldsV1 != nil && !strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 						t.Errorf("expected Flux to still own spec.replicas")
 					}
 				}
@@ -2093,7 +2093,7 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 			}
 			for _, mf := range existing.GetManagedFields() {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-					if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+					if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 						t.Errorf("expected Flux to not own spec.replicas after ApplyAll")
 					}
 				}
@@ -2149,7 +2149,7 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 			fluxOwnsReplicas := false
 			for _, mf := range existing.GetManagedFields() {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-					if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+					if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 						fluxOwnsReplicas = true
 					}
 				}
@@ -2206,7 +2206,7 @@ func TestApply_DriftIgnoreRules_TwoPhaseOwnershipLifecycle(t *testing.T) {
 		fluxOwnsReplicas := false
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-				if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+				if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 					fluxOwnsReplicas = true
 				}
 			}
@@ -2265,7 +2265,7 @@ func TestApply_DriftIgnoreRules_TwoPhaseOwnershipLifecycle(t *testing.T) {
 		fluxOwns := false
 		hpaOwns := false
 		for _, mf := range existing.GetManagedFields() {
-			if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+			if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 					fluxOwns = true
 				}
@@ -2304,7 +2304,7 @@ func TestApply_DriftIgnoreRules_TwoPhaseOwnershipLifecycle(t *testing.T) {
 		fluxOwns := false
 		hpaOwns := false
 		for _, mf := range existing.GetManagedFields() {
-			if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+			if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 					fluxOwns = true
 				}
@@ -2364,7 +2364,7 @@ func TestApply_DriftIgnoreRules_TwoPhaseOwnershipLifecycle(t *testing.T) {
 		// Flux should no longer own replicas.
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-				if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+				if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 					t.Errorf("expected Flux to no longer own spec.replicas after real apply")
 				}
 			}
@@ -2386,7 +2386,7 @@ func TestApply_DriftIgnoreRules_TwoPhaseOwnershipLifecycle(t *testing.T) {
 		}
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-				if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+				if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 					t.Errorf("expected Flux to still not own spec.replicas")
 				}
 			}
@@ -2487,7 +2487,7 @@ func TestApply_DriftIgnoreRules_SharedMutableCoOwnership(t *testing.T) {
 		fluxOwns := false
 		hpaOwns := false
 		for _, mf := range existing.GetManagedFields() {
-			if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+			if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 					fluxOwns = true
 				}
@@ -2551,7 +2551,7 @@ func TestApply_DriftIgnoreRules_SharedMutableCoOwnership(t *testing.T) {
 		fluxOwns := false
 		hpaOwns := false
 		for _, mf := range existing.GetManagedFields() {
-			if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+			if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 				if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
 					fluxOwns = true
 				}
@@ -2650,7 +2650,7 @@ func TestApply_DriftIgnoreRules_ClientSideEditConsequences(t *testing.T) {
 		fluxOwnsReplicas := false
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-				if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+				if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 					fluxOwnsReplicas = true
 				}
 			}
@@ -2846,7 +2846,7 @@ func TestApply_DriftIgnoreRules_FieldManagerCleanupInteraction(t *testing.T) {
 		fluxOwnsReplicas := false
 		for _, mf := range existing.GetManagedFields() {
 			if mf.Manager == manager.owner.Field && mf.Operation == metav1.ManagedFieldsOperationApply {
-				if mf.FieldsV1 != nil && strings.Contains(string(mf.FieldsV1.Raw), "f:replicas") {
+				if mf.FieldsV1 != nil && strings.Contains(mf.FieldsV1.GetRawString(), "f:replicas") {
 					fluxOwnsReplicas = true
 				}
 			}
@@ -2993,7 +2993,7 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 		if mf.Manager != manager.owner.Field || mf.Operation != metav1.ManagedFieldsOperationApply || mf.FieldsV1 == nil {
 			continue
 		}
-		if strings.Contains(string(mf.FieldsV1.Raw), "\"f:resources\"") {
+		if strings.Contains(mf.FieldsV1.GetRawString(), "\"f:resources\"") {
 			t.Errorf("expected Flux to release containers[0].resources to vpa-controller")
 		}
 	}
@@ -3115,7 +3115,7 @@ func TestApply_DriftIgnoreRules_HPAUndeclaredReplicas(t *testing.T) {
 					}
 					hpaOwnsReplicas := false
 					for _, entry := range existing.GetManagedFields() {
-						if entry.FieldsV1 == nil || !strings.Contains(string(entry.FieldsV1.Raw), `"f:replicas"`) {
+						if entry.FieldsV1 == nil || !strings.Contains(entry.FieldsV1.GetRawString(), `"f:replicas"`) {
 							continue
 						}
 						if entry.Manager == manager.owner.Field {
@@ -3196,7 +3196,7 @@ func TestApply_DriftIgnoreRules_HPAUndeclaredReplicas(t *testing.T) {
 				}
 				hpaOwnsReplicas := false
 				for _, entry := range existing.GetManagedFields() {
-					if entry.FieldsV1 == nil || !strings.Contains(string(entry.FieldsV1.Raw), `"f:replicas"`) {
+					if entry.FieldsV1 == nil || !strings.Contains(entry.FieldsV1.GetRawString(), `"f:replicas"`) {
 						continue
 					}
 					if entry.Manager == manager.owner.Field && entry.Operation == metav1.ManagedFieldsOperationApply {
