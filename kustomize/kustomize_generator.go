@@ -30,6 +30,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/kustomize/api/builtins"
 	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/provider"
@@ -658,7 +659,7 @@ func resetOpenAPIWithBuiltins() {
 //   - load files from outside the kustomization dir path
 //     (but not outside root)
 //   - disable plugins except for the builtin ones
-func SecureBuild(root, dirPath string, allowRemoteBases bool) (res resmap.ResMap, err error) {
+func SecureBuild(root, dirPath string, allowRemoteBases bool, opts ...Option) (res resmap.ResMap, err error) {
 	var fs filesys.FileSystem
 
 	// Create secure FS for root with or without remote base support
@@ -673,13 +674,22 @@ func SecureBuild(root, dirPath string, allowRemoteBases bool) (res resmap.ResMap
 			return nil, err
 		}
 	}
-	return Build(fs, dirPath)
+	return Build(fs, dirPath, opts...)
 }
 
 // Build wraps krusty.MakeKustomizer with the following settings:
 // - load files from outside the kustomization.yaml root
 // - disable plugins except for the builtin ones
-func Build(fs filesys.FileSystem, dirPath string) (res resmap.ResMap, err error) {
+//
+// When post-build patches are configured via WithPostBuildPatches, they are
+// applied to the rendered resources as the last step of the build, while the
+// OpenAPI schema loaded during the build is still in effect.
+func Build(fs filesys.FileSystem, dirPath string, opts ...Option) (res resmap.ResMap, err error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	// temporary workaround for concurrent map read and map write bug
 	// https://github.com/kubernetes-sigs/kustomize/issues/3659
 	kustomizeBuildMutex.Lock()
@@ -707,7 +717,63 @@ func Build(fs filesys.FileSystem, dirPath string) (res resmap.ResMap, err error)
 	defer openapi.ResetOpenAPI()
 
 	k := krusty.MakeKustomizer(buildOptions)
-	return k.Run(fs, dirPath)
+	res, err = k.Run(fs, dirPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = applyPostBuildPatches(res, o.postBuildPatches); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+// patchTransformerConfig mirrors the config schema of the builtin Kustomize
+// patch transformer.
+type patchTransformerConfig struct {
+	Patch  string             `json:"patch,omitempty"`
+	Target *kustypes.Selector `json:"target,omitempty"`
+}
+
+// applyPostBuildPatches patches the resources in the given resource map with the given
+// Kustomize patches, in the order they are declared. Strategic merge and
+// JSON6902 patches behave as they do during a Kustomize build.
+func applyPostBuildPatches(m resmap.ResMap, patches []kustomize.Patch) (err error) {
+	if len(patches) == 0 {
+		return nil
+	}
+
+	depProvider := provider.NewDefaultDepProvider()
+	helpers := resmap.NewPluginHelpers(
+		nil, // no loader: patches referencing files are not supported
+		depProvider.GetFieldValidator(),
+		resmap.NewFactory(depProvider.GetResourceFactory()),
+		kustypes.DisabledPluginConfig(),
+	)
+
+	var config []byte
+	for i, p := range patches {
+		config, err = yaml.Marshal(patchTransformerConfig{
+			Patch:  p.Patch,
+			Target: adaptSelector(p.Target),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to marshal patch %d: %w", i, err)
+		}
+
+		transformer := builtins.NewPatchTransformerPlugin()
+		if err = transformer.Config(helpers, config); err != nil {
+			return fmt.Errorf("failed to configure patch %d: %w", i, err)
+		}
+		if err = transformer.Transform(m); err != nil {
+			return fmt.Errorf("failed to apply patch %d: %w", i, err)
+		}
+	}
+
+	m.RemoveBuildAnnotations()
+
+	return nil
 }
 
 // CleanDirectory removes the kustomization.yaml file from the given directory.
