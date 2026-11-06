@@ -261,6 +261,15 @@ func TestOptions_ObjectReferences(t *testing.T) {
 	}
 }
 
+func TestWithJWTCredential(t *testing.T) {
+	credential := auth.JWTCredential{Token: "token"}
+	var o auth.Options
+	o.Apply(auth.WithJWTCredential(credential))
+	if o.JWTCredential == nil || *o.JWTCredential != credential {
+		t.Fatalf("JWTCredential = %+v, want %+v", o.JWTCredential, credential)
+	}
+}
+
 func TestOptions_GenericProviderIdentity(t *testing.T) {
 	for _, tt := range []struct {
 		name     string

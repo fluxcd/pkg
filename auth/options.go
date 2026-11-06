@@ -68,6 +68,11 @@ type Options struct {
 	CredentialUsername   string
 	CredentialAudiences  []string
 
+	// JWTCredential is a pre-acquired JWT credential to exchange for a provider
+	// access credential. When set, it is used instead of acquiring a credential
+	// with the configured credential provider.
+	JWTCredential *JWTCredential
+
 	// Request configuration.
 	Scopes        []string
 	ProxyURL      *url.URL
@@ -266,6 +271,20 @@ func WithIdentity(identity string) Option {
 	return func(o *Options) {
 		o.genericProviderIdentity = identity
 		o.awsRoleSessionName = identity
+		o.performCredentialExchange = true
+	}
+}
+
+// WithJWTCredential sets a pre-acquired JWT credential to exchange for a
+// provider access credential and enables credential exchange. It is intended
+// for consumers that already hold a JWT credential, e.g. an OIDC token read
+// from a file or signed with a private key, and therefore do not need a
+// credential provider.
+//
+// It takes precedence over the configured credential provider.
+func WithJWTCredential(credential JWTCredential) Option {
+	return func(o *Options) {
+		o.JWTCredential = &credential
 		o.performCredentialExchange = true
 	}
 }
