@@ -14,10 +14,10 @@ replace (
 
 require (
 	github.com/fluxcd/go-git-providers v0.29.0
-	github.com/fluxcd/pkg/auth v0.66.0
-	github.com/fluxcd/pkg/git v0.56.0
+	github.com/fluxcd/pkg/auth v0.70.0
+	github.com/fluxcd/pkg/git v0.57.0
 	github.com/fluxcd/pkg/gittestserver v0.33.0
-	github.com/fluxcd/pkg/ssh v0.29.0
+	github.com/fluxcd/pkg/ssh v0.30.0
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/go-logr/logr v1.4.4
 	github.com/google/go-github/v87 v87.0.0

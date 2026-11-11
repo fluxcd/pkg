@@ -17,7 +17,7 @@ limitations under the License.
 package auth
 
 // FeatureGateObjectLevelWorkloadIdentity is a feature gate that enables the use of
-// object-level workload identity for authentication. Controllers register this
+// object identity for authentication. Controllers register this
 // feature gate and are responsible for evaluating it.
 const FeatureGateObjectLevelWorkloadIdentity = "ObjectLevelWorkloadIdentity"
 

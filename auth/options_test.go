@@ -27,6 +27,7 @@ import (
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestOptions_GetHTTPClient(t *testing.T) {
@@ -200,7 +201,7 @@ func TestOptionsFromSpec(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got auth.Options
 			got.Apply(auth.OptionsFromSpec(tt.spec)...)
-			if diff := cmp.Diff(tt.want, got); diff != "" {
+			if diff := cmp.Diff(tt.want, got, cmpopts.IgnoreUnexported(auth.Options{})); diff != "" {
 				t.Errorf("OptionsFromSpec() mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -257,5 +258,91 @@ func TestOptions_ObjectReferences(t *testing.T) {
 	}
 	if o.InvolvedObjectReference != wantInvolved {
 		t.Errorf("InvolvedObjectReference = %+v, want %+v", o.InvolvedObjectReference, wantInvolved)
+	}
+}
+
+func TestWithJWTCredential(t *testing.T) {
+	credential := auth.JWTCredential{Token: "token"}
+	var o auth.Options
+	o.Apply(auth.WithJWTCredential(credential))
+	if o.JWTCredential == nil || *o.JWTCredential != credential {
+		t.Fatalf("JWTCredential = %+v, want %+v", o.JWTCredential, credential)
+	}
+}
+
+func TestOptions_GenericProviderIdentity(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		opts     []auth.Option
+		expected string
+	}{
+		{
+			name: "explicit identity",
+			opts: []auth.Option{
+				auth.WithIdentity("actionsoidc"),
+			},
+			expected: "actionsoidc",
+		},
+		{
+			name: "service account fallback",
+			opts: []auth.Option{
+				auth.WithServiceAccountName("tenant"),
+				auth.WithObject("", "OCIRepository", &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "default"},
+				}),
+			},
+			expected: "system:serviceaccount:default:tenant",
+		},
+		{
+			name: "no identity",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var o auth.Options
+			o.Apply(tt.opts...)
+			if got := o.GenericProviderIdentity(); got != tt.expected {
+				t.Errorf("GenericProviderIdentity() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestOptions_AWSRoleSessionSubdomain(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		opts     []auth.Option
+		expected string
+	}{
+		{
+			name: "explicit name without region",
+			opts: []auth.Option{
+				auth.WithIdentity("flux-mirror"),
+				auth.WithAWSRegion("us-east-1"),
+				auth.WithServiceAccountName("tenant"),
+			},
+			expected: "flux-mirror",
+		},
+		{
+			name: "service account fallback with region",
+			opts: []auth.Option{
+				auth.WithServiceAccountName("tenant"),
+				auth.WithObject("", "OCIRepository", &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "default"},
+				}),
+				auth.WithAWSRegion("us-east-1"),
+			},
+			expected: "tenant.default.us-east-1",
+		},
+		{
+			name: "no name",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var o auth.Options
+			o.Apply(tt.opts...)
+			if got := o.AWSRoleSessionSubdomain(); got != tt.expected {
+				t.Errorf("AWSRoleSessionSubdomain() = %q, want %q", got, tt.expected)
+			}
+		})
 	}
 }

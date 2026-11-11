@@ -22,21 +22,32 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/gomega"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
+	"github.com/fluxcd/pkg/auth/actionsoidc"
 	"github.com/fluxcd/pkg/auth/kubernetes"
 	"github.com/fluxcd/pkg/cache"
-	"github.com/fluxcd/pkg/spiffe/broker"
+	"github.com/fluxcd/pkg/spiffe/brokerapi"
 )
 
 func TestNewAccessCredential(t *testing.T) {
@@ -237,6 +248,7 @@ func TestNewAccessCredential(t *testing.T) {
 				auth.WithServiceAccountName(defaultServiceAccount.Name),
 				auth.WithObject("", "ServiceAccount", defaultServiceAccount),
 				auth.WithCredentialAudiences("audience1", "audience2"),
+				auth.WithGCPWorkloadIdentityProvider("projects/123/locations/global/workloadIdentityPools/pool/providers/provider"),
 				auth.WithScopes("scope1", "scope2"),
 				auth.WithAWSRegion("us-east-1"),
 				auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
@@ -246,7 +258,7 @@ func TestNewAccessCredential(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(1)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const key = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
+					const key = "a7cbadbe888ba3edd588bb67b83153bc69505b2761cc9b93467bfa607e447c07"
 					token := &mockCredential{token: "cached-token"}
 					cachedCredential, ok, err := tokenCache.GetOrSet(ctx, key, func(ctx context.Context) (cache.Token, error) {
 						return token, nil
@@ -377,19 +389,150 @@ func TestNewAccessCredential_ControllerLevelAudienceCacheKey(t *testing.T) {
 	g.Expect(got).To(Equal(&mockCredential{token: "token-audience-a"}))
 }
 
-type mockBrokerClient struct {
+// TestNewAccessCredential_CredentialUsernameCacheKey is a regression test for a
+// credential cache collision: the credential username changes how providers
+// authenticate (for example, HTTP Basic instead of a bearer token for artifact
+// registries), so a cached access credential must not be reused after the
+// username changes or is removed.
+func TestNewAccessCredential_CredentialUsernameCacheKey(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := &mockProvider{t: t, returnName: "mock-provider"}
+
+	// Controller-level options (no service account). The non-username options
+	// exist only to satisfy the mock provider's checks.
+	opts := func(username string) []auth.Option {
+		opts := []auth.Option{
+			auth.WithCredentialAudiences("audience1", "audience2"),
+			auth.WithScopes("scope1", "scope2"),
+			auth.WithAWSRegion("us-east-1"),
+			auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+			auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+			auth.WithCAData("ca-data"),
+			auth.WithCache(*tokenCache),
+		}
+		if username != "" {
+			opts = append(opts, auth.WithCredentialUsername(username))
+		}
+		return opts
+	}
+
+	// Mint and cache a controller credential for the first username.
+	provider.returnControllerCredential = &mockCredential{token: "token-user-a"}
+	got, err := auth.NewAccessCredential(ctx, provider, opts("user-a")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-user-a"}))
+
+	// A different username must NOT reuse the first username's cached credential.
+	provider.returnControllerCredential = &mockCredential{token: "token-user-b"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts("user-b")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-user-b"}))
+
+	// Removing the username must NOT reuse the credentials cached for it.
+	provider.returnControllerCredential = &mockCredential{token: "token-no-user"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts("")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-no-user"}))
+
+	// The first username still returns its own cached credential; the refreshed
+	// controller credential must not be minted.
+	provider.returnControllerCredential = &mockCredential{token: "token-user-a-fresh"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts("user-a")...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-user-a"}))
+}
+
+// TestNewAccessCredential_GCPWorkloadIdentityProviderCacheKey verifies that
+// changing the GCP workload identity provider does not reuse cached access
+// credentials. The provider determines the STS exchange audience, and thus the
+// identity of the exchanged credential.
+func TestNewAccessCredential_GCPWorkloadIdentityProviderCacheKey(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+
+	kubeClient, oidcClient := newTestEnv(t, ctx)
+
+	defaultServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: "default",
+		},
+	}
+	err := kubeClient.Create(ctx, defaultServiceAccount)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := &mockProvider{
+		t:                    t,
+		returnName:           "mock-provider",
+		returnIdentity:       "mock-identity",
+		paramAudiences:       []string{"audience1"},
+		paramServiceAccount:  &kubernetes.ServiceAccountReference{Name: defaultServiceAccount.Name, Namespace: defaultServiceAccount.Namespace},
+		paramOIDCTokenClient: oidcClient,
+	}
+
+	opts := func(wip string) []auth.Option {
+		return []auth.Option{
+			auth.WithClient(kubeClient),
+			auth.WithServiceAccountName(defaultServiceAccount.Name),
+			auth.WithObject("", "ServiceAccount", defaultServiceAccount),
+			auth.WithCredentialAudiences("audience1"),
+			auth.WithGCPWorkloadIdentityProvider(wip),
+			auth.WithScopes("scope1", "scope2"),
+			auth.WithAWSRegion("us-east-1"),
+			auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+			auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+			auth.WithCAData("ca-data"),
+			auth.WithCache(*tokenCache),
+		}
+	}
+
+	const (
+		wipA = "projects/123/locations/global/workloadIdentityPools/pool/providers/provider-a"
+		wipB = "projects/123/locations/global/workloadIdentityPools/pool/providers/provider-b"
+	)
+
+	// Mint and cache an access credential for the first workload identity provider.
+	provider.returnAccessCredential = &mockCredential{token: "token-wip-a"}
+	got, err := auth.NewAccessCredential(ctx, provider, opts(wipA)...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-wip-a"}))
+
+	// A different workload identity provider must NOT reuse the cached credential.
+	provider.returnAccessCredential = &mockCredential{token: "token-wip-b"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts(wipB)...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-wip-b"}))
+
+	// The first workload identity provider still returns its cached credential.
+	provider.returnAccessCredential = &mockCredential{token: "token-wip-a-fresh"}
+	got, err = auth.NewAccessCredential(ctx, provider, opts(wipA)...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(&mockCredential{token: "token-wip-a"}))
+}
+
+type mockBrokerAPIClient struct {
 	t        *testing.T
 	token    string
 	calls    int
-	refs     []broker.KubernetesObjectReference
+	refs     []brokerapi.KubernetesObjectReference
 	requests [][]string
 }
 
-func (m *mockBrokerClient) Close() error {
+func (m *mockBrokerAPIClient) Close() error {
 	return nil
 }
 
-func (m *mockBrokerClient) FetchJWTSVID(_ context.Context, ref broker.KubernetesObjectReference,
+func (m *mockBrokerAPIClient) FetchJWTSVID(_ context.Context, ref brokerapi.KubernetesObjectReference,
 	audiences []string) (*jwtsvid.SVID, error) {
 
 	m.t.Helper()
@@ -397,6 +540,59 @@ func (m *mockBrokerClient) FetchJWTSVID(_ context.Context, ref broker.Kubernetes
 	m.refs = append(m.refs, ref)
 	m.requests = append(m.requests, audiences)
 	return jwtsvid.ParseInsecure(m.token, audiences)
+}
+
+type fakeWorkloadAPI struct {
+	workload.UnimplementedSpiffeWorkloadAPIServer
+
+	mu       sync.Mutex
+	token    string
+	requests [][]string
+}
+
+func (f *fakeWorkloadAPI) FetchJWTSVID(_ context.Context,
+	req *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
+
+	f.mu.Lock()
+	f.requests = append(f.requests, req.Audience)
+	f.mu.Unlock()
+	return &workload.JWTSVIDResponse{
+		Svids: []*workload.JWTSVID{{
+			SpiffeId: "spiffe://example.org/workload",
+			Svid:     f.token,
+		}},
+	}, nil
+}
+
+func (f *fakeWorkloadAPI) Requests() [][]string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([][]string(nil), f.requests...)
+}
+
+func startFakeWorkloadAPI(t *testing.T, fake *fakeWorkloadAPI) {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("", "flux-spiffe")
+	if err != nil {
+		t.Fatalf("failed to create temporary directory: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	socketPath := filepath.Join(dir, "api.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to listen on socket: %v", err)
+	}
+	server := grpc.NewServer()
+	workload.RegisterSpiffeWorkloadAPIServer(server, fake)
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() {
+		server.Stop()
+		_ = listener.Close()
+	})
+
+	t.Setenv(workloadapi.SocketEnv, "unix://"+socketPath)
 }
 
 func TestNewAccessCredentialSPIFFE(t *testing.T) {
@@ -410,26 +606,26 @@ func TestNewAccessCredentialSPIFFE(t *testing.T) {
 			UID:       "object-uid",
 		},
 	}
-	brokerClient := &mockBrokerClient{
+	brokerAPIClient := &mockBrokerAPIClient{
 		t:     t,
 		token: newSPIFFEJWTSVID(t, []string{"audience1", "audience2"}, time.Hour),
 	}
 	provider := spiffeMockProvider(t)
-	provider.paramOIDCToken = brokerClient.token
+	provider.paramOIDCToken = brokerAPIClient.token
 
-	opts := spiffeOptions(object, brokerClient)
+	opts := spiffeOptions(object, brokerAPIClient)
 	credential, err := auth.NewAccessCredential(ctx, provider, opts...)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
-	g.Expect(brokerClient.calls).To(Equal(1))
-	g.Expect(brokerClient.refs).To(Equal([]broker.KubernetesObjectReference{{
+	g.Expect(brokerAPIClient.calls).To(Equal(1))
+	g.Expect(brokerAPIClient.refs).To(Equal([]brokerapi.KubernetesObjectReference{{
 		Group:     "source.toolkit.fluxcd.io",
 		Kind:      "OCIRepository",
 		Namespace: "flux-system",
 		Name:      "object",
 		UID:       "object-uid",
 	}}))
-	g.Expect(brokerClient.requests).To(Equal([][]string{{"audience1", "audience2"}}))
+	g.Expect(brokerAPIClient.requests).To(Equal([][]string{{"audience1", "audience2"}}))
 }
 
 func TestNewAccessCredentialSPIFFECacheKey(t *testing.T) {
@@ -439,7 +635,7 @@ func TestNewAccessCredentialSPIFFECacheKey(t *testing.T) {
 	tokenCache, err := cache.NewTokenCache(3)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	brokerClient := &mockBrokerClient{
+	brokerAPIClient := &mockBrokerAPIClient{
 		t:     t,
 		token: newSPIFFEJWTSVID(t, []string{"audience1", "audience2"}, time.Hour),
 	}
@@ -463,34 +659,258 @@ func TestNewAccessCredentialSPIFFECacheKey(t *testing.T) {
 	// Same object: the second call is served from the cache.
 	for range 2 {
 		_, err := auth.NewAccessCredential(ctx, provider,
-			spiffeOptionsWithCache(objectA, brokerClient, tokenCache)...)
+			spiffeOptionsWithCache(objectA, brokerAPIClient, tokenCache)...)
 		g.Expect(err).NotTo(HaveOccurred())
 	}
-	g.Expect(brokerClient.calls).To(Equal(1))
+	g.Expect(brokerAPIClient.calls).To(Equal(1))
 
 	// Same ServiceAccount, different object: a new SPIFFE JWT-SVID is fetched.
 	_, err = auth.NewAccessCredential(ctx, provider,
-		spiffeOptionsWithCache(objectB, brokerClient, tokenCache)...)
+		spiffeOptionsWithCache(objectB, brokerAPIClient, tokenCache)...)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(brokerClient.calls).To(Equal(2))
-	g.Expect(brokerClient.refs[1].UID).To(Equal("object-b-uid"))
+	g.Expect(brokerAPIClient.calls).To(Equal(2))
+	g.Expect(brokerAPIClient.refs[1].UID).To(Equal("object-b-uid"))
 }
 
-func TestNewAccessCredentialSPIFFERequiresBroker(t *testing.T) {
+func TestNewAccessCredentialSPIFFEWorkloadAPI(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
 
-	object := &corev1.ServiceAccount{
+	token := newSPIFFEJWTSVID(t, []string{"audience1", "audience2"}, time.Hour)
+	fake := &fakeWorkloadAPI{token: token}
+	startFakeWorkloadAPI(t, fake)
+
+	provider := spiffeWorkloadAPIMockProvider(t)
+	provider.paramOIDCToken = token
+
+	credential, err := auth.NewAccessCredential(ctx, provider,
+		auth.WithIdentity("spiffe-workload"),
+		auth.WithCredentialProvider(cryptov1.CredentialProviderSPIFFE),
+		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
+		auth.WithCredentialAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAWSRegion("us-east-1"),
+		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+	g.Expect(fake.Requests()).To(Equal([][]string{{"audience1", "audience2"}}))
+}
+
+func TestNewAccessCredentialSPIFFEWorkloadAPICache(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	token := newSPIFFEJWTSVID(t, []string{"audience1", "audience2"}, time.Hour)
+	fake := &fakeWorkloadAPI{token: token}
+	startFakeWorkloadAPI(t, fake)
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := spiffeWorkloadAPIMockProvider(t)
+	provider.paramOIDCToken = token
+
+	opts := []auth.Option{
+		auth.WithIdentity("spiffe-workload"),
+		auth.WithCredentialProvider(cryptov1.CredentialProviderSPIFFE),
+		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
+		auth.WithCredentialAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAWSRegion("us-east-1"),
+		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+		auth.WithCache(*tokenCache),
+	}
+
+	// The first call fetches a JWT-SVID, the second is served from the cache.
+	for range 2 {
+		credential, err := auth.NewAccessCredential(ctx, provider, opts...)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+	}
+	g.Expect(fake.Requests()).To(HaveLen(1))
+}
+
+func TestNewAccessCredentialActionsOIDC(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	idToken := newTestJWT(t, time.Now().Add(time.Hour))
+
+	var gotAudiences []string
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAudiences = r.URL.Query()["audience"]
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"value":"` + idToken + `"}`))
+	}))
+	defer srv.Close()
+
+	t.Setenv(actionsoidc.EnvRequestURL, srv.URL+"/token?api-version=2.0")
+	t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+
+	object := actionsOIDCObject("object")
+	credential, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, idToken),
+		actionsOIDCOptions(object)...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+	g.Expect(gotAudiences).To(Equal([]string{"audience1", "audience2"}))
+	g.Expect(gotAuth).To(Equal("bearer request-token"))
+}
+
+func TestNewAccessCredentialActionsOIDCErrors(t *testing.T) {
+	ctx := context.Background()
+	object := actionsOIDCObject("object")
+
+	t.Run("missing environment variables", func(t *testing.T) {
+		g := NewWithT(t)
+		t.Setenv(actionsoidc.EnvRequestURL, "")
+		t.Setenv(actionsoidc.EnvRequestToken, "")
+
+		_, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, ""),
+			actionsOIDCOptions(object)...)
+		g.Expect(err).To(MatchError(ContainSubstring("failed to fetch Actions OIDC ID token")))
+	})
+
+	t.Run("token endpoint error", func(t *testing.T) {
+		g := NewWithT(t)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte("denied"))
+		}))
+		defer srv.Close()
+
+		t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
+		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+
+		_, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, ""),
+			actionsOIDCOptions(object)...)
+		g.Expect(err).To(MatchError(ContainSubstring("failed to fetch Actions OIDC ID token: " +
+			"OIDC token request failed with status 403")))
+	})
+}
+
+func TestNewAccessCredentialActionsOIDCCache(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	idToken := newTestJWT(t, time.Now().Add(time.Hour))
+
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"value":"` + idToken + `"}`))
+	}))
+	defer srv.Close()
+
+	t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
+	t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+
+	tokenCache, err := cache.NewTokenCache(3)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := actionsOIDCMockProvider(t, idToken)
+	opts := append(actionsOIDCOptions(actionsOIDCObject("object")), auth.WithCache(*tokenCache))
+
+	// The first call fetches a token, the second is served from the cache.
+	for range 2 {
+		credential, err := auth.NewAccessCredential(ctx, provider, opts...)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+	}
+	g.Expect(calls).To(Equal(1))
+}
+
+func TestNewAccessCredentialProvidedJWT(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	expiresAt := time.Now().Add(time.Hour)
+	token := newTestJWT(t, expiresAt)
+	provided := auth.JWTCredential{
+		Provider:  cryptov1.CredentialProviderSPIFFE,
+		Token:     token,
+		ExpiresAt: expiresAt,
+	}
+
+	provider := &mockProvider{
+		t:                          t,
+		returnName:                 "mock-provider",
+		returnControllerCredential: &mockCredential{token: "controller-token"},
+		returnAccessCredential:     &mockCredential{token: "access-token"},
+		returnIdentity:             "mock-identity",
+		paramAudiences:             []string{"audience1", "audience2"},
+		paramCredentialProvider:    cryptov1.CredentialProviderSPIFFE,
+		paramOIDCToken:             token,
+		skipOIDCValidation:         true,
+	}
+
+	credential, err := auth.NewAccessCredential(ctx, provider,
+		auth.WithJWTCredential(provided),
+		auth.WithCredentialAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAWSRegion("us-east-1"),
+		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(credential).To(Equal(&mockCredential{token: "access-token"}))
+}
+
+func actionsOIDCObject(name string) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "object",
+			Name:      name,
 			Namespace: "flux-system",
 			UID:       "object-uid",
 		},
 	}
+}
 
-	opts := spiffeOptions(object, nil)
-	_, err := auth.NewAccessCredential(ctx, spiffeMockProvider(t), opts...)
-	g.Expect(err).To(MatchError("SPIFFE Broker client is required for the SPIFFE credential provider"))
+func actionsOIDCMockProvider(t *testing.T, idToken string) *mockProvider {
+	return &mockProvider{
+		t:                       t,
+		returnName:              "mock-provider",
+		returnIdentity:          "mock-identity",
+		returnAccessCredential:  &mockCredential{token: "mock-access-token"},
+		paramAudiences:          []string{"audience1", "audience2"},
+		paramCredentialProvider: cryptov1.CredentialProviderActionsOIDC,
+		paramOIDCToken:          idToken,
+		skipOIDCValidation:      true,
+	}
+}
+
+func actionsOIDCOptions(object *corev1.ServiceAccount) []auth.Option {
+	return []auth.Option{
+		auth.WithObject("source.toolkit.fluxcd.io", "OCIRepository", object),
+		auth.WithIdentity("flux-mirror"),
+		auth.WithCredentialProvider(cryptov1.CredentialProviderActionsOIDC),
+		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
+		auth.WithCredentialAudiences("audience1", "audience2"),
+		auth.WithScopes("scope1", "scope2"),
+		auth.WithAWSRegion("us-east-1"),
+		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+		auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+		auth.WithCAData("ca-data"),
+	}
+}
+
+// newTestJWT mints an unsigned-but-parseable JWT carrying the given exp claim.
+func newTestJWT(t *testing.T, exp time.Time) string {
+	t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"exp": exp.Unix()})
+	signed, err := token.SignedString([]byte("test-secret"))
+	if err != nil {
+		t.Fatalf("failed to mint test JWT: %v", err)
+	}
+	return signed
 }
 
 func spiffeMockProvider(t *testing.T) *mockProvider {
@@ -508,14 +928,25 @@ func spiffeMockProvider(t *testing.T) *mockProvider {
 	}
 }
 
-func spiffeOptions(object *corev1.ServiceAccount, brokerClient broker.Interface) []auth.Option {
+func spiffeWorkloadAPIMockProvider(t *testing.T) *mockProvider {
+	return &mockProvider{
+		t:                      t,
+		returnName:             "mock-provider",
+		returnIdentity:         "mock-identity",
+		returnAccessCredential: &mockCredential{token: "mock-access-token"},
+		paramAudiences:         []string{"audience1", "audience2"},
+		skipOIDCValidation:     true,
+	}
+}
+
+func spiffeOptions(object *corev1.ServiceAccount, brokerAPIClient brokerapi.Interface) []auth.Option {
 	return []auth.Option{
 		auth.WithServiceAccountName("spiffe-sa"),
 		auth.WithObject("source.toolkit.fluxcd.io", "OCIRepository", object),
 		auth.WithCredentialProvider(cryptov1.CredentialProviderSPIFFE),
 		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
 		auth.WithCredentialAudiences("audience1", "audience2"),
-		auth.WithSPIFFEBroker(brokerClient),
+		auth.WithSPIFFEBrokerAPI(brokerAPIClient),
 		auth.WithScopes("scope1", "scope2"),
 		auth.WithAWSRegion("us-east-1"),
 		auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
@@ -524,9 +955,9 @@ func spiffeOptions(object *corev1.ServiceAccount, brokerClient broker.Interface)
 	}
 }
 
-func spiffeOptionsWithCache(object *corev1.ServiceAccount, brokerClient broker.Interface,
+func spiffeOptionsWithCache(object *corev1.ServiceAccount, brokerAPIClient brokerapi.Interface,
 	tokenCache *cache.TokenCache) []auth.Option {
-	return append(spiffeOptions(object, brokerClient), auth.WithCache(*tokenCache))
+	return append(spiffeOptions(object, brokerAPIClient), auth.WithCache(*tokenCache))
 }
 
 func newSPIFFEJWTSVID(t *testing.T, audiences []string, ttl time.Duration) string {

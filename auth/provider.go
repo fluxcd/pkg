@@ -39,8 +39,8 @@ type Provider interface {
 	// caller-provided credential audiences are used.
 	GetAudiences(ctx context.Context, opts ...Option) ([]string, error)
 
-	// GetIdentity returns the identity which the ServiceAccount wants to
-	// impersonate, as configured in the options.
+	// GetIdentity returns the provider identity which the credential
+	// identity wants to impersonate, as configured in the options.
 	GetIdentity(opts ...Option) (string, error)
 
 	// NewAccessCredentialForIdentity takes the identity credential and

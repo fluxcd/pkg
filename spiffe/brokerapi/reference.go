@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package broker
+package brokerapi
 
 import (
 	"errors"
@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/gobuffalo/flect"
-	brokerapi "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
+	brokerpb "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -53,7 +53,7 @@ func (r KubernetesObjectReference) resourcePlural() (string, error) {
 
 // workloadReference returns the Broker API workload reference for the
 // Kubernetes object.
-func (r KubernetesObjectReference) workloadReference() (*brokerapi.WorkloadReference, error) {
+func (r KubernetesObjectReference) workloadReference() (*brokerpb.WorkloadReference, error) {
 	group := r.Group
 	if group == "" {
 		group = "core"
@@ -66,15 +66,15 @@ func (r KubernetesObjectReference) workloadReference() (*brokerapi.WorkloadRefer
 		return nil, errors.New("Kubernetes object name or UID is required")
 	}
 
-	obj := &brokerapi.KubernetesObjectReference{
-		Type: &brokerapi.KubernetesObjectType{
+	obj := &brokerpb.KubernetesObjectReference{
+		Type: &brokerpb.KubernetesObjectType{
 			Group:  group,
 			Plural: plural,
 		},
 		Uid: r.UID,
 	}
 	if r.Name != "" {
-		obj.Key = &brokerapi.KubernetesObjectKey{
+		obj.Key = &brokerpb.KubernetesObjectKey{
 			Namespace: r.Namespace,
 			Name:      r.Name,
 		}
@@ -84,5 +84,5 @@ func (r KubernetesObjectReference) workloadReference() (*brokerapi.WorkloadRefer
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode Kubernetes object reference: %w", err)
 	}
-	return &brokerapi.WorkloadReference{Reference: ref}, nil
+	return &brokerpb.WorkloadReference{Reference: ref}, nil
 }

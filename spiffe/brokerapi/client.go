@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package broker
+package brokerapi
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	brokerapi "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
+	brokerpb "github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -40,7 +40,7 @@ const (
 // Broker API.
 type Interface interface {
 	// FetchJWTSVID fetches a JWT-SVID for ref and the given audiences from the
-	// Broker. The first returned JWT-SVID is used.
+	// Broker API. The first returned JWT-SVID is used.
 	FetchJWTSVID(ctx context.Context, ref KubernetesObjectReference, audiences []string) (*jwtsvid.SVID, error)
 }
 
@@ -48,15 +48,15 @@ type Interface interface {
 type Client interface {
 	Interface
 
-	// Close closes the connection to the Broker endpoint.
+	// Close closes the connection to the Broker API endpoint.
 	Close() error
 }
 
-// client owns a single gRPC connection to the Broker endpoint, which is
+// client owns a single gRPC connection to the Broker API endpoint, which is
 // automatically re-established by gRPC when it breaks.
 type client struct {
 	conn *grpc.ClientConn
-	api  brokerapi.APIClient
+	api  brokerpb.APIClient
 }
 
 var _ Client = (*client)(nil)
@@ -68,11 +68,11 @@ var _ Client = (*client)(nil)
 // load-balanced across endpoints.
 //
 // The connection authenticates with the X.509-SVID from source and authorizes
-// the Broker endpoint with any of brokerIDs. Each ID may be an exact SPIFFE ID
+// the Broker API endpoint with any of brokerIDs. Each ID may be an exact SPIFFE ID
 // or an ID prefix, as parsed by cryptov1.ParseSPIFFEID.
 func New(endpoint string, brokerIDs []string, source spiffe.TLSSource) (Client, error) {
 	if endpoint == "" {
-		return nil, errors.New("SPIFFE Broker endpoint is required")
+		return nil, errors.New("SPIFFE Broker API endpoint is required")
 	}
 	if len(brokerIDs) == 0 {
 		return nil, errors.New("at least one SPIFFE Broker ID is required")
@@ -91,21 +91,21 @@ func New(endpoint string, brokerIDs []string, source spiffe.TLSSource) (Client, 
 		return nil, err
 	}
 
-	conn, err := grpc.NewClient(brokerTarget(endpoint),
+	conn, err := grpc.NewClient(brokerAPITarget(endpoint),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SPIFFE Broker client: %w", err)
+		return nil, fmt.Errorf("failed to create SPIFFE Broker API client: %w", err)
 	}
 
 	return &client{
 		conn: conn,
-		api:  brokerapi.NewAPIClient(conn),
+		api:  brokerpb.NewAPIClient(conn),
 	}, nil
 }
 
-// Close closes the connection to the Broker endpoint.
+// Close closes the connection to the Broker API endpoint.
 func (c *client) Close() error {
 	if c == nil || c.conn == nil {
 		return nil
@@ -113,10 +113,10 @@ func (c *client) Close() error {
 	return c.conn.Close()
 }
 
-// brokerTarget defaults a bare host:port target to the DNS resolver so that
+// brokerAPITarget defaults a bare host:port target to the DNS resolver so that
 // gRPC can discover and load-balance across endpoints. Targets that already
 // carry a scheme are returned unchanged.
-func brokerTarget(endpoint string) string {
+func brokerAPITarget(endpoint string) string {
 	if strings.Contains(endpoint, "://") {
 		return endpoint
 	}

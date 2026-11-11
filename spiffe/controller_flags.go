@@ -21,13 +21,13 @@ package spiffe
 // SPIFFE trust domain or the `spiffe://self` symbol.
 const (
 	// ControllerFlagSPIFFEBrokerEndpoint defines the flag for the gRPC URL of
-	// the SPIFFE Broker endpoint, e.g.
+	// the SPIFFE Broker API endpoint, e.g.
 	// dns:///spire-server.spire.svc.cluster.local:443. The Broker API may be
 	// served over TCP, unlike the Workload API.
 	ControllerFlagSPIFFEBrokerEndpoint = "spiffe-broker-endpoint"
 
 	// ControllerFlagSPIFFEBrokerID defines the flag for the SPIFFE IDs of the
-	// SPIFFE Broker endpoint. This flag is repeatable. Each value may be an
+	// SPIFFE Broker API endpoint. This flag is repeatable. Each value may be an
 	// exact SPIFFE ID or a SPIFFE ID prefix, as parsed by
 	// cryptov1.ParseSPIFFEID.
 	ControllerFlagSPIFFEBrokerID = "spiffe-broker-id"

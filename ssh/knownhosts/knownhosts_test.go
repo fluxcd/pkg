@@ -28,6 +28,7 @@ import (
 const edKeyStr = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBAarftlLeoyf+v+nVchEZII/vna2PCV8FaX4vsF5BX"
 const alternateEdKeyStr = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIXffBYeYL+WVzVru8npl5JHt2cjlr4ornFTWzoij9sx"
 const ecKeyStr = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNLCu01+wpXe3xB5olXCN4SqU2rQu0qjSRKJO4Bg+JRCPU+ENcgdA5srTU8xYDz/GEa4dzK5ldPw4J/gZgSXCMs="
+const rsaKeyStr = "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ=="
 
 var ecKey, alternateEdKey, edKey ssh.PublicKey
 var testAddr = &net.TCPAddr{
@@ -307,6 +308,26 @@ func testHostHash(t *testing.T, hostname, encoded string) {
 	got := hashHost(hostname, salt)
 	if !bytes.Equal(got, hash) {
 		t.Errorf("got hash %x want %x", got, hash)
+	}
+}
+
+func TestHostKeyAlgorithmsDeterministicOrder(t *testing.T) {
+	// ssh-rsa uses SHA-1 signatures, which are not allowed in FIPS 140 mode.
+	// The algorithms are advertised as the client preference, so a random
+	// order can put ssh-rsa first and break the handshake.
+	blob := []byte("github.com " + ecKeyStr + "\n" +
+		"github.com " + edKeyStr + "\n" +
+		"github.com " + rsaKeyStr + "\n")
+
+	want := []string{"ecdsa-sha2-nistp256", "ssh-ed25519", "ssh-rsa"}
+	for i := 0; i < 50; i++ {
+		_, got, err := New(blob)
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
 	}
 }
 

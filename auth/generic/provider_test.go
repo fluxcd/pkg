@@ -192,15 +192,27 @@ func TestProvider_NewArtifactRegistryCredentials(t *testing.T) {
 }
 
 func TestProvider_GetIdentity(t *testing.T) {
-	g := NewWithT(t)
-	id, err := generic.Provider{}.GetIdentity(
-		auth.WithServiceAccountName("tenant"),
-		auth.WithObject("", "ServiceAccount", &corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{Namespace: "default"},
-		}),
-	)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(id).To(Equal("system:serviceaccount:default:tenant"))
+	t.Run("service account", func(t *testing.T) {
+		g := NewWithT(t)
+		id, err := generic.Provider{}.GetIdentity(
+			auth.WithServiceAccountName("tenant"),
+			auth.WithObject("", "ServiceAccount", &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default"},
+			}),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(id).To(Equal("system:serviceaccount:default:tenant"))
+	})
+
+	t.Run("explicit identity", func(t *testing.T) {
+		g := NewWithT(t)
+		id, err := generic.Provider{}.GetIdentity(
+			auth.WithCredentialProvider(cryptov1.CredentialProviderActionsOIDC),
+			auth.WithIdentity("actionsoidc"),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(id).To(Equal("actionsoidc"))
+	})
 }
 
 func TestProvider_NewRESTConfig(t *testing.T) {

@@ -29,7 +29,7 @@ type options struct {
 }
 
 // WithDefaultServiceAccount sets the default ServiceAccount name to use for
-// object-level workload identity when the kubeconfig ConfigMap does not specify
+// object identity when the kubeconfig ConfigMap does not specify
 // one. Controllers pass the value of the flag relevant to the operation being
 // performed.
 func WithDefaultServiceAccount(name string) Option {

@@ -101,6 +101,10 @@ const (
 	// CredentialProviderSPIFFE is the credential provider that uses the
 	// SPIFFE Broker API for acquiring the credential.
 	CredentialProviderSPIFFE = "spiffe"
+
+	// CredentialProviderActionsOIDC is the credential provider that uses the
+	// Github/Forgejo Actions OIDC token endpoint for acquiring the credential.
+	CredentialProviderActionsOIDC = "actionsoidc"
 )
 
 // Credential type values.

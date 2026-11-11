@@ -170,7 +170,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 					tokenCache, err := cache.NewTokenCache(2)
 					g.Expect(err).NotTo(HaveOccurred())
 
-					const accessCredentialKey = "6c016e84cc74ad7bf6bd8770cdb6a2efca3e185fdf90badd985c77984784f5c3"
+					const accessCredentialKey = "de4d54f024651d5ead7cd72d94e704d205a66e1c24ede96a2999c7e0ce9f2485"
 					var credential auth.Credential = &mockCredential{token: "cached-token"}
 					cachedCredential, ok, err := tokenCache.GetOrSet(ctx, accessCredentialKey, func(ctx context.Context) (cache.Token, error) {
 						return credential, nil
@@ -179,7 +179,7 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 					g.Expect(ok).To(BeFalse())
 					g.Expect(cachedCredential).To(Equal(credential))
 
-					const artifactRegistryCredentialsKey = "62a2203d6403324644e5d1024a6022eae313eedbdba1d21f71a8773488d2b40c"
+					const artifactRegistryCredentialsKey = "817fc36ca56514ef10c40796327e77922036090a9e2d51cc55fb9e1c2c70f31f"
 					credential = &auth.ArtifactRegistryCredentials{
 						Authenticator: authn.FromConfig(authn.AuthConfig{Username: "cached-registry-token"}),
 						ExpiresAt:     now.Add(time.Hour),
@@ -226,4 +226,69 @@ func TestGetArtifactRegistryCredentials(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGetArtifactRegistryCredentials_CredentialUsernameCacheKey is a regression
+// test for a cache collision: the generic provider authenticates with HTTP Basic
+// when a credential username is set and with a bearer token otherwise, so a
+// changed username must never return registry credentials cached for another.
+func TestGetArtifactRegistryCredentials_CredentialUsernameCacheKey(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	// Four entries are needed: an access credential and registry credentials
+	// for both the username and the no-username cases.
+	tokenCache, err := cache.NewTokenCache(10)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	provider := &mockProvider{
+		t:                          t,
+		returnName:                 "mock-provider",
+		returnRegistryInput:        "some-registry.io/some/artifact",
+		returnControllerCredential: &mockCredential{token: "mock-default-token"},
+		paramAccessCredential:      &mockCredential{token: "mock-default-token"},
+		paramArtifactRepository:    "some-registry.io/some/artifact",
+	}
+
+	// The non-username options exist only to satisfy the mock provider's checks.
+	opts := func(extra ...auth.Option) []auth.Option {
+		return append([]auth.Option{
+			auth.WithCredentialAudiences("audience1", "audience2"),
+			auth.WithScopes("scope1", "scope2"),
+			auth.WithAWSRegion("us-east-1"),
+			auth.WithAWSSTSEndpoint("https://sts.some-cloud.io"),
+			auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
+			auth.WithCAData("ca-data"),
+			auth.WithCache(*tokenCache),
+		}, extra...)
+	}
+	basic := &auth.ArtifactRegistryCredentials{
+		Authenticator: authn.FromConfig(authn.AuthConfig{Username: "some-user", Password: "token"}),
+		ExpiresAt:     time.Now().Add(time.Hour),
+	}
+	bearer := &auth.ArtifactRegistryCredentials{
+		Authenticator: &authn.Bearer{Token: "token"},
+		ExpiresAt:     time.Now().Add(time.Hour),
+	}
+
+	// Mint and cache credentials for a username.
+	provider.returnRegistryToken = basic
+	got, err := auth.GetArtifactRegistryCredentials(ctx, provider, "some-registry.io/some/artifact",
+		opts(auth.WithCredentialUsername("some-user"))...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(basic))
+
+	// Removing the username must NOT reuse the credentials cached for it.
+	provider.returnRegistryToken = bearer
+	got, err = auth.GetArtifactRegistryCredentials(ctx, provider, "some-registry.io/some/artifact",
+		opts()...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(bearer))
+
+	// The username still returns its own cached credentials.
+	provider.returnRegistryToken = nil
+	got, err = auth.GetArtifactRegistryCredentials(ctx, provider, "some-registry.io/some/artifact",
+		opts(auth.WithCredentialUsername("some-user"))...)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(Equal(basic))
 }

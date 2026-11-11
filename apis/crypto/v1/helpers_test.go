@@ -19,7 +19,7 @@ package v1
 import "testing"
 
 func TestGetAWSRoleSessionName(t *testing.T) {
-	if got, want := GetAWSRoleSessionName("my-sa", "my-ns", "us-east-1"), "my-sa.my-ns.us-east-1.fluxcd.io"; got != want {
+	if got, want := GetAWSRoleSessionName("flux-mirror"), "flux-mirror.fluxcd.io"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
