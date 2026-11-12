@@ -1398,3 +1398,119 @@ func Test_copyAnnotationsAndLabels(t *testing.T) {
 		})
 	}
 }
+
+// Kubernetes rejects changes to immutable ConfigMap data before diff filtering.
+// Ignoring data must allow unrelated metadata drift to be detected and corrected.
+func TestUnstructured_IgnoreBeforeValidation(t *testing.T) {
+	ctx := context.Background()
+	ns, err := CreateNamespace(ctx, "ignore-validation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := testClient.Delete(ctx, ns); err != nil {
+			t.Error(err)
+		}
+	})
+	desired := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "ConfigMap",
+		"metadata": map[string]interface{}{"name": "immutable", "namespace": ns.Name,
+			"labels": map[string]interface{}{"version": "desired"}},
+		"immutable": true, "data": map[string]interface{}{"value": "desired"},
+	}}
+	live := desired.DeepCopy()
+	live.Object["data"] = map[string]interface{}{"value": "live"}
+	live.SetLabels(map[string]string{"version": "live"})
+	if err := testClient.Create(ctx, live); err != nil {
+		t.Fatal(err)
+	}
+	original := desired.DeepCopy()
+	if _, err := Unstructured(ctx, testClient, desired, FieldOwner(dummyFieldOwner)); err == nil {
+		t.Fatal("expected immutable data validation to reject the dry-run without ignore rules")
+	}
+	rules := IgnoreRules{{Paths: []string{"/data"}, Selector: &Selector{Kind: "ConfigMap", Name: "immutable"}}}
+	diffs, err := UnstructuredList(ctx, testClient, []*unstructured.Unstructured{desired}, FieldOwner(dummyFieldOwner), rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diffs) != 1 || diffs[0].Type != DiffTypeUpdate {
+		t.Fatalf("expected metadata drift, got %#v", diffs)
+	}
+	if !reflect.DeepEqual(desired, original) {
+		t.Fatal("desired object was modified")
+	}
+	// Apply the generated correction to a copy of the live resource.
+	corrected := live.DeepCopy()
+	if err := ApplyPatchToUnstructured(corrected, diffs[0].Patch); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(corrected.Object["data"], live.Object["data"]) {
+		t.Fatal("correction changed ignored data")
+	}
+	if corrected.GetLabels()["version"] != "desired" {
+		t.Fatal("correction did not restore the desired label")
+	}
+	if err := testClient.Update(ctx, corrected); err != nil {
+		t.Fatal(err)
+	}
+	diff, err := Unstructured(ctx, testClient, desired, FieldOwner(dummyFieldOwner), IgnorePaths{"/data"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff.Type != DiffTypeNone {
+		t.Fatalf("expected no remaining drift, got %s", diff.Type)
+	}
+	// A missing resource must still be created from the complete desired manifest.
+	desired.SetName("missing")
+	diff, err = Unstructured(ctx, testClient, desired, FieldOwner(dummyFieldOwner), IgnorePaths{"/data"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff.Type != DiffTypeCreate || !reflect.DeepEqual(diff.DesiredObject, desired) {
+		t.Fatal("ignore rules changed the desired object for creation")
+	}
+}
+
+func TestPreserveIgnoredFields(t *testing.T) {
+	tests := []struct {
+		name, desired, live, want string
+		paths                     []string
+	}{
+		{"nested", `{"spec":{"size":10,"other":1}}`, `{"spec":{"size":20,"other":2}}`, `{"spec":{"size":20,"other":1}}`, []string{"/spec/size"}},
+		{"escaped", `{"data":{"a/b~c":"old"}}`, `{"data":{"a/b~c":"live"}}`, `{"data":{"a/b~c":"live"}}`, []string{"/data/a~1b~0c"}},
+		{"array", `{"items":[{"size":10},{"size":30}]}`, `{"items":[{"size":20},{"size":40}]}`, `{"items":[{"size":20},{"size":30}]}`, []string{"/items/0/size"}},
+		{"overlap", `{"spec":{"size":10,"other":1}}`, `{"spec":{"size":20,"other":2}}`, `{"spec":{"size":20,"other":2}}`, []string{"/spec/size", "/spec", "/spec/size"}},
+		{"missing desired", `{"spec":{}}`, `{"spec":{"size":20}}`, `{"spec":{}}`, []string{"/spec/size"}},
+		{"missing live", `{"spec":{"size":10}}`, `{"spec":{}}`, `{"spec":{"size":10}}`, []string{"/spec/size"}},
+		{"missing parent", `{}`, `{"spec":{"size":20}}`, `{}`, []string{"/spec/size"}},
+		{"null", `{"spec":{"size":10}}`, `{"spec":{"size":null}}`, `{"spec":{"size":null}}`, []string{"/spec/size"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decode := func(s string) *unstructured.Unstructured {
+				t.Helper()
+				obj := &unstructured.Unstructured{}
+				if s == "{}" {
+					s = `{"apiVersion":"v1","kind":"Example"}`
+				} else {
+					s = `{"apiVersion":"v1","kind":"Example",` + s[1:]
+				}
+				if err := obj.UnmarshalJSON([]byte(s)); err != nil {
+					t.Fatal(err)
+				}
+				return obj
+			}
+			desired, live, want := decode(tt.desired), decode(tt.live), decode(tt.want)
+			originalLive := live.DeepCopy()
+			if err := preserveIgnoredFields(desired, live, tt.paths); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(desired, want) {
+				t.Fatalf("got %v, want %v", desired.Object, want.Object)
+			}
+			if !reflect.DeepEqual(live, originalLive) {
+				t.Fatal("live object was modified")
+			}
+		})
+	}
+}
