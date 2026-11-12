@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/yaml"
 
+	apikustomize "github.com/fluxcd/pkg/apis/kustomize"
 	"github.com/fluxcd/pkg/kustomize"
 )
 
@@ -1106,4 +1107,213 @@ const customOpenAPISchema = `{
   "paths": {},
   "definitions": {}
 }
+`
+
+func TestBuild_WithPostBuildPatches_StrategicMerge(t *testing.T) {
+	g := NewWithT(t)
+
+	tmpDir := writePostBuildPatchDir(t)
+	patches := []apikustomize.Patch{
+		{
+			Patch: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test
+data:
+  foo: baz
+`,
+			Target: &apikustomize.Selector{Kind: "ConfigMap"},
+		},
+	}
+
+	m, err := kustomize.SecureBuild(tmpDir, tmpDir, false, kustomize.WithPostBuildPatches(patches))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	g.Expect(m.Resources()).To(HaveLen(1))
+	value, err := m.Resources()[0].GetFieldValue("data.foo")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(value).To(Equal("baz"))
+}
+
+func TestBuild_WithPostBuildPatches_JSON6902(t *testing.T) {
+	g := NewWithT(t)
+
+	tmpDir := writePostBuildPatchDir(t)
+	patches := []apikustomize.Patch{
+		{
+			Patch:  `[{"op":"replace","path":"/data/foo","value":"baz"}]`,
+			Target: &apikustomize.Selector{Kind: "ConfigMap"},
+		},
+	}
+
+	m, err := kustomize.SecureBuild(tmpDir, tmpDir, false, kustomize.WithPostBuildPatches(patches))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	g.Expect(m.Resources()).To(HaveLen(1))
+	value, err := m.Resources()[0].GetFieldValue("data.foo")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(value).To(Equal("baz"))
+}
+
+func TestBuild_WithPostBuildPatches_NoMatch(t *testing.T) {
+	g := NewWithT(t)
+
+	tmpDir := writePostBuildPatchDir(t)
+	patches := []apikustomize.Patch{
+		{
+			Patch: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: does-not-exist
+data:
+  foo: baz
+`,
+		},
+	}
+
+	_, err := kustomize.SecureBuild(tmpDir, tmpDir, false, kustomize.WithPostBuildPatches(patches))
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to apply patch 0"))
+}
+
+func TestBuild_WithPostBuildPatches_CustomOpenAPISchema(t *testing.T) {
+	g := NewWithT(t)
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(copy.Copy("testdata/openapiPollution/pollutor", tmpDir)).To(Succeed())
+
+	patches := []apikustomize.Patch{
+		{
+			Patch: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: nginx
+        env:
+        - name: FOO
+          value: bar
+`,
+			Target: &apikustomize.Selector{Kind: "Deployment", Name: "test-deployment"},
+		},
+	}
+
+	res, err := kustomize.SecureBuild(tmpDir, tmpDir, false, kustomize.WithPostBuildPatches(patches))
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(res.Resources()).To(HaveLen(1))
+
+	out, err := res.AsYaml()
+	g.Expect(err).ToNot(HaveOccurred())
+
+	var obj map[string]interface{}
+	g.Expect(yaml.Unmarshal(out, &obj)).To(Succeed())
+	containers, found, err := unstructured.NestedSlice(obj, "spec", "template", "spec", "containers")
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	// A merge preserves the single container with its original image and adds
+	// the env var. A whole-list replacement would drop the image.
+	g.Expect(containers).To(HaveLen(1))
+	container := containers[0].(map[string]interface{})
+	g.Expect(container).To(HaveKeyWithValue("image", "nginx:latest"))
+	g.Expect(container).To(HaveKeyWithValue("env", ConsistOf(map[string]interface{}{
+		"name":  "FOO",
+		"value": "bar",
+	})))
+}
+
+func TestBuild_WithPostBuildPatches_OverridesReplacements(t *testing.T) {
+	g := NewWithT(t)
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "source.yaml"), []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source
+data:
+  value: from-replacement
+`), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "target.yaml"), []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: target
+data:
+  value: original
+`), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(`apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - source.yaml
+  - target.yaml
+replacements:
+  - source:
+      kind: ConfigMap
+      name: source
+      fieldPath: data.value
+    targets:
+      - select:
+          kind: ConfigMap
+          name: target
+        fieldPaths:
+          - data.value
+`), 0o644)).To(Succeed())
+
+	targetValue := func(m resmap.ResMap) string {
+		g.Expect(m.Resources()).To(HaveLen(2))
+		for _, r := range m.Resources() {
+			if r.GetName() == "target" {
+				v, err := r.GetFieldValue("data.value")
+				g.Expect(err).NotTo(HaveOccurred())
+				return v.(string)
+			}
+		}
+		g.Expect(false).To(BeTrue(), "target ConfigMap not found in build output")
+		return ""
+	}
+
+	// Baseline, no post build patch
+	base, err := kustomize.SecureBuild(tmpDir, tmpDir, false)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(targetValue(base)).To(Equal("from-replacement"))
+
+	// With a post build patch
+	patches := []apikustomize.Patch{
+		{
+			Patch:  `[{"op":"replace","path":"/data/value","value":"patched"}]`,
+			Target: &apikustomize.Selector{Kind: "ConfigMap", Name: "target"},
+		},
+	}
+	patched, err := kustomize.SecureBuild(tmpDir, tmpDir, false, kustomize.WithPostBuildPatches(patches))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(targetValue(patched)).To(Equal("patched"))
+}
+
+func writePostBuildPatchDir(t *testing.T) string {
+	t.Helper()
+	g := NewWithT(t)
+
+	tmpDir, err := testTempDir(t)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "configmap.yaml"), []byte(applyPatchesConfigMap), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), []byte(`apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - configmap.yaml
+`), 0o644)).To(Succeed())
+
+	return tmpDir
+}
+
+const applyPatchesConfigMap = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test
+data:
+  foo: bar
 `
