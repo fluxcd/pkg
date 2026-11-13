@@ -42,7 +42,7 @@ type Credential interface {
 // credential.
 type JWTCredential struct {
 	// Provider is the credential provider that minted the JWT, e.g.
-	// `kubernetes` or `spiffe`.
+	// `kubernetes`, `github` or `forgejo`.
 	Provider string
 	// Token is the serialized JWT.
 	Token string

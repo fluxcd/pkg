@@ -53,6 +53,20 @@ func TestBuildSpec(t *testing.T) {
 			opts: []Option{WithAnnotations(optInKubernetes)},
 		},
 		{
+			name: "github jwt",
+			opts: []Option{WithAnnotations(ann(
+				AnnotationCredentialProvider, CredentialProviderGitHub,
+				AnnotationCredentialType, CredentialTypeJWT,
+			))},
+		},
+		{
+			name: "forgejo jwt",
+			opts: []Option{WithAnnotations(ann(
+				AnnotationCredentialProvider, CredentialProviderForgejo,
+				AnnotationCredentialType, CredentialTypeJWT,
+			))},
+		},
+		{
 			name: "gcp rfc0010 annotation without opt-in",
 			opts: []Option{
 				WithServiceProvider(ProviderGCP),
@@ -143,6 +157,34 @@ func TestBuildSpec(t *testing.T) {
 					AnnotationCredentialProvider, CredentialProviderKubernetes,
 					AnnotationCredentialType, CredentialTypeJWT,
 					AnnotationCredentialUsername, "user",
+					AnnotationDockerHubOIDCConnectionID, uuid,
+				)),
+			},
+		},
+		{
+			name: "dockerhub expiration minimum",
+			opts: []Option{
+				WithOCI(),
+				WithServiceProvider(ProviderDockerHub),
+				WithAnnotations(ann(
+					AnnotationCredentialProvider, CredentialProviderGitHub,
+					AnnotationCredentialType, CredentialTypeJWT,
+					AnnotationCredentialUsername, "user",
+					AnnotationCredentialExpiration, "5m",
+					AnnotationDockerHubOIDCConnectionID, uuid,
+				)),
+			},
+		},
+		{
+			name: "dockerhub expiration maximum",
+			opts: []Option{
+				WithOCI(),
+				WithServiceProvider(ProviderDockerHub),
+				WithAnnotations(ann(
+					AnnotationCredentialProvider, CredentialProviderForgejo,
+					AnnotationCredentialType, CredentialTypeJWT,
+					AnnotationCredentialUsername, "user",
+					AnnotationCredentialExpiration, "6h",
 					AnnotationDockerHubOIDCConnectionID, uuid,
 				)),
 			},
@@ -459,7 +501,7 @@ func TestBuildSpec(t *testing.T) {
 				AnnotationCredentialType, CredentialTypeJWT,
 				AnnotationCredentialExpiration, "10m",
 			))},
-			wantErr: "only supported by the kubernetes credential provider",
+			wantErr: "only supported by the kubernetes credential provider or the dockerhub service provider",
 		},
 		{
 			name: "transit engine login path only",
@@ -585,6 +627,50 @@ func TestBuildSpecResult(t *testing.T) {
 	}
 	if got.Auth.AWS.Cluster.Region != "us-east-1" || got.Auth.AWS.Cluster.Name != "test-cluster" {
 		t.Fatalf("got AWS cluster (%q, %q)", got.Auth.AWS.Cluster.Region, got.Auth.AWS.Cluster.Name)
+	}
+}
+
+func TestBuildSpecActionsOIDCResult(t *testing.T) {
+	for _, credProvider := range []string{CredentialProviderGitHub, CredentialProviderForgejo} {
+		t.Run(credProvider, func(t *testing.T) {
+			got, err := BuildSpec(WithAnnotations(ann(
+				AnnotationCredentialProvider, credProvider,
+				AnnotationCredentialType, CredentialTypeJWT,
+			)))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !got.Auth.OptedIn() {
+				t.Fatal("got OptedIn false, want true")
+			}
+			if got.Auth.Credential.Provider != credProvider || got.Auth.Credential.Type != CredentialTypeJWT {
+				t.Fatalf("got credentials (%q, %q)", got.Auth.Credential.Provider, got.Auth.Credential.Type)
+			}
+		})
+	}
+}
+
+func TestBuildSpecDockerHubExpirationResult(t *testing.T) {
+	const uuid = "11111111-1111-1111-1111-111111111111"
+	got, err := BuildSpec(
+		WithOCI(),
+		WithServiceProvider(ProviderDockerHub),
+		WithAnnotations(ann(
+			AnnotationCredentialProvider, CredentialProviderGitHub,
+			AnnotationCredentialType, CredentialTypeJWT,
+			AnnotationCredentialUsername, "user",
+			AnnotationCredentialExpiration, "6h",
+			AnnotationDockerHubOIDCConnectionID, uuid,
+		)),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Auth.Credential.Expiration != 6*time.Hour {
+		t.Fatalf("got expiration %v", got.Auth.Credential.Expiration)
+	}
+	if got.Auth.DockerHub == nil || got.Auth.DockerHub.OIDCConnectionID != uuid {
+		t.Fatalf("got DockerHub spec %+v", got.Auth.DockerHub)
 	}
 }
 
@@ -1005,6 +1091,91 @@ func TestBuildSpecBranches(t *testing.T) {
 				AnnotationCredentialExpiration, "9m",
 			))},
 			wantErr: "duration must be at least 10m",
+		},
+		{
+			name: "expiration with github",
+			opts: []Option{WithAnnotations(ann(
+				AnnotationCredentialProvider, CredentialProviderGitHub,
+				AnnotationCredentialType, CredentialTypeJWT,
+				AnnotationCredentialExpiration, "10m",
+			))},
+			wantErr: "only supported by the kubernetes credential provider or the dockerhub service provider",
+		},
+		{
+			name: "expiration with forgejo",
+			opts: []Option{WithAnnotations(ann(
+				AnnotationCredentialProvider, CredentialProviderForgejo,
+				AnnotationCredentialType, CredentialTypeJWT,
+				AnnotationCredentialExpiration, "10m",
+			))},
+			wantErr: "only supported by the kubernetes credential provider or the dockerhub service provider",
+		},
+		{
+			name: "dockerhub expiration below minimum",
+			opts: []Option{
+				WithOCI(),
+				WithServiceProvider(ProviderDockerHub),
+				WithAnnotations(ann(
+					AnnotationCredentialProvider, CredentialProviderGitHub,
+					AnnotationCredentialType, CredentialTypeJWT,
+					AnnotationCredentialUsername, "user",
+					AnnotationCredentialExpiration, "4m",
+					AnnotationDockerHubOIDCConnectionID, uuid,
+				)),
+			},
+			wantErr: "duration must be between 5m and 6h",
+		},
+		{
+			name: "dockerhub expiration above maximum",
+			opts: []Option{
+				WithOCI(),
+				WithServiceProvider(ProviderDockerHub),
+				WithAnnotations(ann(
+					AnnotationCredentialProvider, CredentialProviderForgejo,
+					AnnotationCredentialType, CredentialTypeJWT,
+					AnnotationCredentialUsername, "user",
+					AnnotationCredentialExpiration, "7h",
+					AnnotationDockerHubOIDCConnectionID, uuid,
+				)),
+			},
+			wantErr: "duration must be between 5m and 6h",
+		},
+		{
+			name: "dockerhub expiration below kubernetes minimum",
+			opts: []Option{
+				WithOCI(),
+				WithServiceProvider(ProviderDockerHub),
+				WithAnnotations(ann(
+					AnnotationCredentialProvider, CredentialProviderKubernetes,
+					AnnotationCredentialType, CredentialTypeJWT,
+					AnnotationCredentialUsername, "user",
+					AnnotationCredentialExpiration, "5m",
+					AnnotationDockerHubOIDCConnectionID, uuid,
+				)),
+			},
+			wantErr: "duration must be at least 10m",
+		},
+		{
+			name: "github x509",
+			opts: []Option{
+				WithServiceProvider(ProviderAWS),
+				WithAnnotations(ann(
+					AnnotationCredentialProvider, CredentialProviderGitHub,
+					AnnotationCredentialType, CredentialTypeX509,
+				)),
+			},
+			wantErr: "not supported by the github credential provider",
+		},
+		{
+			name: "forgejo x509",
+			opts: []Option{
+				WithServiceProvider(ProviderAWS),
+				WithAnnotations(ann(
+					AnnotationCredentialProvider, CredentialProviderForgejo,
+					AnnotationCredentialType, CredentialTypeX509,
+				)),
+			},
+			wantErr: "not supported by the forgejo credential provider",
 		},
 		{
 			name: "invalid username",

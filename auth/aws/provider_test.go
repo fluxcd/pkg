@@ -124,7 +124,7 @@ func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 			roleSessionName:    "flux-mirror.fluxcd.io",
 			extraOpts: []auth.Option{
 				auth.WithIdentity("flux-mirror"),
-				auth.WithCredentialProvider(cryptov1.CredentialProviderActionsOIDC),
+				auth.WithCredentialProvider(cryptov1.CredentialProviderGitHub),
 			},
 		},
 		{

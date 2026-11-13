@@ -24,6 +24,7 @@ import (
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth/dockerhub"
 	"github.com/fluxcd/pkg/auth/gcp"
 	"github.com/fluxcd/pkg/auth/generic"
 	authutils "github.com/fluxcd/pkg/auth/utils"
@@ -50,6 +51,10 @@ func TestProviderByName(t *testing.T) {
 			{
 				name:     generic.ProviderName,
 				provider: generic.Provider{},
+			},
+			{
+				name:     dockerhub.ProviderName,
+				provider: dockerhub.Provider{},
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
@@ -81,6 +86,10 @@ func TestProviderByName(t *testing.T) {
 			{
 				name:     generic.ProviderName,
 				provider: generic.Provider{},
+			},
+			{
+				name:     dockerhub.ProviderName,
+				provider: dockerhub.Provider{},
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
@@ -114,7 +123,7 @@ func TestProviderByName(t *testing.T) {
 			})
 		}
 
-		for _, name := range []string{gcp.ProviderName, generic.ProviderName} {
+		for _, name := range []string{gcp.ProviderName, generic.ProviderName, dockerhub.ProviderName} {
 			t.Run(name, func(t *testing.T) {
 				g := NewWithT(t)
 				p, err := authutils.ProviderByName[auth.GitCredentialsProvider](name)
@@ -154,6 +163,14 @@ func TestProviderByName(t *testing.T) {
 				g.Expect(p).To(Equal(tt.provider))
 			})
 		}
+
+		t.Run(dockerhub.ProviderName, func(t *testing.T) {
+			g := NewWithT(t)
+			p, err := authutils.ProviderByName[auth.RESTConfigProvider](dockerhub.ProviderName)
+			g.Expect(err).To(HaveOccurred())
+			g.Expect(err.Error()).To(ContainSubstring("does not implement the expected interface"))
+			g.Expect(p).To(BeNil())
+		})
 	})
 
 	t.Run("errors", func(t *testing.T) {
@@ -178,6 +195,10 @@ func TestProviderByName(t *testing.T) {
 			{
 				name:     generic.ProviderName,
 				provider: generic.Provider{},
+			},
+			{
+				name:     dockerhub.ProviderName,
+				provider: dockerhub.Provider{},
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {

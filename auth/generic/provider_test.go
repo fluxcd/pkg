@@ -206,11 +206,11 @@ func TestProvider_GetIdentity(t *testing.T) {
 	t.Run("explicit identity", func(t *testing.T) {
 		g := NewWithT(t)
 		id, err := generic.Provider{}.GetIdentity(
-			auth.WithCredentialProvider(cryptov1.CredentialProviderActionsOIDC),
-			auth.WithIdentity("actionsoidc"),
+			auth.WithCredentialProvider(cryptov1.CredentialProviderGitHub),
+			auth.WithIdentity("github"),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(id).To(Equal("actionsoidc"))
+		g.Expect(id).To(Equal("github"))
 	})
 }
 

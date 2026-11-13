@@ -22,7 +22,7 @@ import (
 )
 
 // Spec is the fully validated specification extracted from the Flux object
-// context and, when object-level workload identity is configured, the
+// context and, when object identity is configured, the
 // ServiceAccount's annotations. It is the shared build result: the auth
 // package consumes Auth and the mTLS package consumes MTLS.
 type Spec struct {
@@ -38,7 +38,7 @@ type Spec struct {
 // AuthSpec is the validated authentication specification.
 type AuthSpec struct {
 	// Credential is the credential acquisition specification. It is nil when
-	// the ServiceAccount did not opt into object-level workload identity and no
+	// the ServiceAccount did not opt into object identity and no
 	// legacy audiences are configured.
 	Credential *CredentialSpec
 
@@ -73,13 +73,13 @@ type MTLSSPIFFESpec struct {
 
 // CredentialSpec is the validated credential acquisition specification.
 type CredentialSpec struct {
-	// Provider is the credential provider, one of `kubernetes` or `spiffe`. It
-	// is empty when the ServiceAccount did not opt into object-level workload
-	// identity with the `/provider` and `/type` annotations.
+	// Provider is the credential provider, one of `kubernetes`, `spiffe`,
+	// `github` or `forgejo`. It is empty when the ServiceAccount did not opt
+	// into object identity with the `/provider` and `/type` annotations.
 	Provider string
 	// Type is the credential type, one of `jwt` or `x509`. The `x509` type is
 	// supported only by the `aws` and `gcp` service providers. It is empty when
-	// the ServiceAccount did not opt into object-level workload identity with
+	// the ServiceAccount did not opt into object identity with
 	// the `/provider` and `/type` annotations.
 	Type string
 	// Expiration is the requested credential expiration.
@@ -91,7 +91,7 @@ type CredentialSpec struct {
 }
 
 // OptedIn reports whether the ServiceAccount explicitly opted into
-// object-level workload identity with the `/provider` and `/type` annotations.
+// object identity with the `/provider` and `/type` annotations.
 func (a *AuthSpec) OptedIn() bool {
 	return a != nil && a.Credential != nil && a.Credential.Provider != "" && a.Credential.Type != ""
 }
@@ -315,9 +315,14 @@ func BuildSpec(opts ...Option) (*Spec, error) {
 		return nil, fmt.Errorf("annotations %s and %s must be set together",
 			AnnotationCredentialProvider, AnnotationCredentialType)
 	}
-	if credProvider == CredentialProviderKubernetes && credType != CredentialTypeJWT {
-		return nil, fmt.Errorf("credential type %s is not supported by the %s credential provider",
-			credType, credProvider)
+	// The `kubernetes`, `github` and `forgejo` credential providers only
+	// acquire JWTs, so they don't support the `x509` credential type.
+	if credType != CredentialTypeJWT {
+		switch credProvider {
+		case CredentialProviderKubernetes, CredentialProviderGitHub, CredentialProviderForgejo:
+			return nil, fmt.Errorf("credential type %s is not supported by the %s credential provider",
+				credType, credProvider)
+		}
 	}
 	// Only the service providers with support for exchanging X.509
 	// certificates for credentials are the ones that support the x509
@@ -348,7 +353,7 @@ func BuildSpec(opts ...Option) (*Spec, error) {
 	}
 
 	// Every annotation introduced by this RFC, except the mTLS ones, requires
-	// opting into object-level workload identity.
+	// opting into object identity.
 	if !credOptIn {
 		if key, ok := findNewAuthAnnotation(ann); ok {
 			return nil, fmt.Errorf("annotation %s requires annotations %s and %s",
@@ -407,7 +412,7 @@ func BuildSpec(opts ...Option) (*Spec, error) {
 	}
 
 	// The `dockerhub` service provider only supports credential acquisition, so
-	// it always requires opting into object-level workload identity.
+	// it always requires opting into object identity.
 	if o.oci && o.serviceProvider == ProviderDockerHub && !credOptIn {
 		return nil, fmt.Errorf("service provider %s requires annotations %s and %s",
 			o.serviceProvider, AnnotationCredentialProvider, AnnotationCredentialType)
@@ -468,13 +473,24 @@ func BuildSpec(opts ...Option) (*Spec, error) {
 			return nil, fmt.Errorf("invalid ServiceAccount annotation key %s: '%s': %w",
 				AnnotationCredentialExpiration, value, err)
 		}
-		if expiration < 10*time.Minute {
-			return nil, fmt.Errorf("invalid ServiceAccount annotation key %s: '%s'. duration must be at least 10m",
-				AnnotationCredentialExpiration, value)
+		supported := false
+		if credProvider == CredentialProviderKubernetes {
+			supported = true
+			if expiration < 10*time.Minute {
+				return nil, fmt.Errorf("invalid ServiceAccount annotation key %s: '%s'. duration must be at least 10m",
+					AnnotationCredentialExpiration, value)
+			}
 		}
-		if credProvider != CredentialProviderKubernetes {
-			return nil, fmt.Errorf("annotation %s is only supported by the %s credential provider",
-				AnnotationCredentialExpiration, CredentialProviderKubernetes)
+		if o.serviceProvider == ProviderDockerHub {
+			supported = true
+			if expiration < 5*time.Minute || expiration > 6*time.Hour {
+				return nil, fmt.Errorf("invalid ServiceAccount annotation key %s: '%s'. duration must be between 5m and 6h",
+					AnnotationCredentialExpiration, value)
+			}
+		}
+		if !supported {
+			return nil, fmt.Errorf("annotation %s is only supported by the %s credential provider or the %s service provider",
+				AnnotationCredentialExpiration, CredentialProviderKubernetes, ProviderDockerHub)
 		}
 		auth.Credential.Expiration = expiration
 	}
