@@ -21,6 +21,7 @@ import (
 
 	"github.com/fluxcd/pkg/auth/aws"
 	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/auth/dockerhub"
 	"github.com/fluxcd/pkg/auth/gcp"
 	"github.com/fluxcd/pkg/auth/generic"
 )
@@ -39,6 +40,8 @@ func ProviderByName[T any](name string) (T, error) {
 		p = gcp.Provider{}
 	case generic.ProviderName:
 		p = generic.Provider{}
+	case dockerhub.ProviderName:
+		p = dockerhub.Provider{}
 	default:
 		return zero, fmt.Errorf("provider '%s' not implemented", name)
 	}
