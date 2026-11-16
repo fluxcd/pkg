@@ -181,6 +181,8 @@ func (m *ResourceManager) WaitForSetWithContext(ctx context.Context, set object.
 				utils.FmtObjMetadata(rs.Identifier), lastStatus[id].Status)
 			if rs.Error != nil {
 				fmt.Fprintf(&builder, ": %s", rs.Error)
+			} else if msg := lastStatus[id].Message; msg != "" {
+				fmt.Fprintf(&builder, ": %s", msg)
 			}
 			errs = append(errs, builder.String())
 		}
