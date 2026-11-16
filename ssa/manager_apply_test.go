@@ -45,6 +45,77 @@ import (
 	"github.com/fluxcd/pkg/ssa/utils"
 )
 
+func TestApplyOwnershipConflict(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for _, method := range []struct {
+		name  string
+		apply func(context.Context, *unstructured.Unstructured, ApplyOptions) (*ChangeSetEntry, error)
+	}{
+		{"Apply", applyOneViaApply},
+		{"ApplyAll", applyOneViaApplyAll},
+	} {
+		for _, tt := range []struct {
+			name        string
+			create      bool
+			owner       string
+			skip        bool
+			wantReports int
+		}{
+			{name: "foreign owner", create: true, owner: "previous", wantReports: 1},
+			{name: "same owner", create: true, owner: "current"},
+			{name: "skipped foreign owner", create: true, owner: "previous", skip: true},
+			{name: "new resource"},
+		} {
+			t.Run(method.name+"/"+tt.name, func(t *testing.T) {
+				desired := &unstructured.Unstructured{Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]interface{}{
+						"name":      generateName("ownership"),
+						"namespace": "default",
+					},
+				}}
+				if tt.create {
+					live := desired.DeepCopy()
+					manager.SetOwnerLabels([]*unstructured.Unstructured{live}, tt.owner, "default")
+					if _, err := manager.Apply(ctx, live, DefaultApplyOptions()); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				manager.SetOwnerLabels([]*unstructured.Unstructured{desired}, "current", "default")
+				opts := DefaultApplyOptions()
+				if tt.skip {
+					desired.SetAnnotations(map[string]string{"test.io/skip": "true"})
+					opts.ExclusionSelector = map[string]string{"test.io/skip": "true"}
+				}
+				var reports int
+				opts.OnOwnershipConflict = func(subject string, owner types.NamespacedName) {
+					reports++
+					if want := utils.FmtUnstructured(desired); subject != want {
+						t.Errorf("resource = %q, want %q", subject, want)
+					}
+					if want := (types.NamespacedName{Namespace: "default", Name: "previous"}); owner != want {
+						t.Errorf("previous owner = %s, want %s", owner, want)
+					}
+				}
+				entry, err := method.apply(ctx, desired, opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tt.skip && entry.Action != SkippedAction {
+					t.Errorf("action = %s, want %s", entry.Action, SkippedAction)
+				}
+				if reports != tt.wantReports {
+					t.Errorf("reported %d ownership conflicts, want %d", reports, tt.wantReports)
+				}
+			})
+		}
+	}
+}
+
 func TestApply(t *testing.T) {
 	timeout := 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

@@ -44,6 +44,12 @@ import (
 
 // ApplyOptions contains options for server-side apply requests.
 type ApplyOptions struct {
+	// OnOwnershipConflict is called before applying an existing object whose
+	// owner labels identify a different owner from the desired object.
+	// Skipped objects and failed lookups are not reported. The callback may
+	// run concurrently and receives the resource subject and previous owner.
+	OnOwnershipConflict func(subject string, previousOwner types.NamespacedName) `json:"-"`
+
 	// Force configures the engine to recreate objects that contain immutable field changes.
 	Force bool `json:"force"`
 
@@ -133,6 +139,10 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 
 	if shouldSkip, skippedEntry := m.shouldSkipApply(object, existingObject, opts); shouldSkip {
 		return skippedEntry, nil
+	}
+
+	if getError == nil && opts.OnOwnershipConflict != nil {
+		m.reportOwnershipConflict(object, existingObject, opts.OnOwnershipConflict)
 	}
 
 	// This runs before dry-run because it fixes an error that happens during dry-run, for example:
@@ -289,6 +299,10 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 				if shouldSkip, skippedEntry := m.shouldSkipApply(object, existingObject, opts); shouldSkip {
 					changes[i] = *skippedEntry
 					return nil
+				}
+
+				if getError == nil && opts.OnOwnershipConflict != nil {
+					m.reportOwnershipConflict(object, existingObject, opts.OnOwnershipConflict)
 				}
 
 				// This runs before dry-run because it fixes an error that happens during dry-run, for example:
@@ -703,6 +717,31 @@ func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructur
 	}
 
 	return false, nil
+}
+
+// reportOwnershipConflict compares the complete owner label pairs.
+func (m *ResourceManager) reportOwnershipConflict(desired, existing *unstructured.Unstructured,
+	report func(string, types.NamespacedName)) {
+	if m.owner.Group == "" {
+		return
+	}
+
+	nameKey := m.owner.Group + "/name"
+	namespaceKey := m.owner.Group + "/namespace"
+	desiredLabels, existingLabels := desired.GetLabels(), existing.GetLabels()
+	if desiredLabels[nameKey] == "" || desiredLabels[namespaceKey] == "" ||
+		existingLabels[nameKey] == "" || existingLabels[namespaceKey] == "" {
+		return
+	}
+	if desiredLabels[nameKey] == existingLabels[nameKey] &&
+		desiredLabels[namespaceKey] == existingLabels[namespaceKey] {
+		return
+	}
+
+	report(utils.FmtUnstructured(existing), types.NamespacedName{
+		Name:      existingLabels[nameKey],
+		Namespace: existingLabels[namespaceKey],
+	})
 }
 
 // removeIgnoredFields removes the fields matched by the given pre-compiled
