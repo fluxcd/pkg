@@ -21,6 +21,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -229,4 +230,131 @@ func ecKey(t *testing.T, curve elliptic.Curve) ecPair {
 		t.Fatalf("failed to generate ECDSA key: %v", err)
 	}
 	return ecPair{priv: priv, pub: &priv.PublicKey}
+}
+
+// TestSigningKey_Issue_MLDSA covers the RFC 9964 AKP key type for all three
+// ML-DSA parameter sets. The JWK carries no "crv", so the "alg" member is the
+// only description of which parameter set the key belongs to.
+func TestSigningKey_Issue_MLDSA(t *testing.T) {
+	tests := []struct {
+		name string
+		alg  jose.SignatureAlgorithm
+		pars mldsa.Parameters
+	}{
+		{"ML-DSA-44", jose.MLDSA44, mldsa.MLDSA44()},
+		{"ML-DSA-65", jose.MLDSA65, mldsa.MLDSA65()},
+		{"ML-DSA-87", jose.MLDSA87, mldsa.MLDSA87()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			priv, err := mldsa.GenerateKey(tt.pars)
+			if err != nil {
+				t.Fatal(err)
+			}
+			const kid = "pq-key"
+			jwk := marshalJWK(t, jose.JSONWebKey{
+				Key:       priv,
+				KeyID:     kid,
+				Algorithm: string(tt.alg),
+			})
+
+			key, err := jwt.ParseJWK(jwk)
+			if err != nil {
+				t.Fatalf("ParseJWK: %v", err)
+			}
+
+			signed, err := key.Issue("https://issuer", "my-subject", []string{"my-audience"}, time.Minute)
+			if err != nil {
+				t.Fatalf("Issue: %v", err)
+			}
+
+			obj, err := jose.ParseSigned(signed, []jose.SignatureAlgorithm{tt.alg})
+			if err != nil {
+				t.Fatalf("ParseSigned: %v", err)
+			}
+			if len(obj.Signatures) != 1 {
+				t.Fatalf("signatures = %d, want 1", len(obj.Signatures))
+			}
+			if got := obj.Signatures[0].Header.KeyID; got != kid {
+				t.Errorf("kid header = %q, want %q", got, kid)
+			}
+			if got := obj.Signatures[0].Header.ExtraHeaders[jose.HeaderType]; got != "JWT" {
+				t.Errorf("typ header = %v, want JWT", got)
+			}
+
+			payload, err := obj.Verify(priv.Public())
+			if err != nil {
+				t.Fatalf("verify: %v", err)
+			}
+			claims := map[string]any{}
+			if err := json.Unmarshal(payload, &claims); err != nil {
+				t.Fatalf("unmarshal claims: %v", err)
+			}
+			if got := claims["iss"]; got != "https://issuer" {
+				t.Errorf("iss = %v", got)
+			}
+			aud, ok := claims["aud"].([]any)
+			if !ok || len(aud) != 1 || aud[0] != "my-audience" {
+				t.Errorf("aud = %v, want [my-audience]", claims["aud"])
+			}
+		})
+	}
+}
+
+// TestParseJWK_AKPAlgorithm proves the AKP "alg" member is required and must
+// name an ML-DSA algorithm, since an AKP key carries no "crv" to fall back on.
+func TestParseJWK_AKPAlgorithm(t *testing.T) {
+	priv, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid := marshalJWK(t, jose.JSONWebKey{
+		Key:       priv,
+		KeyID:     "k",
+		Algorithm: string(jose.MLDSA44),
+	})
+
+	mutate := func(t *testing.T, fn func(map[string]any)) string {
+		t.Helper()
+		raw := map[string]any{}
+		if err := json.Unmarshal([]byte(valid), &raw); err != nil {
+			t.Fatal(err)
+		}
+		fn(raw)
+		b, err := json.Marshal(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+
+	tests := []struct {
+		name    string
+		jwk     string
+		wantErr string
+	}{
+		{
+			name:    "missing alg",
+			jwk:     mutate(t, func(m map[string]any) { delete(m, "alg") }),
+			wantErr: "unsupported AKP JWK algorithm",
+		},
+		{
+			name:    "non ML-DSA alg",
+			jwk:     mutate(t, func(m map[string]any) { m["alg"] = "ES256" }),
+			wantErr: "unsupported AKP JWK algorithm",
+		},
+		{
+			name:    "unregistered ML-DSA variant",
+			jwk:     mutate(t, func(m map[string]any) { m["alg"] = "ML-DSA-128" }),
+			wantErr: "unsupported AKP JWK algorithm",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := jwt.ParseJWK(tt.jwk)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected error containing %q, got: %v", tt.wantErr, err)
+			}
+		})
+	}
 }

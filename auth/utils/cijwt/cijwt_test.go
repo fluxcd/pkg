@@ -19,7 +19,9 @@ package cijwt_test
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/mldsa"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -458,5 +460,50 @@ func TestTransport_JWKSignsFreshTokenPerRequest(t *testing.T) {
 
 	if jtis[0] == jtis[1] {
 		t.Errorf("jti reused across requests (%q); each request must get a fresh token", jtis[0])
+	}
+}
+
+// TestTransport_HostJWKMLDSA proves the transport accepts a token signed with an
+// RFC 9964 AKP key. Reading the exp claim must not depend on the JWT parser
+// knowing the algorithm, or post-quantum tokens would fail to cache.
+func TestTransport_HostJWKMLDSA(t *testing.T) {
+	priv, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	if err != nil {
+		t.Fatalf("generate ML-DSA key: %v", err)
+	}
+	jwk, err := json.Marshal(jose.JSONWebKey{Key: priv, KeyID: "pq", Algorithm: "ML-DSA-44"})
+	if err != nil {
+		t.Fatalf("marshal JWK: %v", err)
+	}
+
+	rec := &recordingRT{}
+	tr := mustNewTransport(t, rec, cijwt.WithHostJWK("mint.example", string(jwk),
+		"https://issuer.example", []string{"mint.example"}, "sub"))
+	get(t, tr, "mint.example")
+
+	if len(rec.auths) != 1 {
+		t.Fatalf("got %d requests, want 1", len(rec.auths))
+	}
+	const prefix = "Bearer "
+	if !strings.HasPrefix(rec.auths[0], prefix) {
+		t.Fatalf("Authorization = %q, want a bearer token", rec.auths[0])
+	}
+	parts := strings.Split(strings.TrimPrefix(rec.auths[0], prefix), ".")
+	if len(parts) != 3 {
+		t.Fatalf("token is not a compact JWS: %q", rec.auths[0])
+	}
+	header, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		t.Fatalf("decode header: %v", err)
+	}
+	var got struct {
+		Alg string `json:"alg"`
+		Kid string `json:"kid"`
+	}
+	if err := json.Unmarshal(header, &got); err != nil {
+		t.Fatalf("unmarshal header: %v", err)
+	}
+	if got.Alg != "ML-DSA-44" || got.Kid != "pq" {
+		t.Errorf("header = %+v, want alg ML-DSA-44 and kid pq", got)
 	}
 }
