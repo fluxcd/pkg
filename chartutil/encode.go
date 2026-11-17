@@ -34,7 +34,7 @@ type PreEncoder func(goyaml.MapSlice)
 // for pre-processing of the data before encoding, such as sorting the data.
 //
 // It returns an error if the data cannot be encoded.
-func Encode(w io.Writer, data map[string]interface{}, pe ...PreEncoder) error {
+func Encode(w io.Writer, data map[string]any, pe ...PreEncoder) error {
 	ms := yaml.JSONObjectToYAMLObject(data)
 	for _, m := range pe {
 		m(ms)

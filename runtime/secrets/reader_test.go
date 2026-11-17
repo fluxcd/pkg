@@ -24,7 +24,6 @@ import (
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -194,10 +193,8 @@ func TestPullSecretsFromServiceAccount(t *testing.T) {
 		{
 			name: "service account with multiple pull secrets",
 			serviceAccount: &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: testNS,
-				},
+				Name:      "test-sa",
+				Namespace: testNS,
 				ImagePullSecrets: []corev1.LocalObjectReference{
 					{Name: "registry-secret-1"},
 					{Name: "registry-secret-2"},
@@ -205,21 +202,17 @@ func TestPullSecretsFromServiceAccount(t *testing.T) {
 			},
 			secrets: []*corev1.Secret{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "registry-secret-1",
-						Namespace: testNS,
-					},
-					Type: corev1.SecretTypeDockerConfigJson,
+					Name:      "registry-secret-1",
+					Namespace: testNS,
+					Type:      corev1.SecretTypeDockerConfigJson,
 					Data: map[string][]byte{
 						corev1.DockerConfigJsonKey: []byte(`{"auths":{"registry1.com":{"auth":"dGVzdA=="}}}`),
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "registry-secret-2",
-						Namespace: testNS,
-					},
-					Type: corev1.SecretTypeDockerConfigJson,
+					Name:      "registry-secret-2",
+					Namespace: testNS,
+					Type:      corev1.SecretTypeDockerConfigJson,
 					Data: map[string][]byte{
 						corev1.DockerConfigJsonKey: []byte(`{"auths":{"registry2.com":{"auth":"dGVzdA=="}}}`),
 					},
@@ -230,21 +223,17 @@ func TestPullSecretsFromServiceAccount(t *testing.T) {
 		{
 			name: "service account with single pull secret",
 			serviceAccount: &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: testNS,
-				},
+				Name:      "test-sa",
+				Namespace: testNS,
 				ImagePullSecrets: []corev1.LocalObjectReference{
 					{Name: "registry-secret"},
 				},
 			},
 			secrets: []*corev1.Secret{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "registry-secret",
-						Namespace: testNS,
-					},
-					Type: corev1.SecretTypeDockerConfigJson,
+					Name:      "registry-secret",
+					Namespace: testNS,
+					Type:      corev1.SecretTypeDockerConfigJson,
 				},
 			},
 			wantSecrets: []string{"registry-secret"},
@@ -252,10 +241,8 @@ func TestPullSecretsFromServiceAccount(t *testing.T) {
 		{
 			name: "service account with no pull secrets",
 			serviceAccount: &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: testNS,
-				},
+				Name:             "test-sa",
+				Namespace:        testNS,
 				ImagePullSecrets: []corev1.LocalObjectReference{},
 			},
 			secrets:     []*corev1.Secret{},
@@ -268,10 +255,8 @@ func TestPullSecretsFromServiceAccount(t *testing.T) {
 		{
 			name: "referenced secret not found",
 			serviceAccount: &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: testNS,
-				},
+				Name:      "test-sa",
+				Namespace: testNS,
 				ImagePullSecrets: []corev1.LocalObjectReference{
 					{Name: "missing-secret"},
 				},

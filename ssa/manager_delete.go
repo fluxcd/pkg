@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -101,19 +102,19 @@ func (m *ResourceManager) DeleteAll(ctx context.Context, objects []*unstructured
 	sort.Sort(sort.Reverse(SortableUnstructureds(objects)))
 	changeSet := NewChangeSet()
 
-	var errors string
+	var errors strings.Builder
 	for _, object := range objects {
 		cse, err := m.Delete(ctx, object, opts)
 		if cse != nil {
 			changeSet.Add(*cse)
 		}
 		if err != nil {
-			errors += err.Error() + ";"
+			errors.WriteString(err.Error() + ";")
 		}
 	}
 
-	if errors != "" {
-		return changeSet, fmt.Errorf("delete failed, errors: %s", errors)
+	if errors.String() != "" {
+		return changeSet, fmt.Errorf("delete failed, errors: %s", errors.String())
 	}
 
 	return changeSet, nil

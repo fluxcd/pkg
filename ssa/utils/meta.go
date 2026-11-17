@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -33,9 +34,7 @@ func SetCommonMetadata(objects []*unstructured.Unstructured, labels map[string]s
 			lbs = make(map[string]string)
 		}
 
-		for k, v := range labels {
-			lbs[k] = v
-		}
+		maps.Copy(lbs, labels)
 
 		if len(lbs) > 0 {
 			object.SetLabels(lbs)
@@ -46,9 +45,7 @@ func SetCommonMetadata(objects []*unstructured.Unstructured, labels map[string]s
 			ans = make(map[string]string)
 		}
 
-		for k, v := range annotations {
-			ans[k] = v
-		}
+		maps.Copy(ans, annotations)
 
 		if len(ans) > 0 {
 			object.SetAnnotations(ans)

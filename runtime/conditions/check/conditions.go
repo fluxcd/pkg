@@ -18,6 +18,7 @@ package check
 
 import (
 	"fmt"
+	"slices"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -84,12 +85,7 @@ func getStatusObservedGeneration(obj client.Object) (int64, error) {
 // isNegativePolarityCondition determines if a given condition has negative
 // polarity based on the given negative polarity context.
 func isNegativePolarityCondition(context []string, condn metav1.Condition) bool {
-	for _, c := range context {
-		if c == condn.Type {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(context, condn.Type)
 }
 
 // toUnstructured converts a runtime object into Unstructured.

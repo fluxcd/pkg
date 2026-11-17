@@ -183,7 +183,7 @@ func (e *Expression) EvaluateStringSlice(ctx context.Context, data map[string]an
 	if err != nil {
 		return nil, fmt.Errorf("failed to evaluate the CEL expression '%s': %w", e.expr, err)
 	}
-	v, err := val.ConvertToNative(reflect.TypeOf([]string{}))
+	v, err := val.ConvertToNative(reflect.TypeFor[[]string]())
 	if err != nil {
 		return nil, fmt.Errorf("failed to evaluate CEL expression '%s' as []string: %w", e.expr, err)
 	}

@@ -27,7 +27,6 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/fluxcd/pkg/runtime/conditions/testdata"
 )
@@ -52,12 +51,8 @@ func TestLocalizeReason(t *testing.T) {
 	g := NewWithT(t)
 
 	getter := &testdata.Fake{
-		TypeMeta: metav1.TypeMeta{
-			Kind: "Fake",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-fake",
-		},
+		Kind: "Fake",
+		Name: "test-fake",
 	}
 
 	// localize should reason location
@@ -76,12 +71,8 @@ func TestGetFirstReasonAndMessage(t *testing.T) {
 	bar := FalseCondition("bar", "falseBar", "message falseBar")
 
 	setter := &testdata.Fake{
-		TypeMeta: metav1.TypeMeta{
-			Kind: "Fake",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-fake",
-		},
+		Kind: "Fake",
+		Name: "test-fake",
 	}
 
 	groups := getConditionGroups(conditionsWithSource(setter, foo, bar), &mergeOptions{})

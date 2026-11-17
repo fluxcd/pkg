@@ -61,16 +61,16 @@ func TestRemoveCABundleFromCRD(t *testing.T) {
 		{
 			name: "removes invalid CA bundle from CRD",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apiextensions.k8s.io/v1",
 					"kind":       "CustomResourceDefinition",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "examples.example.com",
 					},
-					"spec": map[string]interface{}{
-						"conversion": map[string]interface{}{
-							"webhook": map[string]interface{}{
-								"clientConfig": map[string]interface{}{
+					"spec": map[string]any{
+						"conversion": map[string]any{
+							"webhook": map[string]any{
+								"clientConfig": map[string]any{
 									"caBundle": "invalid-cert-data",
 								},
 							},
@@ -83,17 +83,17 @@ func TestRemoveCABundleFromCRD(t *testing.T) {
 		{
 			name: "removes invalid base64 CA bundle from CRD",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apiextensions.k8s.io/v1",
 					"kind":       "CustomResourceDefinition",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "tests.example.com",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"group": "example.com",
-						"conversion": map[string]interface{}{
-							"webhook": map[string]interface{}{
-								"clientConfig": map[string]interface{}{
+						"conversion": map[string]any{
+							"webhook": map[string]any{
+								"clientConfig": map[string]any{
 									"caBundle": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t", // partial cert header in base64
 								},
 							},
@@ -106,16 +106,16 @@ func TestRemoveCABundleFromCRD(t *testing.T) {
 		{
 			name: "preserves valid CA bundle in CRD",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apiextensions.k8s.io/v1",
 					"kind":       "CustomResourceDefinition",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "examples.example.com",
 					},
-					"spec": map[string]interface{}{
-						"conversion": map[string]interface{}{
-							"webhook": map[string]interface{}{
-								"clientConfig": map[string]interface{}{
+					"spec": map[string]any{
+						"conversion": map[string]any{
+							"webhook": map[string]any{
+								"clientConfig": map[string]any{
 									"caBundle": exampleCert,
 								},
 							},
@@ -129,13 +129,13 @@ func TestRemoveCABundleFromCRD(t *testing.T) {
 		{
 			name: "ignores non-CRD objects",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "ConfigMap",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-config",
 					},
-					"data": map[string]interface{}{
+					"data": map[string]any{
 						"caBundle": "invalid-cert-data",
 					},
 				},
@@ -145,13 +145,13 @@ func TestRemoveCABundleFromCRD(t *testing.T) {
 		{
 			name: "handles CRD without CA bundle",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apiextensions.k8s.io/v1",
 					"kind":       "CustomResourceDefinition",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "examples.example.com",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"group": "example.com",
 					},
 				},
@@ -161,17 +161,17 @@ func TestRemoveCABundleFromCRD(t *testing.T) {
 		{
 			name: "handles CRD with empty CA bundle",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apiextensions.k8s.io/v1",
 					"kind":       "CustomResourceDefinition",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "tests.example.com",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"group": "example.com",
-						"conversion": map[string]interface{}{
-							"webhook": map[string]interface{}{
-								"clientConfig": map[string]interface{}{
+						"conversion": map[string]any{
+							"webhook": map[string]any{
+								"clientConfig": map[string]any{
 									"caBundle": "",
 								},
 							},

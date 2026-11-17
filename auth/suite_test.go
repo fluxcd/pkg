@@ -26,7 +26,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/gomega"
 	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -70,9 +69,7 @@ func newTestEnv(t *testing.T, ctx context.Context) (client.Client, *http.Client)
 
 	// Grant anonymous access to service account issuer discovery.
 	err = kubeClient.Create(ctx, &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "anonymous-service-account-issuer-discovery",
-		},
+		Name: "anonymous-service-account-issuer-discovery",
 		Subjects: []rbacv1.Subject{
 			{
 				APIGroup: "rbac.authorization.k8s.io",

@@ -57,8 +57,7 @@ func Test_Start(t *testing.T) {
 	}
 
 	// Start server in goroutine with context
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	errCh := make(chan error, 1)
 	go func() {

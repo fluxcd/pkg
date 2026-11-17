@@ -116,8 +116,7 @@ func TLSConfigFromSecret(ctx context.Context, secret *corev1.Secret, opts ...TLS
 	logger := log.FromContext(ctx)
 	certData, err := getTLSCertificateData(secret, logger)
 	if err != nil {
-		var tlsErr *TLSValidationError
-		if errors.As(err, &tlsErr) {
+		if tlsErr, ok := errors.AsType[*TLSValidationError](err); ok {
 			return nil, &SecretTLSValidationError{
 				TLSValidationError: tlsErr,
 				Secret:             secret,
@@ -405,8 +404,7 @@ func trySetAuth[T any](ctx context.Context, secret *corev1.Secret, target *T, fn
 	} else if !errors.Is(err, ErrKeyNotFound) {
 		// Propagate all errors except KeyNotFoundError
 		// This includes BasicAuthMalformedError and other malformed authentication errors
-		var tlsErr *TLSValidationError
-		if errors.As(err, &tlsErr) {
+		if _, ok := errors.AsType[*TLSValidationError](err); ok {
 			// TLS validation errors are ignored (for now, to maintain compatibility)
 			return nil
 		}

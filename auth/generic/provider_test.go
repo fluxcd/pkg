@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
@@ -197,7 +196,7 @@ func TestProvider_GetIdentity(t *testing.T) {
 		id, err := generic.Provider{}.GetIdentity(
 			auth.WithServiceAccountName("tenant"),
 			auth.WithObject("", "ServiceAccount", &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "default"},
+				Namespace: "default",
 			}),
 		)
 		g.Expect(err).NotTo(HaveOccurred())

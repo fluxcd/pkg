@@ -94,7 +94,7 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[1],
 						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationAdd, Path: "/metadata/annotations", Value: map[string]interface{}{
+							{Type: jsondiff.OperationAdd, Path: "/metadata/annotations", Value: map[string]any{
 								"annotated": "yes",
 							}},
 						},
@@ -248,7 +248,7 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[1],
 						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]interface{}{
+							{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]any{
 								"labeled": "change",
 							}},
 						},
@@ -290,7 +290,7 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[1],
 						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]interface{}{
+							{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]any{
 								"labeled": "change",
 							}},
 						},
@@ -317,7 +317,7 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[0],
 						ClusterObject: cluster[0],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{
+							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]any{
 								"foo": sensitiveMaskDefault,
 							}},
 						},
@@ -331,14 +331,14 @@ func TestUnstructuredList(t *testing.T) {
 				"testdata/empty-configmap.yaml",
 			},
 			mutateCluster: func(obj *unstructured.Unstructured) {
-				_ = unstructured.SetNestedMap(obj.Object, map[string]interface{}{
+				_ = unstructured.SetNestedMap(obj.Object, map[string]any{
 					"a": "2",
 					"b": "1",
 				}, "data")
 				_ = normalize.Unstructured(obj)
 			},
 			mutateDesired: func(obj *unstructured.Unstructured) {
-				_ = unstructured.SetNestedMap(obj.Object, map[string]interface{}{
+				_ = unstructured.SetNestedMap(obj.Object, map[string]any{
 					"a": "1",
 					"b": "2",
 				}, "data")
@@ -354,10 +354,10 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[0],
 						ClusterObject: cluster[0],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationReplace, Path: "/data", Value: map[string]interface{}{
+							{Type: jsondiff.OperationReplace, Path: "/data", Value: map[string]any{
 								"a": "1",
 								"b": "2",
-							}, OldValue: map[string]interface{}{
+							}, OldValue: map[string]any{
 								"a": "2",
 								"b": "1",
 							}},
@@ -391,7 +391,7 @@ func TestUnstructuredList(t *testing.T) {
 						DesiredObject: desired[1],
 						ClusterObject: cluster[1],
 						Patch: jsondiff.Patch{
-							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{"key": "value"}},
+							{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]any{"key": "value"}},
 						},
 					},
 				}
@@ -514,8 +514,8 @@ func TestUnstructured(t *testing.T) {
 					DesiredObject: desired,
 					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
-						{Type: jsondiff.OperationAdd, Path: "/metadata/annotations", Value: map[string]interface{}{"annotated": "yes"}},
-						{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]interface{}{"labeled": "yes"}},
+						{Type: jsondiff.OperationAdd, Path: "/metadata/annotations", Value: map[string]any{"annotated": "yes"}},
+						{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]any{"labeled": "yes"}},
 					},
 				}
 			},
@@ -534,7 +534,7 @@ func TestUnstructured(t *testing.T) {
 					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
 						{Type: jsondiff.OperationAdd, Path: "/metadata/annotations/annotated", Value: "yes"},
-						{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]interface{}{"labeled": "yes"}},
+						{Type: jsondiff.OperationAdd, Path: "/metadata/labels", Value: map[string]any{"labeled": "yes"}},
 					},
 				}
 			},
@@ -656,7 +656,7 @@ func TestUnstructured(t *testing.T) {
 			path: "testdata/deployment.yaml",
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
-				containers = append(containers, map[string]interface{}{
+				containers = append(containers, map[string]any{
 					"name":  "nginx",
 					"image": "nginx:latest",
 				})
@@ -668,13 +668,13 @@ func TestUnstructured(t *testing.T) {
 					DesiredObject: desired,
 					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
-						{Type: jsondiff.OperationAdd, Path: "/spec/template/spec/containers/-", Value: map[string]interface{}{
+						{Type: jsondiff.OperationAdd, Path: "/spec/template/spec/containers/-", Value: map[string]any{
 							"name":                     "nginx",
 							"image":                    "nginx:latest",
 							"imagePullPolicy":          "Always",
 							"terminationMessagePath":   "/dev/termination-log",
 							"terminationMessagePolicy": "File",
-							"resources":                map[string]interface{}{},
+							"resources":                map[string]any{},
 						}},
 					},
 				}
@@ -685,7 +685,7 @@ func TestUnstructured(t *testing.T) {
 			path: "testdata/deployment.yaml",
 			mutateCluster: func(obj *unstructured.Unstructured) {
 				containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
-				containers = append(containers, map[string]interface{}{
+				containers = append(containers, map[string]any{
 					"name":  "nginx",
 					"image": "nginx:latest",
 				})
@@ -697,13 +697,13 @@ func TestUnstructured(t *testing.T) {
 					DesiredObject: desired,
 					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
-						{Type: jsondiff.OperationRemove, Path: "/spec/template/spec/containers/1", OldValue: map[string]interface{}{
+						{Type: jsondiff.OperationRemove, Path: "/spec/template/spec/containers/1", OldValue: map[string]any{
 							"name":                     "nginx",
 							"image":                    "nginx:latest",
 							"imagePullPolicy":          "Always",
 							"terminationMessagePath":   "/dev/termination-log",
 							"terminationMessagePolicy": "File",
-							"resources":                map[string]interface{}{},
+							"resources":                map[string]any{},
 						}},
 					},
 				}
@@ -714,7 +714,7 @@ func TestUnstructured(t *testing.T) {
 			path: "testdata/deployment.yaml",
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
-				containers[0].(map[string]interface{})["image"] = "nginx:latest"
+				containers[0].(map[string]any)["image"] = "nginx:latest"
 				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 			},
 			want: func(desired, cluster client.Object) *Diff {
@@ -733,7 +733,7 @@ func TestUnstructured(t *testing.T) {
 			path: "testdata/deployment.yaml",
 			mutateDesired: func(obj *unstructured.Unstructured) {
 				containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
-				containers[0].(map[string]interface{})["image"] = "nginx:latest"
+				containers[0].(map[string]any)["image"] = "nginx:latest"
 				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 			},
 			opts: []ResourceOption{
@@ -798,7 +798,7 @@ func TestUnstructured(t *testing.T) {
 					DesiredObject: desired,
 					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
-						{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{
+						{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]any{
 							"foo": "YmFy",
 						}},
 					},
@@ -854,10 +854,10 @@ func TestUnstructured(t *testing.T) {
 					DesiredObject: desired,
 					ClusterObject: cluster,
 					Patch: jsondiff.Patch{
-						{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
+						{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]any{
 							"bar": sensitiveMaskDefault,
 							"foo": sensitiveMaskBefore,
-						}, Value: map[string]interface{}{
+						}, Value: map[string]any{
 							"foo": sensitiveMaskAfter,
 						}},
 					},
@@ -949,18 +949,18 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 		{
 			name: "label added",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "bar",
 						},
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "bar",
 							"bar": "foo",
 						},
@@ -974,9 +974,9 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 		{
 			name: "label removed",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "bar",
 							"bar": "foo",
 						},
@@ -984,9 +984,9 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "bar",
 						},
 					},
@@ -997,18 +997,18 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 		{
 			name: "label changed",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "bar",
 						},
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "baz",
 						},
 					},
@@ -1021,18 +1021,18 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 		{
 			name: "annotation added",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"foo": "bar",
 						},
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"foo": "bar",
 							"bar": "foo",
 						},
@@ -1046,9 +1046,9 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 		{
 			name: "annotation removed",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"foo": "bar",
 							"bar": "foo",
 						},
@@ -1056,9 +1056,9 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"foo": "bar",
 						},
 					},
@@ -1069,18 +1069,18 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 		{
 			name: "annotation changed",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"foo": "bar",
 						},
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"foo": "baz",
 						},
 					},
@@ -1093,24 +1093,24 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 		{
 			name: "label and annotation changed",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "bar",
 						},
-						"annotations": map[string]interface{}{
+						"annotations": map[string]any{
 							"bar": "foo",
 						},
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "baz",
 						},
-						"annotations": map[string]interface{}{
+						"annotations": map[string]any{
 							"bar": "baz",
 						},
 					},
@@ -1124,24 +1124,24 @@ func Test_diffUnstructuredMetadata(t *testing.T) {
 		{
 			name: "label and annotation changed with ignore path",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "bar",
 						},
-						"annotations": map[string]interface{}{
+						"annotations": map[string]any{
 							"bar": "foo",
 						},
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo": "baz",
 						},
-						"annotations": map[string]interface{}{
+						"annotations": map[string]any{
 							"bar": "baz",
 						},
 					},
@@ -1181,15 +1181,15 @@ func Test_diffUnstructured(t *testing.T) {
 		{
 			name: "no diff",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"spec": map[string]interface{}{
+				Object: map[string]any{
+					"spec": map[string]any{
 						"replicas": float64(1),
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"spec": map[string]interface{}{
+				Object: map[string]any{
+					"spec": map[string]any{
 						"replicas": float64(1),
 					},
 				},
@@ -1199,15 +1199,15 @@ func Test_diffUnstructured(t *testing.T) {
 		{
 			name: "spec changed",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"spec": map[string]interface{}{
+				Object: map[string]any{
+					"spec": map[string]any{
 						"replicas": float64(1),
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"spec": map[string]interface{}{
+				Object: map[string]any{
+					"spec": map[string]any{
 						"replicas": float64(2),
 					},
 				},
@@ -1219,16 +1219,16 @@ func Test_diffUnstructured(t *testing.T) {
 		{
 			name: "data change with rationalization",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"data": map[string]interface{}{
+				Object: map[string]any{
+					"data": map[string]any{
 						"a": "1",
 						"b": "2",
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"data": map[string]interface{}{
+				Object: map[string]any{
+					"data": map[string]any{
 						"a": "2",
 						"b": "1",
 					},
@@ -1238,10 +1238,10 @@ func Test_diffUnstructured(t *testing.T) {
 				jsondiff.Rationalize(),
 			},
 			want: jsondiff.Patch{
-				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
+				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]any{
 					"a": "1",
 					"b": "2",
-				}, Value: map[string]interface{}{
+				}, Value: map[string]any{
 					"a": "2",
 					"b": "1",
 				}},
@@ -1250,15 +1250,15 @@ func Test_diffUnstructured(t *testing.T) {
 		{
 			name: "metadata changed",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name": "foo",
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name": "bar",
 					},
 				},
@@ -1268,15 +1268,15 @@ func Test_diffUnstructured(t *testing.T) {
 		{
 			name: "status changed",
 			x: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"status": map[string]interface{}{
+				Object: map[string]any{
+					"status": map[string]any{
 						"observedGeneration": int64(1),
 					},
 				},
 			},
 			y: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"status": map[string]interface{}{
+				Object: map[string]any{
+					"status": map[string]any{
 						"observedGeneration": int64(2),
 					},
 				},
@@ -1307,30 +1307,30 @@ func Test_copyAnnotationsAndLabels(t *testing.T) {
 		{
 			name: "copy annotations and labels",
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"annotation1": true,
 							"annotation2": "value",
 						},
-						"labels": map[string]interface{}{
+						"labels": map[string]any{
 							"label1": false,
 							"label2": "value",
 						},
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": 1,
 					},
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"annotation1": true,
 							"annotation2": "value",
 						},
-						"labels": map[string]interface{}{
+						"labels": map[string]any{
 							"label1": false,
 							"label2": "value",
 						},
@@ -1341,31 +1341,31 @@ func Test_copyAnnotationsAndLabels(t *testing.T) {
 		{
 			name: "copy annotations and labels with empty metadata",
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"spec": map[string]interface{}{
+				Object: map[string]any{
+					"spec": map[string]any{
 						"replicas": 1,
 					},
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{},
+				Object: map[string]any{},
 			},
 		},
 		{
 			name: "copy annotations and labels with empty annotations and labels",
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{},
-						"labels":      map[string]interface{}{},
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{},
+						"labels":      map[string]any{},
 					},
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{},
-						"labels":      map[string]interface{}{},
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{},
+						"labels":      map[string]any{},
 					},
 				},
 			},
@@ -1373,16 +1373,16 @@ func Test_copyAnnotationsAndLabels(t *testing.T) {
 		{
 			name: "copy annotations and labels with nil annotations and labels",
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"annotations": nil,
 						"labels":      nil,
 					},
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"annotations": nil,
 						"labels":      nil,
 					},

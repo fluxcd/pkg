@@ -193,10 +193,8 @@ func (g *Generator) GenerateManifest(dirPath string) ([]byte, string, Action, er
 	}
 
 	kus := kustypes.Kustomization{
-		TypeMeta: kustypes.TypeMeta{
-			APIVersion: kustypes.KustomizationVersion,
-			Kind:       kustypes.KustomizationKind,
-		},
+		APIVersion: kustypes.KustomizationVersion,
+		Kind:       kustypes.KustomizationKind,
 	}
 
 	if err := yaml.Unmarshal(data, &kus); err != nil {
@@ -356,7 +354,7 @@ func (g *Generator) getPatches() ([]kustomize.Patch, error) {
 	if ok {
 		res := make([]kustomize.Patch, 0, len(patches))
 		for k, p := range patches {
-			patch, ok := p.(map[string]interface{})
+			patch, ok := p.(map[string]any)
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
 				resultErr = errors.Join(resultErr, err)
@@ -385,7 +383,7 @@ func (g *Generator) getPatchesStrategicMerge() ([]apiextensionsv1.JSON, error) {
 	if ok {
 		res := make([]apiextensionsv1.JSON, 0, len(patches))
 		for k, p := range patches {
-			patch, ok := p.(map[string]interface{})
+			patch, ok := p.(map[string]any)
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
 				resultErr = errors.Join(resultErr, err)
@@ -414,7 +412,7 @@ func (g *Generator) getPatchesJson6902() ([]kustomize.JSON6902Patch, error) {
 	if ok {
 		res := make([]kustomize.JSON6902Patch, 0, len(patches))
 		for k, p := range patches {
-			patch, ok := p.(map[string]interface{})
+			patch, ok := p.(map[string]any)
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
 				resultErr = errors.Join(resultErr, err)
@@ -443,7 +441,7 @@ func (g *Generator) getImages() ([]kustomize.Image, error) {
 	if ok {
 		res := make([]kustomize.Image, 0, len(img))
 		for k, i := range img {
-			im, ok := i.(map[string]interface{})
+			im, ok := i.(map[string]any)
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
 				resultErr = errors.Join(resultErr, err)
@@ -495,7 +493,7 @@ func (g *Generator) getNestedBool(fields ...string) bool {
 	return val
 }
 
-func (g *Generator) getNestedSlice(fields ...string) ([]interface{}, bool, error) {
+func (g *Generator) getNestedSlice(fields ...string) ([]any, bool, error) {
 	val, ok, err := unstructured.NestedSlice(g.kustomization.Object, fields...)
 	if err != nil {
 		return nil, ok, err
@@ -545,10 +543,8 @@ func (g *Generator) findOrGenerateKustomization(fs filesys.FileSystem, dirPath s
 	}
 
 	kus := kustypes.Kustomization{
-		TypeMeta: kustypes.TypeMeta{
-			APIVersion: kustypes.KustomizationVersion,
-			Kind:       kustypes.KustomizationKind,
-		},
+		APIVersion: kustypes.KustomizationVersion,
+		Kind:       kustypes.KustomizationKind,
 	}
 
 	var resources []string

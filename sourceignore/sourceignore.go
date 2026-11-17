@@ -54,7 +54,7 @@ func NewDefaultMatcher(ps []gitignore.Pattern, domain []string) gitignore.Matche
 // patterns.
 func VCSPatterns(domain []string) []gitignore.Pattern {
 	var ps []gitignore.Pattern
-	for _, p := range strings.Split(ExcludeVCS, ",") {
+	for p := range strings.SplitSeq(ExcludeVCS, ",") {
 		ps = append(ps, gitignore.ParsePattern(p, domain))
 	}
 	return ps
@@ -65,7 +65,7 @@ func VCSPatterns(domain []string) []gitignore.Pattern {
 func DefaultPatterns(domain []string) []gitignore.Pattern {
 	all := strings.Join([]string{ExcludeExt, ExcludeCI, ExcludeExtra}, ",")
 	var ps []gitignore.Pattern
-	for _, p := range strings.Split(all, ",") {
+	for p := range strings.SplitSeq(all, ",") {
 		ps = append(ps, gitignore.ParsePattern(p, domain))
 	}
 	return ps

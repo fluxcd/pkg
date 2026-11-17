@@ -247,10 +247,8 @@ func TestCreateJWT_ControllerServiceAccount(t *testing.T) {
 	_, envClient, oidcClient := newTestEnv(t, ctx)
 
 	serviceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "controller",
-			Namespace: "default",
-		},
+		Name:      "controller",
+		Namespace: "default",
 	}
 	g.Expect(envClient.Create(ctx, serviceAccount)).To(Succeed())
 
@@ -279,10 +277,8 @@ func TestCreateJWT_ServiceAccount(t *testing.T) {
 	_, envClient, oidcClient := newTestEnv(t, ctx)
 
 	serviceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tenant",
-			Namespace: "default",
-		},
+		Name:      "tenant",
+		Namespace: "default",
 	}
 	g.Expect(envClient.Create(ctx, serviceAccount)).To(Succeed())
 
@@ -331,10 +327,8 @@ func TestCreateJWT_Authenticates(t *testing.T) {
 	envConfig, envClient, _ := newTestEnv(t, ctx)
 
 	serviceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tenant",
-			Namespace: "default",
-		},
+		Name:      "tenant",
+		Namespace: "default",
 	}
 	g.Expect(envClient.Create(ctx, serviceAccount)).To(Succeed())
 
@@ -353,9 +347,7 @@ func TestCreateJWT_Authenticates(t *testing.T) {
 	conf := &rest.Config{
 		Host:        envConfig.Host,
 		BearerToken: token,
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData: envConfig.TLSClientConfig.CAData,
-		},
+		CAData:      envConfig.TLSClientConfig.CAData,
 	}
 	client, err := kubernetes.NewForConfig(conf)
 	g.Expect(err).NotTo(HaveOccurred())

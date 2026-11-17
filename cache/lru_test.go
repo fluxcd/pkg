@@ -279,7 +279,7 @@ func TestLRU_Concurrent(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	keymap := map[int]string{}
-	for i := 0; i < keysNum; i++ {
+	for i := range keysNum {
 		key := fmt.Sprintf("test-%d", i)
 		keymap[i] = key
 	}
@@ -288,7 +288,7 @@ func TestLRU_Concurrent(t *testing.T) {
 	run := make(chan bool)
 
 	// simulate concurrent read and write
-	for i := 0; i < concurrency; i++ {
+	for range concurrency {
 		key := rand.IntN(keysNum)
 		wg.Add(2)
 		go func() {

@@ -190,9 +190,7 @@ func Test_HTTP_proxy(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			_, err = ggc.Clone(context.TODO(), tt.url, repository.CloneConfig{
-				CheckoutStrategy: repository.CheckoutStrategy{
-					Branch: "main",
-				},
+				Branch:       "main",
 				ShallowClone: true,
 			})
 			g.Expect(err).ToNot(HaveOccurred())

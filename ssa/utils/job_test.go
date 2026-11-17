@@ -88,14 +88,14 @@ func TestExtractJobsWithTTL(t *testing.T) {
 		{
 			name: "Job with ttlSecondsAfterFinished: 0",
 			objects: []*unstructured.Unstructured{
-				makeJob("test-job", "default", int64Ptr(0)),
+				makeJob("test-job", "default", new(int64(0))),
 			},
 			want: 1,
 		},
 		{
 			name: "Job with ttlSecondsAfterFinished: 300",
 			objects: []*unstructured.Unstructured{
-				makeJob("test-job", "default", int64Ptr(300)),
+				makeJob("test-job", "default", new(int64(300))),
 			},
 			want: 1,
 		},
@@ -117,10 +117,10 @@ func TestExtractJobsWithTTL(t *testing.T) {
 		{
 			name: "mixed list of resources",
 			objects: []*unstructured.Unstructured{
-				makeJob("job-with-ttl", "default", int64Ptr(60)),
+				makeJob("job-with-ttl", "default", new(int64(60))),
 				makeJob("job-without-ttl", "default", nil),
 				makeDeployment("test-deploy", "default"),
-				makeJob("another-job-with-ttl", "other", int64Ptr(0)),
+				makeJob("another-job-with-ttl", "other", new(int64(0))),
 			},
 			want: 2,
 		},
@@ -136,8 +136,9 @@ func TestExtractJobsWithTTL(t *testing.T) {
 	}
 }
 
+//go:fix inline
 func int64Ptr(v int64) *int64 {
-	return &v
+	return new(v)
 }
 
 func makeJob(name, namespace string, ttlSecondsAfterFinished *int64) *unstructured.Unstructured {

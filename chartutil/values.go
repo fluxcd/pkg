@@ -151,7 +151,7 @@ const (
 // unless a reference has a targetPath specified, in which case it will overwrite all.
 // It returns the merged values, or an ErrValuesReference error.
 func ChartValuesFromReferences(ctx context.Context, log logr.Logger, client kubeclient.Client, namespace string,
-	values map[string]interface{}, refs ...meta.ValuesReference) (common.Values, error) {
+	values map[string]any, refs ...meta.ValuesReference) (common.Values, error) {
 
 	result := common.Values{}
 	resources := make(map[string]kubeclient.Object)

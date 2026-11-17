@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -219,10 +218,8 @@ func (t *tlsCertificateData) toSecret(name, namespace string) *corev1.Secret {
 	}
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:       name,
+		Namespace:  namespace,
 		Type:       secretType,
 		StringData: secretData,
 	}

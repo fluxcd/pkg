@@ -24,6 +24,7 @@ the `metav1.Condition` type.
 package conditions
 
 import (
+	"slices"
 	"sort"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -234,10 +235,5 @@ func (g conditionGroup) mergePriority() (p int) {
 }
 
 func stringInSlice(s []string, val string) bool {
-	for _, s := range s {
-		if s == val {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s, val)
 }

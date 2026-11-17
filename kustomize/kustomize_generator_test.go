@@ -413,12 +413,10 @@ spec:
 
 			g.Expect(os.WriteFile(filepath.Join(tmpDir, "deployment.yaml"), []byte(deployment), 0o644)).To(Succeed())
 			kusYAML, err := yaml.Marshal(kustypes.Kustomization{
-				TypeMeta: kustypes.TypeMeta{
-					APIVersion: kustypes.KustomizationVersion,
-					Kind:       kustypes.KustomizationKind,
-				},
-				Resources: []string{"deployment.yaml"},
-				Images:    tt.existingImages,
+				APIVersion: kustypes.KustomizationVersion,
+				Kind:       kustypes.KustomizationKind,
+				Resources:  []string{"deployment.yaml"},
+				Images:     tt.existingImages,
 			})
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(os.WriteFile(filepath.Join(tmpDir, "kustomization.yaml"), kusYAML, 0o644)).To(Succeed())
@@ -455,13 +453,13 @@ spec:
 
 			out, err := resMap.AsYaml()
 			g.Expect(err).ToNot(HaveOccurred())
-			var obj map[string]interface{}
+			var obj map[string]any
 			g.Expect(yaml.Unmarshal(out, &obj)).To(Succeed())
 			containers, found, err := unstructured.NestedSlice(obj, "spec", "template", "spec", "containers")
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(found).To(BeTrue())
 			g.Expect(containers).To(HaveLen(1))
-			image, found, err := unstructured.NestedString(containers[0].(map[string]interface{}), "image")
+			image, found, err := unstructured.NestedString(containers[0].(map[string]any), "image")
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(found).To(BeTrue())
 			g.Expect(image).To(Equal(tt.expectedImage))
@@ -911,10 +909,8 @@ func TestKustomizationGenerator_WithRemoteResource(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			kus := kustypes.Kustomization{
-				TypeMeta: kustypes.TypeMeta{
-					APIVersion: kustypes.KustomizationVersion,
-					Kind:       kustypes.KustomizationKind,
-				},
+				APIVersion: kustypes.KustomizationVersion,
+				Kind:       kustypes.KustomizationKind,
 			}
 			err = yaml.Unmarshal(updatedContent, &kus)
 			g.Expect(err).NotTo(HaveOccurred())
@@ -1023,19 +1019,19 @@ func expectOpenAPIPathDaemonSet(g Gomega, res resmap.ResMap) {
 }
 
 func daemonSetObject(g Gomega, data []byte) *unstructured.Unstructured {
-	var obj map[string]interface{}
+	var obj map[string]any
 	g.Expect(yaml.Unmarshal(data, &obj)).To(Succeed())
 	u := &unstructured.Unstructured{Object: obj}
 	u.SetNamespace("default")
 	return u
 }
 
-func daemonSetContainer(g Gomega, obj map[string]interface{}) map[string]interface{} {
+func daemonSetContainer(g Gomega, obj map[string]any) map[string]any {
 	containers, found, err := unstructured.NestedSlice(obj, "spec", "template", "spec", "containers")
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(found).To(BeTrue())
 	g.Expect(containers).To(HaveLen(1))
-	container, ok := containers[0].(map[string]interface{})
+	container, ok := containers[0].(map[string]any)
 	g.Expect(ok).To(BeTrue())
 	return container
 }

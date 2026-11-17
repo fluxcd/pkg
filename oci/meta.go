@@ -16,6 +16,8 @@ limitations under the License.
 
 package oci
 
+import "maps"
+
 // Metadata holds the upstream information about on artifact's source.
 // https://github.com/opencontainers/image-spec/blob/main/annotations.md
 type Metadata struct {
@@ -35,9 +37,7 @@ func (m *Metadata) ToAnnotations() map[string]string {
 		RevisionAnnotation: m.Revision,
 	}
 
-	for k, v := range m.Annotations {
-		annotations[k] = v
-	}
+	maps.Copy(annotations, m.Annotations)
 
 	return annotations
 }

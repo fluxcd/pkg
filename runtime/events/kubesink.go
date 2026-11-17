@@ -70,7 +70,7 @@ type kubeSink interface {
 	// they are always preserved on the Flux event/v1 webhook payload
 	// regardless of the backend.
 	emit(object, related runtime.Object, annotations map[string]string,
-		eventType, reason, action, messageFmt string, args ...interface{})
+		eventType, reason, action, messageFmt string, args ...any)
 
 	// api reports which Kubernetes Events API this sink writes to. It lets
 	// NewRecorder detect a conflict between an injected recorder and an
@@ -94,7 +94,7 @@ type coreV1Sink struct {
 var _ kubeSink = &coreV1Sink{}
 
 func (s *coreV1Sink) emit(object, _ runtime.Object, annotations map[string]string,
-	eventType, reason, _, messageFmt string, args ...interface{}) {
+	eventType, reason, _, messageFmt string, args ...any) {
 	s.recorder.AnnotatedEventf(object, annotations, eventType, reason, messageFmt, args...)
 }
 
@@ -118,7 +118,7 @@ type eventsV1Sink struct {
 var _ kubeSink = &eventsV1Sink{}
 
 func (s *eventsV1Sink) emit(object, related runtime.Object, annotations map[string]string,
-	eventType, reason, action, messageFmt string, args ...interface{}) {
+	eventType, reason, action, messageFmt string, args ...any) {
 	s.recorder.AnnotatedEventf(object, related, annotations, eventType, reason, action, messageFmt, args...)
 }
 

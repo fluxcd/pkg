@@ -101,10 +101,10 @@ func readManifest(manifest, namespace string) ([]*unstructured.Unstructured, err
 	return objects, nil
 }
 
-var nextNameId int64
+var nextNameId atomic.Int64
 
 func generateName(prefix string) string {
-	id := atomic.AddInt64(&nextNameId, 1)
+	id := nextNameId.Add(1)
 	return fmt.Sprintf("%s-%d", prefix, id)
 }
 

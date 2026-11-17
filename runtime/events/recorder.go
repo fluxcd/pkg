@@ -301,7 +301,7 @@ func responseIsEventDuplicated(resp *http.Response) bool {
 }
 
 // Event records an event in the webhook address.
-func (r *recorder) Eventf(object runtime.Object, related runtime.Object, eventtype, reason string, action string, messageFmt string, args ...interface{}) {
+func (r *recorder) Eventf(object runtime.Object, related runtime.Object, eventtype, reason string, action string, messageFmt string, args ...any) {
 	r.AnnotatedEventf(object, related, nil, eventtype, reason, action, messageFmt, args...)
 }
 
@@ -313,7 +313,7 @@ func (r *recorder) AnnotatedEventf(
 	inputAnnotations map[string]string,
 	eventtype, reason string,
 	action string,
-	messageFmt string, args ...interface{}) {
+	messageFmt string, args ...any) {
 
 	ref, err := reference.GetReference(r.scheme, object)
 	if err != nil {

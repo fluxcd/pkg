@@ -26,7 +26,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -49,13 +48,11 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 		{
 			name: "event with ConfigMap",
 			object: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "webapp",
-					Namespace: "gitops-system",
-					Annotations: map[string]string{
-						"event.toolkit.fluxcd.io/deploymentID": "e076e315-5a48-41c3-81c8-8d8bdee7d74d",
-						"event.toolkit.fluxcd.io/image":        "ghcr.io/stefanprodan/podinfo:6.5.0",
-					},
+				Name:      "webapp",
+				Namespace: "gitops-system",
+				Annotations: map[string]string{
+					"event.toolkit.fluxcd.io/deploymentID": "e076e315-5a48-41c3-81c8-8d8bdee7d74d",
+					"event.toolkit.fluxcd.io/image":        "ghcr.io/stefanprodan/podinfo:6.5.0",
 				},
 			},
 			inputAnnotations: map[string]string{"test": "true"},
@@ -68,13 +65,11 @@ func TestEventRecorder_AnnotatedEventf(t *testing.T) {
 		{
 			name: "event with ConfigMap does not panic with nil inputAnnotations",
 			object: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "webapp",
-					Namespace: "gitops-system",
-					Annotations: map[string]string{
-						"event.toolkit.fluxcd.io/deploymentID": "e076e315-5a48-41c3-81c8-8d8bdee7d74d",
-						"event.toolkit.fluxcd.io/image":        "ghcr.io/stefanprodan/podinfo:6.5.0",
-					},
+				Name:      "webapp",
+				Namespace: "gitops-system",
+				Annotations: map[string]string{
+					"event.toolkit.fluxcd.io/deploymentID": "e076e315-5a48-41c3-81c8-8d8bdee7d74d",
+					"event.toolkit.fluxcd.io/image":        "ghcr.io/stefanprodan/podinfo:6.5.0",
 				},
 			},
 			inputAnnotations: nil,
@@ -187,10 +182,8 @@ func TestEventRecorder_WithTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	obj := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "webapp",
-			Namespace: "gitops-system",
-		},
+		Name:      "webapp",
+		Namespace: "gitops-system",
 	}
 
 	eventRecorder.AnnotatedEventf(obj, nil, nil, corev1.EventTypeNormal, "sync", testAction, "sync object")

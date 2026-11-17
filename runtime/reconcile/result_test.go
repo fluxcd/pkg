@@ -698,7 +698,7 @@ func TestProgressiveStatus(t *testing.T) {
 		drift            bool
 		reason           string
 		msg              string
-		msgArgs          []interface{}
+		msgArgs          []any
 		beforeFunc       func(obj *testdata.Fake)
 		assertConditions []metav1.Condition
 	}{
@@ -768,7 +768,7 @@ func TestProgressiveStatus(t *testing.T) {
 			name:    "message format and args are used to form status message",
 			reason:  "SomeReasonX",
 			msg:     "some msg %s %s",
-			msgArgs: []interface{}{"X", "Y"},
+			msgArgs: []any{"X", "Y"},
 			assertConditions: []metav1.Condition{
 				*conditions.TrueCondition(meta.ReconcilingCondition, "SomeReasonX", "%s", "some msg X Y"),
 				*conditions.UnknownCondition(meta.ReadyCondition, "SomeReasonX", "%s", "some msg X Y"),

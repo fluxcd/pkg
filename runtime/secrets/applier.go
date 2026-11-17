@@ -19,6 +19,7 @@ package secrets
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -85,9 +86,7 @@ func Apply(ctx context.Context, c client.Client, secret *corev1.Secret, opts ...
 		if secret.Labels == nil {
 			secret.Labels = make(map[string]string)
 		}
-		for k, v := range options.labels {
-			secret.Labels[k] = v
-		}
+		maps.Copy(secret.Labels, options.labels)
 	}
 
 	// Set annotations from options.
@@ -95,9 +94,7 @@ func Apply(ctx context.Context, c client.Client, secret *corev1.Secret, opts ...
 		if secret.Annotations == nil {
 			secret.Annotations = make(map[string]string)
 		}
-		for k, v := range options.annotations {
-			secret.Annotations[k] = v
-		}
+		maps.Copy(secret.Annotations, options.annotations)
 	}
 
 	// Set the immutable flag from options.

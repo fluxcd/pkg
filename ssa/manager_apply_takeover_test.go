@@ -69,10 +69,10 @@ func runFieldManagersBeforeDryRunScenario(t *testing.T, id string, apply applyFu
 	)
 
 	// Namespace for the workload.
-	ns := &unstructured.Unstructured{Object: map[string]interface{}{
+	ns := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Namespace",
-		"metadata":   map[string]interface{}{"name": id},
+		"metadata":   map[string]any{"name": id},
 	}}
 	if err := manager.client.Patch(ctx, ns, client.Apply, client.FieldOwner(fluxFM)); err != nil {
 		t.Fatal(err)
@@ -80,26 +80,26 @@ func runFieldManagersBeforeDryRunScenario(t *testing.T, id string, apply applyFu
 
 	// daemonset builds a DaemonSet with the given container name/image pairs.
 	daemonset := func(containers ...[2]string) *unstructured.Unstructured {
-		cs := make([]interface{}, 0, len(containers))
+		cs := make([]any, 0, len(containers))
 		for _, c := range containers {
-			cs = append(cs, map[string]interface{}{"name": c[0], "image": c[1]})
+			cs = append(cs, map[string]any{"name": c[0], "image": c[1]})
 		}
-		return &unstructured.Unstructured{Object: map[string]interface{}{
+		return &unstructured.Unstructured{Object: map[string]any{
 			"apiVersion": "apps/v1",
 			"kind":       "DaemonSet",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"spec": map[string]interface{}{
-				"selector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{"app": id},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{"app": id},
 				},
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{"app": id},
+				"template": map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{"app": id},
 					},
-					"spec": map[string]interface{}{"containers": cs},
+					"spec": map[string]any{"containers": cs},
 				},
 			},
 		}}
@@ -114,9 +114,9 @@ func runFieldManagersBeforeDryRunScenario(t *testing.T, id string, apply applyFu
 		if err := manager.client.Get(ctx, client.ObjectKeyFromObject(cur), cur); err != nil {
 			t.Fatal(err)
 		}
-		cs := make([]interface{}, 0, len(containers))
+		cs := make([]any, 0, len(containers))
 		for _, c := range containers {
-			cs = append(cs, map[string]interface{}{"name": c[0], "image": c[1]})
+			cs = append(cs, map[string]any{"name": c[0], "image": c[1]})
 		}
 		if err := unstructured.SetNestedSlice(cur.Object, cs, "spec", "template", "spec", "containers"); err != nil {
 			t.Fatal(err)
@@ -140,7 +140,7 @@ func runFieldManagersBeforeDryRunScenario(t *testing.T, id string, apply applyFu
 			if e.Subresource != "" || e.FieldsV1 == nil {
 				continue
 			}
-			var raw map[string]interface{}
+			var raw map[string]any
 			if err := json.Unmarshal(e.FieldsV1.Raw, &raw); err != nil {
 				t.Fatal(err)
 			}
@@ -285,10 +285,10 @@ func runFieldManagersBeforeDryRunMutatesEvenOnUnrelatedFailureScenario(t *testin
 		noteKey  = "legacy.example.com/note"
 	)
 
-	ns := &unstructured.Unstructured{Object: map[string]interface{}{
+	ns := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Namespace",
-		"metadata":   map[string]interface{}{"name": id},
+		"metadata":   map[string]any{"name": id},
 	}}
 	if err := manager.client.Patch(ctx, ns, client.Apply, client.FieldOwner(fluxFM)); err != nil {
 		t.Fatal(err)
@@ -297,17 +297,17 @@ func runFieldManagersBeforeDryRunMutatesEvenOnUnrelatedFailureScenario(t *testin
 	// service builds a Service with the given port. An out-of-range port fails
 	// API server validation independently of any field manager ownership.
 	service := func(port int64) *unstructured.Unstructured {
-		return &unstructured.Unstructured{Object: map[string]interface{}{
+		return &unstructured.Unstructured{Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "Service",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"spec": map[string]interface{}{
-				"selector": map[string]interface{}{"app": id},
-				"ports": []interface{}{
-					map[string]interface{}{"port": port, "targetPort": port},
+			"spec": map[string]any{
+				"selector": map[string]any{"app": id},
+				"ports": []any{
+					map[string]any{"port": port, "targetPort": port},
 				},
 			},
 		}}
@@ -324,7 +324,7 @@ func runFieldManagersBeforeDryRunMutatesEvenOnUnrelatedFailureScenario(t *testin
 			if e.Subresource != "" || e.FieldsV1 == nil {
 				continue
 			}
-			var raw map[string]interface{}
+			var raw map[string]any
 			if err := json.Unmarshal(e.FieldsV1.Raw, &raw); err != nil {
 				t.Fatal(err)
 			}
@@ -417,36 +417,36 @@ func runFieldManagersBeforeDryRunReclaimsUnrelatedFieldsScenario(t *testing.T, i
 		noteKey  = "legacy.example.com/note"
 	)
 
-	ns := &unstructured.Unstructured{Object: map[string]interface{}{
+	ns := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Namespace",
-		"metadata":   map[string]interface{}{"name": id},
+		"metadata":   map[string]any{"name": id},
 	}}
 	if err := manager.client.Patch(ctx, ns, client.Apply, client.FieldOwner(fluxFM)); err != nil {
 		t.Fatal(err)
 	}
 
 	daemonset := func(containers ...[2]string) *unstructured.Unstructured {
-		cs := make([]interface{}, 0, len(containers))
+		cs := make([]any, 0, len(containers))
 		for _, c := range containers {
-			cs = append(cs, map[string]interface{}{"name": c[0], "image": c[1]})
+			cs = append(cs, map[string]any{"name": c[0], "image": c[1]})
 		}
-		return &unstructured.Unstructured{Object: map[string]interface{}{
+		return &unstructured.Unstructured{Object: map[string]any{
 			"apiVersion": "apps/v1",
 			"kind":       "DaemonSet",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"spec": map[string]interface{}{
-				"selector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{"app": id},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{"app": id},
 				},
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{"app": id},
+				"template": map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{"app": id},
 					},
-					"spec": map[string]interface{}{"containers": cs},
+					"spec": map[string]any{"containers": cs},
 				},
 			},
 		}}
@@ -463,7 +463,7 @@ func runFieldManagersBeforeDryRunReclaimsUnrelatedFieldsScenario(t *testing.T, i
 			if e.Subresource != "" || e.FieldsV1 == nil {
 				continue
 			}
-			var raw map[string]interface{}
+			var raw map[string]any
 			if err := json.Unmarshal(e.FieldsV1.Raw, &raw); err != nil {
 				t.Fatal(err)
 			}
@@ -487,9 +487,9 @@ func runFieldManagersBeforeDryRunReclaimsUnrelatedFieldsScenario(t *testing.T, i
 		t.Fatal(err)
 	}
 	if err := unstructured.SetNestedSlice(cur.Object,
-		[]interface{}{
-			map[string]interface{}{"name": "main", "image": gitImage},
-			map[string]interface{}{"name": "pdh", "image": bgImage},
+		[]any{
+			map[string]any{"name": "main", "image": gitImage},
+			map[string]any{"name": "pdh", "image": bgImage},
 		}, "spec", "template", "spec", "containers"); err != nil {
 		t.Fatal(err)
 	}
@@ -557,7 +557,7 @@ func hasContainer(t *testing.T, obj *unstructured.Unstructured, name string) boo
 		return false
 	}
 	for _, c := range cs {
-		if m, ok := c.(map[string]interface{}); ok {
+		if m, ok := c.(map[string]any); ok {
 			if n, _, _ := unstructured.NestedString(m, "name"); n == name {
 				return true
 			}
@@ -568,10 +568,10 @@ func hasContainer(t *testing.T, obj *unstructured.Unstructured, name string) boo
 
 // digPath walks nested map[string]interface{} by the given keys, returning the
 // terminal map or nil.
-func digPath(m map[string]interface{}, keys ...string) map[string]interface{} {
+func digPath(m map[string]any, keys ...string) map[string]any {
 	cur := m
 	for _, k := range keys {
-		next, ok := cur[k].(map[string]interface{})
+		next, ok := cur[k].(map[string]any)
 		if !ok {
 			return nil
 		}

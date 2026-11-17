@@ -122,10 +122,8 @@ func main() {
 	authOpts = append(authOpts,
 		auth.WithCache(*tokenCache),
 		auth.WithObject("", "TestApp", &metav1.PartialObjectMetadata{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testapp",
-				Namespace: "default",
-			},
+			Name:      "testapp",
+			Namespace: "default",
 		}),
 		auth.WithCacheOperation("test"))
 
@@ -317,9 +315,7 @@ func checkGit(ctx context.Context) {
 	}
 
 	_, err = c.Clone(ctx, *repo, repository.CloneConfig{
-		CheckoutStrategy: repository.CheckoutStrategy{
-			Branch: "main",
-		},
+		Branch: "main",
 	})
 	if err != nil {
 		panic(err)

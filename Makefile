@@ -18,7 +18,7 @@ ENVTEST_ARCH ?= $(LOCALARCH)
 # Kubernetes versions to use envtest with
 ENVTEST_KUBERNETES_VERSION?=1.37
 
-all: tidy generate fmt vet
+all: tidy fix generate fmt vet
 
 tidy:
 	$(MAKE) $(addprefix tidy-, $(MODULES))
@@ -31,6 +31,20 @@ fmt:
 
 fmt-%:
 	cd $(subst :,/,$*); go fmt ./...
+
+# fix modernizes the code with the current toolchain, the way tidy does for go.mod
+# files. It runs in one module per invocation so a failure names the module, and
+# repeats until the diff stops changing.
+fix:
+	$(MAKE) $(addprefix fix-, $(MODULES))
+
+fix-%:
+	@set -e; while :; do \
+		before=$$(git diff --no-ext-diff --no-color HEAD -- '*.go' | cksum); \
+		( cd $(subst :,/,$*) && go fix ./... ); \
+		after=$$(git diff --no-ext-diff --no-color HEAD -- '*.go' | cksum); \
+		if [ "$$before" = "$$after" ]; then break; fi; \
+	done
 
 vet:
 	$(MAKE) $(addprefix vet-, $(MODULES))
@@ -73,7 +87,7 @@ test-chunk:
 
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
-test-%: tidy-% generate-% fmt-% vet-% install-envtest
+test-%: tidy-% fix-% generate-% fmt-% vet-% install-envtest
 	cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... $(GO_TEST_ARGS) -coverprofile cover.out ;\
 
 release-%:

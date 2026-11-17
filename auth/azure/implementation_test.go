@@ -200,7 +200,7 @@ func (m *mockImplementation) ExchangeAADAccessTokenForACRRefreshToken(ctx contex
 	}))
 
 	return azcontainerregistry.AuthenticationClientExchangeAADAccessTokenForACRRefreshTokenResponse{
-		ACRRefreshToken: azcontainerregistry.ACRRefreshToken{RefreshToken: &m.returnACRToken},
+		RefreshToken: &m.returnACRToken,
 	}, nil
 }
 
@@ -251,9 +251,7 @@ func (m *mockAKSClient) ListClusterUserCredentials(ctx context.Context, resource
 	g.Expect(resourceName).To(Equal(m.argClusterName))
 	g.Expect(options).To(BeNil())
 	return armcontainerservice.ManagedClustersClientListClusterUserCredentialsResponse{
-		CredentialResults: armcontainerservice.CredentialResults{
-			Kubeconfigs: m.returnKubeconfigs,
-		},
+		Kubeconfigs: m.returnKubeconfigs,
 	}, nil
 }
 

@@ -22,7 +22,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
@@ -210,18 +209,14 @@ func TestOptionsFromSpec(t *testing.T) {
 
 func TestOptions_ObjectReferences(t *testing.T) {
 	entitled := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "entitled",
-			Namespace: "namespace",
-			UID:       "entitled-uid",
-		},
+		Name:      "entitled",
+		Namespace: "namespace",
+		UID:       "entitled-uid",
 	}
 	involved := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "involved",
-			Namespace: "namespace",
-			UID:       "involved-uid",
-		},
+		Name:      "involved",
+		Namespace: "namespace",
+		UID:       "involved-uid",
 	}
 	wantEntitled := auth.ObjectReference{
 		APIGroup:  "source.toolkit.fluxcd.io",
@@ -288,7 +283,7 @@ func TestOptions_GenericProviderIdentity(t *testing.T) {
 			opts: []auth.Option{
 				auth.WithServiceAccountName("tenant"),
 				auth.WithObject("", "OCIRepository", &corev1.ServiceAccount{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default"},
+					Namespace: "default",
 				}),
 			},
 			expected: "system:serviceaccount:default:tenant",
@@ -327,7 +322,7 @@ func TestOptions_AWSRoleSessionSubdomain(t *testing.T) {
 			opts: []auth.Option{
 				auth.WithServiceAccountName("tenant"),
 				auth.WithObject("", "OCIRepository", &corev1.ServiceAccount{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default"},
+					Namespace: "default",
 				}),
 				auth.WithAWSRegion("us-east-1"),
 			},

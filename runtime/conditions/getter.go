@@ -24,6 +24,8 @@ the `metav1.Condition` type.
 package conditions
 
 import (
+	"slices"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -174,13 +176,7 @@ func summary(from Getter, t string, options ...MergeOption) *metav1.Condition {
 		}
 
 		if mergeOpt.conditionTypes != nil {
-			found := false
-			for _, tt := range mergeOpt.conditionTypes {
-				if c.Type == tt {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(mergeOpt.conditionTypes, c.Type)
 			if !found {
 				continue
 			}
@@ -196,13 +192,7 @@ func summary(from Getter, t string, options ...MergeOption) *metav1.Condition {
 	// in scope are included in this subset or not.
 	if mergeOpt.addStepCounterIfOnlyConditionTypes != nil {
 		for _, c := range conditionsInScope {
-			found := false
-			for _, tt := range mergeOpt.addStepCounterIfOnlyConditionTypes {
-				if c.Type == tt {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(mergeOpt.addStepCounterIfOnlyConditionTypes, c.Type)
 			if !found {
 				mergeOpt.addStepCounter = false
 				break
@@ -288,13 +278,7 @@ func aggregate(from []Getter, targetCondition string, options ...MergeOption) *m
 		for i, _ := range conditions {
 			c := conditions[i]
 			if mergeOpt.conditionTypes != nil {
-				found := false
-				for _, tt := range mergeOpt.conditionTypes {
-					if c.Type == tt {
-						found = true
-						break
-					}
-				}
+				found := slices.Contains(mergeOpt.conditionTypes, c.Type)
 				if !found {
 					continue
 				}
@@ -311,13 +295,7 @@ func aggregate(from []Getter, targetCondition string, options ...MergeOption) *m
 	// in scope are included in this subset or not.
 	if mergeOpt.addCounterOnlyIfConditionTypes != nil {
 		for _, c := range conditionsInScope {
-			found := false
-			for _, tt := range mergeOpt.addCounterOnlyIfConditionTypes {
-				if c.Type == tt {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(mergeOpt.addCounterOnlyIfConditionTypes, c.Type)
 			if !found {
 				mergeOpt.addCounter = false
 				break
@@ -329,13 +307,7 @@ func aggregate(from []Getter, targetCondition string, options ...MergeOption) *m
 	// in scope are included in this subset or not.
 	if mergeOpt.addSourceRefIfConditionTypes != nil {
 		for _, c := range conditionsInScope {
-			found := false
-			for _, tt := range mergeOpt.addSourceRefIfConditionTypes {
-				if c.Type == tt {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(mergeOpt.addSourceRefIfConditionTypes, c.Type)
 			if found {
 				mergeOpt.addSourceRef = true
 				break

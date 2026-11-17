@@ -24,7 +24,6 @@ import (
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v4/pkg/chart/common"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -73,7 +72,7 @@ nested: value
 other: values
 `,
 			want: common.Values{
-				"flat": map[string]interface{}{
+				"flat": map[string]any{
 					"nested": "value",
 				},
 				"nested": "value",
@@ -94,9 +93,9 @@ other: values
 				},
 			},
 			want: common.Values{
-				"merge": map[string]interface{}{
-					"at": map[string]interface{}{
-						"specific": map[string]interface{}{
+				"merge": map[string]any{
+					"at": map[string]any{
+						"specific": map[string]any{
 							"path": "value",
 						},
 					},
@@ -139,8 +138,8 @@ nested:
 `,
 			want: common.Values{
 				"flat": "value",
-				"nested": map[string]interface{}{
-					"configuration": []interface{}{"value", "item", "option"},
+				"nested": map[string]any{
+					"configuration": []any{"value", "item", "option"},
 				},
 			},
 		},
@@ -176,8 +175,8 @@ other: values
 `,
 			want: common.Values{
 				"flat": "value",
-				"nested": map[string]interface{}{
-					"configuration": []interface{}{"list", "foo", "option"},
+				"nested": map[string]any{
+					"configuration": []any{"list", "foo", "option"},
 				},
 				"other": "values",
 			},
@@ -404,8 +403,8 @@ invalid`,
 				},
 			},
 			want: common.Values{
-				"externalConfig": map[string]interface{}{
-					"application.yml": map[string]interface{}{
+				"externalConfig": map[string]any{
+					"application.yml": map[string]any{
 						"content": "server:\n  port: 8080\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: [ \"prometheus\", \"health\" ]\n",
 					},
 				},
@@ -428,8 +427,8 @@ invalid`,
 				},
 			},
 			want: common.Values{
-				"externalConfig": map[string]interface{}{
-					"application.conf": map[string]interface{}{
+				"externalConfig": map[string]any{
+					"application.conf": map[string]any{
 						"content": "kafka {\n  bootstrap = \"b-1:9098,b-2:9098\"\n  group = \"my.service\"\n}\n",
 					},
 				},
@@ -497,7 +496,7 @@ invalid`,
 				},
 			},
 			want: common.Values{
-				"kafka": map[string]interface{}{
+				"kafka": map[string]any{
 					"brokers": "kafka01.net:9092,kafka02.net:9092,kafka03.net:9092",
 				},
 			},
@@ -509,7 +508,7 @@ invalid`,
 			g := NewWithT(t)
 
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tt.resources...)
-			var values map[string]interface{}
+			var values map[string]any
 			if tt.values != "" {
 				m, err := common.ReadValues([]byte(tt.values))
 				g.Expect(err).ToNot(HaveOccurred())
@@ -568,15 +567,15 @@ func TestReplacePathValue(t *testing.T) {
 		name    string
 		value   []byte
 		path    string
-		want    map[string]interface{}
+		want    map[string]any
 		wantErr bool
 	}{
 		{
 			name:  "outer inner",
 			value: []byte("value"),
 			path:  "outer.inner",
-			want: map[string]interface{}{
-				"outer": map[string]interface{}{
+			want: map[string]any{
+				"outer": map[string]any{
 					"inner": "value",
 				},
 			},
@@ -585,16 +584,16 @@ func TestReplacePathValue(t *testing.T) {
 			name:  "inline list",
 			value: []byte("{a,b,c}"),
 			path:  "name",
-			want: map[string]interface{}{
+			want: map[string]any{
 				// TODO(hidde): figure out why the cap is off by len+1
-				"name": append(make([]interface{}, 0, 4), []interface{}{"a", "b", "c"}...),
+				"name": append(make([]any, 0, 4), []any{"a", "b", "c"}...),
 			},
 		},
 		{
 			name:  "with escape",
 			value: []byte(`value1\,value2`),
 			path:  "name",
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "value1,value2",
 			},
 		},
@@ -603,9 +602,9 @@ func TestReplacePathValue(t *testing.T) {
 			value: []byte("true"),
 			path:  "merge.at.specific.path",
 			want: common.Values{
-				"merge": map[string]interface{}{
-					"at": map[string]interface{}{
-						"specific": map[string]interface{}{
+				"merge": map[string]any{
+					"at": map[string]any{
+						"specific": map[string]any{
 							"path": true,
 						},
 					},
@@ -617,9 +616,9 @@ func TestReplacePathValue(t *testing.T) {
 			value: []byte(`"true"`),
 			path:  "merge.at.specific.path",
 			want: common.Values{
-				"merge": map[string]interface{}{
-					"at": map[string]interface{}{
-						"specific": map[string]interface{}{
+				"merge": map[string]any{
+					"at": map[string]any{
+						"specific": map[string]any{
 							"path": "true",
 						},
 					},
@@ -631,8 +630,8 @@ func TestReplacePathValue(t *testing.T) {
 			value: []byte("value"),
 			path:  "merge.at[2]",
 			want: common.Values{
-				"merge": map[string]interface{}{
-					"at": []interface{}{nil, nil, "value"},
+				"merge": map[string]any{
+					"at": []any{nil, nil, "value"},
 				},
 			},
 		},
@@ -640,8 +639,8 @@ func TestReplacePathValue(t *testing.T) {
 			name:  "dot sequence escaping path",
 			value: []byte("master"),
 			path:  `nodeSelector.kubernetes\.io/role`,
-			want: map[string]interface{}{
-				"nodeSelector": map[string]interface{}{
+			want: map[string]any{
+				"nodeSelector": map[string]any{
 					"kubernetes.io/role": "master",
 				},
 			},
@@ -650,7 +649,7 @@ func TestReplacePathValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			values := map[string]interface{}{}
+			values := map[string]any{}
 			err := ReplacePathValue(values, tt.path, string(tt.value))
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
@@ -670,15 +669,15 @@ func TestReplacePathLiteralValue(t *testing.T) {
 		name    string
 		value   []byte
 		path    string
-		want    map[string]interface{}
+		want    map[string]any
 		wantErr bool
 	}{
 		{
 			name:  "simple string",
 			value: []byte("value"),
 			path:  "outer.inner",
-			want: map[string]interface{}{
-				"outer": map[string]interface{}{
+			want: map[string]any{
+				"outer": map[string]any{
 					"inner": "value",
 				},
 			},
@@ -687,7 +686,7 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "value with commas is preserved",
 			value: []byte("a,b,c"),
 			path:  "name",
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "a,b,c",
 			},
 		},
@@ -695,7 +694,7 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "value with braces is preserved (not parsed as inline list)",
 			value: []byte("{a,b,c}"),
 			path:  "name",
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "{a,b,c}",
 			},
 		},
@@ -703,7 +702,7 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "value with equals signs is preserved",
 			value: []byte("foo=bar=baz"),
 			path:  "name",
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "foo=bar=baz",
 			},
 		},
@@ -711,7 +710,7 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "value with brackets is preserved (not parsed as array index)",
 			value: []byte("endpoints: [a, b, c]"),
 			path:  "config",
-			want: map[string]interface{}{
+			want: map[string]any{
 				"config": "endpoints: [a, b, c]",
 			},
 		},
@@ -719,9 +718,9 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "multi-line YAML content is preserved verbatim",
 			value: []byte("server:\n  port: 8080\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: [ \"prometheus\", \"health\" ]\n"),
 			path:  `externalConfig.application\.yml.content`,
-			want: map[string]interface{}{
-				"externalConfig": map[string]interface{}{
-					"application.yml": map[string]interface{}{
+			want: map[string]any{
+				"externalConfig": map[string]any{
+					"application.yml": map[string]any{
 						"content": "server:\n  port: 8080\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: [ \"prometheus\", \"health\" ]\n",
 					},
 				},
@@ -731,9 +730,9 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "HOCON content with equals and quoted strings is preserved",
 			value: []byte("kafka {\n  bootstrap = \"b-1:9098,b-2:9098\"\n  group = \"svc.consumer\"\n}\n"),
 			path:  `externalConfig.application\.conf.content`,
-			want: map[string]interface{}{
-				"externalConfig": map[string]interface{}{
-					"application.conf": map[string]interface{}{
+			want: map[string]any{
+				"externalConfig": map[string]any{
+					"application.conf": map[string]any{
 						"content": "kafka {\n  bootstrap = \"b-1:9098,b-2:9098\"\n  group = \"svc.consumer\"\n}\n",
 					},
 				},
@@ -743,7 +742,7 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "JSON string is preserved verbatim (no escape needed)",
 			value: []byte(`["a","b","c"]`),
 			path:  "subnet_ids",
-			want: map[string]interface{}{
+			want: map[string]any{
 				"subnet_ids": `["a","b","c"]`,
 			},
 		},
@@ -751,8 +750,8 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "boolean-like string stays a string",
 			value: []byte("true"),
 			path:  "feature.enabled",
-			want: map[string]interface{}{
-				"feature": map[string]interface{}{
+			want: map[string]any{
+				"feature": map[string]any{
 					"enabled": "true",
 				},
 			},
@@ -761,8 +760,8 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "dot escape in path still works",
 			value: []byte("master"),
 			path:  `nodeSelector.kubernetes\.io/role`,
-			want: map[string]interface{}{
-				"nodeSelector": map[string]interface{}{
+			want: map[string]any{
+				"nodeSelector": map[string]any{
 					"kubernetes.io/role": "master",
 				},
 			},
@@ -774,8 +773,8 @@ func TestReplacePathLiteralValue(t *testing.T) {
 			name:  "flux2#2625 kafka broker list with host:port and commas",
 			value: []byte("kafka01.net:9092,kafka02.net:9092,kafka03.net:9092"),
 			path:  "kafka.brokers",
-			want: map[string]interface{}{
-				"kafka": map[string]interface{}{
+			want: map[string]any{
+				"kafka": map[string]any{
 					"brokers": "kafka01.net:9092,kafka02.net:9092,kafka03.net:9092",
 				},
 			},
@@ -784,7 +783,7 @@ func TestReplacePathLiteralValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			values := map[string]interface{}{}
+			values := map[string]any{}
 			err := ReplacePathLiteralValue(values, tt.path, string(tt.value))
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
@@ -798,22 +797,18 @@ func TestReplacePathLiteralValue(t *testing.T) {
 
 func mockSecret(name string, data map[string][]byte) *corev1.Secret {
 	return &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       kindSecret,
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Kind:       kindSecret,
+		APIVersion: "v1",
+		Name:       name,
 		Data:       data,
 	}
 }
 
 func mockConfigMap(name string, data map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       kindConfigMap,
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Kind:       kindConfigMap,
+		APIVersion: "v1",
+		Name:       name,
 		Data:       data,
 	}
 }

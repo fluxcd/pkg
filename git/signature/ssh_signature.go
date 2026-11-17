@@ -177,8 +177,7 @@ func (s *SSHSigner) Sign(r io.Reader) ([]byte, error) {
 func NewSSHSigner(pem, passphrase []byte) (Signer, error) {
 	inner, err := gossh.ParsePrivateKey(pem)
 	if err != nil {
-		var missingErr *gossh.PassphraseMissingError
-		if !errors.As(err, &missingErr) {
+		if _, ok := errors.AsType[*gossh.PassphraseMissingError](err); !ok {
 			return nil, fmt.Errorf("could not parse SSH signing key: %w", err)
 		}
 		if len(passphrase) == 0 {

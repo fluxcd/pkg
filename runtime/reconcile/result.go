@@ -189,7 +189,7 @@ func (rs ResultFinalizer) Finalize(obj conditions.Setter, res ctrl.Result, recEr
 // - there's no existing Ready condition in the status
 // - Ready=Unknown
 // - drift is detected
-func ProgressiveStatus(drift bool, obj conditions.Setter, reason, messageFormat string, messageArgs ...interface{}) {
+func ProgressiveStatus(drift bool, obj conditions.Setter, reason, messageFormat string, messageArgs ...any) {
 	conditions.MarkReconciling(obj, reason, messageFormat, messageArgs...)
 	if drift || !conditions.Has(obj, meta.ReadyCondition) || conditions.IsUnknown(obj, meta.ReadyCondition) {
 		conditions.MarkUnknown(obj, meta.ReadyCondition, reason, messageFormat, messageArgs...)

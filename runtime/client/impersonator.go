@@ -23,7 +23,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -88,14 +87,10 @@ func (i *Impersonator) CanImpersonate(ctx context.Context) bool {
 	}
 
 	sa := &corev1.ServiceAccount{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ServiceAccount",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: i.serviceAccountNamespace,
-		},
+		Kind:       "ServiceAccount",
+		APIVersion: "v1",
+		Name:       name,
+		Namespace:  i.serviceAccountNamespace,
 	}
 	if err := i.client.Get(ctx, rc.ObjectKeyFromObject(sa), sa); err != nil {
 		return false

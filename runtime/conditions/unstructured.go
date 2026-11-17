@@ -55,7 +55,7 @@ func UnstructuredSetter(u *unstructured.Unstructured) Setter {
 
 // UnstructuredUnmarshalField is a wrapper around JSON and Unstructured objects to decode and copy a specific field
 // value into an object.
-func UnstructuredUnmarshalField(u *unstructured.Unstructured, v interface{}, fields ...string) error {
+func UnstructuredUnmarshalField(u *unstructured.Unstructured, v any, fields ...string) error {
 	value, found, err := unstructured.NestedFieldNoCopy(u.Object, fields...)
 	if err != nil {
 		return errors.Wrapf(err, "failed to retrieve field %q from %q", strings.Join(fields, "."), u.GroupVersionKind())
@@ -102,7 +102,7 @@ func (c *unstructuredWrapper) GetConditions() []metav1.Condition {
 //   - It's not possible to detect if the object has an empty condition list or if it does not implement conditions;
 //     in both cases the operation returns an empty slice is returned.
 func (c *unstructuredWrapper) SetConditions(conditions []metav1.Condition) {
-	v := make([]interface{}, 0, len(conditions))
+	v := make([]any, 0, len(conditions))
 	for i := range conditions {
 		m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&conditions[i])
 		if err != nil {

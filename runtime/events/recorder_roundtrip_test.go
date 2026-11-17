@@ -23,7 +23,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/fluxcd/pkg/runtime/events/eventstest"
@@ -71,10 +70,8 @@ func TestEventRecorder_RoundTrip(t *testing.T) {
 
 			objName := "webapp-" + sanitize(tt.name)
 			obj := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      objName,
-					Namespace: namespace,
-				},
+				Name:      objName,
+				Namespace: namespace,
 			}
 			g.NoError(env.Client.Create(ctx, obj))
 			t.Cleanup(func() { _ = env.Client.Delete(ctx, obj) })

@@ -36,7 +36,7 @@ func (e AccessDeniedError) Error() string {
 	return string(e)
 }
 
-func accessDeniedErrorf(f string, args ...interface{}) error {
+func accessDeniedErrorf(f string, args ...any) error {
 	return AccessDeniedError(fmt.Sprintf(f, args...))
 }
 

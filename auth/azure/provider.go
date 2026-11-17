@@ -23,7 +23,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -56,9 +55,7 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	o.Apply(opts...)
 
 	azOpts := azidentity.DefaultAzureCredentialOptions{
-		ClientOptions: azcore.ClientOptions{
-			Transport: o.GetHTTPClient(),
-		},
+		Transport: o.GetHTTPClient(),
 	}
 
 	credFunc := p.impl().NewDefaultAzureCredentialWithoutShellOut
@@ -112,9 +109,7 @@ func (p Provider) NewAccessCredentialForIdentity(ctx context.Context, identity a
 	clientID := o.AzureClientID
 
 	azOpts := &azidentity.ClientAssertionCredentialOptions{
-		ClientOptions: azcore.ClientOptions{
-			Transport: o.GetHTTPClient(),
-		},
+		Transport: o.GetHTTPClient(),
 	}
 
 	cred, err := p.impl().NewClientAssertionCredential(tenantID, clientID, func(context.Context) (string, error) {
@@ -209,9 +204,7 @@ func (p Provider) NewArtifactRegistryCredentials(ctx context.Context, registry s
 	// Create the ACR authentication client.
 	endpoint := fmt.Sprintf("https://%s", registry)
 	clientOpts := azcontainerregistry.AuthenticationClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Transport: o.GetHTTPClient(),
-		},
+		Transport: o.GetHTTPClient(),
 	}
 	client, err := azcontainerregistry.NewAuthenticationClient(endpoint, &clientOpts)
 	if err != nil {
@@ -313,9 +306,7 @@ func (p Provider) NewRESTConfig(ctx context.Context, accessCredentials []auth.Cr
 
 		// Create client for describing the cluster resource.
 		clientOpts := arm.ClientOptions{
-			ClientOptions: azcore.ClientOptions{
-				Transport: o.GetHTTPClient(),
-			},
+			Transport: o.GetHTTPClient(),
 		}
 		client, err := p.impl().NewManagedClustersClient(
 			subscriptionID, armToken.credential(), &clientOpts)

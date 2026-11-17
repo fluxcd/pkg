@@ -159,8 +159,8 @@ func GetRESTConfig(ctx context.Context,
 	// Build wrapped *rest.Config that will call
 	// auth.GetRESTConfig for every HTTP request.
 	restConfig := &rest.Config{
-		Host:            conf.Host,
-		TLSClientConfig: rest.TLSClientConfig{CAData: conf.CAData},
+		Host:   conf.Host,
+		CAData: conf.CAData,
 	}
 	restConfig.Wrap(func(base http.RoundTripper) http.RoundTripper {
 		return &restConfigRoundTripper{

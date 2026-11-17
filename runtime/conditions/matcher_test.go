@@ -34,7 +34,7 @@ import (
 func TestMatchConditions(t *testing.T) {
 	testCases := []struct {
 		name        string
-		actual      interface{}
+		actual      any
 		expected    []metav1.Condition
 		expectMatch bool
 	}{
@@ -148,7 +148,7 @@ func TestMatchConditions(t *testing.T) {
 func TestMatchCondition(t *testing.T) {
 	testCases := []struct {
 		name        string
-		actual      interface{}
+		actual      any
 		expected    metav1.Condition
 		expectMatch bool
 	}{

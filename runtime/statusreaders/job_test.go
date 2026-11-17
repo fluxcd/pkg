@@ -34,9 +34,7 @@ func Test_jobConditions(t *testing.T) {
 	t.Run("job without Complete condition returns InProgress status", func(t *testing.T) {
 		g := NewWithT(t)
 		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "job",
-			},
+			Name:   "job",
 			Spec:   batchv1.JobSpec{},
 			Status: batchv1.JobStatus{},
 		}
@@ -50,9 +48,7 @@ func Test_jobConditions(t *testing.T) {
 	t.Run("job with Complete condition as True returns Current status", func(t *testing.T) {
 		g := NewWithT(t)
 		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "job",
-			},
+			Name: "job",
 			Spec: batchv1.JobSpec{},
 			Status: batchv1.JobStatus{
 				Conditions: []batchv1.JobCondition{
@@ -75,9 +71,7 @@ func Test_jobConditions(t *testing.T) {
 		g := NewWithT(t)
 		suspend := true
 		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "job",
-			},
+			Name: "job",
 			Spec: batchv1.JobSpec{
 				Suspend: &suspend,
 			},
@@ -94,9 +88,7 @@ func Test_jobConditions(t *testing.T) {
 	t.Run("job with Failed condition as True returns Failed status", func(t *testing.T) {
 		g := NewWithT(t)
 		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "job",
-			},
+			Name: "job",
 			Spec: batchv1.JobSpec{},
 			Status: batchv1.JobStatus{
 				Failed: 1,
@@ -123,9 +115,7 @@ func Test_jobConditions(t *testing.T) {
 		g := NewWithT(t)
 		parallelism := int32(3)
 		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "job",
-			},
+			Name: "job",
 			Spec: batchv1.JobSpec{
 				Parallelism: &parallelism,
 			},
@@ -167,9 +157,7 @@ func Test_jobConditions(t *testing.T) {
 		g := NewWithT(t)
 		now := metav1.Now()
 		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "job",
-			},
+			Name: "job",
 			Spec: batchv1.JobSpec{},
 			Status: batchv1.JobStatus{
 				StartTime: &now,
@@ -215,9 +203,7 @@ func Test_ComputeJobStatus(t *testing.T) {
 	t.Run("returns result from jobConditions on success", func(t *testing.T) {
 		g := NewWithT(t)
 		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "job",
-			},
+			Name: "job",
 			Spec: batchv1.JobSpec{},
 			Status: batchv1.JobStatus{
 				Conditions: []batchv1.JobCondition{

@@ -22,7 +22,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/fluxcd/pkg/runtime/secrets"
@@ -47,11 +46,9 @@ func TestApply(t *testing.T) {
 		{
 			name: "apply new secret with string data",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "test-secret",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
@@ -67,11 +64,9 @@ func TestApply(t *testing.T) {
 		{
 			name: "apply new secret with both string data and data",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret-mixed",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "test-secret-mixed",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
 					"existing": []byte("data"),
 				},
@@ -89,11 +84,9 @@ func TestApply(t *testing.T) {
 		{
 			name: "apply secret with only data (no string data)",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret-data-only",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "test-secret-data-only",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
 					"key": []byte("value"),
 				},
@@ -107,21 +100,17 @@ func TestApply(t *testing.T) {
 		{
 			name: "apply secret that merges existing mutable secret",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-mutable",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "existing-mutable",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"test1": "new",
 				},
 			},
 			existingSecret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-mutable",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "existing-mutable",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
 					"test1": []byte("old"),
 					"test2": []byte("old"),
@@ -137,22 +126,18 @@ func TestApply(t *testing.T) {
 		{
 			name: "apply secret that replaces existing immutable secret",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-immutable",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "existing-immutable",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"new": "data",
 				},
 				Immutable: &immutable,
 			},
 			existingSecret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-immutable",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "existing-immutable",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
 					"old": []byte("immutable-data"),
 				},
@@ -166,11 +151,9 @@ func TestApply(t *testing.T) {
 		{
 			name: "apply secret that replaces existing secret with different type",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-type",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeBasicAuth,
+				Name:      "existing-type",
+				Namespace: ns,
+				Type:      corev1.SecretTypeBasicAuth,
 				Data: map[string][]byte{
 					"username": []byte("val"),
 					"password": []byte("val"),
@@ -178,11 +161,9 @@ func TestApply(t *testing.T) {
 				Immutable: &immutable,
 			},
 			existingSecret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-type",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "existing-type",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
 					"old": []byte("data"),
 				},
@@ -196,21 +177,17 @@ func TestApply(t *testing.T) {
 		{
 			name: "fails to apply immutable secret with different data",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-immutable-fail",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "existing-immutable-fail",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"new": "data",
 				},
 			},
 			existingSecret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-immutable-fail",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "existing-immutable-fail",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
 					"old": []byte("immutable-data"),
 				},
@@ -222,21 +199,17 @@ func TestApply(t *testing.T) {
 		{
 			name: "fails to apply secret with different type",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-auth-fail",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "existing-auth-fail",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"new": "data",
 				},
 			},
 			existingSecret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-auth-fail",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeBasicAuth,
+				Name:      "existing-auth-fail",
+				Namespace: ns,
+				Type:      corev1.SecretTypeBasicAuth,
 				Data: map[string][]byte{
 					"username": []byte("val"),
 					"password": []byte("val"),
@@ -311,11 +284,9 @@ func TestApply_Options(t *testing.T) {
 		{
 			name: "apply secret with labels",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret-labels",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "test-secret-labels",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"key": "value",
 				},
@@ -336,11 +307,9 @@ func TestApply_Options(t *testing.T) {
 		{
 			name: "apply secret with annotations",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret-annotations",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "test-secret-annotations",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"key": "value",
 				},
@@ -361,11 +330,9 @@ func TestApply_Options(t *testing.T) {
 		{
 			name: "apply secret with immutable flag",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret-immutable",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "test-secret-immutable",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"key": "value",
 				},
@@ -382,11 +349,9 @@ func TestApply_Options(t *testing.T) {
 		{
 			name: "apply secret with all options",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret-all-options",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "test-secret-all-options",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"username": "admin",
 					"password": "secret",
@@ -432,15 +397,13 @@ func TestApply_Options(t *testing.T) {
 		{
 			name: "apply secret with existing labels and annotations (merge)",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret-merge",
-					Namespace: ns,
-					Labels: map[string]string{
-						"existing-label": "existing-value",
-					},
-					Annotations: map[string]string{
-						"existing-annotation": "existing-value",
-					},
+				Name:      "test-secret-merge",
+				Namespace: ns,
+				Labels: map[string]string{
+					"existing-label": "existing-value",
+				},
+				Annotations: map[string]string{
+					"existing-annotation": "existing-value",
 				},
 				Type: corev1.SecretTypeOpaque,
 				StringData: map[string]string{
@@ -471,11 +434,9 @@ func TestApply_Options(t *testing.T) {
 		{
 			name: "apply secret with no options (default behavior)",
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret-no-options",
-					Namespace: ns,
-				},
-				Type: corev1.SecretTypeOpaque,
+				Name:      "test-secret-no-options",
+				Namespace: ns,
+				Type:      corev1.SecretTypeOpaque,
 				StringData: map[string]string{
 					"key": "value",
 				},

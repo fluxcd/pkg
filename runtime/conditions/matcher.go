@@ -43,19 +43,19 @@ type matchConditions struct {
 	expected []metav1.Condition
 }
 
-func (m matchConditions) Match(actual interface{}) (success bool, err error) {
-	elems := []interface{}{}
+func (m matchConditions) Match(actual any) (success bool, err error) {
+	elems := []any{}
 	for _, condition := range m.expected {
 		elems = append(elems, MatchCondition(condition))
 	}
 	return ConsistOf(elems).Match(actual)
 }
 
-func (m matchConditions) FailureMessage(actual interface{}) (message string) {
+func (m matchConditions) FailureMessage(actual any) (message string) {
 	return fmt.Sprintf("expected\n\t%#v\nto match\n\t%#v\n", actual, m.expected)
 }
 
-func (m matchConditions) NegatedFailureMessage(actual interface{}) (message string) {
+func (m matchConditions) NegatedFailureMessage(actual any) (message string) {
 	return fmt.Sprintf("expected\n\t%#v\nto not match\n\t%#v\n", actual, m.expected)
 }
 
@@ -70,7 +70,7 @@ type matchCondition struct {
 	expected metav1.Condition
 }
 
-func (m matchCondition) Match(actual interface{}) (success bool, err error) {
+func (m matchCondition) Match(actual any) (success bool, err error) {
 	actualCondition, ok := actual.(metav1.Condition)
 	if !ok {
 		return false, fmt.Errorf("actual should be of type Condition")
@@ -96,10 +96,10 @@ func (m matchCondition) Match(actual interface{}) (success bool, err error) {
 	return ok, err
 }
 
-func (m matchCondition) FailureMessage(actual interface{}) (message string) {
+func (m matchCondition) FailureMessage(actual any) (message string) {
 	return fmt.Sprintf("expected\n\t%#v\nto match\n\t%#v\n", actual, m.expected)
 }
 
-func (m matchCondition) NegatedFailureMessage(actual interface{}) (message string) {
+func (m matchCondition) NegatedFailureMessage(actual any) (message string) {
 	return fmt.Sprintf("expected\n\t%#v\nto not match\n\t%#v\n", actual, m.expected)
 }

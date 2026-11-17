@@ -378,7 +378,7 @@ func (h *Helper) calculateChanges(after client.Object) (map[string]bool, error) 
 	}
 
 	// Unmarshal patch data into a local map.
-	patchDiff := map[string]interface{}{}
+	patchDiff := map[string]any{}
 	if err := json.Unmarshal(diff, &patchDiff); err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal patch data into a map")
 	}

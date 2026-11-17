@@ -23,7 +23,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	rc "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -37,10 +36,8 @@ func TestCanImpersonate(t *testing.T) {
 	testNamespace := ns.Name
 
 	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "existing-sa",
-			Namespace: testNamespace,
-		},
+		Name:      "existing-sa",
+		Namespace: testNamespace,
 	}
 	g.Expect(testEnv.CreateAndWait(ctx, sa)).To(Succeed())
 
@@ -173,11 +170,9 @@ func TestGetRESTConfigFromSecret(t *testing.T) {
 				SecretRef: &meta.SecretKeyReference{Name: "kc-value"},
 			},
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "kc-value",
-					Namespace: testNamespace,
-				},
-				Data: map[string][]byte{"value": kubeConfig},
+				Name:      "kc-value",
+				Namespace: testNamespace,
+				Data:      map[string][]byte{"value": kubeConfig},
 			},
 		},
 		{
@@ -186,11 +181,9 @@ func TestGetRESTConfigFromSecret(t *testing.T) {
 				SecretRef: &meta.SecretKeyReference{Name: "kc-valueyaml"},
 			},
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "kc-valueyaml",
-					Namespace: testNamespace,
-				},
-				Data: map[string][]byte{"value.yaml": kubeConfig},
+				Name:      "kc-valueyaml",
+				Namespace: testNamespace,
+				Data:      map[string][]byte{"value.yaml": kubeConfig},
 			},
 		},
 		{
@@ -202,11 +195,9 @@ func TestGetRESTConfigFromSecret(t *testing.T) {
 				},
 			},
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "kc-custom",
-					Namespace: testNamespace,
-				},
-				Data: map[string][]byte{"custom-key": kubeConfig},
+				Name:      "kc-custom",
+				Namespace: testNamespace,
+				Data:      map[string][]byte{"custom-key": kubeConfig},
 			},
 		},
 		{
@@ -218,11 +209,9 @@ func TestGetRESTConfigFromSecret(t *testing.T) {
 				},
 			},
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "kc-missingkey",
-					Namespace: testNamespace,
-				},
-				Data: map[string][]byte{"value": kubeConfig},
+				Name:      "kc-missingkey",
+				Namespace: testNamespace,
+				Data:      map[string][]byte{"value": kubeConfig},
 			},
 			wantErrContains: "does not contain a 'missing-key' key",
 		},
@@ -239,11 +228,9 @@ func TestGetRESTConfigFromSecret(t *testing.T) {
 				SecretRef: &meta.SecretKeyReference{Name: "kc-nodefault"},
 			},
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "kc-nodefault",
-					Namespace: testNamespace,
-				},
-				Data: map[string][]byte{"unrelated": kubeConfig},
+				Name:      "kc-nodefault",
+				Namespace: testNamespace,
+				Data:      map[string][]byte{"unrelated": kubeConfig},
 			},
 			wantErrContains: "does not contain a 'value' key",
 		},
@@ -253,10 +240,8 @@ func TestGetRESTConfigFromSecret(t *testing.T) {
 				SecretRef: &meta.SecretKeyReference{Name: "kc-tokenfile"},
 			},
 			secret: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "kc-tokenfile",
-					Namespace: testNamespace,
-				},
+				Name:      "kc-tokenfile",
+				Namespace: testNamespace,
 				Data: map[string][]byte{"value": []byte(`apiVersion: v1
 kind: Config
 clusters:
@@ -312,10 +297,8 @@ func TestGetClient_KubeConfigFromSecret(t *testing.T) {
 	testNamespace := ns.Name
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kubeconfig",
-			Namespace: testNamespace,
-		},
+		Name:      "kubeconfig",
+		Namespace: testNamespace,
 		Data: map[string][]byte{
 			"value.yaml": kubeConfig,
 		},
@@ -351,10 +334,8 @@ func TestGetClient_KubeConfigFromSecret(t *testing.T) {
 		g := NewWithT(t)
 
 		sa := &corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-sa",
-				Namespace: testNamespace,
-			},
+			Name:      "test-sa",
+			Namespace: testNamespace,
 		}
 		g.Expect(testEnv.CreateAndWait(ctx, sa)).To(Succeed())
 

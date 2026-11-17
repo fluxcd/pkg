@@ -65,19 +65,19 @@ func TestMaskSecretPatchData(t *testing.T) {
 		{
 			name: "masks rationalized replace data values",
 			patch: jsondiff.Patch{
-				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
+				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]any{
 					"foo": "bar",
 					"bar": "foo",
-				}, Value: map[string]interface{}{
+				}, Value: map[string]any{
 					"foo": "baz",
 					"bar": "baz",
 				}},
 			},
 			want: jsondiff.Patch{
-				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
+				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]any{
 					"foo": sensitiveMaskBefore,
 					"bar": sensitiveMaskBefore,
-				}, Value: map[string]interface{}{
+				}, Value: map[string]any{
 					"foo": sensitiveMaskAfter,
 					"bar": sensitiveMaskAfter,
 				},
@@ -86,13 +86,13 @@ func TestMaskSecretPatchData(t *testing.T) {
 		{
 			name: "masks rationalized add data values",
 			patch: jsondiff.Patch{
-				{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{
+				{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]any{
 					"foo": "baz",
 					"bar": "baz",
 				}},
 			},
 			want: jsondiff.Patch{
-				{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]interface{}{
+				{Type: jsondiff.OperationAdd, Path: "/data", Value: map[string]any{
 					"foo": sensitiveMaskDefault,
 					"bar": sensitiveMaskDefault,
 				}},
@@ -101,13 +101,13 @@ func TestMaskSecretPatchData(t *testing.T) {
 		{
 			name: "masks rationalized remove data values",
 			patch: jsondiff.Patch{
-				{Type: jsondiff.OperationRemove, Path: "/data", OldValue: map[string]interface{}{
+				{Type: jsondiff.OperationRemove, Path: "/data", OldValue: map[string]any{
 					"foo": "bar",
 					"bar": "foo",
 				}},
 			},
 			want: jsondiff.Patch{
-				{Type: jsondiff.OperationRemove, Path: "/data", OldValue: map[string]interface{}{
+				{Type: jsondiff.OperationRemove, Path: "/data", OldValue: map[string]any{
 					"foo": sensitiveMaskDefault,
 					"bar": sensitiveMaskDefault,
 				}},
@@ -116,22 +116,22 @@ func TestMaskSecretPatchData(t *testing.T) {
 		{
 			name: "masks rationalized replace complex data values",
 			patch: jsondiff.Patch{
-				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
+				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]any{
 					// Changed key
 					"foo": "bar",
 					// Removed key
 					"bar": "baz",
-				}, Value: map[string]interface{}{
+				}, Value: map[string]any{
 					"foo": "baz",
 					// Added key
 					"baz": "bar",
 				}},
 			},
 			want: jsondiff.Patch{
-				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]interface{}{
+				{Type: jsondiff.OperationReplace, Path: "/data", OldValue: map[string]any{
 					"foo": sensitiveMaskBefore,
 					"bar": sensitiveMaskDefault,
-				}, Value: map[string]interface{}{
+				}, Value: map[string]any{
 					"foo": sensitiveMaskAfter,
 					"baz": sensitiveMaskDefault,
 				}},

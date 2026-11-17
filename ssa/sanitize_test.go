@@ -39,16 +39,16 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			name: "sanitizes data",
 			input: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    "abc",
 							"password": "123",
 						},
 					},
 				},
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    "abc",
 							"password": "123",
 						},
@@ -57,16 +57,16 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			},
 			want: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    sanitizeMaskDefault,
 							"password": sanitizeMaskDefault,
 						},
 					},
 				},
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    sanitizeMaskDefault,
 							"password": sanitizeMaskDefault,
 						},
@@ -78,16 +78,16 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			name: "sanitizes data with different values",
 			input: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    "abc",
 							"password": "123",
 						},
 					},
 				},
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    "def",
 							"password": "456",
 						},
@@ -96,16 +96,16 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			},
 			want: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    sanitizeMaskBefore,
 							"password": sanitizeMaskBefore,
 						},
 					},
 				},
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    sanitizeMaskAfter,
 							"password": sanitizeMaskAfter,
 						},
@@ -117,16 +117,16 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			name: "sanitizes data with different keys",
 			input: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    "abc",
 							"password": "123",
 						},
 					},
 				},
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"username": "hello",
 							"token":    "abc",
 						},
@@ -135,16 +135,16 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			},
 			want: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token":    sanitizeMaskDefault,
 							"password": sanitizeMaskDefault,
 						},
 					},
 				},
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"username": sanitizeMaskDefault,
 							"token":    sanitizeMaskDefault,
 						},
@@ -157,8 +157,8 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			input: diff{
 				old: nil,
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token": "abc",
 						},
 					},
@@ -167,8 +167,8 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			want: diff{
 				old: nil,
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token": sanitizeMaskDefault,
 						},
 					},
@@ -179,8 +179,8 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			name: "sanitizes old object without new object",
 			input: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token": "abc",
 						},
 					},
@@ -189,8 +189,8 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			},
 			want: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{
+					Object: map[string]any{
+						"data": map[string]any{
 							"token": sanitizeMaskDefault,
 						},
 					},
@@ -201,25 +201,25 @@ func TestSanitizeUnstructuredData(t *testing.T) {
 			name: "sanitizes empty objecct",
 			input: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{},
+					Object: map[string]any{
+						"data": map[string]any{},
 					},
 				},
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{},
+					Object: map[string]any{
+						"data": map[string]any{},
 					},
 				},
 			},
 			want: diff{
 				old: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{},
+					Object: map[string]any{
+						"data": map[string]any{},
 					},
 				},
 				new: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"data": map[string]interface{}{},
+					Object: map[string]any{
+						"data": map[string]any{},
 					},
 				},
 			},

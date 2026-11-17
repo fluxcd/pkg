@@ -24,11 +24,9 @@ import (
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/google/go-containerregistry/pkg/authn"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
@@ -82,12 +80,11 @@ func TestProvider_NewControllerToken(t *testing.T) {
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&aws.Credentials{Credentials: types.Credentials{
+				g.Expect(token).To(Equal(&aws.Credentials{
 					AccessKeyId:     awssdk.String("access-key-id"),
 					SecretAccessKey: awssdk.String(""),
 					SessionToken:    awssdk.String(""),
-					Expiration:      awssdk.Time(time.Time{}),
-				}}))
+					Expiration:      awssdk.Time(time.Time{})}))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
@@ -159,10 +156,8 @@ func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 
 			oidcToken := "oidc-token"
 			serviceAccount := &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: "test-ns",
-				},
+				Name:      "test-sa",
+				Namespace: "test-ns",
 			}
 
 			opts := []auth.Option{
@@ -190,12 +185,11 @@ func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(token).To(Equal(&aws.Credentials{Credentials: types.Credentials{
+				g.Expect(token).To(Equal(&aws.Credentials{
 					AccessKeyId:     awssdk.String("access-key-id"),
 					SecretAccessKey: awssdk.String(""),
 					SessionToken:    awssdk.String(""),
-					Expiration:      awssdk.Time(time.Time{}),
-				}}))
+					Expiration:      awssdk.Time(time.Time{})}))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))

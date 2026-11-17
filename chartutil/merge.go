@@ -16,19 +16,19 @@ limitations under the License.
 
 package chartutil
 
+import "maps"
+
 // MergeMaps merges map b into given map a and returns the result.
 // It allows overwrites of map values with flat values, and vice versa.
 //
 // Originally copied over from https://github.com/helm/helm/blob/v3.3.0/pkg/cli/values/options.go#L88.
-func MergeMaps(a, b map[string]interface{}) map[string]interface{} {
-	out := make(map[string]interface{}, len(a))
-	for k, v := range a {
-		out[k] = v
-	}
+func MergeMaps(a, b map[string]any) map[string]any {
+	out := make(map[string]any, len(a))
+	maps.Copy(out, a)
 	for k, v := range b {
-		if v, ok := v.(map[string]interface{}); ok {
+		if v, ok := v.(map[string]any); ok {
 			if bv, ok := out[k]; ok {
-				if bv, ok := bv.(map[string]interface{}); ok {
+				if bv, ok := bv.(map[string]any); ok {
 					out[k] = MergeMaps(bv, v)
 					continue
 				}

@@ -29,7 +29,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/fluxcd/pkg/runtime/secrets"
@@ -267,11 +266,9 @@ func TestAuthMethodsFromSecret(t *testing.T) {
 			ctx := context.TODO()
 
 			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret",
-					Namespace: "test-namespace",
-				},
-				Data: tt.secretData,
+				Name:      "test-secret",
+				Namespace: "test-namespace",
+				Data:      tt.secretData,
 			}
 
 			result, err := secrets.AuthMethodsFromSecret(ctx, secret, tt.opt...)
