@@ -13,10 +13,10 @@ replace (
 
 require (
 	github.com/cyphar/filepath-securejoin v0.7.0
-	github.com/fluxcd/pkg/apis/meta v1.38.0
-	github.com/fluxcd/pkg/lockedfile v0.9.0
-	github.com/fluxcd/pkg/oci v0.73.0
-	github.com/fluxcd/pkg/sourceignore v0.22.0
+	github.com/fluxcd/pkg/apis/meta v1.39.0
+	github.com/fluxcd/pkg/lockedfile v0.10.0
+	github.com/fluxcd/pkg/oci v0.74.0
+	github.com/fluxcd/pkg/sourceignore v0.23.0
 	github.com/fluxcd/pkg/tar v1.4.0
 	github.com/onsi/gomega v1.44.0
 	github.com/opencontainers/go-digest v1.0.0
