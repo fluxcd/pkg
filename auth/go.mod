@@ -30,7 +30,7 @@ require (
 	github.com/fluxcd/pkg/cache v0.20.0
 	github.com/fluxcd/pkg/spiffe v0.5.0
 	github.com/fluxcd/pkg/ssh v0.31.0
-	github.com/go-jose/go-jose/v4 v4.1.6
+	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
