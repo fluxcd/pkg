@@ -102,9 +102,16 @@ const (
 	// SPIFFE Broker API for acquiring the credential.
 	CredentialProviderSPIFFE = "spiffe"
 
-	// CredentialProviderActionsOIDC is the credential provider that uses the
-	// Github/Forgejo Actions OIDC token endpoint for acquiring the credential.
-	CredentialProviderActionsOIDC = "actionsoidc"
+	// CredentialProviderGitHub is the credential provider that uses the GitHub
+	// Actions OIDC token endpoint for acquiring the credential.
+	CredentialProviderGitHub = "github"
+
+	// CredentialProviderForgejo is the credential provider that uses the
+	// Forgejo Actions OIDC token endpoint for acquiring the credential. It
+	// shares the credential acquisition implementation with the `github`
+	// credential provider, since both Actions platforms expose the same token
+	// endpoint contract.
+	CredentialProviderForgejo = "forgejo"
 )
 
 // Credential type values.
@@ -120,7 +127,8 @@ const (
 // Credential annotation keys.
 const (
 	// AnnotationCredentialProvider specifies the provider that issues the
-	// credential. It must be one of `kubernetes` or `spiffe`.
+	// credential. It must be one of `kubernetes`, `spiffe`, `github` or
+	// `forgejo`.
 	AnnotationCredentialProvider = GroupAuthCredential + "/provider"
 
 	// AnnotationCredentialType specifies the type of the credential.
@@ -130,11 +138,12 @@ const (
 
 	// AnnotationCredentialExpiration specifies the requested expiration time
 	// of the credential as a Go duration string, e.g. `10m` for ten minutes
-	// or `1h` for one hour. The minimum is 10m, the lower bound enforced by the
-	// Kubernetes TokenRequest API. It is supported only by the `kubernetes`
-	// credential provider and is only used for pre-exchange credentials, as we
-	// usually have no control over the expiration for exchanged credentials
-	// (the ones we receive from the exchange).
+	// or `1h` for one hour. It is supported by the `kubernetes` credential
+	// provider, where it is the expiration of the ServiceAccount token and
+	// must be at least 10m (the lower bound enforced by the Kubernetes
+	// TokenRequest API), and by the `dockerhub` service provider, where it is
+	// the expiration of the Docker Hub access token and must be between 5m
+	// and 6h. It is rejected for any other combination.
 	AnnotationCredentialExpiration = GroupAuthCredential + "/expiration"
 
 	// AnnotationCredentialAudiences specifies the target audiences of the
@@ -278,7 +287,7 @@ const (
 )
 
 var (
-	credentialProviderRegexp = regexp.MustCompile(`^(kubernetes|spiffe)$`)
+	credentialProviderRegexp = regexp.MustCompile(`^(kubernetes|spiffe|github|forgejo)$`)
 	credentialTypeRegexp     = regexp.MustCompile(`^(jwt|x509)$`)
 	credentialUsernameRegexp = regexp.MustCompile(`^\S+$`)
 

@@ -274,9 +274,9 @@ func TestOptions_GenericProviderIdentity(t *testing.T) {
 		{
 			name: "explicit identity",
 			opts: []auth.Option{
-				auth.WithIdentity("actionsoidc"),
+				auth.WithIdentity("github"),
 			},
-			expected: "actionsoidc",
+			expected: "github",
 		},
 		{
 			name: "service account fallback",

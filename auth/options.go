@@ -262,8 +262,8 @@ func WithServiceAccountName(name string) Option {
 }
 
 // WithIdentity sets the identity for credential providers that are not backed
-// by a ServiceAccount, e.g. the `actionsoidc` credential provider, and enables
-// credential exchange.
+// by a ServiceAccount, e.g. the `github` and `forgejo` credential providers,
+// and enables credential exchange.
 //
 // The identity is used to identify the workload in provider-specific contexts,
 // such as provider identities and other provider-specific identifiers.
@@ -290,7 +290,7 @@ func WithJWTCredential(credential JWTCredential) Option {
 }
 
 // WithCredentialProvider sets the credential provider, one of `kubernetes`,
-// `spiffe` or `actionsoidc`.
+// `spiffe`, `github` or `forgejo`.
 func WithCredentialProvider(provider string) Option {
 	return func(o *Options) {
 		o.CredentialProvider = provider

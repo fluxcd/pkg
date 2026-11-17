@@ -721,44 +721,53 @@ func TestNewAccessCredentialSPIFFEWorkloadAPICache(t *testing.T) {
 }
 
 func TestNewAccessCredentialActionsOIDC(t *testing.T) {
-	g := NewWithT(t)
 	ctx := context.Background()
 
 	idToken := newTestJWT(t, time.Now().Add(time.Hour))
 
-	var gotAudiences []string
-	var gotAuth string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAudiences = r.URL.Query()["audience"]
-		gotAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"value":"` + idToken + `"}`))
-	}))
-	defer srv.Close()
+	for _, credProvider := range []string{
+		cryptov1.CredentialProviderGitHub,
+		cryptov1.CredentialProviderForgejo,
+	} {
+		t.Run(credProvider, func(t *testing.T) {
+			g := NewWithT(t)
 
-	t.Setenv(actionsoidc.EnvRequestURL, srv.URL+"/token?api-version=2.0")
-	t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+			var gotAudiences []string
+			var gotAuth string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotAudiences = r.URL.Query()["audience"]
+				gotAuth = r.Header.Get("Authorization")
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"value":"` + idToken + `"}`))
+			}))
+			defer srv.Close()
 
-	object := actionsOIDCObject("object")
-	credential, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, idToken),
-		actionsOIDCOptions(object)...)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
-	g.Expect(gotAudiences).To(Equal([]string{"audience1", "audience2"}))
-	g.Expect(gotAuth).To(Equal("bearer request-token"))
+			t.Setenv(actionsoidc.EnvRequestURL, srv.URL+"/token?api-version=2.0")
+			t.Setenv(actionsoidc.EnvRequestToken, "request-token")
+
+			object := actionsOIDCObject("object")
+			credential, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, credProvider, idToken),
+				actionsOIDCOptions(object, credProvider)...)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(credential).To(Equal(&mockCredential{token: "mock-access-token"}))
+			g.Expect(gotAudiences).To(Equal([]string{"audience1", "audience2"}))
+			g.Expect(gotAuth).To(Equal("bearer request-token"))
+		})
+	}
 }
 
 func TestNewAccessCredentialActionsOIDCErrors(t *testing.T) {
 	ctx := context.Background()
 	object := actionsOIDCObject("object")
+	credProvider := cryptov1.CredentialProviderGitHub
 
 	t.Run("missing environment variables", func(t *testing.T) {
 		g := NewWithT(t)
 		t.Setenv(actionsoidc.EnvRequestURL, "")
 		t.Setenv(actionsoidc.EnvRequestToken, "")
 
-		_, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, ""),
-			actionsOIDCOptions(object)...)
+		_, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, credProvider, ""),
+			actionsOIDCOptions(object, credProvider)...)
 		g.Expect(err).To(MatchError(ContainSubstring("failed to fetch Actions OIDC ID token")))
 	})
 
@@ -773,8 +782,8 @@ func TestNewAccessCredentialActionsOIDCErrors(t *testing.T) {
 		t.Setenv(actionsoidc.EnvRequestURL, srv.URL)
 		t.Setenv(actionsoidc.EnvRequestToken, "request-token")
 
-		_, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, ""),
-			actionsOIDCOptions(object)...)
+		_, err := auth.NewAccessCredential(ctx, actionsOIDCMockProvider(t, credProvider, ""),
+			actionsOIDCOptions(object, credProvider)...)
 		g.Expect(err).To(MatchError(ContainSubstring("failed to fetch Actions OIDC ID token: " +
 			"OIDC token request failed with status 403")))
 	})
@@ -800,8 +809,8 @@ func TestNewAccessCredentialActionsOIDCCache(t *testing.T) {
 	tokenCache, err := cache.NewTokenCache(3)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	provider := actionsOIDCMockProvider(t, idToken)
-	opts := append(actionsOIDCOptions(actionsOIDCObject("object")), auth.WithCache(*tokenCache))
+	provider := actionsOIDCMockProvider(t, cryptov1.CredentialProviderGitHub, idToken)
+	opts := append(actionsOIDCOptions(actionsOIDCObject("object"), cryptov1.CredentialProviderGitHub), auth.WithCache(*tokenCache))
 
 	// The first call fetches a token, the second is served from the cache.
 	for range 2 {
@@ -857,24 +866,24 @@ func actionsOIDCObject(name string) *corev1.ServiceAccount {
 	}
 }
 
-func actionsOIDCMockProvider(t *testing.T, idToken string) *mockProvider {
+func actionsOIDCMockProvider(t *testing.T, credProvider, idToken string) *mockProvider {
 	return &mockProvider{
 		t:                       t,
 		returnName:              "mock-provider",
 		returnIdentity:          "mock-identity",
 		returnAccessCredential:  &mockCredential{token: "mock-access-token"},
 		paramAudiences:          []string{"audience1", "audience2"},
-		paramCredentialProvider: cryptov1.CredentialProviderActionsOIDC,
+		paramCredentialProvider: credProvider,
 		paramOIDCToken:          idToken,
 		skipOIDCValidation:      true,
 	}
 }
 
-func actionsOIDCOptions(object *corev1.ServiceAccount) []auth.Option {
+func actionsOIDCOptions(object *corev1.ServiceAccount, credProvider string) []auth.Option {
 	return []auth.Option{
 		auth.WithObject("source.toolkit.fluxcd.io", "OCIRepository", object),
 		auth.WithIdentity("flux-mirror"),
-		auth.WithCredentialProvider(cryptov1.CredentialProviderActionsOIDC),
+		auth.WithCredentialProvider(credProvider),
 		auth.WithCredentialType(cryptov1.CredentialTypeJWT),
 		auth.WithCredentialAudiences("audience1", "audience2"),
 		auth.WithScopes("scope1", "scope2"),

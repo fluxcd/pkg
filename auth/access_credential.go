@@ -132,12 +132,12 @@ func (o *Options) newIdentityCredential(ctx context.Context, audiences []string)
 	case credProvider == cryptov1.CredentialProviderSPIFFE:
 		return o.spiffeWorkloadAPICredential(ctx, audiences)
 
-	case credProvider == cryptov1.CredentialProviderActionsOIDC:
+	case credProvider == cryptov1.CredentialProviderGitHub || credProvider == cryptov1.CredentialProviderForgejo:
 		token, err := actionsoidc.FetchToken(ctx, audiences)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch Actions OIDC ID token: %w", err)
 		}
-		return newJWTCredential(cryptov1.CredentialProviderActionsOIDC, token)
+		return newJWTCredential(credProvider, token)
 
 	default:
 		return nil, fmt.Errorf("credential provider '%s' is not supported", credProvider)
@@ -294,7 +294,7 @@ func buildAccessCredentialCacheKey(provider Provider, audiences []string, provid
 		case credProvider == cryptov1.CredentialProviderSPIFFE:
 			// The Workload API issues the JWT-SVID for the current workload,
 			// not for an object, so there is nothing to add to the cache key.
-		case credProvider == cryptov1.CredentialProviderActionsOIDC:
+		case credProvider == cryptov1.CredentialProviderGitHub || credProvider == cryptov1.CredentialProviderForgejo:
 			// Actions OIDC does not allow choosing a credential identity like
 			// Kubernetes TokenRequest API and SPIFFE Broker API, so there's
 			// nothing to add to the cache key.
