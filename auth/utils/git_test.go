@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -50,6 +52,7 @@ func TestGetGitCredentials(t *testing.T) {
 
 	t.Run("aws", func(t *testing.T) {
 		g := NewWithT(t)
+		isolateAWSEnv(t)
 		region := "us-east-1"
 		t.Setenv("AWS_REGION", region)
 		u, err := url.Parse(fmt.Sprintf("https://git-codecommit.%s.amazonaws.com/v1/repos/repo-name", region))
@@ -66,6 +69,7 @@ func TestGetGitCredentials(t *testing.T) {
 		// region should be extracted automatically so that object-level workload
 		// identity (NewAccessCredentialForIdentity) receives a non-empty STSRegion.
 		g := NewWithT(t)
+		isolateAWSEnv(t)
 		region := "eu-west-1"
 		u, err := url.Parse(fmt.Sprintf("https://git-codecommit.%s.amazonaws.com/v1/repos/repo-name", region))
 		g.Expect(err).ToNot(HaveOccurred())
@@ -77,4 +81,18 @@ func TestGetGitCredentials(t *testing.T) {
 		g.Expect(err.Error()).NotTo(ContainSubstring("an AWS region is required"))
 		g.Expect(p).To(BeNil())
 	})
+}
+
+func isolateAWSEnv(t *testing.T) {
+	t.Helper()
+	g := NewWithT(t)
+	emptyFile := filepath.Join(t.TempDir(), "empty")
+	g.Expect(os.WriteFile(emptyFile, nil, 0644)).ToNot(HaveOccurred())
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", emptyFile)
+	t.Setenv("AWS_CONFIG_FILE", emptyFile)
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 }

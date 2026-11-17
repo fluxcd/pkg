@@ -336,6 +336,10 @@ func Test_defaultKnownHosts(t *testing.T) {
 	os.Setenv("SSH_AUTH_SOCK", listener.Addr().String())
 	defer os.Unsetenv("SSH_AUTH_SOCK")
 
+	emptyKnownHosts := filepath.Join(t.TempDir(), "known_hosts")
+	g.Expect(os.WriteFile(emptyKnownHosts, nil, 0644)).ToNot(HaveOccurred())
+	t.Setenv("SSH_KNOWN_HOSTS", emptyKnownHosts)
+
 	auth, err := transportAuth(&git.AuthOptions{
 		Transport: git.SSH,
 		Username:  "git",
