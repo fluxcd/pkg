@@ -24,7 +24,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/kubernetes"
@@ -41,20 +40,16 @@ func TestGetRESTConfig(t *testing.T) {
 
 	// Create a default service account.
 	defaultServiceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "default",
-			Namespace: "default",
-		},
+		Name:      "default",
+		Namespace: "default",
 	}
 	err := kubeClient.Create(ctx, defaultServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	// Create a lockdown service account for testing lockdown functionality.
 	lockdownServiceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "lockdown-sa",
-			Namespace: "default",
-		},
+		Name:      "lockdown-sa",
+		Namespace: "default",
 	}
 	err = kubeClient.Create(ctx, lockdownServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())

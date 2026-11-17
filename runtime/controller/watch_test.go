@@ -22,7 +22,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -34,36 +33,24 @@ import (
 func Test_WatchOptions_BindFlags(t *testing.T) {
 	objects := []client.Object{
 		&corev1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ConfigMap",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "t0",
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+			Name:       "t0",
+		},
+		&corev1.ConfigMap{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+			Name:       "t1",
+			Labels: map[string]string{
+				"sharding.fluxcd.io/shard": "shard1",
 			},
 		},
 		&corev1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ConfigMap",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "t1",
-				Labels: map[string]string{
-					"sharding.fluxcd.io/shard": "shard1",
-				},
-			},
-		},
-		&corev1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ConfigMap",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "t2",
-				Labels: map[string]string{
-					"sharding.fluxcd.io/shard": "shard2",
-				},
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+			Name:       "t2",
+			Labels: map[string]string{
+				"sharding.fluxcd.io/shard": "shard2",
 			},
 		},
 	}

@@ -69,8 +69,8 @@ func setupRegistryServer(ctx context.Context) error {
 	config.HTTP.Addr = fmt.Sprintf("127.0.0.1:%d", port)
 	config.HTTP.DrainTimeout = time.Duration(10) * time.Second
 	config.Storage = map[string]configuration.Parameters{
-		"inmemory": map[string]interface{}{},
-		"delete":   map[string]interface{}{"enabled": true},
+		"inmemory": map[string]any{},
+		"delete":   map[string]any{"enabled": true},
 	}
 	dockerRegistry, err := registry.NewRegistry(ctx, config)
 	if err != nil {

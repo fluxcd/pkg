@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -63,9 +62,7 @@ func TestMain(m *testing.M) {
 // CreateNamespace creates a namespace with the given generateName.
 func CreateNamespace(ctx context.Context, generateName string) (*corev1.Namespace, error) {
 	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-", generateName),
-		},
+		GenerateName: fmt.Sprintf("%s-", generateName),
 	}
 	if err := testClient.Create(ctx, ns); err != nil {
 		return nil, err

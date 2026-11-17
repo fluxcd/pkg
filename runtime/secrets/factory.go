@@ -24,7 +24,6 @@ import (
 	"net/url"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type emptyCheckable interface {
@@ -40,10 +39,8 @@ func validateRequired[T emptyCheckable](value T, fieldName string) error {
 
 func makeSecret(name, namespace string, secretType corev1.SecretType, stringData map[string]string) *corev1.Secret {
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:       name,
+		Namespace:  namespace,
 		Type:       secretType,
 		StringData: stringData,
 	}

@@ -299,7 +299,7 @@ func (c *LRU[T]) Resize(size int) (int, error) {
 		return 0, nil
 	}
 
-	for i := 0; i < overflow; i++ {
+	for range overflow {
 		c.delete(c.head.next)
 		recordEviction(c.metrics)
 	}

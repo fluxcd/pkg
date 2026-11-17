@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -276,9 +277,7 @@ func TestClient_buildCacheKey_DistinguishesClientID(t *testing.T) {
 			KeyAppInstallationID: []byte("456"),
 			KeyAppPrivateKey:     kp.PrivateKey,
 		}
-		for k, v := range extra {
-			data[k] = v
-		}
+		maps.Copy(data, extra)
 		c, err := New(WithAppData(data))
 		g.Expect(err).ToNot(HaveOccurred())
 		return c
@@ -509,7 +508,7 @@ func TestClient_GetToken_WithSlugReflection(t *testing.T) {
 
 				switch r.URL.Path {
 				case "/app":
-					response, err = json.Marshal(map[string]interface{}{
+					response, err = json.Marshal(map[string]any{
 						"slug": tt.appSlug,
 					})
 					g.Expect(err).ToNot(HaveOccurred())
@@ -628,13 +627,13 @@ func TestClient_GetCredentials_InstallationOwner(t *testing.T) {
 				case "/orgs/" + tt.installationOwner + "/installation":
 					w.WriteHeader(tt.orgStatus)
 					if tt.orgStatus == http.StatusOK {
-						response, err = json.Marshal(map[string]interface{}{"id": 789})
+						response, err = json.Marshal(map[string]any{"id": 789})
 						g.Expect(err).ToNot(HaveOccurred())
 					}
 				case "/users/" + tt.installationOwner + "/installation":
 					w.WriteHeader(tt.userStatus)
 					if tt.userStatus == http.StatusOK {
-						response, err = json.Marshal(map[string]interface{}{"id": 789})
+						response, err = json.Marshal(map[string]any{"id": 789})
 						g.Expect(err).ToNot(HaveOccurred())
 					}
 				case "/app/installations/789/access_tokens":

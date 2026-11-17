@@ -19,6 +19,7 @@ package filesys
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"sigs.k8s.io/kustomize/kyaml/filesys"
@@ -182,12 +183,7 @@ func Test_fsMemory_ReadDir_merged(t *testing.T) {
 	}
 
 	has := func(name string) bool {
-		for _, e := range entries {
-			if e == name {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(entries, name)
 	}
 	if !has("a.txt") {
 		t.Error("should contain disk file a.txt")

@@ -22,7 +22,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -37,12 +36,10 @@ func newEventsTestClient(objs ...client.Object) client.Client {
 func eventFixtures() []client.Object {
 	return []client.Object{
 		&corev1.Event{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "event-1",
-				Namespace: "default",
-				Annotations: map[string]string{
-					"revision": "v1",
-				},
+			Name:      "event-1",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"revision": "v1",
 			},
 			InvolvedObject: corev1.ObjectReference{
 				Name:      "my-kustomization",
@@ -50,30 +47,24 @@ func eventFixtures() []client.Object {
 			},
 		},
 		&corev1.Event{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "event-2",
-				Namespace: "default",
-			},
+			Name:      "event-2",
+			Namespace: "default",
 			InvolvedObject: corev1.ObjectReference{
 				Name:      "my-kustomization",
 				Namespace: "default",
 			},
 		},
 		&corev1.Event{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "event-3",
-				Namespace: "other-ns",
-			},
+			Name:      "event-3",
+			Namespace: "other-ns",
 			InvolvedObject: corev1.ObjectReference{
 				Name:      "my-kustomization",
 				Namespace: "other-ns",
 			},
 		},
 		&corev1.Event{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "event-4",
-				Namespace: "default",
-			},
+			Name:      "event-4",
+			Namespace: "default",
 			InvolvedObject: corev1.ObjectReference{
 				Name:      "other-obj",
 				Namespace: "default",

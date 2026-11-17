@@ -19,6 +19,7 @@ package jsondiff
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/wI2L/jsondiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -138,10 +139,8 @@ func Unstructured(ctx context.Context, c client.Client, obj *unstructured.Unstru
 	}
 
 	// Short-circuit if the object in full is to be ignored.
-	for _, p := range o.IgnorePaths {
-		if p == IgnorePathRoot {
-			return NewDiffForUnstructured(obj, nil, DiffTypeExclude, nil), nil
-		}
+	if slices.Contains(o.IgnorePaths, IgnorePathRoot) {
+		return NewDiffForUnstructured(obj, nil, DiffTypeExclude, nil), nil
 	}
 
 	existingObj := &unstructured.Unstructured{}
@@ -256,7 +255,7 @@ func DiffUnstructured(x, y *unstructured.Unstructured, opts ...jsondiff.Option) 
 // metadata annotations and labels fields set.
 func copyAnnotationsAndLabels(obj *unstructured.Unstructured) *unstructured.Unstructured {
 	c := &unstructured.Unstructured{
-		Object: make(map[string]interface{}),
+		Object: make(map[string]any),
 	}
 
 	// When annotations and labels were missing on the cluster object but present on the desired object, drift

@@ -207,7 +207,7 @@ func TestHistoryTruncate(t *testing.T) {
 	// Add more than HistoryMaxSize snapshots to trigger truncation
 	overflow := HistoryMaxSize + 2
 	digests := make([]string, overflow)
-	for i := 0; i < overflow; i++ {
+	for i := range overflow {
 		digests[i] = "sha256:digest" + string(rune('0'+i))
 		timestamp := baseTime.Add(time.Duration(i) * time.Hour)
 		h.Upsert(digests[i], timestamp, 30*time.Second, "Success", nil)
@@ -219,7 +219,7 @@ func TestHistoryTruncate(t *testing.T) {
 	}
 
 	// Verify the history contains the most recent snapshots in reverse order
-	for i := 0; i < HistoryMaxSize; i++ {
+	for i := range HistoryMaxSize {
 		expectedDigest := digests[overflow-(i+1)]
 		if (*h)[i].Digest != expectedDigest {
 			t.Errorf("expected digest at index %d to be %s, got %s", i, expectedDigest, (*h)[i].Digest)

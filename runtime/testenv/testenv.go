@@ -32,7 +32,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -284,11 +283,9 @@ func (e *Environment) CreateAndWait(ctx context.Context, obj client.Object, opts
 // CreateNamespace creates a new namespace with a generated name.
 func (e *Environment) CreateNamespace(ctx context.Context, generateName string) (*corev1.Namespace, error) {
 	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-", generateName),
-			Labels: map[string]string{
-				"testenv/original-name": generateName,
-			},
+		GenerateName: fmt.Sprintf("%s-", generateName),
+		Labels: map[string]string{
+			"testenv/original-name": generateName,
 		},
 	}
 	if err := e.Client.Create(ctx, ns); err != nil {

@@ -30,6 +30,8 @@ jobs:
         env:
           SKIP_COSIGN_VERIFICATION: true
         run: make test-chunk CHUNK=${{ matrix.chunk }}
+      - name: Check unused code
+        run: make unused
       - name: Check if working tree is dirty
         run: |
           if [[ $(git diff --stat) != '' ]]; then

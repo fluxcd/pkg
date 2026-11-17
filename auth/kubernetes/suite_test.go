@@ -25,7 +25,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -55,9 +54,7 @@ func newTestEnv(t *testing.T, ctx context.Context) (*rest.Config, client.Client,
 
 	// Grant anonymous access to service account issuer discovery.
 	err = envClient.Create(ctx, &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "anonymous-service-account-issuer-discovery",
-		},
+		Name: "anonymous-service-account-issuer-discovery",
 		Subjects: []rbacv1.Subject{
 			{
 				APIGroup: "rbac.authorization.k8s.io",

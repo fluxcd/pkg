@@ -54,7 +54,7 @@ func TestPercent(t *testing.T) {
 			fn := Percent(tt.p, r)
 
 			if tt.p > 0 && tt.p < 1 {
-				for i := 0; i < 100; i++ {
+				for range 100 {
 					lowerBound := float64(tt.duration) * (1 - tt.p)
 					upperBound := float64(tt.duration) * (1 + tt.p)
 

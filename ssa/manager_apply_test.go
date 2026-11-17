@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -69,10 +70,10 @@ func TestApplyOwnershipConflict(t *testing.T) {
 			{name: "new resource"},
 		} {
 			t.Run(method.name+"/"+tt.name, func(t *testing.T) {
-				desired := &unstructured.Unstructured{Object: map[string]interface{}{
+				desired := &unstructured.Unstructured{Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "ConfigMap",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      generateName("ownership"),
 						"namespace": "default",
 					},
@@ -236,26 +237,20 @@ func TestApplyAllStaged_PartialFailure(t *testing.T) {
 	// make sure ClusterRoleBinding and ClusterRole objects can be
 	// applied in the same call to ApplyAllStaged.
 	partialFailureNS := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: partialFailureID,
-		},
+		Name: partialFailureID,
 	}
 	if err := manager.client.Create(ctx, partialFailureNS); err != nil {
 		t.Fatal(err)
 	}
 	partialFailureSA := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      partialFailureID,
-			Namespace: partialFailureID,
-		},
+		Name:      partialFailureID,
+		Namespace: partialFailureID,
 	}
 	if err := manager.client.Create(ctx, partialFailureSA); err != nil {
 		t.Fatal(err)
 	}
 	partialFailureCR := &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: partialFailureID,
-		},
+		Name: partialFailureID,
 		Rules: []rbacv1.PolicyRule{
 			// For applying the manifests from testdata/test12.yaml
 			{
@@ -276,9 +271,7 @@ func TestApplyAllStaged_PartialFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	partialFailureCRB := &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: partialFailureID,
-		},
+		Name: partialFailureID,
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: rbacv1.GroupName,
 			Kind:     "ClusterRole",
@@ -690,9 +683,7 @@ func TestApply_SkipsExcluded(t *testing.T) {
 
 	id := generateName("fix")
 	err := manager.client.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: id,
-		},
+		Name: id,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1476,12 +1467,7 @@ func TestApply_MissingNamespaceErr(t *testing.T) {
 }
 
 func containsItemString(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s, e)
 }
 
 // exampleCert was generated from crypto/tls/generate_cert.go with the following command:
@@ -1650,26 +1636,20 @@ func TestApplyAllStaged_AppliesRoleAndRoleBinding(t *testing.T) {
 
 	// Create a non-cluster-admin client to ensure dry-run checks are not bypassed.
 	customStageNS := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: id,
-		},
+		Name: id,
 	}
 	if err := manager.client.Create(ctx, customStageNS); err != nil {
 		t.Fatal(err)
 	}
 	customStageSA := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      id,
-			Namespace: id,
-		},
+		Name:      id,
+		Namespace: id,
 	}
 	if err := manager.client.Create(ctx, customStageSA); err != nil {
 		t.Fatal(err)
 	}
 	customStageCR := &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: id,
-		},
+		Name: id,
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{"rbac.authorization.k8s.io"},
@@ -1690,9 +1670,7 @@ func TestApplyAllStaged_AppliesRoleAndRoleBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	customStageCRB := &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: id,
-		},
+		Name: id,
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: rbacv1.GroupName,
 			Kind:     "ClusterRole",
@@ -2216,8 +2194,7 @@ func runMigrateAPIVersionScenario(t *testing.T, id string, apply applyFunc) {
 	if err == nil {
 		t.Fatalf("expected apply to fail without MigrateAPIVersion, got nil")
 	}
-	var dryRunErr *ssaerrors.DryRunErr
-	if !errors.As(err, &dryRunErr) {
+	if dryRunErr, ok := errors.AsType[*ssaerrors.DryRunErr](err); !ok {
 		t.Errorf("expected *ssaerrors.DryRunErr, got %T: %v", err, err)
 	} else if !strings.Contains(dryRunErr.Error(), "field not declared in schema") {
 		t.Errorf("expected %q in error, got: %v", "field not declared in schema", dryRunErr)

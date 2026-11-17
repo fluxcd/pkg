@@ -10,6 +10,7 @@ GO_TEST_ARGS ?= -race
 
 # API generation utilities
 CONTROLLER_GEN_VERSION ?= v0.21.0
+GOPLS_VERSION ?= v0.24.0
 
 # Architecture to use envtest with; defaults to the host architecture.
 LOCALARCH ?= $(shell go env GOARCH)
@@ -18,7 +19,7 @@ ENVTEST_ARCH ?= $(LOCALARCH)
 # Kubernetes versions to use envtest with
 ENVTEST_KUBERNETES_VERSION?=1.37
 
-all: tidy generate fmt vet
+all: tidy fix generate fmt vet unused
 
 tidy:
 	$(MAKE) $(addprefix tidy-, $(MODULES))
@@ -32,12 +33,32 @@ fmt:
 fmt-%:
 	cd $(subst :,/,$*); go fmt ./...
 
+# fix modernizes the code with the current toolchain, the way tidy does for go.mod
+# files. It runs in one module per invocation so a failure names the module, and
+# repeats until the diff stops changing.
+fix:
+	$(MAKE) $(addprefix fix-, $(MODULES))
+
+fix-%:
+	@set -e; while :; do \
+		before=$$(git diff --no-ext-diff --no-color HEAD -- '*.go' | cksum); \
+		( cd $(subst :,/,$*) && go fix ./... ); \
+		after=$$(git diff --no-ext-diff --no-color HEAD -- '*.go' | cksum); \
+		if [ "$$before" = "$$after" ]; then break; fi; \
+	done
+
 vet:
 	$(MAKE) $(addprefix vet-, $(MODULES))
 
 vet-%:
 	cd $(subst :,/,$*); go vet ./... ;\
 
+unused: gopls
+	@out=$$($(GOPLS) check -severity=info $$(git ls-files '*.go' | grep -v '^git/internal/e2e/') | grep -E 'unused parameter:| is unused$$' || true); \
+	if [ -n "$$out" ]; then \
+		printf '%s\n' "$$out"; \
+		exit 1; \
+	fi
 
 # Run generate for all modules
 generate:
@@ -73,7 +94,7 @@ test-chunk:
 
 # Run tests
 KUBEBUILDER_ASSETS?="$(shell $(ENVTEST) --arch=$(ENVTEST_ARCH) use -i $(ENVTEST_KUBERNETES_VERSION) --bin-dir=$(ENVTEST_ASSETS_DIR) -p path)"
-test-%: tidy-% generate-% fmt-% vet-% install-envtest
+test-%: tidy-% fix-% generate-% fmt-% vet-% install-envtest
 	cd $(subst :,/,$*); KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test ./... $(GO_TEST_ARGS) -coverprofile cover.out ;\
 
 release-%:
@@ -83,6 +104,12 @@ release-%:
 	git pull
 	git tag "$(REL_PATH)/v$(VER)"
 	git push origin "$(REL_PATH)/v$(VER)"
+
+# Find or download gopls
+GOPLS = $(GOBIN)/gopls
+.PHONY: gopls
+gopls: ## Download gopls locally if necessary.
+	$(call go-install-tool,$(GOPLS),golang.org/x/tools/gopls@$(GOPLS_VERSION))
 
 # Find or download controller-gen
 CONTROLLER_GEN = $(GOBIN)/controller-gen

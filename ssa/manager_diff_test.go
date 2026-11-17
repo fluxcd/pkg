@@ -128,8 +128,8 @@ func TestDiff(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		liveKeys := getKeys(liveObj.Object["data"].(map[string]interface{}))
-		mergedKeys := getKeys(mergedObj.Object["data"].(map[string]interface{}))
+		liveKeys := getKeys(liveObj.Object["data"].(map[string]any))
+		mergedKeys := getKeys(mergedObj.Object["data"].(map[string]any))
 
 		if diff := cmp.Diff(liveKeys, mergedKeys); diff != "" && len(liveKeys) != len(mergedKeys) {
 			t.Errorf("Mismatch from expected value (-want +got):\n%s", diff)
@@ -497,7 +497,7 @@ func TestDiffHPA(t *testing.T) {
 	}
 
 	hpaName, hpa := getFirstObject(objects, "HorizontalPodAutoscaler", id)
-	var metrics []interface{}
+	var metrics []any
 
 	if _, err = manager.ApplyAllStaged(ctx, objects, DefaultApplyOptions()); err != nil {
 		t.Fatal(err)
@@ -623,7 +623,7 @@ func TestHasDrifted_Metadata(t *testing.T) {
 	}
 }
 
-func getKeys(m map[string]interface{}) []string {
+func getKeys(m map[string]any) []string {
 	var keys []string
 	for k := range m {
 		keys = append(keys, k)

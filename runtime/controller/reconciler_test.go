@@ -26,7 +26,6 @@ import (
 	"github.com/fluxcd/pkg/runtime/controller"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/priorityqueue"
@@ -68,29 +67,26 @@ func TestReconciler_HooksToObjectEnqueuedEvents(t *testing.T) {
 
 	// Add some garbage to exercise the garbage collection logic.
 	garbageCtx, garbageCancel, _ := reconciler.ContextWithCancelOnObjectEnqueued(
-		context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{
+		context.Background(), ctrl.Request{
 			Name:      "garbage",
-			Namespace: "default",
-		}})
+			Namespace: "default"})
 	g.Expect(garbageCtx).ToNot(BeNil())
 	g.Expect(garbageCancel).ToNot(BeNil())
 	garbageCancel() // Cancel immediately to create garbage.
 
 	// Add also a listener that will be kept during garbage collection.
 	listenerCtx, listenerCancel, _ := reconciler.ContextWithCancelOnObjectEnqueued(
-		context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{
+		context.Background(), ctrl.Request{
 			Name:      "listener",
-			Namespace: "default",
-		}})
+			Namespace: "default"})
 	g.Expect(listenerCtx).ToNot(BeNil())
 	g.Expect(listenerCancel).ToNot(BeNil())
 	defer listenerCancel() // Cancel at the end of the test to avoid garbage collection.
 
 	// Start object reconciliation in a separate goroutine.
-	obj := ctrl.Request{NamespacedName: types.NamespacedName{
+	obj := ctrl.Request{
 		Name:      "test",
-		Namespace: "default",
-	}}
+		Namespace: "default"}
 	errCh := make(chan error, 1)
 	go func() {
 		_, err := reconciler.Reconcile(context.Background(), obj)
@@ -111,12 +107,10 @@ func TestReconciler_HooksToObjectEnqueuedEvents(t *testing.T) {
 		return []ctrl.Request{obj}
 	}).Create(context.Background(), event.CreateEvent{
 		Object: &corev1.ConfigMap{
-			ObjectMeta: ctrl.ObjectMeta{
-				Name:            "test-cm",
-				Namespace:       "default",
-				UID:             "12345",
-				ResourceVersion: "54321",
-			},
+			Name:            "test-cm",
+			Namespace:       "default",
+			UID:             "12345",
+			ResourceVersion: "54321",
 		},
 	}, priorityqueue.New[ctrl.Request]("test"))
 

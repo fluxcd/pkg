@@ -49,19 +49,19 @@ func filterKsWithIgnoreFiles(ks *kustypes.Kustomization, dirPath string, ignoreP
 	filterFunc := ignoreFileFilter(ignorePatterns, ignoreDomain)
 
 	// filter resources first
-	err = filterSlice(ks, path, &ks.Resources, resourcesField, filterFunc)
+	err = filterSlice(path, &ks.Resources, resourcesField, filterFunc)
 	if err != nil {
 		return err
 	}
 
 	// filter components second
-	err = filterSlice(ks, path, &ks.Components, componentsField, filterFunc)
+	err = filterSlice(path, &ks.Components, componentsField, filterFunc)
 	if err != nil {
 		return err
 	}
 
 	// filter crds third
-	err = filterSlice(ks, path, &ks.Crds, crdsField, filterFunc)
+	err = filterSlice(path, &ks.Crds, crdsField, filterFunc)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func isUrl(s string) bool {
 	return err == nil && u.Scheme != ""
 }
 
-func filterSlice(ks *kustypes.Kustomization, path string, s *[]string, t string, filter filter) error {
+func filterSlice(path string, s *[]string, t string, filter filter) error {
 	start := 0
 	for _, res := range *s {
 		// check if we have a url and skip the source file filters

@@ -119,29 +119,29 @@ func TestApply_DriftIgnoreRules_OptionalFields(t *testing.T) {
 	t.Run("other controllers claim ignored fields", func(t *testing.T) {
 		// VPA controller claims spec.replicas via ForceOwnership.
 		vpaObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
+				"spec": map[string]any{
 					"replicas": int64(5),
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -160,32 +160,32 @@ func TestApply_DriftIgnoreRules_OptionalFields(t *testing.T) {
 		// Monitoring controller claims template annotations via ForceOwnership
 		// with different values to introduce drift in the ignored field.
 		monObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+				"spec": map[string]any{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"annotations": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"annotations": map[string]any{
 								"prometheus.io/scrape": "false",
 								"prometheus.io/port":   "8080",
 							},
-							"labels": map[string]interface{}{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -293,28 +293,28 @@ func TestApply_DriftIgnoreRules_OptionalFields(t *testing.T) {
 		// With adopt behavior, Flux adopts the in-cluster value into its payload,
 		// preserving the value while retaining ownership.
 		vpaObjNoReplicas := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+				"spec": map[string]any{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -478,28 +478,28 @@ func TestApply_DriftIgnoreRules_ImmutableField(t *testing.T) {
 		// Another controller applies with the same selector value. Since the value
 		// matches, both Flux and selector-controller co-own spec.selector.
 		otherObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+				"spec": map[string]any{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -603,23 +603,23 @@ func TestApply_DriftIgnoreRules_ImmutableField(t *testing.T) {
 		// will succeed because Flux's co-ownership preserves the field.
 		// Verify that the field is preserved and both managers maintain their state.
 		selectorObjNoSelector := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+				"spec": map[string]any{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -701,7 +701,7 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 		if !found || len(containers) == 0 {
 			t.Fatal("expected containers to exist after create")
 		}
-		c0 := containers[0].(map[string]interface{})
+		c0 := containers[0].(map[string]any)
 		if c0["image"] != "ghcr.io/stefanprodan/podinfo:6.0.0" {
 			t.Fatalf("expected image 6.0.0 after create, got %v", c0["image"])
 		}
@@ -710,28 +710,28 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 	t.Run("image policy controller claims container image", func(t *testing.T) {
 		// An image policy controller updates the container image and takes ownership.
 		imgObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+				"spec": map[string]any{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.2.0",
 								},
@@ -753,7 +753,7 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 			t.Fatal(err)
 		}
 		containers, _, _ := unstructured.NestedSlice(existing.Object, "spec", "template", "spec", "containers")
-		c0 := containers[0].(map[string]interface{})
+		c0 := containers[0].(map[string]any)
 		if c0["image"] != "ghcr.io/stefanprodan/podinfo:6.2.0" {
 			t.Fatalf("expected image 6.2.0 after image-policy claim, got %v", c0["image"])
 		}
@@ -808,7 +808,7 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 		if !found || len(containers) == 0 {
 			t.Fatal("expected containers to still exist")
 		}
-		c0 := containers[0].(map[string]interface{})
+		c0 := containers[0].(map[string]any)
 		if c0["image"] != "ghcr.io/stefanprodan/podinfo:6.2.0" {
 			t.Errorf("expected image-policy-controller's image 6.2.0 to be preserved, got %v", c0["image"])
 		}
@@ -847,28 +847,28 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 		// required field. The API server rejects an apply payload that omits it.
 		// Verify that image-policy-controller cannot drop the image field.
 		imgObjNoImage := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+				"spec": map[string]any{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name": "podinfod",
 								},
 							},
@@ -895,7 +895,7 @@ func TestApply_DriftIgnoreRules_RequiredMutableField(t *testing.T) {
 		if !found || len(containers) == 0 {
 			t.Fatal("expected containers to still exist after rejected apply")
 		}
-		c0 := containers[0].(map[string]interface{})
+		c0 := containers[0].(map[string]any)
 		if c0["image"] != "ghcr.io/stefanprodan/podinfo:6.2.0" {
 			t.Errorf("expected image 6.2.0 to be preserved after rejected apply, got %v", c0["image"])
 		}
@@ -1055,29 +1055,29 @@ func TestApply_DriftIgnoreRules_SelectorAndPaths(t *testing.T) {
 
 		// VPA claims replicas via ForceOwnership to introduce drift.
 		vpaObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
+				"spec": map[string]any{
 					"replicas": int64(7),
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -1095,31 +1095,31 @@ func TestApply_DriftIgnoreRules_SelectorAndPaths(t *testing.T) {
 
 		// Monitoring controller claims annotations via ForceOwnership.
 		monObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+				"spec": map[string]any{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"annotations": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"annotations": map[string]any{
 								"prometheus.io/scrape": "false",
 							},
-							"labels": map[string]interface{}{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -1254,29 +1254,29 @@ func TestApply_DriftIgnoreRules_SelectorAndPaths(t *testing.T) {
 
 		// VPA claims replicas, introducing drift.
 		vpaObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
+				"spec": map[string]any{
 					"replicas": int64(8),
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -1354,29 +1354,29 @@ func TestApply_DriftIgnoreRules_SelectorAndPaths(t *testing.T) {
 
 		// VPA claims replicas via ForceOwnership to introduce drift in the ignored field.
 		vpaObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
+				"spec": map[string]any{
 					"replicas": int64(9),
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -1464,10 +1464,10 @@ func TestApply_DriftIgnoreRules_CreateSkipsIgnore(t *testing.T) {
 
 	// Build a minimal ConfigMap inline to test create behavior in isolation.
 	ns := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "Namespace",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": id,
 			},
 		},
@@ -1477,14 +1477,14 @@ func TestApply_DriftIgnoreRules_CreateSkipsIgnore(t *testing.T) {
 	}
 
 	cm := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "ConfigMap",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"key1": "value1",
 				"key2": "value2",
 			},
@@ -1582,32 +1582,32 @@ func TestApply_DriftIgnoreRules_CreateSkipsIgnore(t *testing.T) {
 // driftIgnoreTestDeployment creates a minimal Deployment for drift ignore rule testing.
 func driftIgnoreTestDeployment(id string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "apps/v1",
 			"kind":       "Deployment",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"replicas": int64(2),
-				"selector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
 						"app": id,
 					},
 				},
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				"template": map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"prometheus.io/scrape": "true",
 						},
-						"labels": map[string]interface{}{
+						"labels": map[string]any{
 							"app": id,
 						},
 					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name":  "podinfod",
 								"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 							},
@@ -1623,29 +1623,29 @@ func driftIgnoreTestDeployment(id string) *unstructured.Unstructured {
 func vpaClaimReplicas(ctx context.Context, t *testing.T, id string, replicas int64) {
 	t.Helper()
 	vpaObj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "apps/v1",
 			"kind":       "Deployment",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"replicas": replicas,
-				"selector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
 						"app": id,
 					},
 				},
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				"template": map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"app": id,
 						},
 					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name":  "podinfod",
 								"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 							},
@@ -1680,10 +1680,10 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 	t.Run("VPA claimed ignored field", func(t *testing.T) {
 		id := generateName("drift-vpa")
 		ns := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "v1",
 				"kind":       "Namespace",
-				"metadata":   map[string]interface{}{"name": id},
+				"metadata":   map[string]any{"name": id},
 			},
 		}
 		if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
@@ -1798,10 +1798,10 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 	t.Run("client-side edit of ignored field", func(t *testing.T) {
 		id := generateName("drift-cse")
 		ns := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "v1",
 				"kind":       "Namespace",
-				"metadata":   map[string]interface{}{"name": id},
+				"metadata":   map[string]any{"name": id},
 			},
 		}
 		if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
@@ -1923,10 +1923,10 @@ func TestApply_DriftIgnoreRules_NonIgnoredFieldDrift(t *testing.T) {
 	t.Run("no drift in ignored field", func(t *testing.T) {
 		id := generateName("drift-none")
 		ns := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "v1",
 				"kind":       "Namespace",
-				"metadata":   map[string]interface{}{"name": id},
+				"metadata":   map[string]any{"name": id},
 			},
 		}
 		if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
@@ -2168,10 +2168,10 @@ func TestApply_DriftIgnoreRules_TwoPhaseOwnershipLifecycle(t *testing.T) {
 
 	id := generateName("drift-2ph")
 	ns := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "Namespace",
-			"metadata":   map[string]interface{}{"name": id},
+			"metadata":   map[string]any{"name": id},
 		},
 	}
 	if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
@@ -2220,29 +2220,29 @@ func TestApply_DriftIgnoreRules_TwoPhaseOwnershipLifecycle(t *testing.T) {
 		// HPA applies with replicas=2 (same value as Flux) without ForceOwnership.
 		// SSA allows this because the values agree — both managers co-own the field.
 		hpaObj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
+				"spec": map[string]any{
 					"replicas": int64(2),
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -2401,10 +2401,10 @@ func TestApply_DriftIgnoreRules_SharedMutableCoOwnership(t *testing.T) {
 
 	id := generateName("drift-co")
 	ns := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "Namespace",
-			"metadata":   map[string]interface{}{"name": id},
+			"metadata":   map[string]any{"name": id},
 		},
 	}
 	if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
@@ -2426,29 +2426,29 @@ func TestApply_DriftIgnoreRules_SharedMutableCoOwnership(t *testing.T) {
 	// Minimal Deployment for HPA SSA patches.
 	hpaObj := func(replicas int64) *unstructured.Unstructured {
 		return &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      id,
 					"namespace": id,
 				},
-				"spec": map[string]interface{}{
+				"spec": map[string]any{
 					"replicas": replicas,
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
 							"app": id,
 						},
 					},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]any{
 								"app": id,
 							},
 						},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "podinfod",
 									"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 								},
@@ -2577,10 +2577,10 @@ func TestApply_DriftIgnoreRules_ClientSideEditConsequences(t *testing.T) {
 	t.Run("optional field adopts in-cluster value when Flux is sole owner", func(t *testing.T) {
 		id := generateName("drift-cse-opt")
 		ns := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "v1",
 				"kind":       "Namespace",
-				"metadata":   map[string]interface{}{"name": id},
+				"metadata":   map[string]any{"name": id},
 			},
 		}
 		if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
@@ -2663,10 +2663,10 @@ func TestApply_DriftIgnoreRules_ClientSideEditConsequences(t *testing.T) {
 	t.Run("required field adopts in-cluster value when Flux is sole owner", func(t *testing.T) {
 		id := generateName("drift-cse-req")
 		ns := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "v1",
 				"kind":       "Namespace",
-				"metadata":   map[string]interface{}{"name": id},
+				"metadata":   map[string]any{"name": id},
 			},
 		}
 		if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
@@ -2691,7 +2691,7 @@ func TestApply_DriftIgnoreRules_ClientSideEditConsequences(t *testing.T) {
 		}
 		containers, _, _ := unstructured.NestedSlice(existing.Object, "spec", "template", "spec", "containers")
 		if len(containers) > 0 {
-			c0 := containers[0].(map[string]interface{})
+			c0 := containers[0].(map[string]any)
 			c0["image"] = "ghcr.io/stefanprodan/podinfo:6.5.0"
 			containers[0] = c0
 			if err := unstructured.SetNestedSlice(existing.Object, containers, "spec", "template", "spec", "containers"); err != nil {
@@ -2735,7 +2735,7 @@ func TestApply_DriftIgnoreRules_ClientSideEditConsequences(t *testing.T) {
 		if !found || len(containers) == 0 {
 			t.Fatal("expected containers to exist")
 		}
-		c0 := containers[0].(map[string]interface{})
+		c0 := containers[0].(map[string]any)
 		if c0["image"] != "ghcr.io/stefanprodan/podinfo:6.5.0" {
 			t.Errorf("expected client-side image 6.5.0 to be preserved via adopt, got %v", c0["image"])
 		}
@@ -2749,10 +2749,10 @@ func TestApply_DriftIgnoreRules_FieldManagerCleanupInteraction(t *testing.T) {
 
 	id := generateName("drift-cleanup")
 	ns := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "Namespace",
-			"metadata":   map[string]interface{}{"name": id},
+			"metadata":   map[string]any{"name": id},
 		},
 	}
 	if _, err := manager.Apply(ctx, ns, DefaultApplyOptions()); err != nil {
@@ -2896,42 +2896,42 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 	// the given resources block. Sending only name + resources for the
 	// container limits the manager's claim to those fields under
 	// containers[k:name=podinfod] in managedFields.
-	vpaPayload := func(resources map[string]interface{}) *unstructured.Unstructured {
-		container := map[string]interface{}{"name": "podinfod"}
+	vpaPayload := func(resources map[string]any) *unstructured.Unstructured {
+		container := map[string]any{"name": "podinfod"}
 		if resources != nil {
 			container["resources"] = resources
 		}
-		return &unstructured.Unstructured{Object: map[string]interface{}{
+		return &unstructured.Unstructured{Object: map[string]any{
 			"apiVersion": "apps/v1",
 			"kind":       "Deployment",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"spec": map[string]interface{}{
-				"selector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{"app": id},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{"app": id},
 				},
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{"app": id},
+				"template": map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{"app": id},
 					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{container},
+					"spec": map[string]any{
+						"containers": []any{container},
 					},
 				},
 			},
 		}}
 	}
 
-	containerResources := func(obj *unstructured.Unstructured) map[string]interface{} {
+	containerResources := func(obj *unstructured.Unstructured) map[string]any {
 		t.Helper()
 		containers, found, err := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
 		if err != nil || !found || len(containers) == 0 {
 			t.Fatalf("expected at least one container, got found=%v err=%v", found, err)
 		}
-		c0 := containers[0].(map[string]interface{})
-		res, _ := c0["resources"].(map[string]interface{})
+		c0 := containers[0].(map[string]any)
+		res, _ := c0["resources"].(map[string]any)
 		return res
 	}
 
@@ -2943,9 +2943,9 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 	// VPA force-claims containers[0].resources with different values. After
 	// this, Flux must release on the next reconcile because the path is in
 	// the ignore set and another Apply manager owns it.
-	vpaResources := map[string]interface{}{
-		"limits":   map[string]interface{}{"cpu": "4", "memory": "1Gi"},
-		"requests": map[string]interface{}{"cpu": "2", "memory": "256Mi"},
+	vpaResources := map[string]any{
+		"limits":   map[string]any{"cpu": "4", "memory": "1Gi"},
+		"requests": map[string]any{"cpu": "2", "memory": "256Mi"},
 	}
 	if err := manager.client.Patch(ctx, vpaPayload(vpaResources), client.Apply,
 		client.FieldOwner("vpa-controller"), client.ForceOwnership); err != nil {
@@ -2979,11 +2979,11 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 	if res == nil {
 		t.Fatal("expected containers[0].resources to be set")
 	}
-	limits, _ := res["limits"].(map[string]interface{})
+	limits, _ := res["limits"].(map[string]any)
 	if limits["cpu"] != "4" || limits["memory"] != "1Gi" {
 		t.Errorf("expected VPA limits cpu=4 mem=1Gi to be preserved, got %v", limits)
 	}
-	requests, _ := res["requests"].(map[string]interface{})
+	requests, _ := res["requests"].(map[string]any)
 	if requests["cpu"] != "2" || requests["memory"] != "256Mi" {
 		t.Errorf("expected VPA requests cpu=2 mem=256Mi to be preserved, got %v", requests)
 	}
@@ -3001,8 +3001,8 @@ func TestApply_DriftIgnoreRules_ContainerResources(t *testing.T) {
 
 func TestApplyDriftResult_AdoptMissingPath(t *testing.T) {
 	target := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"spec": map[string]interface{}{
+		Object: map[string]any{
+			"spec": map[string]any{
 				"minReadySeconds": int64(9),
 			},
 		},
@@ -3060,12 +3060,12 @@ func TestApply_DriftIgnoreRules_HPAUndeclaredReplicas(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				hpa := &unstructured.Unstructured{Object: map[string]interface{}{
+				hpa := &unstructured.Unstructured{Object: map[string]any{
 					"apiVersion": "autoscaling/v2",
 					"kind":       "HorizontalPodAutoscaler",
-					"metadata":   map[string]interface{}{"name": id, "namespace": id},
-					"spec": map[string]interface{}{
-						"scaleTargetRef": map[string]interface{}{
+					"metadata":   map[string]any{"name": id, "namespace": id},
+					"spec": map[string]any{
+						"scaleTargetRef": map[string]any{
 							"apiVersion": "apps/v1", "kind": "Deployment", "name": id,
 						},
 						"minReplicas": int64(1),

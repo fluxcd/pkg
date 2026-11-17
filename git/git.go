@@ -158,7 +158,7 @@ func (c *Commit) VerifySSH(authorizedKeys ...string) (string, error) {
 
 // ShortMessage returns the first 50 characters of a commit subject.
 func (c *Commit) ShortMessage() string {
-	subject := strings.Split(c.Message, "\n")[0]
+	subject, _, _ := strings.Cut(c.Message, "\n")
 	r := []rune(subject)
 	if len(r) > 50 {
 		return fmt.Sprintf("%s...", string(r[0:50]))

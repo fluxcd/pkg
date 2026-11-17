@@ -41,16 +41,16 @@ func TestSelectorRegex_MatchUnstructured(t *testing.T) {
 				AnnotationSelector: "foo.bar/annotation notin (c)",
 			},
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "name-1",
 						"namespace": "namespace-1",
-						"labels": map[string]interface{}{
+						"labels": map[string]any{
 							"foo.bar/label": "a",
 						},
-						"annotations": map[string]interface{}{
+						"annotations": map[string]any{
 							"foo.bar/annotation": "d",
 						},
 					},
@@ -62,10 +62,10 @@ func TestSelectorRegex_MatchUnstructured(t *testing.T) {
 			name:     "nil selector",
 			selector: nil,
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "anything",
 						"namespace": "anything",
 					},
@@ -79,8 +79,8 @@ func TestSelectorRegex_MatchUnstructured(t *testing.T) {
 				Namespace: "exact-namespace",
 			},
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"namespace": "other-namespace",
 					},
 				},
@@ -93,8 +93,8 @@ func TestSelectorRegex_MatchUnstructured(t *testing.T) {
 				Name: "exact-name",
 			},
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name": "other-name",
 					},
 				},
@@ -109,7 +109,7 @@ func TestSelectorRegex_MatchUnstructured(t *testing.T) {
 				Kind:    "Deployment",
 			},
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "StatefulSet",
 				},
@@ -122,9 +122,9 @@ func TestSelectorRegex_MatchUnstructured(t *testing.T) {
 				LabelSelector: "foo.bar/label in (a, b)",
 			},
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"foo.bar/label": "c",
 						},
 					},
@@ -137,9 +137,9 @@ func TestSelectorRegex_MatchUnstructured(t *testing.T) {
 				AnnotationSelector: "foo.bar/annotation notin (c)",
 			},
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]any{
 							"foo.bar/annotation": "c",
 						},
 					},
@@ -159,16 +159,16 @@ func TestSelectorRegex_MatchUnstructured(t *testing.T) {
 				AnnotationSelector: "foo.bar/annotation notin (c)",
 			},
 			u: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "StatefulSet",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "other-name-1",
 						"namespace": "other-namespace-1",
-						"labels": map[string]interface{}{
+						"labels": map[string]any{
 							"foo.bar/label": "c",
 						},
-						"annotations": map[string]interface{}{
+						"annotations": map[string]any{
 							"foo.bar/annotation": "c",
 						},
 					},

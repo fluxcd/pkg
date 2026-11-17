@@ -320,7 +320,7 @@ func TestHostKeyAlgorithmsDeterministicOrder(t *testing.T) {
 		"github.com " + rsaKeyStr + "\n")
 
 	want := []string{"ecdsa-sha2-nistp256", "ssh-ed25519", "ssh-rsa"}
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		_, got, err := New(blob)
 		if err != nil {
 			t.Fatalf("New: %v", err)

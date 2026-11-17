@@ -29,7 +29,6 @@ import (
 	"github.com/fluxcd/cli-utils/pkg/object"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -110,9 +109,7 @@ func TestStatusReader_Supports(t *testing.T) {
 			ctor, err := cel.NewStatusReader([]kustomize.CustomHealthCheck{{
 				APIVersion: tt.supportedGK.Group + "/v1",
 				Kind:       tt.supportedGK.Kind,
-				HealthCheckExpressions: kustomize.HealthCheckExpressions{
-					Current: "something",
-				},
+				Current:    "something",
 			}})
 			g.Expect(err).NotTo(HaveOccurred())
 
@@ -144,10 +141,8 @@ func TestStatusReader_ReadStatus(t *testing.T) {
 
 	const objName = "test-configmap"
 	err = testEnv.Create(ctx, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      objName,
-			Namespace: objNamespace,
-		},
+		Name:      objName,
+		Namespace: objNamespace,
 		Data: map[string]string{
 			"current":    "true",
 			"inProgress": "true",
@@ -278,9 +273,7 @@ func TestStatusReader_ReadStatusForObject_GroupOnlyHealthCheck(t *testing.T) {
 	// It should apply to any Kind in that group.
 	ctor, err := cel.NewStatusReader([]kustomize.CustomHealthCheck{{
 		APIVersion: "bitnami.com/v1alpha1",
-		HealthCheckExpressions: kustomize.HealthCheckExpressions{
-			Current: "data.current",
-		},
+		Current:    "data.current",
 	}})
 	g.Expect(err).NotTo(HaveOccurred())
 
@@ -320,17 +313,13 @@ func TestStatusReader_ReadStatusForObject_SpecificKindOverridesGroupOnly(t *test
 	ctor, err := cel.NewStatusReader([]kustomize.CustomHealthCheck{
 		{
 			APIVersion: "bitnami.com/v1alpha1",
-			HealthCheckExpressions: kustomize.HealthCheckExpressions{
-				Failed:  "true",
-				Current: "false",
-			},
+			Failed:     "true",
+			Current:    "false",
 		},
 		{
 			APIVersion: "bitnami.com/v1alpha1",
 			Kind:       "SealedSecret",
-			HealthCheckExpressions: kustomize.HealthCheckExpressions{
-				Current: "true",
-			},
+			Current:    "true",
 		},
 	})
 	g.Expect(err).NotTo(HaveOccurred())
@@ -365,16 +354,12 @@ func TestNewStatusReader_DuplicateGroupKindError(t *testing.T) {
 		{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
-			HealthCheckExpressions: kustomize.HealthCheckExpressions{
-				Current: "something",
-			},
+			Current:    "something",
 		},
 		{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
-			HealthCheckExpressions: kustomize.HealthCheckExpressions{
-				Current: "something",
-			},
+			Current:    "something",
 		},
 	})
 
@@ -390,15 +375,11 @@ func TestNewStatusReader_DuplicateGroupOnlyError(t *testing.T) {
 	result, err := cel.NewStatusReader([]kustomize.CustomHealthCheck{
 		{
 			APIVersion: "bitnami.com/v1alpha1",
-			HealthCheckExpressions: kustomize.HealthCheckExpressions{
-				Current: "true",
-			},
+			Current:    "true",
 		},
 		{
 			APIVersion: "bitnami.com/v1alpha1",
-			HealthCheckExpressions: kustomize.HealthCheckExpressions{
-				Current: "true",
-			},
+			Current:    "true",
 		},
 	})
 
@@ -414,9 +395,7 @@ func TestNewStatusReader_CELCompileError(t *testing.T) {
 	result, err := cel.NewStatusReader([]kustomize.CustomHealthCheck{{
 		APIVersion: "v1",
 		Kind:       "ConfigMap",
-		HealthCheckExpressions: kustomize.HealthCheckExpressions{
-			Current: "something.",
-		},
+		Current:    "something.",
 	}})
 
 	g.Expect(err).To(HaveOccurred())
@@ -454,11 +433,9 @@ func TestStatusReader_CustomResourceLifeCycle(t *testing.T) {
 	healthchecks := []kustomize.CustomHealthCheck{{
 		APIVersion: "bitnami.com/v1alpha1",
 		Kind:       "SealedSecret",
-		HealthCheckExpressions: kustomize.HealthCheckExpressions{
-			InProgress: "has(status.observedGeneration) && status.observedGeneration != metadata.generation",
-			Failed:     "status.conditions.filter(e, e.type == 'Synced').all(e, e.status == 'False')",
-			Current:    "status.conditions.filter(e, e.type == 'Synced').all(e, e.status == 'True')",
-		},
+		InProgress: "has(status.observedGeneration) && status.observedGeneration != metadata.generation",
+		Failed:     "status.conditions.filter(e, e.type == 'Synced').all(e, e.status == 'False')",
+		Current:    "status.conditions.filter(e, e.type == 'Synced').all(e, e.status == 'True')",
 	}}
 
 	identifiers := object.ObjMetadataSet{{

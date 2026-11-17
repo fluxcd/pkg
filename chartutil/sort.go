@@ -22,11 +22,11 @@ import (
 	goyaml "go.yaml.in/yaml/v2"
 )
 
-func sortSlice(s []interface{}) {
+func sortSlice(s []any) {
 	for _, item := range s {
 		if nestedMS, ok := item.(goyaml.MapSlice); ok {
 			SortMapSlice(nestedMS)
-		} else if nestedSlice, ok := item.([]interface{}); ok {
+		} else if nestedSlice, ok := item.([]any); ok {
 			sortSlice(nestedSlice)
 		}
 	}
@@ -43,7 +43,7 @@ func SortMapSlice(ms goyaml.MapSlice) {
 	for _, item := range ms {
 		if nestedMS, ok := item.Value.(goyaml.MapSlice); ok {
 			SortMapSlice(nestedMS)
-		} else if nestedSlice, ok := item.Value.([]interface{}); ok {
+		} else if nestedSlice, ok := item.Value.([]any); ok {
 			sortSlice(nestedSlice)
 		}
 	}

@@ -81,7 +81,7 @@ func NewNopRecorder() *FakeRecorder {
 }
 
 // Eventf emits an event with the given message.
-func (f *FakeRecorder) Eventf(obj runtime.Object, related runtime.Object, eventType, reason, action, message string, args ...interface{}) {
+func (f *FakeRecorder) Eventf(obj runtime.Object, related runtime.Object, eventType, reason, action, message string, args ...any) {
 	if f.Events != nil {
 		f.Events <- f.generateEvent(obj, related, nil, eventType, reason, action, message, args...)
 	}
@@ -91,7 +91,7 @@ func (f *FakeRecorder) Eventf(obj runtime.Object, related runtime.Object, eventT
 func (f *FakeRecorder) AnnotatedEventf(obj runtime.Object, related runtime.Object,
 	annotations map[string]string,
 	eventType, reason, action,
-	message string, args ...interface{}) {
+	message string, args ...any) {
 	if f.Events != nil {
 		f.Events <- f.generateEvent(obj, related, annotations, eventType, reason, action, message, args...)
 	}
@@ -117,7 +117,7 @@ func (f *FakeRecorder) GetEvents() (events []corev1.Event) {
 func (f *FakeRecorder) generateEvent(obj runtime.Object, related runtime.Object,
 	annotations map[string]string,
 	eventType, reason, action,
-	message string, args ...interface{}) corev1.Event {
+	message string, args ...any) corev1.Event {
 	event := corev1.Event{
 		InvolvedObject: objectReference(obj, f.IncludeObject),
 		Type:           eventType,

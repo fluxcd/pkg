@@ -27,19 +27,19 @@ import (
 func TestEncode(t *testing.T) {
 	tests := []struct {
 		name        string
-		input       map[string]interface{}
+		input       map[string]any
 		preEncoders []PreEncoder
 		want        []byte
 	}{
 		{
 			name:  "empty map",
-			input: map[string]interface{}{},
+			input: map[string]any{},
 			want: []byte(`{}
 `),
 		},
 		{
 			name: "simple values",
-			input: map[string]interface{}{
+			input: map[string]any{
 				"replicaCount": 3,
 			},
 			want: []byte(`replicaCount: 3
@@ -47,9 +47,9 @@ func TestEncode(t *testing.T) {
 		},
 		{
 			name: "with pre-encoder",
-			input: map[string]interface{}{
+			input: map[string]any{
 				"replicaCount": 3,
-				"image": map[string]interface{}{
+				"image": map[string]any{
 					"repository": "nginx",
 					"tag":        "latest",
 				},
@@ -87,7 +87,7 @@ func BenchmarkEncode(b *testing.B) {
 		b.Fatalf("error reading testdata: %v", err)
 	}
 
-	var data map[string]interface{}
+	var data map[string]any
 	if err = yaml.Unmarshal(v, &data); err != nil {
 		b.Fatalf("error unmarshalling testdata: %v", err)
 	}

@@ -49,7 +49,7 @@ func TestJitteredRequeueInterval(t *testing.T) {
 				lowerBound := float64(tt.res.RequeueAfter) * (1 - p)
 				upperBound := float64(tt.res.RequeueAfter) * (1 + p)
 
-				for i := 0; i < 100; i++ {
+				for range 100 {
 					res := JitteredRequeueInterval(tt.res)
 
 					g.Expect(res.RequeueAfter).To(BeNumerically(">=", lowerBound))
@@ -74,7 +74,7 @@ func TestJitteredIntervalDuration(t *testing.T) {
 	lowerBound := float64(interval) * (1 - p)
 	upperBound := float64(interval) * (1 + p)
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		d := JitteredIntervalDuration(interval)
 
 		g.Expect(d).To(BeNumerically(">=", lowerBound))

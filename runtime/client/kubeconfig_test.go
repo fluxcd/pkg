@@ -46,7 +46,7 @@ func TestKubeConfig(t *testing.T) {
 					Command: "any-command",
 				},
 			},
-			opts:     KubeConfigOptions{Timeout: duration(0)},
+			opts:     KubeConfigOptions{Timeout: new(time.Duration(0))},
 			expected: &rest.Config{},
 		},
 		{
@@ -58,7 +58,7 @@ func TestKubeConfig(t *testing.T) {
 			},
 			opts: KubeConfigOptions{
 				InsecureExecProvider: true,
-				Timeout:              duration(0),
+				Timeout:              new(time.Duration(0)),
 			},
 			expected: &rest.Config{
 				ExecProvider: &api.ExecConfig{
@@ -69,28 +69,22 @@ func TestKubeConfig(t *testing.T) {
 		{
 			description: "ignore TLSClientConfig.Insecure by default",
 			in: &rest.Config{
-				TLSClientConfig: rest.TLSClientConfig{
-					Insecure: true,
-				},
+				Insecure: true,
 			},
-			opts:     KubeConfigOptions{Timeout: duration(0)},
+			opts:     KubeConfigOptions{Timeout: new(time.Duration(0))},
 			expected: &rest.Config{},
 		},
 		{
 			description: "copy TLSClientConfig.Insecure value when enabled on kubeconfigOptions",
 			in: &rest.Config{
-				TLSClientConfig: rest.TLSClientConfig{
-					Insecure: true,
-				},
+				Insecure: true,
 			},
 			opts: KubeConfigOptions{
 				InsecureTLS: true,
-				Timeout:     duration(0),
+				Timeout:     new(time.Duration(0)),
 			},
 			expected: &rest.Config{
-				TLSClientConfig: rest.TLSClientConfig{
-					Insecure: true,
-				},
+				Insecure: true,
 			},
 		},
 		{
@@ -103,14 +97,12 @@ func TestKubeConfig(t *testing.T) {
 				Password:           "password",
 				BearerToken:        "beartoken",
 
-				TLSClientConfig: rest.TLSClientConfig{
-					ServerName: "server-name",
-					CAData:     []byte("CA-data"),
-					CertData:   []byte("cert-data"),
-					KeyData:    []byte("key-data"),
-				},
+				ServerName: "server-name",
+				CAData:     []byte("CA-data"),
+				CertData:   []byte("cert-data"),
+				KeyData:    []byte("key-data"),
 			},
-			opts: KubeConfigOptions{Timeout: duration(0)},
+			opts: KubeConfigOptions{Timeout: new(time.Duration(0))},
 			expected: &rest.Config{
 				Host:               "host",
 				APIPath:            "api-path",
@@ -119,12 +111,10 @@ func TestKubeConfig(t *testing.T) {
 				Password:           "password",
 				BearerToken:        "beartoken",
 
-				TLSClientConfig: rest.TLSClientConfig{
-					ServerName: "server-name",
-					CAData:     []byte("CA-data"),
-					CertData:   []byte("cert-data"),
-					KeyData:    []byte("key-data"),
-				},
+				ServerName: "server-name",
+				CAData:     []byte("CA-data"),
+				CertData:   []byte("cert-data"),
+				KeyData:    []byte("key-data"),
 			},
 		},
 		{
@@ -135,7 +125,7 @@ func TestKubeConfig(t *testing.T) {
 			},
 			opts: KubeConfigOptions{
 				UserAgent: "Flux Remote Apply",
-				Timeout:   duration(30 * time.Second),
+				Timeout:   new(30 * time.Second),
 			},
 			expected: &rest.Config{
 				UserAgent: "Flux Remote Apply",
@@ -161,10 +151,6 @@ func TestKubeConfig(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
-}
-
-func duration(d time.Duration) *time.Duration {
-	return &d
 }
 
 const testKubeConfigInline = `apiVersion: v1

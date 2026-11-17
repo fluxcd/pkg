@@ -21,7 +21,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
@@ -31,9 +30,7 @@ import (
 func TestReconcileRequestedPredicateUpdate(t *testing.T) {
 	getConfigMapWithAnnotations := func(annotations map[string]string) *corev1.ConfigMap {
 		return &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: annotations,
-			},
+			Annotations: annotations,
 		}
 	}
 

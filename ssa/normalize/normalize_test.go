@@ -39,37 +39,33 @@ func TestFromUnstructured(t *testing.T) {
 		{
 			name: "no rules ClusterRole",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "rbac.authorization.k8s.io/v1",
 					"kind":       "ClusterRole",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-clusterrole",
 					},
 				},
 			},
 			want: &rbacv1.ClusterRole{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "rbac.authorization.k8s.io/v1",
-					Kind:       "ClusterRole",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-clusterrole",
-				},
+				APIVersion: "rbac.authorization.k8s.io/v1",
+				Kind:       "ClusterRole",
+				Name:       "test-clusterrole",
 			},
 		},
 		{
 			name: "valid Pod",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Pod",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "test-pod",
 						"namespace": "test-namespace",
 					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name":  "test-container",
 								"image": "test-image",
 							},
@@ -78,14 +74,10 @@ func TestFromUnstructured(t *testing.T) {
 				},
 			},
 			want: &corev1.Pod{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "v1",
-					Kind:       "Pod",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pod",
-					Namespace: "test-namespace",
-				},
+				APIVersion: "v1",
+				Kind:       "Pod",
+				Name:       "test-pod",
+				Namespace:  "test-namespace",
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
@@ -99,19 +91,19 @@ func TestFromUnstructured(t *testing.T) {
 		{
 			name: "valid Deployment",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "test-deployment",
 						"namespace": "test-namespace",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(1),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "test-container",
 										"image": "test-image",
 									},
@@ -122,14 +114,10 @@ func TestFromUnstructured(t *testing.T) {
 				},
 			},
 			want: &appsv1.Deployment{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "apps/v1",
-					Kind:       "Deployment",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
-					Namespace: "test-namespace",
-				},
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       "test-deployment",
+				Namespace:  "test-namespace",
 				Spec: appsv1.DeploymentSpec{
 					Replicas: pointer.Int32(1),
 					Template: corev1.PodTemplateSpec{
@@ -148,10 +136,10 @@ func TestFromUnstructured(t *testing.T) {
 		{
 			name: "unrecognized GroupVersionKind",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "test/v1",
 					"kind":       "Test",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "test-name",
 						"namespace": "test-namespace",
 					},
@@ -185,16 +173,16 @@ func TestFromUnstructuredWithScheme(t *testing.T) {
 		{
 			name: "valid Pod",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Pod",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "test-pod",
 						"namespace": "test-namespace",
 					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name":  "test-container",
 								"image": "test-image",
 							},
@@ -204,14 +192,10 @@ func TestFromUnstructuredWithScheme(t *testing.T) {
 			},
 			scheme: defaultScheme,
 			want: &corev1.Pod{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "v1",
-					Kind:       "Pod",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pod",
-					Namespace: "test-namespace",
-				},
+				APIVersion: "v1",
+				Kind:       "Pod",
+				Name:       "test-pod",
+				Namespace:  "test-namespace",
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
@@ -225,19 +209,19 @@ func TestFromUnstructuredWithScheme(t *testing.T) {
 		{
 			name: "unrecognized Deployment",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "test-deployment",
 						"namespace": "test-namespace",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(1),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "test-container",
 										"image": "test-image",
 									},
@@ -276,17 +260,17 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "adds default port protocol to Pod",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Pod",
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
-								"ports": []interface{}{
-									map[string]interface{}{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
+								"ports": []any{
+									map[string]any{
 										"containerPort": 80,
 									},
-									map[string]interface{}{
+									map[string]any{
 										"containerPort": 8080,
 									},
 								},
@@ -296,27 +280,27 @@ func TestNormalizeUnstructured(t *testing.T) {
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Pod",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name": "",
-								"ports": []interface{}{
-									map[string]interface{}{
+								"ports": []any{
+									map[string]any{
 										"containerPort": int64(80),
 										"protocol":      "TCP",
 									},
-									map[string]interface{}{
+									map[string]any{
 										"containerPort": int64(8080),
 										"protocol":      "TCP",
 									},
 								},
-								"resources": map[string]interface{}{},
+								"resources": map[string]any{},
 							},
 						},
 					},
@@ -326,16 +310,16 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "adds default port protocol to Deployment",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"spec": map[string]interface{}{
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
-										"ports": []interface{}{
-											map[string]interface{}{
+					"spec": map[string]any{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
+										"ports": []any{
+											map[string]any{
 												"containerPort": 80,
 											},
 										},
@@ -347,28 +331,28 @@ func TestNormalizeUnstructured(t *testing.T) {
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"selector": nil,
-						"strategy": map[string]interface{}{},
-						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{},
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"strategy": map[string]any{},
+						"template": map[string]any{
+							"metadata": map[string]any{},
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name": "",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												"protocol":      "TCP",
 											},
 										},
-										"resources": map[string]interface{}{},
+										"resources": map[string]any{},
 									},
 								},
 							},
@@ -380,16 +364,16 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "adds default port protocol to StatefulSet",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "StatefulSet",
-					"spec": map[string]interface{}{
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
-										"ports": []interface{}{
-											map[string]interface{}{
+					"spec": map[string]any{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
+										"ports": []any{
+											map[string]any{
 												"containerPort": 80,
 											},
 										},
@@ -401,33 +385,33 @@ func TestNormalizeUnstructured(t *testing.T) {
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "StatefulSet",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"selector":    nil,
 						"serviceName": "",
-						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{},
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"metadata": map[string]any{},
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name": "",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												"protocol":      "TCP",
 											},
 										},
-										"resources": map[string]interface{}{},
+										"resources": map[string]any{},
 									},
 								},
 							},
 						},
-						"updateStrategy": map[string]interface{}{},
+						"updateStrategy": map[string]any{},
 					},
 				},
 			},
@@ -435,16 +419,16 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "adds default port protocol to DaemonSet",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "DaemonSet",
-					"spec": map[string]interface{}{
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
-										"ports": []interface{}{
-											map[string]interface{}{
+					"spec": map[string]any{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
+										"ports": []any{
+											map[string]any{
 												"containerPort": 80,
 											},
 										},
@@ -456,32 +440,32 @@ func TestNormalizeUnstructured(t *testing.T) {
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "DaemonSet",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"selector": nil,
-						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{},
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"metadata": map[string]any{},
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name": "",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												"protocol":      "TCP",
 											},
 										},
-										"resources": map[string]interface{}{},
+										"resources": map[string]any{},
 									},
 								},
 							},
 						},
-						"updateStrategy": map[string]interface{}{},
+						"updateStrategy": map[string]any{},
 					},
 				},
 			},
@@ -489,16 +473,16 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "adds default port protocol to ReplicaSet",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "ReplicaSet",
-					"spec": map[string]interface{}{
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
-										"ports": []interface{}{
-											map[string]interface{}{
+					"spec": map[string]any{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
+										"ports": []any{
+											map[string]any{
 												"containerPort": 80,
 											},
 										},
@@ -510,27 +494,27 @@ func TestNormalizeUnstructured(t *testing.T) {
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "ReplicaSet",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"selector": nil,
-						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{},
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"metadata": map[string]any{},
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name": "",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												"protocol":      "TCP",
 											},
 										},
-										"resources": map[string]interface{}{},
+										"resources": map[string]any{},
 									},
 								},
 							},
@@ -542,16 +526,16 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "adds default port protocol to Job",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "batch/v1",
 					"kind":       "Job",
-					"spec": map[string]interface{}{
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
-										"ports": []interface{}{
-											map[string]interface{}{
+					"spec": map[string]any{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
+										"ports": []any{
+											map[string]any{
 												"containerPort": 80,
 											},
 										},
@@ -563,26 +547,26 @@ func TestNormalizeUnstructured(t *testing.T) {
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "batch/v1",
 					"kind":       "Job",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"spec": map[string]interface{}{
-						"template": map[string]interface{}{
-							"metadata": map[string]interface{}{},
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+					"spec": map[string]any{
+						"template": map[string]any{
+							"metadata": map[string]any{},
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name": "",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												"protocol":      "TCP",
 											},
 										},
-										"resources": map[string]interface{}{},
+										"resources": map[string]any{},
 									},
 								},
 							},
@@ -594,18 +578,18 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "adds default port protocol to CronJob",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "batch/v1",
 					"kind":       "CronJob",
-					"spec": map[string]interface{}{
-						"jobTemplate": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"template": map[string]interface{}{
-									"spec": map[string]interface{}{
-										"containers": []interface{}{
-											map[string]interface{}{
-												"ports": []interface{}{
-													map[string]interface{}{
+					"spec": map[string]any{
+						"jobTemplate": map[string]any{
+							"spec": map[string]any{
+								"template": map[string]any{
+									"spec": map[string]any{
+										"containers": []any{
+											map[string]any{
+												"ports": []any{
+													map[string]any{
 														"containerPort": 80,
 													},
 												},
@@ -619,29 +603,29 @@ func TestNormalizeUnstructured(t *testing.T) {
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "batch/v1",
 					"kind":       "CronJob",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"spec": map[string]interface{}{
-						"jobTemplate": map[string]interface{}{
-							"metadata": map[string]interface{}{},
-							"spec": map[string]interface{}{
-								"template": map[string]interface{}{
-									"metadata": map[string]interface{}{},
-									"spec": map[string]interface{}{
-										"containers": []interface{}{
-											map[string]interface{}{
+					"spec": map[string]any{
+						"jobTemplate": map[string]any{
+							"metadata": map[string]any{},
+							"spec": map[string]any{
+								"template": map[string]any{
+									"metadata": map[string]any{},
+									"spec": map[string]any{
+										"containers": []any{
+											map[string]any{
 												"name": "",
-												"ports": []interface{}{
-													map[string]interface{}{
+												"ports": []any{
+													map[string]any{
 														"containerPort": int64(80),
 														"protocol":      "TCP",
 													},
 												},
-												"resources": map[string]interface{}{},
+												"resources": map[string]any{},
 											},
 										},
 									},
@@ -656,15 +640,15 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "adds default port protocol to Service",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Service",
-					"spec": map[string]interface{}{
-						"ports": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"ports": []any{
+							map[string]any{
 								"port": 80,
 							},
-							map[string]interface{}{
+							map[string]any{
 								"port": 443,
 							},
 						},
@@ -672,20 +656,20 @@ func TestNormalizeUnstructured(t *testing.T) {
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Service",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"spec": map[string]interface{}{
-						"ports": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"ports": []any{
+							map[string]any{
 								"port":       int64(80),
 								"protocol":   "TCP",
 								"targetPort": int64(0),
 							},
-							map[string]interface{}{
+							map[string]any{
 								"port":       int64(443),
 								"protocol":   "TCP",
 								"targetPort": int64(0),
@@ -698,22 +682,22 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "moves stringData to data in Secret",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Secret",
-					"stringData": map[string]interface{}{
+					"stringData": map[string]any{
 						"foo": "bar",
 					},
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Secret",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
-					"data": map[string]interface{}{
+					"data": map[string]any{
 						"foo": "YmFy",
 					},
 				},
@@ -722,19 +706,19 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "removes status from any object",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "test/v1",
 					"kind":       "Test",
-					"status": map[string]interface{}{
+					"status": map[string]any{
 						"foo": "bar",
 					},
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "test/v1",
 					"kind":       "Test",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
 				},
@@ -743,19 +727,19 @@ func TestNormalizeUnstructured(t *testing.T) {
 		{
 			name: "nil writes creationTimestamp on any object",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "test/v1",
 					"kind":       "Test",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": "2020-01-01T00:00:00Z",
 					},
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "test/v1",
 					"kind":       "Test",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"creationTimestamp": nil,
 					},
 				},
@@ -784,83 +768,83 @@ func TestNormalizeDryRunUnstructured(t *testing.T) {
 		{
 			name: "removes duplicated metrics from v2 HorizontalPodAutoscaler",
 			object: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "autoscaling/v2",
 					"kind":       "HorizontalPodAutoscaler",
-					"spec": map[string]interface{}{
-						"metrics": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"metrics": []any{
+							map[string]any{
 								"type": "Resource",
-								"resource": map[string]interface{}{
+								"resource": map[string]any{
 									"name": "cpu",
-									"target": map[string]interface{}{
+									"target": map[string]any{
 										"type":               "Utilization",
 										"averageUtilization": int64(60),
 									},
 								},
 							},
-							map[string]interface{}{
+							map[string]any{
 								"type": "ContainerResource",
-								"containerResource": map[string]interface{}{
+								"containerResource": map[string]any{
 									"name":      "cpu",
 									"container": "application",
-									"target": map[string]interface{}{
+									"target": map[string]any{
 										"type":               "Utilization",
 										"averageUtilization": int64(60),
 									},
 								},
 							},
-							map[string]interface{}{
+							map[string]any{
 								"type": "Resource",
-								"resource": map[string]interface{}{
+								"resource": map[string]any{
 									"name": "cpu",
-									"target": map[string]interface{}{
+									"target": map[string]any{
 										"type":               "Utilization",
 										"averageUtilization": int64(60),
 									},
 								},
 							},
-							map[string]interface{}{},
+							map[string]any{},
 						},
 					},
 				},
 			},
 			want: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "autoscaling/v2",
 					"kind":       "HorizontalPodAutoscaler",
-					"metadata":   map[string]interface{}{},
-					"spec": map[string]interface{}{
+					"metadata":   map[string]any{},
+					"spec": map[string]any{
 						"maxReplicas": int64(0),
-						"metrics": []interface{}{
-							map[string]interface{}{
+						"metrics": []any{
+							map[string]any{
 								"type": "Resource",
-								"resource": map[string]interface{}{
+								"resource": map[string]any{
 									"name": "cpu",
-									"target": map[string]interface{}{
+									"target": map[string]any{
 										"type":               "Utilization",
 										"averageUtilization": int64(60),
 									},
 								},
 							},
-							map[string]interface{}{
+							map[string]any{
 								"type": "ContainerResource",
-								"containerResource": map[string]interface{}{
+								"containerResource": map[string]any{
 									"name":      "cpu",
 									"container": "application",
-									"target": map[string]interface{}{
+									"target": map[string]any{
 										"type":               "Utilization",
 										"averageUtilization": int64(60),
 									},
 								},
 							},
 						},
-						"scaleTargetRef": map[string]interface{}{
+						"scaleTargetRef": map[string]any{
 							"kind": "",
 							"name": "",
 						},
 					},
-					"status": map[string]interface{}{
+					"status": map[string]any{
 						"currentMetrics":  nil,
 						"desiredReplicas": int64(0),
 					},

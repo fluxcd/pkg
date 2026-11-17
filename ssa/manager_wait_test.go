@@ -94,9 +94,7 @@ func TestWaitForSet(t *testing.T) {
 		}
 
 		opts := &client.SubResourcePatchOptions{
-			PatchOptions: client.PatchOptions{
-				FieldManager: manager.owner.Field,
-			},
+			FieldManager: manager.owner.Field,
 		}
 
 		if err := manager.client.Status().Patch(ctx, clusterCR, client.Apply, opts); err != nil {
@@ -133,10 +131,8 @@ func TestWaitForSet_failFast(t *testing.T) {
 	}
 
 	var clusterDeploy = &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      id,
-			Namespace: id,
-		},
+		Name:      id,
+		Namespace: id,
 	}
 	err = manager.client.Get(ctx, client.ObjectKeyFromObject(deploy), clusterDeploy)
 	if err != nil {
@@ -181,9 +177,7 @@ func TestWaitForSet_failFast(t *testing.T) {
 	}
 
 	opts := &client.SubResourcePatchOptions{
-		PatchOptions: client.PatchOptions{
-			FieldManager: manager.owner.Field,
-		},
+		FieldManager: manager.owner.Field,
 	}
 
 	clusterPvc.SetManagedFields(nil)
@@ -260,10 +254,8 @@ func TestWaitForSet_terminalState(t *testing.T) {
 	}
 
 	var clusterDeploy = &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      id,
-			Namespace: id,
-		},
+		Name:      id,
+		Namespace: id,
 	}
 	err = manager.client.Get(ctx, client.ObjectKeyFromObject(deploy), clusterDeploy)
 	if err != nil {
@@ -308,9 +300,7 @@ func TestWaitForSet_terminalState(t *testing.T) {
 	}
 
 	opts := &client.SubResourcePatchOptions{
-		PatchOptions: client.PatchOptions{
-			FieldManager: manager.owner.Field,
-		},
+		FieldManager: manager.owner.Field,
 	}
 
 	clusterPvc.SetManagedFields(nil)

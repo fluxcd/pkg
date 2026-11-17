@@ -42,10 +42,10 @@ import (
 func TestPatchHelper(t *testing.T) {
 	t.Run("should patch an unstructured object", func(t *testing.T) {
 		obj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"kind":       "Fake",
 				"apiVersion": testdata.FakeGroupVersion.Group + "/" + testdata.FakeGroupVersion.Version,
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"generateName": "test-",
 					"namespace":    "default",
 				},
@@ -73,7 +73,7 @@ func TestPatchHelper(t *testing.T) {
 				return nil
 			}).Should(Succeed())
 
-			obj.Object["status"] = map[string]interface{}{
+			obj.Object["status"] = map[string]any{
 				"observedValue": "arbitrary",
 			}
 			g.Expect(env.Status().Update(ctx, obj)).To(Succeed())
@@ -121,11 +121,9 @@ func TestPatchHelper(t *testing.T) {
 			conditionTime := metav1.Date(2015, 1, 1, 12, 0, 0, 0, metav1.Now().Location())
 
 			obj := &corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					GenerateName: "node-patch-test-",
-					Annotations: map[string]string{
-						"test": "1",
-					},
+				GenerateName: "node-patch-test-",
+				Annotations: map[string]string{
+					"test": "1",
 				},
 			}
 
@@ -175,10 +173,8 @@ func TestPatchHelper(t *testing.T) {
 
 		t.Run("on a testdata.Fake object", func(t *testing.T) {
 			obj := &testdata.Fake{
-				ObjectMeta: metav1.ObjectMeta{
-					GenerateName: "test-",
-					Namespace:    "default",
-				},
+				GenerateName: "test-",
+				Namespace:    "default",
 			}
 
 			t.Run("should set field owner", func(t *testing.T) {
@@ -551,10 +547,8 @@ func TestPatchHelper(t *testing.T) {
 
 	t.Run("Should patch a testdata.Fake", func(t *testing.T) {
 		obj := &testdata.Fake{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-",
-				Namespace:    "default",
-			},
+			GenerateName: "test-",
+			Namespace:    "default",
 		}
 
 		t.Run("add a finalizer", func(t *testing.T) {
@@ -783,10 +777,8 @@ func TestPatchHelper(t *testing.T) {
 
 	t.Run("Should update Status.ObservedGeneration when using WithStatusObservedGeneration option", func(t *testing.T) {
 		obj := &testdata.Fake{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-fake",
-				Namespace:    "default",
-			},
+			GenerateName: "test-fake",
+			Namespace:    "default",
 			Spec: testdata.FakeSpec{
 				Value: "arbitrary",
 			},
@@ -935,17 +927,13 @@ func TestPatchHelper(t *testing.T) {
 		g := NewWithT(t)
 
 		fake := &testdata.Fake{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-",
-				Namespace:    "default",
-			},
+			GenerateName: "test-",
+			Namespace:    "default",
 		}
 
 		node := &corev1.Node{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-node",
-				Namespace:    "default",
-			},
+			GenerateName: "test-node",
+			Namespace:    "default",
 		}
 
 		g.Expect(env.Create(ctx, fake)).To(Succeed())

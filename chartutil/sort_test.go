@@ -27,22 +27,22 @@ import (
 func TestSortMapSlice(t *testing.T) {
 	tests := []struct {
 		name  string
-		input map[string]interface{}
-		want  map[string]interface{}
+		input map[string]any
+		want  map[string]any
 	}{
 		{
 			name:  "empty map",
-			input: map[string]interface{}{},
-			want:  map[string]interface{}{},
+			input: map[string]any{},
+			want:  map[string]any{},
 		},
 		{
 			name: "flat map",
-			input: map[string]interface{}{
+			input: map[string]any{
 				"b": "value-b",
 				"a": "value-a",
 				"c": "value-c",
 			},
-			want: map[string]interface{}{
+			want: map[string]any{
 				"a": "value-a",
 				"b": "value-b",
 				"c": "value-c",
@@ -50,18 +50,18 @@ func TestSortMapSlice(t *testing.T) {
 		},
 		{
 			name: "nested map",
-			input: map[string]interface{}{
+			input: map[string]any{
 				"b": "value-b",
 				"a": "value-a",
-				"c": map[string]interface{}{
+				"c": map[string]any{
 					"z": "value-z",
 					"y": "value-y",
 				},
 			},
-			want: map[string]interface{}{
+			want: map[string]any{
 				"a": "value-a",
 				"b": "value-b",
-				"c": map[string]interface{}{
+				"c": map[string]any{
 					"y": "value-y",
 					"z": "value-z",
 				},
@@ -69,33 +69,33 @@ func TestSortMapSlice(t *testing.T) {
 		},
 		{
 			name: "map with slices",
-			input: map[string]interface{}{
-				"b": []interface{}{"apple", "banana", "cherry"},
-				"a": []interface{}{"orange", "grape"},
-				"c": []interface{}{"strawberry"},
+			input: map[string]any{
+				"b": []any{"apple", "banana", "cherry"},
+				"a": []any{"orange", "grape"},
+				"c": []any{"strawberry"},
 			},
-			want: map[string]interface{}{
-				"a": []interface{}{"orange", "grape"},
-				"b": []interface{}{"apple", "banana", "cherry"},
-				"c": []interface{}{"strawberry"},
+			want: map[string]any{
+				"a": []any{"orange", "grape"},
+				"b": []any{"apple", "banana", "cherry"},
+				"c": []any{"strawberry"},
 			},
 		},
 		{
 			name: "map with mixed data types",
-			input: map[string]interface{}{
+			input: map[string]any{
 				"b": 50,
 				"a": "value-a",
-				"c": []interface{}{"strawberry", "banana"},
-				"d": map[string]interface{}{
+				"c": []any{"strawberry", "banana"},
+				"d": map[string]any{
 					"x": true,
 					"y": 123,
 				},
 			},
-			want: map[string]interface{}{
+			want: map[string]any{
 				"a": "value-a",
 				"b": 50,
-				"c": []interface{}{"strawberry", "banana"},
-				"d": map[string]interface{}{
+				"c": []any{"strawberry", "banana"},
+				"d": map[string]any{
 					"x": true,
 					"y": 123,
 				},
@@ -103,68 +103,68 @@ func TestSortMapSlice(t *testing.T) {
 		},
 		{
 			name: "map with complex structure",
-			input: map[string]interface{}{
-				"a": map[string]interface{}{
+			input: map[string]any{
+				"a": map[string]any{
 					"c": "value-c",
 					"b": "value-b",
 					"a": "value-a",
 				},
 				"b": "value-b",
-				"c": map[string]interface{}{
-					"z": map[string]interface{}{
+				"c": map[string]any{
+					"z": map[string]any{
 						"a": "value-a",
 						"b": "value-b",
 						"c": "value-c",
 					},
 					"y": "value-y",
 				},
-				"d": map[string]interface{}{
+				"d": map[string]any{
 					"q": "value-q",
 					"p": "value-p",
 					"r": "value-r",
 				},
-				"e": []interface{}{"strawberry", "banana"},
-				"f": []interface{}{
-					[]interface{}{
-						map[string]interface{}{
-							"f1": map[string]interface{}{
+				"e": []any{"strawberry", "banana"},
+				"f": []any{
+					[]any{
+						map[string]any{
+							"f1": map[string]any{
 								"f1q": "value-f1q",
 								"f1p": "value-f1p",
 								"f1r": "value-f1r",
 							},
 						},
-						map[string]interface{}{
-							"f2": map[string]interface{}{
+						map[string]any{
+							"f2": map[string]any{
 								"f2q": "value-f2q",
 								"f2p": "value-f2p",
 								"f2r": "value-f2r",
 							},
 						},
-						map[string]interface{}{
-							"f3": map[string]interface{}{
+						map[string]any{
+							"f3": map[string]any{
 								"f3q": "value-f3q",
 								"f3p": "value-f3p",
 								"f3r": "value-f3r",
 							},
 						},
 					},
-					[]interface{}{
-						map[string]interface{}{
-							"F1": map[string]interface{}{
+					[]any{
+						map[string]any{
+							"F1": map[string]any{
 								"F1q": "value-F1q",
 								"F1p": "value-F1p",
 								"F1r": "value-F1r",
 							},
 						},
-						map[string]interface{}{
-							"F2": map[string]interface{}{
+						map[string]any{
+							"F2": map[string]any{
 								"F2q": "value-F2q",
 								"F2p": "value-F2p",
 								"F2r": "value-F2r",
 							},
 						},
-						map[string]interface{}{
-							"F3": map[string]interface{}{
+						map[string]any{
+							"F3": map[string]any{
 								"F3q": "value-F3q",
 								"F3p": "value-F3p",
 								"F3r": "value-F3r",
@@ -173,68 +173,68 @@ func TestSortMapSlice(t *testing.T) {
 					},
 				},
 			},
-			want: map[string]interface{}{
-				"a": map[string]interface{}{
+			want: map[string]any{
+				"a": map[string]any{
 					"a": "value-a",
 					"b": "value-b",
 					"c": "value-c",
 				},
 				"b": "value-b",
-				"c": map[string]interface{}{
+				"c": map[string]any{
 					"y": "value-y",
-					"z": map[string]interface{}{
+					"z": map[string]any{
 						"a": "value-a",
 						"b": "value-b",
 						"c": "value-c",
 					},
 				},
-				"d": map[string]interface{}{
+				"d": map[string]any{
 					"p": "value-p",
 					"q": "value-q",
 					"r": "value-r",
 				},
-				"e": []interface{}{"strawberry", "banana"},
-				"f": []interface{}{
-					[]interface{}{
-						map[string]interface{}{
-							"f1": map[string]interface{}{
+				"e": []any{"strawberry", "banana"},
+				"f": []any{
+					[]any{
+						map[string]any{
+							"f1": map[string]any{
 								"f1p": "value-f1p",
 								"f1q": "value-f1q",
 								"f1r": "value-f1r",
 							},
 						},
-						map[string]interface{}{
-							"f2": map[string]interface{}{
+						map[string]any{
+							"f2": map[string]any{
 								"f2p": "value-f2p",
 								"f2q": "value-f2q",
 								"f2r": "value-f2r",
 							},
 						},
-						map[string]interface{}{
-							"f3": map[string]interface{}{
+						map[string]any{
+							"f3": map[string]any{
 								"f3p": "value-f3p",
 								"f3q": "value-f3q",
 								"f3r": "value-f3r",
 							},
 						},
 					},
-					[]interface{}{
-						map[string]interface{}{
-							"F1": map[string]interface{}{
+					[]any{
+						map[string]any{
+							"F1": map[string]any{
 								"F1p": "value-F1p",
 								"F1q": "value-F1q",
 								"F1r": "value-F1r",
 							},
 						},
-						map[string]interface{}{
-							"F2": map[string]interface{}{
+						map[string]any{
+							"F2": map[string]any{
 								"F2p": "value-F2p",
 								"F2q": "value-F2q",
 								"F2r": "value-F2r",
 							},
 						},
-						map[string]interface{}{
-							"F3": map[string]interface{}{
+						map[string]any{
+							"F3": map[string]any{
 								"F3p": "value-F3p",
 								"F3q": "value-F3q",
 								"F3r": "value-F3r",
@@ -246,13 +246,13 @@ func TestSortMapSlice(t *testing.T) {
 		},
 		{
 			name: "map with empty slices and maps",
-			input: map[string]interface{}{
-				"b": []interface{}{},
-				"a": map[string]interface{}{},
+			input: map[string]any{
+				"b": []any{},
+				"a": map[string]any{},
 			},
-			want: map[string]interface{}{
-				"a": map[string]interface{}{},
-				"b": []interface{}{},
+			want: map[string]any{
+				"a": map[string]any{},
+				"b": []any{},
 			},
 		},
 	}

@@ -40,7 +40,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cryptov1 "github.com/fluxcd/pkg/apis/crypto/v1"
 	"github.com/fluxcd/pkg/auth"
@@ -60,20 +59,16 @@ func TestNewAccessCredential(t *testing.T) {
 
 	// Create a default service account.
 	defaultServiceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "default",
-			Namespace: "default",
-		},
+		Name:      "default",
+		Namespace: "default",
 	}
 	err := kubeClient.Create(ctx, defaultServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	// Create a lockdown service account for testing lockdown functionality.
 	lockdownServiceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "lockdown-sa",
-			Namespace: "default",
-		},
+		Name:      "lockdown-sa",
+		Namespace: "default",
 	}
 	err = kubeClient.Create(ctx, lockdownServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
@@ -360,10 +355,8 @@ func TestNewAccessCredential_ControllerLevelAudienceCacheKey(t *testing.T) {
 			auth.WithProxyURL(url.URL{Scheme: "http", Host: "proxy.io:8080"}),
 			auth.WithCAData("ca-data"),
 			auth.WithObject("", "test", &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test",
-				},
+				Name:      "test",
+				Namespace: "test",
 			}),
 			auth.WithCache(*tokenCache),
 		}
@@ -460,10 +453,8 @@ func TestNewAccessCredential_GCPWorkloadIdentityProviderCacheKey(t *testing.T) {
 	kubeClient, oidcClient := newTestEnv(t, ctx)
 
 	defaultServiceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "default",
-			Namespace: "default",
-		},
+		Name:      "default",
+		Namespace: "default",
 	}
 	err := kubeClient.Create(ctx, defaultServiceAccount)
 	g.Expect(err).NotTo(HaveOccurred())
@@ -600,11 +591,9 @@ func TestNewAccessCredentialSPIFFE(t *testing.T) {
 	ctx := context.Background()
 
 	object := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "object",
-			Namespace: "flux-system",
-			UID:       "object-uid",
-		},
+		Name:      "object",
+		Namespace: "flux-system",
+		UID:       "object-uid",
 	}
 	brokerAPIClient := &mockBrokerAPIClient{
 		t:     t,
@@ -642,18 +631,14 @@ func TestNewAccessCredentialSPIFFECacheKey(t *testing.T) {
 	provider := spiffeMockProvider(t)
 
 	objectA := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "object-a",
-			Namespace: "flux-system",
-			UID:       "object-a-uid",
-		},
+		Name:      "object-a",
+		Namespace: "flux-system",
+		UID:       "object-a-uid",
 	}
 	objectB := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "object-b",
-			Namespace: "flux-system",
-			UID:       "object-b-uid",
-		},
+		Name:      "object-b",
+		Namespace: "flux-system",
+		UID:       "object-b-uid",
 	}
 
 	// Same object: the second call is served from the cache.
@@ -866,11 +851,9 @@ func TestNewAccessCredentialProvidedJWT(t *testing.T) {
 
 func actionsOIDCObject(name string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: "flux-system",
-			UID:       "object-uid",
-		},
+		Name:      name,
+		Namespace: "flux-system",
+		UID:       "object-uid",
 	}
 }
 

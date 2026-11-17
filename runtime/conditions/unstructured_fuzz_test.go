@@ -38,7 +38,7 @@ func Fuzz_Unstructured(f *testing.F) {
 		}}
 
 		u := &unstructured.Unstructured{
-			Object: map[string]interface{}{},
+			Object: map[string]any{},
 		}
 		s := UnstructuredSetter(u)
 		s.SetConditions(cs)

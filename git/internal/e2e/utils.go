@@ -52,9 +52,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	// to the backing Git provider, so we retry for a fixed amount of time.
 	g.Eventually(func() error {
 		_, err := client.Clone(context.TODO(), repoURL.String(), repository.CloneConfig{
-			CheckoutStrategy: repository.CheckoutStrategy{
-				Branch: "main",
-			},
+			Branch: "main",
 		})
 		return err
 	}, timeout).Should(Succeed())

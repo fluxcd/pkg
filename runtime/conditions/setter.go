@@ -95,7 +95,7 @@ func Set(to Setter, condition *metav1.Condition) {
 }
 
 // TrueCondition returns a condition with Status=True and the given type, reason and message.
-func TrueCondition(t, reason, messageFormat string, messageArgs ...interface{}) *metav1.Condition {
+func TrueCondition(t, reason, messageFormat string, messageArgs ...any) *metav1.Condition {
 	return &metav1.Condition{
 		Type:    t,
 		Status:  metav1.ConditionTrue,
@@ -105,7 +105,7 @@ func TrueCondition(t, reason, messageFormat string, messageArgs ...interface{}) 
 }
 
 // FalseCondition returns a condition with Status=False and the given type, reason and message.
-func FalseCondition(t, reason, messageFormat string, messageArgs ...interface{}) *metav1.Condition {
+func FalseCondition(t, reason, messageFormat string, messageArgs ...any) *metav1.Condition {
 	return &metav1.Condition{
 		Type:    t,
 		Status:  metav1.ConditionFalse,
@@ -115,7 +115,7 @@ func FalseCondition(t, reason, messageFormat string, messageArgs ...interface{})
 }
 
 // UnknownCondition returns a condition with Status=Unknown and the given type, reason and message.
-func UnknownCondition(t, reason, messageFormat string, messageArgs ...interface{}) *metav1.Condition {
+func UnknownCondition(t, reason, messageFormat string, messageArgs ...any) *metav1.Condition {
 	return &metav1.Condition{
 		Type:    t,
 		Status:  metav1.ConditionUnknown,
@@ -125,17 +125,17 @@ func UnknownCondition(t, reason, messageFormat string, messageArgs ...interface{
 }
 
 // MarkTrue sets Status=True for the condition with the given type, reason and message.
-func MarkTrue(to Setter, t, reason, messageFormat string, messageArgs ...interface{}) {
+func MarkTrue(to Setter, t, reason, messageFormat string, messageArgs ...any) {
 	Set(to, TrueCondition(t, reason, messageFormat, messageArgs...))
 }
 
 // MarkUnknown sets Status=Unknown for the condition with the given type, reason and message.
-func MarkUnknown(to Setter, t, reason, messageFormat string, messageArgs ...interface{}) {
+func MarkUnknown(to Setter, t, reason, messageFormat string, messageArgs ...any) {
 	Set(to, UnknownCondition(t, reason, messageFormat, messageArgs...))
 }
 
 // MarkFalse sets Status=False for the condition with the given type, reason and message.
-func MarkFalse(to Setter, t, reason, messageFormat string, messageArgs ...interface{}) {
+func MarkFalse(to Setter, t, reason, messageFormat string, messageArgs ...any) {
 	Set(to, FalseCondition(t, reason, messageFormat, messageArgs...))
 }
 
@@ -143,7 +143,7 @@ func MarkFalse(to Setter, t, reason, messageFormat string, messageArgs ...interf
 // meta.StalledCondition. This is normally called at the beginning of a reconcile run for an object.
 // For more information about the condition types, see the kstatus spec:
 // https://github.com/kubernetes-sigs/cli-utils/blob/e351b2bc43cec2107ba1d874c3dec54fd0956c59/pkg/kstatus/README.md#conditions
-func MarkReconciling(to Setter, reason, messageFormat string, messageArgs ...interface{}) {
+func MarkReconciling(to Setter, reason, messageFormat string, messageArgs ...any) {
 	Delete(to, meta.StalledCondition)
 	MarkTrue(to, meta.ReconcilingCondition, reason, messageFormat, messageArgs...)
 }
@@ -153,7 +153,7 @@ func MarkReconciling(to Setter, reason, messageFormat string, messageArgs ...int
 // object. A common approach is to mark the object stalled if the object is not requeued as a reconcile result.
 // For more information about the condition types, see the kstatus spec:
 // https://github.com/kubernetes-sigs/cli-utils/blob/e351b2bc43cec2107ba1d874c3dec54fd0956c59/pkg/kstatus/README.md#conditions
-func MarkStalled(to Setter, reason, messageFormat string, messageArgs ...interface{}) {
+func MarkStalled(to Setter, reason, messageFormat string, messageArgs ...any) {
 	Delete(to, meta.ReconcilingCondition)
 	MarkTrue(to, meta.StalledCondition, reason, messageFormat, messageArgs...)
 }

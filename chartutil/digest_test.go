@@ -47,16 +47,16 @@ func TestDigestValues(t *testing.T) {
 			algo: digest.SHA256,
 			values: common.Values{
 				"replicas": 3,
-				"image": map[string]interface{}{
+				"image": map[string]any{
 					"tag":        "latest",
 					"repository": "nginx",
 				},
-				"ports": []interface{}{
-					map[string]interface{}{
+				"ports": []any{
+					map[string]any{
 						"protocol": "TCP",
 						"port":     8080,
 					},
-					map[string]interface{}{
+					map[string]any{
 						"port":     9090,
 						"protocol": "UDP",
 					},
@@ -68,16 +68,16 @@ func TestDigestValues(t *testing.T) {
 			name: "value map in different order",
 			algo: digest.SHA256,
 			values: common.Values{
-				"image": map[string]interface{}{
+				"image": map[string]any{
 					"repository": "nginx",
 					"tag":        "latest",
 				},
-				"ports": []interface{}{
-					map[string]interface{}{
+				"ports": []any{
+					map[string]any{
 						"port":     8080,
 						"protocol": "TCP",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"port":     9090,
 						"protocol": "UDP",
 					},
@@ -93,7 +93,7 @@ func TestDigestValues(t *testing.T) {
 			algo: digest.SHA256,
 			values: common.Values{
 				"replicas": 3,
-				"test": map[string]interface{}{
+				"test": map[string]any{
 					"632bd80235a05f4192aefade": "value1",
 					"632bd80ddf416cf32fd50679": "value2",
 					"632bd817c559818a52307da2": "value3",
@@ -106,7 +106,7 @@ func TestDigestValues(t *testing.T) {
 			name: "values map with numeric keys in different order",
 			algo: digest.SHA256,
 			values: common.Values{
-				"test": map[string]interface{}{
+				"test": map[string]any{
 					"632bd82398e71231a98004b6": "value4",
 					"632bd817c559818a52307da2": "value3",
 					"632bd80ddf416cf32fd50679": "value2",
@@ -121,7 +121,7 @@ func TestDigestValues(t *testing.T) {
 			algo: digest.SHA512,
 			values: common.Values{
 				"foo": "bar",
-				"baz": map[string]interface{}{
+				"baz": map[string]any{
 					"cool": "stuff",
 				},
 			},
@@ -171,16 +171,16 @@ func TestVerifyValues(t *testing.T) {
 			name:   "matching values",
 			digest: "sha256:fcdc2b0de1581a3633ada4afee3f918f6eaa5b5ab38c3fef03d5b48d3f85d9f6",
 			values: common.Values{
-				"image": map[string]interface{}{
+				"image": map[string]any{
 					"repository": "nginx",
 					"tag":        "latest",
 				},
-				"ports": []interface{}{
-					map[string]interface{}{
+				"ports": []any{
+					map[string]any{
 						"port":     8080,
 						"protocol": "TCP",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"port":     9090,
 						"protocol": "UDP",
 					},
@@ -194,16 +194,16 @@ func TestVerifyValues(t *testing.T) {
 			digest: "sha256:fcdc2b0de1581a3633ada4afee3f918f6eaa5b5ab38c3fef03d5b48d3f85d9f6",
 			values: common.Values{
 				"replicas": 3,
-				"image": map[string]interface{}{
+				"image": map[string]any{
 					"tag":        "latest",
 					"repository": "nginx",
 				},
-				"ports": []interface{}{
-					map[string]interface{}{
+				"ports": []any{
+					map[string]any{
 						"protocol": "TCP",
 						"port":     8080,
 					},
-					map[string]interface{}{
+					map[string]any{
 						"port":     9090,
 						"protocol": "UDP",
 					},
@@ -216,7 +216,7 @@ func TestVerifyValues(t *testing.T) {
 			digest: "sha256:8a980fcbeadd6f05818f07e8aec14070c22250ca3d96af1fcd5f93b3e85b4d70",
 			values: common.Values{
 				"replicas": 3,
-				"test": map[string]interface{}{
+				"test": map[string]any{
 					"632bd80235a05f4192aefade": "value1",
 					"632bd80ddf416cf32fd50679": "value2",
 					"632bd817c559818a52307da2": "value3",

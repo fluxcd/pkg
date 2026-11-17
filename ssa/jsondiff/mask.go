@@ -60,15 +60,15 @@ func MaskSecretPatchData(patch jsondiff.Patch) jsondiff.Patch {
 // maskMap replaces the values with a default mask value if a field is added or
 // removed. Otherwise, it replaces the values with a before/after mask value if
 // the field is modified.
-func maskMap(from interface{}, to interface{}) {
-	fromMap, fromIsMap := from.(map[string]interface{})
+func maskMap(from any, to any) {
+	fromMap, fromIsMap := from.(map[string]any)
 	if !fromIsMap || fromMap == nil {
-		fromMap = make(map[string]interface{})
+		fromMap = make(map[string]any)
 	}
 
-	toMap, toIsMap := to.(map[string]interface{})
+	toMap, toIsMap := to.(map[string]any)
 	if !toIsMap || toMap == nil {
-		toMap = make(map[string]interface{})
+		toMap = make(map[string]any)
 	}
 
 	for k := range fromMap {

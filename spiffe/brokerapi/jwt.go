@@ -98,10 +98,7 @@ func (c *client) fetchJWTSVID(ctx context.Context, workload *brokerpb.WorkloadRe
 
 // fetchBackoff returns the delay before the next fetch attempt.
 func fetchBackoff(attempt int) time.Duration {
-	d := time.Second * time.Duration(attempt)
-	if d > 30*time.Second {
-		d = 30 * time.Second
-	}
+	d := min(time.Second*time.Duration(attempt), 30*time.Second)
 	return d
 }
 

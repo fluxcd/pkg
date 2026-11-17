@@ -43,7 +43,7 @@ type ConditionMatcher struct {
 	Expected *metav1.Condition
 }
 
-func (matcher *ConditionMatcher) Match(actual interface{}) (success bool, err error) {
+func (matcher *ConditionMatcher) Match(actual any) (success bool, err error) {
 	actualCondition, ok := actual.(*metav1.Condition)
 	if !ok {
 		return false, errors.New("value should be a condition")
@@ -51,10 +51,10 @@ func (matcher *ConditionMatcher) Match(actual interface{}) (success bool, err er
 	return hasSameState(actualCondition, matcher.Expected), nil
 }
 
-func (matcher *ConditionMatcher) FailureMessage(actual interface{}) (message string) {
+func (matcher *ConditionMatcher) FailureMessage(actual any) (message string) {
 	return format.Message(actual, "to have the same state of", matcher.Expected)
 }
 
-func (matcher *ConditionMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+func (matcher *ConditionMatcher) NegatedFailureMessage(actual any) (message string) {
 	return format.Message(actual, "not to have the same state of", matcher.Expected)
 }

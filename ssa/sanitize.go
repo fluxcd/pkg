@@ -77,7 +77,7 @@ func SanitizeUnstructuredData(old, new *unstructured.Unstructured) error {
 
 // getUnstructuredData returns the data map from an Unstructured. If the given
 // object is nil or does not contain a data map, nil is returned.
-func getUnstructuredData(u *unstructured.Unstructured) (map[string]interface{}, error) {
+func getUnstructuredData(u *unstructured.Unstructured) (map[string]any, error) {
 	if u == nil {
 		return nil, nil
 	}

@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -74,10 +73,9 @@ func TestProvider_NewControllerToken(t *testing.T) {
 			provider := azure.Provider{Implementation: impl}
 			credential, err := provider.NewControllerToken(context.Background(), opts...)
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(credential).To(Equal(&azure.AccessToken{AccessToken: azcore.AccessToken{
+			g.Expect(credential).To(Equal(&azure.AccessToken{
 				Token:     "access-token",
-				ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-			}}))
+				ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}))
 		})
 	}
 }
@@ -128,10 +126,9 @@ func TestProvider_NewAccessCredentialForIdentity(t *testing.T) {
 
 			if tt.err == "" {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(credential).To(Equal(&azure.AccessToken{AccessToken: azcore.AccessToken{
+				g.Expect(credential).To(Equal(&azure.AccessToken{
 					Token:     "access-token",
-					ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-				}}))
+					ExpiresOn: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(Equal(tt.err))
@@ -734,10 +731,9 @@ func TestProvider_NewGitCredentials(t *testing.T) {
 	}{
 		{
 			name: "valid Azure access credential is returned as bearer token",
-			accessCredential: &azure.AccessToken{AccessToken: azcore.AccessToken{
+			accessCredential: &azure.AccessToken{
 				Token:     "aad-token",
-				ExpiresOn: expiresOn,
-			}},
+				ExpiresOn: expiresOn},
 			expected: &auth.GitCredentials{
 				BearerToken: "aad-token",
 				ExpiresAt:   expiresOn,

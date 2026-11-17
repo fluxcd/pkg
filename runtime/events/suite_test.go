@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -53,9 +52,7 @@ func TestMain(m *testing.M) {
 
 	// Create test namespace.
 	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "gitops-system",
-		},
+		Name: "gitops-system",
 	}
 	if err := env.Client.Create(ctx, ns); err != nil {
 		panic(fmt.Sprintf("Failed to create gitops-system namespace: %v", err))

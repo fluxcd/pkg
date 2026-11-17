@@ -25,6 +25,7 @@ package conditions
 
 import (
 	"reflect"
+	"slices"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
@@ -93,12 +94,7 @@ type applyOptions struct {
 }
 
 func (o *applyOptions) isOwnedCondition(t string) bool {
-	for _, i := range o.ownedConditions {
-		if i == t {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(o.ownedConditions, t)
 }
 
 // ApplyOption defines an option for applying a condition patch.

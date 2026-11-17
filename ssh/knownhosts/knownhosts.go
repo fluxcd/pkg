@@ -262,7 +262,7 @@ func (db *inMemoryHostKeyDB) parseLine(line []byte) error {
 
 func newHostnameMatcher(pattern string) (matcher, error) {
 	var hps hostPatterns
-	for _, p := range strings.Split(pattern, ",") {
+	for p := range strings.SplitSeq(pattern, ",") {
 		if len(p) == 0 {
 			continue
 		}

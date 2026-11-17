@@ -79,10 +79,8 @@ func TestControllerBuilder(t *testing.T) {
 	// Create a ConfigMap and expect the reconciler to be called.
 	g.Expect(nr.reconciled.Load()).To(BeFalse())
 	g.Expect(kubeClient.Create(ctx, &corev1.ConfigMap{
-		ObjectMeta: ctrl.ObjectMeta{
-			Name:      "test-configmap",
-			Namespace: "default",
-		},
+		Name:      "test-configmap",
+		Namespace: "default",
 	})).To(Succeed())
 	g.Eventually(func() bool { return nr.reconciled.Load() }, time.Second).To(BeTrue())
 

@@ -59,29 +59,29 @@ func TestDiff_DriftIgnoreRules_IgnoredFieldReturnsUnchanged(t *testing.T) {
 	}
 
 	vpaObj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "apps/v1",
 			"kind":       "Deployment",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"replicas": int64(5),
-				"selector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
 						"app": id,
 					},
 				},
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				"template": map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"app": id,
 						},
 					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name":  "podinfod",
 								"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 							},
@@ -207,29 +207,29 @@ func TestDiff_DriftIgnoreRules_StripsIgnoredFieldsFromReturnedObjects(t *testing
 
 	// Cause drift in the ignored field (replicas) via another controller.
 	vpaObj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "apps/v1",
 			"kind":       "Deployment",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      id,
 				"namespace": id,
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"replicas": int64(10),
-				"selector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
 						"app": id,
 					},
 				},
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
+				"template": map[string]any{
+					"metadata": map[string]any{
+						"labels": map[string]any{
 							"app": id,
 						},
 					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name":  "podinfod",
 								"image": "ghcr.io/stefanprodan/podinfo:6.0.0",
 							},

@@ -35,7 +35,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var proxiedRequests int32
+var proxiedRequests atomic.Int32
 
 func Test_SOCKS5_proxy(t *testing.T) {
 	g := NewWithT(t)
@@ -58,7 +58,7 @@ func Test_SOCKS5_proxy(t *testing.T) {
 	os.Setenv("ALL_PROXY", fmt.Sprintf("socks5://%s", proxyAddr))
 	defer os.Unsetenv("ALL_PROXY")
 
-	atomic.StoreInt32(&proxiedRequests, 0)
+	proxiedRequests.Store(0)
 
 	repoPath := "test.git"
 	server, err := setupGitServer(repoPath)
@@ -96,19 +96,17 @@ func Test_SOCKS5_proxy(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	_, err = ggc.Clone(context.TODO(), repoURL, repository.CloneConfig{
-		CheckoutStrategy: repository.CheckoutStrategy{
-			Branch: "main",
-		},
+		Branch:       "main",
 		ShallowClone: true,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	g.Expect(atomic.LoadInt32(&proxiedRequests) > 0).To(Equal(true))
+	g.Expect(proxiedRequests.Load() > 0).To(Equal(true))
 }
 
 type TestProxyRule struct{}
 
 func (dr TestProxyRule) Allow(ctx context.Context, req *socks5.Request) (context.Context, bool) {
-	atomic.AddInt32(&proxiedRequests, 1)
+	proxiedRequests.Add(1)
 	return ctx, true
 }

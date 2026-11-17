@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 
@@ -216,9 +217,7 @@ func LoadVariables(ctx context.Context, kubeClient client.Client, kustomization 
 
 	if fn, ok := ctx.Value(secretVarsCollectorKey{}).(func(map[string]string)); ok && fn != nil {
 		snapshot := make(map[string]string, len(secretVars))
-		for k, v := range secretVars {
-			snapshot[k] = v
-		}
+		maps.Copy(snapshot, secretVars)
 		fn(snapshot)
 	}
 
@@ -262,7 +261,7 @@ func getSubstituteFrom(kustomization unstructured.Unstructured) ([]SubstituteRef
 	if ok {
 		res := make([]SubstituteReference, 0, len(substituteFrom))
 		for k, s := range substituteFrom {
-			sub, ok := s.(map[string]interface{})
+			sub, ok := s.(map[string]any)
 			if !ok {
 				err := fmt.Errorf("unable to convert patch %d to map[string]interface{}", k)
 				resultErr = errors.Join(resultErr, err)
