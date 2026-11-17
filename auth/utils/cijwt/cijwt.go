@@ -38,14 +38,14 @@ package cijwt
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
-
-	gojwt "github.com/golang-jwt/jwt/v5"
 
 	"github.com/fluxcd/pkg/auth/jwt"
 )
@@ -119,9 +119,9 @@ func WithHostTokenFunc(host string, fn TokenFunc) Option {
 }
 
 // WithHostJWK configures host to be authenticated with a JWT signed locally
-// using a private key parsed from jwk (a single JSON Web Key holding an Ed25519
-// or ECDSA private key; the signing algorithm is derived from the key type, see
-// the jwt package). Each request gets a freshly signed, 60-second-lived token
+// using a private key parsed from jwk (a single JSON Web Key holding an Ed25519,
+// ECDSA or ML-DSA private key; see the jwt package for how the signing algorithm
+// is selected, including the RFC 9964 "alg" member required by AKP keys). Each request gets a freshly signed, 60-second-lived token
 // carrying iss, every audience in auds, and sub as given and the signing key's
 // id in the "kid" header. Unlike WithHostAudience, the token is never cached.
 func WithHostJWK(host, jwk, iss string, auds []string, sub string) Option {
@@ -305,17 +305,27 @@ func (t *Transport) tokenForHost(ctx context.Context, host string) (string, bool
 // tokenExpiry extracts the 'exp' claim from a compact-serialized JWT without
 // verifying its signature. The token was just produced by a caller-supplied
 // fn so we trust it; we only need the expiry to schedule re-minting.
+//
+// The payload is decoded directly rather than through a JWT parser so that
+// tokens signed with an algorithm the parser does not know, such as a
+// post-quantum one, are still accepted.
 func tokenExpiry(token string) (time.Time, error) {
-	tok, _, err := gojwt.NewParser().ParseUnverified(token, gojwt.MapClaims{})
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to parse minted token: %w", err)
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return time.Time{}, fmt.Errorf("minted token is not a compact JWS")
 	}
-	exp, err := tok.Claims.GetExpirationTime()
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to read exp claim from minted token: %w", err)
+		return time.Time{}, fmt.Errorf("failed to decode minted token payload: %w", err)
 	}
-	if exp == nil {
+	var claims struct {
+		Exp *float64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse minted token claims: %w", err)
+	}
+	if claims.Exp == nil {
 		return time.Time{}, fmt.Errorf("minted token has no exp claim")
 	}
-	return exp.Time, nil
+	return time.Unix(int64(*claims.Exp), 0), nil
 }
