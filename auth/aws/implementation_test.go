@@ -126,7 +126,7 @@ func (m *mockImplementation) GetAuthorizationToken(ctx context.Context, cfg aws.
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(m.publicECR).To(BeFalse())
-	m.checkGetAuthorizationToken(ctx, cfg)
+	m.checkGetAuthorizationToken(cfg)
 	return &ecr.GetAuthorizationTokenOutput{
 		AuthorizationData: []ecrtypes.AuthorizationData{{
 			AuthorizationToken: aws.String(base64.StdEncoding.EncodeToString([]byte(m.returnUsername + ":" + m.returnPassword))),
@@ -139,7 +139,7 @@ func (m *mockImplementation) GetPublicAuthorizationToken(ctx context.Context, cf
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(m.publicECR).To(BeTrue())
-	m.checkGetAuthorizationToken(ctx, cfg)
+	m.checkGetAuthorizationToken(cfg)
 	return &ecrpublic.GetAuthorizationTokenOutput{
 		AuthorizationData: &ecrpublictypes.AuthorizationData{
 			AuthorizationToken: aws.String(base64.StdEncoding.EncodeToString([]byte(m.returnUsername + ":" + m.returnPassword))),
@@ -229,7 +229,7 @@ func (m *mockImplementation) PresignGetCallerIdentity(ctx context.Context, optFn
 	}, nil
 }
 
-func (m *mockImplementation) checkGetAuthorizationToken(ctx context.Context, cfg aws.Config) {
+func (m *mockImplementation) checkGetAuthorizationToken(cfg aws.Config) {
 	m.t.Helper()
 	g := NewWithT(m.t)
 	g.Expect(cfg.Region).To(Equal(m.argRegion))

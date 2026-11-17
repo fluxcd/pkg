@@ -153,11 +153,6 @@ func TestKubeConfig(t *testing.T) {
 	}
 }
 
-//go:fix inline
-func duration(d time.Duration) *time.Duration {
-	return new(d)
-}
-
 const testKubeConfigInline = `apiVersion: v1
 kind: Config
 clusters:

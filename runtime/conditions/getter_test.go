@@ -36,16 +36,15 @@ import (
 )
 
 var (
-	nil1             *metav1.Condition
-	true1            = TrueCondition("true1", "reason true1", "message true1")
-	unknown1         = UnknownCondition("unknown1", "reason unknown1", "message unknown1")
-	false1           = FalseCondition("false1", "reason false1", "message false1")
-	readyTrue        = TrueCondition(meta.ReadyCondition, "reason readyTrue", "message readyTrue")
-	readyFalse       = FalseCondition(meta.ReadyCondition, "reason readyFalse", "message readyFalse")
-	stalledTrue      = TrueCondition(meta.StalledCondition, "reason stalledTrue", "message stalledTrue")
-	stalledFalse     = FalseCondition(meta.StalledCondition, "reason stalledFalse", "message stalledFalse")
-	reconcilingTrue  = TrueCondition(meta.ReconcilingCondition, "reason reconcilingTrue", "message reconcilingTrue")
-	reconcilingFalse = TrueCondition(meta.ReconcilingCondition, "reason reconcilingFalse", "message reconcilingFalse")
+	nil1            *metav1.Condition
+	true1           = TrueCondition("true1", "reason true1", "message true1")
+	unknown1        = UnknownCondition("unknown1", "reason unknown1", "message unknown1")
+	false1          = FalseCondition("false1", "reason false1", "message false1")
+	readyTrue       = TrueCondition(meta.ReadyCondition, "reason readyTrue", "message readyTrue")
+	readyFalse      = FalseCondition(meta.ReadyCondition, "reason readyFalse", "message readyFalse")
+	stalledTrue     = TrueCondition(meta.StalledCondition, "reason stalledTrue", "message stalledTrue")
+	stalledFalse    = FalseCondition(meta.StalledCondition, "reason stalledFalse", "message stalledFalse")
+	reconcilingTrue = TrueCondition(meta.ReconcilingCondition, "reason reconcilingTrue", "message reconcilingTrue")
 )
 
 func TestGetAndHas(t *testing.T) {

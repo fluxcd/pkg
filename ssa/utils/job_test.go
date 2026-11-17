@@ -136,11 +136,6 @@ func TestExtractJobsWithTTL(t *testing.T) {
 	}
 }
 
-//go:fix inline
-func int64Ptr(v int64) *int64 {
-	return new(v)
-}
-
 func makeJob(name, namespace string, ttlSecondsAfterFinished *int64) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
 	obj.SetAPIVersion("batch/v1")

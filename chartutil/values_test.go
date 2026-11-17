@@ -208,9 +208,9 @@ config:
     token: placeholder
 `,
 			want: common.Values{
-				"config": map[string]interface{}{
-					"a": map[string]interface{}{"token": "real"},
-					"b": map[string]interface{}{"token": "real"},
+				"config": map[string]any{
+					"a": map[string]any{"token": "real"},
+					"b": map[string]any{"token": "real"},
 				},
 			},
 		},
@@ -264,7 +264,7 @@ token: placeholder
 				},
 			},
 			want: common.Values{
-				"config": map[string]interface{}{"token": "two"},
+				"config": map[string]any{"token": "two"},
 			},
 		},
 		{
@@ -547,15 +547,15 @@ config:
 	got, err := ChartValuesFromReferences(context.TODO(), logr.Discard(), c, "", values, refs...)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(got).To(Equal(common.Values{
-		"config": map[string]interface{}{
+		"config": map[string]any{
 			"token": "real",
-			"list":  []interface{}{"real"},
+			"list":  []any{"real"},
 		},
 	}))
 	g.Expect(values).To(Equal(common.Values{
-		"config": map[string]interface{}{
+		"config": map[string]any{
 			"token": "placeholder",
-			"list":  []interface{}{"placeholder"},
+			"list":  []any{"placeholder"},
 		},
 	}))
 }

@@ -277,22 +277,22 @@ func ChartValuesFromReferences(ctx context.Context, log logr.Logger, client kube
 
 // deepCopyValues returns a copy of values in which nested maps and slices
 // are copied as well.
-func deepCopyValues(values map[string]interface{}) map[string]interface{} {
-	out := make(map[string]interface{}, len(values))
+func deepCopyValues(values map[string]any) map[string]any {
+	out := make(map[string]any, len(values))
 	for k, v := range values {
 		out[k] = deepCopyValue(v)
 	}
 	return out
 }
 
-func deepCopyValue(v interface{}) interface{} {
+func deepCopyValue(v any) any {
 	switch v := v.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return deepCopyValues(v)
 	case common.Values:
 		return common.Values(deepCopyValues(v))
-	case []interface{}:
-		out := make([]interface{}, len(v))
+	case []any:
+		out := make([]any, len(v))
 		for i := range v {
 			out[i] = deepCopyValue(v[i])
 		}

@@ -104,11 +104,6 @@ func (m *cacheMetrics) deleteCacheEvent(event string, lvs ...string) {
 	m.cacheEventsCounter.DeleteLabelValues(lvs...)
 }
 
-// SetCachedItems sets the number of cached items.
-func (m *cacheMetrics) setCachedItems(value float64) {
-	m.cacheItemsGauge.Set(value)
-}
-
 // incCacheItems increments the number of cached items by 1.
 func (m *cacheMetrics) incCacheItems() {
 	m.cacheItemsGauge.Inc()
