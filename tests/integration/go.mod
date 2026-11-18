@@ -27,9 +27,9 @@ require (
 	github.com/fluxcd/cli-utils v1.4.0
 	github.com/fluxcd/pkg/apis/crypto v0.8.0
 	github.com/fluxcd/pkg/apis/meta v1.39.0
-	github.com/fluxcd/pkg/auth v0.72.0
+	github.com/fluxcd/pkg/auth v0.73.0
 	github.com/fluxcd/pkg/cache v0.20.0
-	github.com/fluxcd/pkg/git v0.58.0
+	github.com/fluxcd/pkg/git v0.59.0
 	github.com/fluxcd/pkg/runtime v0.123.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20250626232827-e0ca9c3f8d7b
 	github.com/go-git/go-git/v5 v5.19.3
