@@ -17,7 +17,6 @@ limitations under the License.
 package masktoken
 
 import (
-	"fmt"
 	"regexp"
 )
 
@@ -30,7 +29,7 @@ func MaskTokenFromString(log string, token string) (string, error) {
 		return log, nil
 	}
 
-	re, err := regexp.Compile(fmt.Sprintf("%s*", regexp.QuoteMeta(token)))
+	re, err := regexp.Compile(regexp.QuoteMeta(token))
 	if err != nil {
 		return "", err
 	}

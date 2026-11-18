@@ -76,7 +76,7 @@ func Test_MaskTokenFromError(t *testing.T) {
 			name:           "unescaped token",
 			token:          "8h0387hdyehbwwa45\\",
 			originalErrStr: `Cannot post to github with token metoo8h0387hdyehbwwa45\\\n`,
-			expectedErrStr: `Cannot post to github with token metoo*****n`,
+			expectedErrStr: `Cannot post to github with token metoo*****\\n`,
 		},
 		{
 			name:           "invalid chars",
@@ -102,4 +102,50 @@ func Test_MaskTokenFromError(t *testing.T) {
 		}
 	}
 
+}
+
+func Test_MaskTokenFromString_ExactMatch(t *testing.T) {
+	tests := []struct {
+		name     string
+		token    string
+		input    string
+		expected string
+	}{
+		{
+			name:     "redacts only the full token",
+			token:    "github",
+			input:    "token github here",
+			expected: "token ***** here",
+		},
+		{
+			name:     "does not redact a token prefix",
+			token:    "github",
+			input:    "error near githu here",
+			expected: "error near githu here",
+		},
+		{
+			name:     "single character token leaves other text intact",
+			token:    "a",
+			input:    "bob",
+			expected: "bob",
+		},
+		{
+			name:     "single character token is redacted",
+			token:    "a",
+			input:    "bab",
+			expected: "b*****b",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MaskTokenFromString(tt.input, tt.token)
+			if err != nil {
+				t.Fatalf("returned unexpected error: %s", err)
+			}
+			if got != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, got)
+			}
+		})
+	}
 }
