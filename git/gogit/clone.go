@@ -67,10 +67,7 @@ func (g *Client) cloneBranch(ctx context.Context, url, branch string, opts repos
 		}
 	}
 
-	var depth int
-	if opts.ShallowClone {
-		depth = 1
-	}
+	depth := cloneDepth(opts)
 	cloneOpts := &extgogit.CloneOptions{
 		URL:               url,
 		Auth:              authMethod,
@@ -167,10 +164,7 @@ func (g *Client) cloneTag(ctx context.Context, url, tag string, opts repository.
 		}
 	}
 
-	var depth int
-	if opts.ShallowClone {
-		depth = 1
-	}
+	depth := cloneDepth(opts)
 	cloneOpts := &extgogit.CloneOptions{
 		URL:               url,
 		Auth:              authMethod,
@@ -317,10 +311,7 @@ func (g *Client) cloneSemVer(ctx context.Context, url, semverTag string, opts re
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct auth method with options: %w", err)
 	}
-	var depth int
-	if opts.ShallowClone {
-		depth = 1
-	}
+	depth := cloneDepth(opts)
 	cloneOpts := &extgogit.CloneOptions{
 		URL:               url,
 		Auth:              authMethod,
@@ -489,6 +480,19 @@ func (g *Client) cloneRefName(ctx context.Context, url string, refName string, c
 	}
 
 	return g.cloneCommit(ctx, url, hash.String(), cloneOpts)
+}
+
+// cloneDepth returns the number of commits to clone for the given
+// configuration: Depth when set, 1 for a shallow clone, and 0 (the full
+// history) otherwise.
+func cloneDepth(opts repository.CloneConfig) int {
+	if opts.Depth > 0 {
+		return opts.Depth
+	}
+	if opts.ShallowClone {
+		return 1
+	}
+	return 0
 }
 
 func recurseSubmodules(recurse bool) extgogit.SubmoduleRescursivity {
