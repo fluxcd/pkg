@@ -186,8 +186,8 @@ func (fs *boundWorktreeFS) expandDot(name string) string {
 		prefixes, seps = []string{"./", ".\\"}, `/\`
 	}
 	for _, prefix := range prefixes {
-		if strings.HasPrefix(name, prefix) {
-			name = strings.TrimLeft(strings.TrimPrefix(name, prefix), seps)
+		if after, ok := strings.CutPrefix(name, prefix); ok {
+			name = strings.TrimLeft(after, seps)
 			if name == "" {
 				return fs.Root()
 			}
