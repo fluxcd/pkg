@@ -15,7 +15,7 @@ replace (
 require (
 	github.com/fluxcd/go-git-providers v0.29.0
 	github.com/fluxcd/pkg/auth v0.66.2
-	github.com/fluxcd/pkg/git v0.56.1
+	github.com/fluxcd/pkg/git v0.56.2
 	github.com/fluxcd/pkg/gittestserver v0.33.0
 	github.com/fluxcd/pkg/ssh v0.29.1
 	github.com/go-git/go-git/v5 v5.19.3
