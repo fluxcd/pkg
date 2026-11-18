@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -482,8 +483,7 @@ func errorKind(err error) string {
 	if errors.Is(err, osfs.ErrBaseDirCannotBeRemoved) {
 		return "base dir"
 	}
-	var errno syscall.Errno
-	if errors.As(err, &errno) {
+	if errno, ok := errors.AsType[syscall.Errno](err); ok {
 		return errno.Error()
 	}
 	return "other: " + err.Error()
@@ -632,7 +632,7 @@ func TestSwitchBranch_symlinks(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			_, err = ggc.Clone(context.TODO(), server.HTTPAddress()+"/test.git", repository.CloneConfig{
-				CheckoutStrategy:          repository.CheckoutStrategy{Branch: "from"},
+				Branch:                    "from",
 				SparseCheckoutDirectories: tt.sparse,
 			})
 			g.Expect(err).ToNot(HaveOccurred())
@@ -680,7 +680,7 @@ func TestClone_commitRemovesSymlink(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	cc, err := ggc.Clone(context.TODO(), server.HTTPAddress()+"/test.git", repository.CloneConfig{
-		CheckoutStrategy: repository.CheckoutStrategy{Commit: commit.String()},
+		Commit: commit.String(),
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(cc.Hash.String()).To(Equal(commit.String()))
@@ -691,12 +691,7 @@ func TestClone_commitRemovesSymlink(t *testing.T) {
 }
 
 func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(list, s)
 }
 
 func sparseTree(tree testTree, dirs []string) testTree {
@@ -943,7 +938,7 @@ func TestCommit_symlinkIntoGitDir(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			_, err = ggc.Clone(context.TODO(), server.HTTPAddress()+"/test.git", repository.CloneConfig{
-				CheckoutStrategy: repository.CheckoutStrategy{Branch: "from"},
+				Branch: "from",
 			})
 			g.Expect(err).ToNot(HaveOccurred())
 
