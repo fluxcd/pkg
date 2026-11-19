@@ -468,7 +468,7 @@ func TestWaitForSet_RateLimiterErrorIncludesObjectNames(t *testing.T) {
 	// Before the fix, statusCollector.Error was returned directly without
 	// any object context, producing: "rate: Wait(n=1) would exceed context deadline".
 	// After the fix, the per-object status loop runs first, producing:
-	// "timeout waiting for: [Deployment/id/does-not-exist status: 'NotFound']".
+	// "timeout waiting for: [Deployment/id/does-not-exist status: 'NotFound': Resource not found]".
 	g.Expect(errMsg).To(ContainSubstring("does-not-exist"),
 		"error must contain the name of the non-existent resource")
 	g.Expect(errMsg).To(ContainSubstring("timeout waiting for"),
@@ -527,6 +527,81 @@ func TestWaitForSet_ErrorOnReaderError(t *testing.T) {
 
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(Equal("timeout waiting for: [ConfigMap/default/test status: 'Unknown': error reading status]"))
+}
+
+func TestWaitForSet_StatusMessage(t *testing.T) {
+	g := NewWithT(t)
+
+	inProgress := generateName("in-progress")
+	failed := generateName("failed")
+	for _, name := range []string{inProgress, failed} {
+		err := manager.client.Create(context.Background(), &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]any{
+					"name":      name,
+					"namespace": "default",
+				},
+			},
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+	}
+
+	manager.poller = polling.NewStatusPoller(manager.client, restMapper, polling.Options{
+		CustomStatusReaders: []engine.StatusReader{
+			kstatusreaders.NewGenericStatusReader(restMapper,
+				func(u *unstructured.Unstructured) (*status.Result, error) {
+					switch u.GetName() {
+					case inProgress:
+						return &status.Result{
+							Status:  status.InProgressStatus,
+							Message: "Helm upgrade failed: context deadline exceeded",
+						}, nil
+					case failed:
+						return &status.Result{
+							Status:  status.FailedStatus,
+							Message: "Failed to upgrade after 1 attempt(s)",
+						}, nil
+					}
+					return status.Compute(u)
+				},
+			),
+		},
+	})
+	defer func() {
+		manager.poller = poller
+	}()
+
+	objMeta := func(name string) object.ObjMetadata {
+		return object.ObjMetadata{
+			Name:      name,
+			Namespace: "default",
+			GroupKind: schema.GroupKind{Group: "", Kind: "ConfigMap"},
+		}
+	}
+	opts := WaitOptions{
+		Interval: 40 * time.Millisecond,
+		Timeout:  200 * time.Millisecond,
+	}
+
+	t.Run("timeout includes the status message", func(t *testing.T) {
+		g := NewWithT(t)
+		err := manager.WaitForSet([]object.ObjMetadata{objMeta(inProgress)}, opts)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(Equal(fmt.Sprintf(
+			"timeout waiting for: [ConfigMap/default/%s status: 'InProgress': Helm upgrade failed: context deadline exceeded]",
+			inProgress)))
+	})
+
+	t.Run("stalled resource includes the status message", func(t *testing.T) {
+		g := NewWithT(t)
+		err := manager.WaitForSet([]object.ObjMetadata{objMeta(failed)}, opts)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(Equal(fmt.Sprintf(
+			"failed early due to stalled resources: [ConfigMap/default/%s status: 'Failed': Failed to upgrade after 1 attempt(s)]",
+			failed)))
+	})
 }
 
 func TestWaitWithContext_Cancellation(t *testing.T) {
