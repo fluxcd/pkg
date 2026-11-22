@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "github.com/google/go-containerregistry/pkg/crane"
 	. "github.com/onsi/gomega"
 )
 
