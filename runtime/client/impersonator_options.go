@@ -76,3 +76,15 @@ func WithPolling(clusterReader engine.ClusterReaderFactory,
 		i.pollingReaders = readers
 	}
 }
+
+// WithWarningHandler sets the handler for API server warnings on the
+// clients built by the Impersonator. The handler replaces controller-runtime's
+// default KubeAPIWarningLogger, so implementations that want warnings to keep
+// appearing in the controller logs must delegate to it. The handler is shared
+// by the client, the status poller and the REST mapper's discovery requests,
+// and must be safe for concurrent use.
+func WithWarningHandler(handler rest.WarningHandlerWithContext) ImpersonatorOption {
+	return func(i *Impersonator) {
+		i.warningHandler = handler
+	}
+}

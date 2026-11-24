@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	rc "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -443,4 +444,55 @@ func TestNewImpersonator(t *testing.T) {
 		g.Expect(imp.kubeConfigOpts).To(Equal(opts))
 		g.Expect(imp.kubeConfigNamespace).To(Equal("config-ns"))
 	})
+
+	t.Run("applies warning handler option", func(t *testing.T) {
+		g := NewWithT(t)
+		handler := &testWarningHandler{}
+
+		ref := &meta.KubeConfigReference{}
+		provider := func(
+			ctx context.Context,
+			ref meta.KubeConfigReference,
+			client rc.Client,
+		) (*rest.Config, error) {
+			return rest.CopyConfig(testEnv.Config), nil
+		}
+		imp := NewImpersonator(testEnv.Client,
+			WithKubeConfig(ref, KubeConfigOptions{}, "", provider),
+			WithWarningHandler(handler),
+		)
+		g.Expect(imp.warningHandler).To(BeIdenticalTo(handler))
+
+		client, _, err := imp.GetClient(ctx)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(client).NotTo(BeNil())
+
+		obj := &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]any{
+					"name":      "warning-test",
+					"namespace": "default",
+				},
+				"unknownField": "test",
+			},
+		}
+		err = client.Create(ctx, obj, rc.DryRunAll)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(handler.warnings).To(ConsistOf("unknown field \"unknownField\""))
+	})
+}
+
+type testWarningHandler struct {
+	warnings []string
+}
+
+func (h *testWarningHandler) HandleWarningHeaderWithContext(
+	_ context.Context,
+	_ int,
+	_ string,
+	message string,
+) {
+	h.warnings = append(h.warnings, message)
 }

@@ -49,6 +49,7 @@ type Impersonator struct {
 	scheme                  *runtime.Scheme
 	pollingOpts             *polling.Options
 	pollingReaders          []func(apimeta.RESTMapper) engine.StatusReader
+	warningHandler          rest.WarningHandlerWithContext
 }
 
 // NewImpersonator creates an Impersonator from the given arguments.
@@ -104,6 +105,8 @@ func (i *Impersonator) clientForServiceAccountOrDefault() (rc.Client, *polling.S
 	if err != nil {
 		return nil, nil, err
 	}
+
+	i.applyRESTConfigOptions(restConfig)
 	i.setImpersonationConfig(restConfig)
 
 	restMapper, err := NewDynamicRESTMapper(restConfig)
@@ -128,6 +131,8 @@ func (i *Impersonator) defaultClient() (rc.Client, *polling.StatusPoller, error)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	i.applyRESTConfigOptions(restConfig)
 
 	restMapper, err := NewDynamicRESTMapper(restConfig)
 	if err != nil {
@@ -164,6 +169,7 @@ func (i *Impersonator) clientForKubeConfig(ctx context.Context) (rc.Client, *pol
 	}
 
 	restConfig = KubeConfig(ctx, restConfig, i.kubeConfigOpts)
+	i.applyRESTConfigOptions(restConfig)
 	i.setImpersonationConfig(restConfig)
 
 	restMapper, err := NewDynamicRESTMapper(restConfig)
@@ -217,6 +223,12 @@ func (i *Impersonator) getRESTConfigFromSecret(ctx context.Context) (*rest.Confi
 		return nil, fmt.Errorf("invalid KubeConfig in secret '%s': %w", secretName, err)
 	}
 	return restConfig, nil
+}
+
+func (i *Impersonator) applyRESTConfigOptions(restConfig *rest.Config) {
+	if i.warningHandler != nil {
+		restConfig.WarningHandlerWithContext = i.warningHandler
+	}
 }
 
 func (i *Impersonator) setImpersonationConfig(restConfig *rest.Config) {
