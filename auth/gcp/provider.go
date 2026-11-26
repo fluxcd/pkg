@@ -22,6 +22,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"slices"
+	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"golang.org/x/oauth2"
@@ -182,9 +185,38 @@ func (Provider) GetAccessCredentialOptionsForArtifactRepository(string, ...auth.
 	return nil, nil
 }
 
+// extraRegistryHostsEnvVar names an environment variable holding a
+// comma-separated list of additional artifact registry hosts to accept, on top
+// of cryptov1.RegistryPatternGCP. It exists for sovereign Google Cloud
+// universes whose Artifact Registry endpoint is neither *.pkg.dev nor one of
+// the hosts in cryptov1.RegistryPatternGCP, for example the Trusted Partner
+// Cloud endpoints of the form docker.pkg-<universe-domain>.
+//
+// Hosts are compared for exact equality rather than interpreted as a pattern
+const extraRegistryHostsEnvVar = "GCP_ARTIFACT_REGISTRY_HOSTS"
+
+// isExtraRegistryHost reports whether registry is listed in the environment
+// variable named by extraRegistryHostsEnvVar.
+func isExtraRegistryHost(registry string) bool {
+	return registry != "" && slices.Contains(strings.Split(os.Getenv(extraRegistryHostsEnvVar), ","), registry)
+}
+
 // ParseArtifactRepository implements auth.Provider.
 func (Provider) ParseArtifactRepository(artifactRepository string) (string, error) {
-	return cryptov1.ParseArtifactRepository(ProviderName, artifactRepository)
+	if registryInput, err := cryptov1.ParseArtifactRepository(ProviderName, artifactRepository); err == nil {
+		return registryInput, nil
+	}
+	registry, err := cryptov1.GetRegistryFromArtifactRepository(artifactRepository)
+	if err != nil {
+		return "", err
+	}
+	if !isExtraRegistryHost(registry) {
+		return "", fmt.Errorf("invalid GCP registry: '%s'. must match %s or be listed in %s",
+			registry, cryptov1.RegistryPatternGCP, extraRegistryHostsEnvVar)
+	}
+	// The artifact repository is irrelevant for issuing GCP registry credentials,
+	// so the cache key is simply the provider name.
+	return ProviderName, nil
 }
 
 // NewArtifactRegistryCredentials implements auth.Provider.
