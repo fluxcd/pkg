@@ -225,6 +225,7 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 		name           string
 		clusterAddress string
 		caData         string
+		host           string
 		err            string
 	}{
 		{
@@ -235,10 +236,17 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			name:           "with CA data",
 			clusterAddress: "https://example.com",
 			caData:         "----- BEGIN CERTIFICATE-----",
+			host:           "https://example.com:443",
 		},
 		{
 			name:           "without CA data",
 			clusterAddress: "https://example.com",
+			host:           "https://example.com:443",
+		},
+		{
+			name:           "address with path",
+			clusterAddress: "https://gateway.example.com/clusters/prod-1",
+			host:           "https://gateway.example.com:443/clusters/prod-1",
 		},
 		{
 			name:           "invalid address",
@@ -270,7 +278,7 @@ func TestProvider_NewRESTConfig(t *testing.T) {
 			g.Expect(conf).NotTo(BeNil())
 
 			// Validate REST config.
-			g.Expect(conf.Host).To(Equal("https://example.com:443"))
+			g.Expect(conf.Host).To(Equal(tt.host))
 			g.Expect(conf.CAData).To(Equal([]byte(tt.caData)))
 			g.Expect(conf.BearerToken).To(Equal("token"))
 			g.Expect(conf.ExpiresAt).To(Equal(expiresAt))
