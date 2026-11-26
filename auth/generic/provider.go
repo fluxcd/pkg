@@ -196,7 +196,7 @@ func (Provider) NewRESTConfig(ctx context.Context, accessCredentials []auth.Cred
 		return nil, errors.New("cluster address is required to create a REST config")
 	}
 	var err error
-	host, err = cryptov1.ParseClusterAddress(host)
+	host, err = cryptov1.ParseClusterURL(host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse cluster address %s: %w", o.ClusterAddress, err)
 	}
